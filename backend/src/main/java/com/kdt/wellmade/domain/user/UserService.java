@@ -36,6 +36,7 @@ public class UserService {
                     userProfileRepository.save(
                         UserProfile.builder()
                             .user(saved)
+                            .name(generateRandomNickname())
                             .build());
                     return saved;
     });
@@ -55,7 +56,7 @@ public class UserService {
              String noun = NOUNS[random.nextInt(NOUNS.length)];
              int number = random.nextInt(1000, 10000);
              nickname =  adjective + noun + number;
-        } while (userProfileRepository.exiexistsByName(nickname));
+        } while (userProfileRepository.existsByName(nickname));
        return nickname;
     }
 }
