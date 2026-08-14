@@ -38,7 +38,7 @@ public class User {
     @Column(name = "provider_id", nullable = false, length = 100)
     private String providerId;
 
-    @Column(length = 100)
+    @Column(length = 255)
     private String email;
 
     @Column(name = "created_at", nullable = false, updatable = false)
