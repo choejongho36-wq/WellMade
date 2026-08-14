@@ -1,4 +1,10 @@
 package com.kdt.wellmade.domain.mapage;
 
-public record UserProfileUpdateRequest(String name, String profileImageUrl, Goal goal) {
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record UserProfileUpdateRequest(
+    @NotBlank @Size(max = 50) String name, 
+    @Size(max = 500) String profileImageUrl, 
+    Goal goal) {
 }

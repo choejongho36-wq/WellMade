@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.kdt.wellmade.domain.user.User;
 import com.kdt.wellmade.domain.user.UserService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -26,7 +27,7 @@ public class UserProfileController {
     }
 
     @PutMapping
-    public void updateMyProfile(@AuthenticationPrincipal Long userId, @RequestBody UserProfileUpdateRequest request) {
+    public void updateMyProfile(@AuthenticationPrincipal Long userId,@Valid @RequestBody UserProfileUpdateRequest request) {
         User user = userService.getUser(userId);
         userProfileService.updateProfile(user, request.name(), request.profileImageUrl(), request.goal());
     }
