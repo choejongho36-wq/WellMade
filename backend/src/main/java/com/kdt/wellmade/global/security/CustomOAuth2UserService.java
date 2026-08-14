@@ -15,7 +15,6 @@ import com.kdt.wellmade.domain.user.UserService;
 
 import lombok.RequiredArgsConstructor;
 
-// ponytail: 구글의 "sub"/"email" 속성명만 처리. 카카오/네이버 붙일 때 registrationId별 매핑 필요.
 @Service
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
@@ -30,11 +29,40 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             userRequest.getClientRegistration().getRegistrationId().toUpperCase(Locale.ROOT));
 
         Map<String, Object> attributes = oAuth2User.getAttributes();
-        String providerId = String.valueOf(attributes.get("sub"));
-        String email = (String) attributes.get("email");
+        String providerId = extractProviderId(provider, attributes);
+        String email = extractEmail(provider, attributes);
 
         User user = userService.loginOrRegister(provider, providerId, email);
 
-        return new CustomOAuth2User(user.getId(), attributes, "sub");
+        return new CustomOAuth2User(user.getId(), attributes, nameAttributeKey(provider));
+    }
+
+    // ponytail: 카카오/네이버는 application.yml에 client 등록 전 등록 시 user-name-attribute 값도 아래 키와 맞춰야 함.
+    private String extractProviderId(Provider provider, Map<String, Object> attributes) {
+        return switch (provider) {
+            case GOOGLE -> String.valueOf(attributes.get("sub"));
+            case KAKAO -> String.valueOf(attributes.get("id"));
+            case NAVER -> String.valueOf(responseAttributes(attributes).get("id"));
+        };
+    }
+
+    private String extractEmail(Provider provider, Map<String, Object> attributes) {
+        return switch (provider) {
+            case GOOGLE -> (String) attributes.get("email");
+            case KAKAO -> (String) ((Map<?, ?>) attributes.get("kakao_account")).get("email");
+            case NAVER -> (String) responseAttributes(attributes).get("email");
+        };
+    }
+
+    private String nameAttributeKey(Provider provider) {
+        return switch (provider) {
+            case GOOGLE -> "sub";
+            case KAKAO -> "id";
+            case NAVER -> "response";
+        };
+    }
+
+    private Map<?, ?> responseAttributes(Map<String, Object> attributes) {
+        return (Map<?, ?>) attributes.get("response");
     }
 }
