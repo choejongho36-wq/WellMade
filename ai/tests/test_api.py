@@ -207,6 +207,48 @@ def test_personalized_hip_range_invalid_calibration_is_safe():
     assert low == high == 160
 
 
+def make_lunge_landmarks(front_knee_form="good"):
+    """런지 ML 보조 판정(/ai/ml/lunge/analyze) 테스트용 33개 랜드마크.
+    왼쪽 다리를 앞다리(더 굽혀진 쪽, 무릎 각도 약 90도)로, 오른쪽 다리를 뒷다리
+    (거의 편 상태, 약 180도)로 배치한다 — extract_lunge_features()가 "더 굽혀진 쪽"을
+    앞다리로 판단하는 휴리스틱을 쓰기 때문."""
+    lms = [landmark() for _ in range(33)]
+    lms[11] = landmark(0.5, 0.2)  # LEFT_SHOULDER
+    lms[23] = landmark(0.5, 0.5)  # LEFT_HIP (앞다리)
+    lms[25] = landmark(0.5, 0.75)  # LEFT_KNEE (앞다리 무릎, 각도 약 90도)
+    lms[27] = landmark(0.75, 0.75)  # LEFT_ANKLE
+    if front_knee_form == "good":
+        lms[31] = landmark(0.9, 0.78)  # LEFT_FOOT_INDEX: 발끝(0.9)이 무릎(0.5)보다 훨씬 앞 -> 무릎이 발끝을 안 넘음
+    else:  # "knee_over_toe": 발끝이 무릎보다 뒤에 있어 무릎이 발끝을 넘은 것처럼 배치
+        lms[31] = landmark(0.3, 0.78)
+    lms[24] = landmark(0.5, 0.5)  # RIGHT_HIP (뒷다리)
+    lms[26] = landmark(0.5, 0.75)  # RIGHT_KNEE
+    lms[28] = landmark(0.5, 1.0)  # RIGHT_ANKLE (뒷다리 무릎 각도 약 180도, 거의 편 상태)
+    return lms
+
+
+def test_ml_lunge_analyze_returns_valid_response():
+    # 학습된 모델이 실제로 판정 방향까지 항상 맞다고 단정하기는 어려우므로(96% 테스트 정확도),
+    # 여기서는 "정상적인 형태의 응답을 반환하는가"(구조/범위)를 검증한다 — 규칙기반 테스트처럼
+    # 특정 자세에서 반드시 True/False가 나와야 한다고 강하게 단정하지 않는다.
+    body = {"landmarks": make_lunge_landmarks("good")}
+    res = client.post("/ai/ml/lunge/analyze", json=body)
+    print("ml_lunge_analyze(good):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert isinstance(data["is_normal"], bool)
+    assert 0.0 <= data["correct_probability"] <= 1.0
+    assert isinstance(data["model_name"], str) and len(data["model_name"]) > 0
+
+
+def test_ml_lunge_analyze_knee_over_toe_case_runs_without_error():
+    # 극단적인(무릎이 발끝을 크게 넘은) 입력에도 서버가 에러 없이 응답해야 한다.
+    body = {"landmarks": make_lunge_landmarks("knee_over_toe")}
+    res = client.post("/ai/ml/lunge/analyze", json=body)
+    print("ml_lunge_analyze(knee_over_toe):", res.status_code, res.json())
+    assert res.status_code == 200
+
+
 def test_coaching_frame_hip_calibration_changes_normal_judgement():
     # 무릎은 정상범위(70~100) 안에서 정지, 엉덩이는 110도로 정지한 상황.
     # 고정 NORMAL_RANGES(60~100)로는 110이 범위 밖이라 이상으로 판정되지만,
@@ -248,5 +290,7 @@ if __name__ == "__main__":
     test_session_end_sustained_poor_form()
     test_personalized_hip_range_formula()
     test_personalized_hip_range_invalid_calibration_is_safe()
+    test_ml_lunge_analyze_returns_valid_response()
+    test_ml_lunge_analyze_knee_over_toe_case_runs_without_error()
     test_coaching_frame_hip_calibration_changes_normal_judgement()
     print("\nALL MANUAL CHECKS PASSED")

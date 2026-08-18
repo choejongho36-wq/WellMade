@@ -20,6 +20,12 @@ LEFT_KNEE = 25
 RIGHT_KNEE = 26
 LEFT_ANKLE = 27
 RIGHT_ANKLE = 28
+# 아래 두 개는 규칙기반 각도 계산에는 안 쓰지만, ML 특징 추출(app/ml/features.py)에서
+# "무릎이 발끝보다 앞으로 나갔는지" 판단에 발끝(foot_index) 좌표가 필요해 추가했다.
+LEFT_HEEL = 29
+RIGHT_HEEL = 30
+LEFT_FOOT_INDEX = 31
+RIGHT_FOOT_INDEX = 32
 
 
 def calculate_angle(a: Landmark, b: Landmark, c: Landmark) -> float:

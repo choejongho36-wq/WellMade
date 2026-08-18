@@ -8,9 +8,11 @@ from fastapi import FastAPI
 from app.schemas import PoseAnalyzeRequest, PoseAnalyzeResponse, PoseIssue
 from app.schemas import CoachingFrameRequest, CoachingFrameResponse
 from app.schemas import SessionEndCheckRequest, SessionEndCheckResponse
+from app.schemas import MLLungeAnalyzeRequest, MLLungeAnalyzeResponse
 from app.pose.rules import judge_static_pose
 from app.coaching.realtime import judge_realtime_coaching
 from app.session.termination import judge_session_end
+from app.ml.lunge_classifier import classify_lunge_form
 
 app = FastAPI(title="WellMade AI Server")
 
@@ -76,4 +78,24 @@ def session_end_check(request: SessionEndCheckRequest):
         reason=result["reason"],
         normal_ratio=result["normal_ratio"],
         window_duration_sec=result["window_duration_sec"],
+    )
+
+
+@app.post("/ai/ml/lunge/analyze", response_model=MLLungeAnalyzeResponse)
+def ml_lunge_analyze(request: MLLungeAnalyzeRequest):
+    """
+    런지 자세 ML 기반 보조 판정 (전통 ML, 포트폴리오/비교실험 목적).
+    API 명세 표에 없는 신규 엔드포인트 — 팀 확정 필요.
+
+    기존 /ai/pose/analyze(규칙기반)를 대체하지 않는다. 실제 참가자 영상 기반 라벨
+    데이터(NgoQuocBao1010/Exercise-Correction)로 학습한 전통 ML 모델의 "참고용 2차 의견"만
+    제공하며, 이 결과를 프론트가 어떻게(그대로 노출 / 규칙기반과 다를 때만 표시 / 미사용)
+    쓸지는 팀이 정할 문제다.
+    """
+    result = classify_lunge_form(request.landmarks)
+
+    return MLLungeAnalyzeResponse(
+        is_normal=result["is_normal"],
+        correct_probability=result["correct_probability"],
+        model_name=result["model_name"],
     )

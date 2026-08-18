@@ -146,3 +146,24 @@ class SessionEndCheckResponse(BaseModel):
     reason: Literal["user_requested", "target_sustained", "in_progress", "no_data"]
     normal_ratio: float = Field(..., description="판단에 사용한 구간의 정상판정 비율(0~1)")
     window_duration_sec: float = Field(..., description="판단에 사용한 구간의 실제 길이(초)")
+
+
+# ---- 런지 ML 기반 보조 판정 (전통 ML, 포트폴리오/비교실험 목적 — API 명세 표에 없는 신규 엔드포인트) ----
+# 기존 규칙기반 판정(judge_static_pose)을 대체하지 않는 "참고용 2차 의견"이라는 점을 명확히
+# 하기 위해 별도 요청/응답 모델로 분리했다. 자세한 배경은 app/ml/lunge_classifier.py 주석 참고.
+
+
+class MLLungeAnalyzeRequest(BaseModel):
+    """런지 ML 보조 판정(/ai/ml/lunge/analyze) 요청.
+    특징 추출에 실제로 쓰이는 관절은 일부(어깨/엉덩이/무릎/발목/발끝)지만, 다른 정지 자세
+    판정 엔드포인트와 입력 형식을 통일해 프론트 구현 부담을 줄이기 위해 33개 전체를 받는다."""
+
+    landmarks: List[Landmark] = Field(
+        ..., min_length=33, max_length=33, description="MediaPipe Pose 33개 관절 좌표 (인덱스 순서 고정)"
+    )
+
+
+class MLLungeAnalyzeResponse(BaseModel):
+    is_normal: bool
+    correct_probability: float = Field(..., description="학습된 모델이 '정상 자세(C)'로 판단한 확률(0~1)")
+    model_name: str = Field(..., description="교차검증으로 선택된 전통 ML 알고리즘 이름 (예: RandomForest)")

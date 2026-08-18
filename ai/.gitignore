@@ -3,3 +3,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+
+# ML 학습 원본 데이터 (용량 문제로 커밋 안 함 — 재현 방법은 ml_training/README.md 참고)
+ml_training/data/
