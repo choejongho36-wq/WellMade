@@ -1,5 +1,16 @@
-import './App.css'
+import { useEffect, useState } from 'react'
+import './MainPage.css'
 import heroBg from './assets/hero-bg.png'
+import googleLoginImg from './assets/Google_login.png'
+import kakaoLoginImg from './assets/kakao_login_large_narrow.png'
+import naverLoginImg from './assets/NAVER_login_H48.png'
+
+const API_BASE = 'http://localhost:8080'
+const SOCIAL_PROVIDERS = [
+  { id: 'google', label: '구글로 시작하기', icon: googleLoginImg },
+  { id: 'kakao', label: '카카오로 시작하기', icon: kakaoLoginImg },
+  { id: 'naver', label: '네이버로 시작하기', icon: naverLoginImg },
+]
 
 const NAV_ITEMS = [
   { label: '대시보드', active: true },
@@ -44,14 +55,46 @@ function ThumbIcon() {
   )
 }
 
-function App() {
+function LoginModal({ onClose }) {
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
+        <div className="modal-title">WELLMADE 로그인</div>
+        <div className="modal-sub">소셜 계정으로 간편하게 시작하세요</div>
+        <div className="social-buttons">
+          {SOCIAL_PROVIDERS.map((p) => (
+            <a key={p.id} className="social-btn" href={`${API_BASE}/oauth2/authorization/${p.id}`}>
+              <img src={p.icon} alt={p.label} />
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MainPage() {
+  const [loginOpen, setLoginOpen] = useState(false)
+
   return (
     <div className="app">
+      <div className="sidebar-hotzone"></div>
+      <div className="sidebar-indicator"></div>
       <aside className="sidebar">
         <div className="logo">
           <div className="logo-mark"></div>
           <div className="logo-text">WELLMADE</div>
         </div>
+        <button className="login-btn" onClick={() => setLoginOpen(true)}>로그인</button>
         <nav className="nav">
           {NAV_ITEMS.map((item) => (
             <a key={item.label} className={`nav-item${item.active ? ' active' : ''}`} href="#">
@@ -70,24 +113,10 @@ function App() {
       </aside>
 
       <main className="main">
-        <section className="hero" style={{ backgroundImage: `url(${heroBg})` }}>
-          <div className="hero-top">
-            <div className="badge-live">
-              <span className="pulse"></span>AI 자세 분석 연동
-            </div>
-          </div>
-          <div className="eyebrow">AI 운동 코칭 · WELLMADE</div>
-          <h1>
-            한계를<br />넘어서다
+        <section className="hero" style={{ '--hero-bg': `url(${heroBg})` }}>
+          <h1 className="hero-title">
+            WELLMADE<br />YOURSELF
           </h1>
-          <p>
-            상세 측정부터 인사이트 비교, 맞춤 운동 추천, 실시간 코칭까지 — 당신의 몸을 데이터로 읽고
-            다음 단계를 제시합니다.
-          </p>
-          <div className="hero-cta">
-            <a className="btn btn-primary" href="#">코칭 프로그램 둘러보기</a>
-            <a className="btn btn-outline" href="#">상세 측정 시작</a>
-          </div>
         </section>
 
         <section className="content">
@@ -119,8 +148,10 @@ function App() {
           </div>
         </section>
       </main>
+
+      {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
     </div>
   )
 }
 
-export default App
+export default MainPage
