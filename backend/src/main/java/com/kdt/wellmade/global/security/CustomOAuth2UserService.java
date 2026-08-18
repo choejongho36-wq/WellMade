@@ -6,6 +6,7 @@ import java.util.Map;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
@@ -33,7 +34,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String email = extractEmail(provider, attributes);
 
         User user = userService.loginOrRegister(provider, providerId, email);
-
         return new CustomOAuth2User(user.getId(), attributes, nameAttributeKey(provider));
     }
 
@@ -47,11 +47,20 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     }
 
     private String extractEmail(Provider provider, Map<String, Object> attributes) {
-        return switch (provider) {
+        String email = switch (provider) {
             case GOOGLE -> (String) attributes.get("email");
-            case KAKAO -> (String) ((Map<?, ?>) attributes.get("kakao_account")).get("email");
+            case KAKAO -> {
+                Map<?, ?> kakaoAccount = (Map<?, ?>) attributes.get("kakao_account");
+                yield kakaoAccount == null ? null : (String) kakaoAccount.get("email");
+            }
             case NAVER -> (String) responseAttributes(attributes).get("email");
         };
+
+        if (email == null) {
+            throw new OAuth2AuthenticationException(
+                new OAuth2Error("EMAIL_NOT_CONSENTED"), "이메일 제공에 동의해야 로그인할 수 있습니다.");
+        }
+        return email;
     }
 
     private String nameAttributeKey(Provider provider) {
