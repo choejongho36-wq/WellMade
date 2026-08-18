@@ -10,14 +10,18 @@ a {
   text-decoration: none;
 }
 
-/* sidebar: hidden by default, slides in on hover (pure CSS, no JS needed) */
+/* sidebar: hidden until the hero reveal finishes, then fades in; hidden by default within itself, slides in on hover (pure CSS, no JS needed) */
 .sidebar-hotzone {
   position: fixed;
   top: 0;
   left: 0;
   bottom: 0;
-  width: 12px;
+  width: 80px;
   z-index: 30;
+  pointer-events: none;
+}
+.app.revealed .sidebar-hotzone {
+  pointer-events: auto;
 }
 /* always-visible sliver so users know a sidebar exists; the sidebar covers it when open */
 .sidebar-indicator {
@@ -30,6 +34,11 @@ a {
   filter: blur(4px);
   pointer-events: none;
   z-index: 15;
+  opacity: 0;
+  transition: opacity 1s ease 0.4s;
+}
+.app.revealed .sidebar-indicator {
+  opacity: 1;
 }
 .sidebar {
   position: fixed;
@@ -158,28 +167,88 @@ a {
   content: '';
   position: absolute;
   inset: -30px;
-  background-image:
-    radial-gradient(32% 26% at 18% 28%, rgba(255, 90, 55, 1), transparent 70%),
-    radial-gradient(28% 24% at 78% 20%, rgba(255, 130, 80, 0.9), transparent 70%),
-    radial-gradient(30% 26% at 60% 85%, rgba(255, 90, 55, 0.95), transparent 70%),
-    var(--hero-bg);
-  background-position: center, center, center, center 30%;
-  background-size: cover, cover, cover, cover;
+  background-image: var(--hero-bg);
+  background-position: center 30%;
+  background-size: cover;
   background-repeat: no-repeat;
-  background-blend-mode: screen, screen, screen, normal;
   filter: blur(30px) brightness(0.4);
+  transition: filter 1.4s ease;
+}
+.hero.revealed::before {
+  filter: blur(0) brightness(1);
 }
 .hero::after {
   content: '';
   position: absolute;
   inset: 0;
   background:
+    radial-gradient(32% 26% at 18% 28%, rgba(255, 90, 55, 0.4), transparent 70%),
+    radial-gradient(28% 24% at 78% 20%, rgba(255, 130, 80, 0.36), transparent 70%),
+    radial-gradient(30% 26% at 60% 85%, rgba(255, 90, 55, 0.38), transparent 70%),
     radial-gradient(120% 90% at 50% 50%, rgba(255, 90, 55, 0.22), transparent 75%),
     linear-gradient(180deg, rgba(10, 10, 10, 0.2) 0%, rgba(10, 10, 10, 0.8) 100%);
+  background-blend-mode: screen, screen, screen, normal, normal;
+  transition: opacity 1.4s ease;
 }
-.hero-title {
+.hero.revealed::after {
+  opacity: 0;
+}
+.hero-content {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  transition: opacity 1.4s ease, transform 1.4s ease;
+}
+.hero.revealed .hero-content {
+  opacity: 0;
+  transform: translateY(-60vh);
+}
+.hero-info {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 64px;
+  z-index: 1;
+  padding: 0 64px;
+  max-width: 560px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 1s ease 0.4s, transform 1s ease 0.4s;
+  pointer-events: none;
+}
+.hero.revealed .hero-info {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.hero-info-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #ff8a6b;
+  margin-bottom: 10px;
+}
+.hero-info-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #d4d3d0;
+  margin-bottom: 18px;
+}
+.hero-info-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: #e6432b;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.hero-title {
   font-family: 'Archivo Black', sans-serif;
   font-size: clamp(48px, 16vw, 240px);
   font-weight: 400;
@@ -195,6 +264,36 @@ a {
   -webkit-background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
+}
+.hero-reveal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f2f1ee;
+  cursor: pointer;
+  animation: hero-arrow-bounce 2s ease-in-out infinite;
+}
+.hero-reveal-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.hero.revealed .hero-reveal-btn {
+  animation: none;
+  pointer-events: none;
+}
+@keyframes hero-arrow-bounce {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(8px);
+    opacity: 1;
+  }
 }
 
 .content {

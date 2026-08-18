@@ -85,8 +85,10 @@ function LoginModal({ onClose }) {
 function MainPage() {
   const [loginOpen, setLoginOpen] = useState(false)
 
+  const [revealed, setRevealed] = useState(false)
+
   return (
-    <div className="app">
+    <div className={`app${revealed ? ' revealed' : ''}`}>
       <div className="sidebar-hotzone"></div>
       <div className="sidebar-indicator"></div>
       <aside className="sidebar">
@@ -113,40 +115,29 @@ function MainPage() {
       </aside>
 
       <main className="main">
-        <section className="hero" style={{ '--hero-bg': `url(${heroBg})` }}>
-          <h1 className="hero-title">
-            WELLMADE<br />YOURSELF
-          </h1>
-        </section>
-
-        <section className="content">
-          <div className="section-head">
-            <div>
-              <div className="section-eyebrow">PROGRAMS</div>
-              <div className="section-title">코칭 프로그램 소개</div>
-            </div>
-            <a className="section-link" href="#">전체 보기 →</a>
+        <section className={`hero${revealed ? ' revealed' : ''}`} style={{ '--hero-bg': `url(${heroBg})` }}>
+          <div className="hero-content">
+            <h1 className="hero-title">
+              WELLMADE<br />YOURSELF
+            </h1>
+            <button className="hero-reveal-btn" onClick={() => setRevealed(true)} aria-label="더 보기">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
           </div>
 
-          <div className="programs">
-            {PROGRAMS.map((p) => (
-              <div className="pcard" key={p.title}>
-                <div className="pcard-thumb">
-                  <ThumbIcon />
-                </div>
-                <div className="pcard-body">
-                  <div className="tag-row">
-                    <span className={`tag ${p.levelClass}`}>{p.level}</span>
-                    <span className="tag">{p.weeks}</span>
-                  </div>
-                  <div className="pcard-title">{p.title}</div>
-                  <div className="pcard-desc">{p.desc}</div>
-                  <a className="pcard-link" href="#">자세히 보기 →</a>
-                </div>
-              </div>
-            ))}
+          <div className="hero-info">
+            <div className="hero-info-eyebrow">AI 운동 코칭 · WELLMADE</div>
+            <p className="hero-info-desc">
+              상세 측정부터 인사이트 비교, 맞춤 운동 추천, 실시간 코칭까지 — 당신의 몸을 데이터로 읽고
+              다음 단계를 제시합니다.
+            </p>
+            <a className="hero-info-cta" href="#">코칭 프로그램 둘러보기 →</a>
           </div>
         </section>
+
+       
       </main>
 
       {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
