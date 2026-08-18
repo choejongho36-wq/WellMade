@@ -24,6 +24,15 @@ from app.schemas import Landmark
 
 MODEL_PATH = Path(__file__).resolve().parent / "models" / "lunge_form_classifier.joblib"
 
+# 런지는 이진분류(정상/이상)라 스쿼트처럼 오류 유형별 문구를 나눌 수 없다. 학습 라벨(C/L)
+# 자체가 "무릎 각도 벗어남"과 "무릎이 발끝을 넘음"을 하나로 합쳐서 판정하기 때문에,
+# 이상으로 판정됐을 때 두 원인을 모두 아우르는 문구 하나를 반환한다.
+# TODO: 팀 확정 필요 — 실제 사용자 테스트 후 문구 톤/길이 조정.
+LUNGE_COACHING_MESSAGE = (
+    "무릎 각도가 정상 범위를 벗어났거나 무릎이 발끝보다 앞으로 나갔습니다. "
+    "무릎이 발끝을 넘지 않는 선에서, 허벅지가 바닥과 평행해지는 지점까지만 앉아주세요."
+)
+
 # 모듈을 import할 때마다 디스크에서 모델을 다시 읽으면 요청마다 지연이 생기므로,
 # 최초 1회만 로딩해서 프로세스 메모리에 캐싱해둔다 (전형적인 lazy singleton 패턴).
 _model_bundle = None
@@ -62,8 +71,10 @@ def classify_lunge_form(landmarks: list[Landmark]) -> dict:
     proba = dict(zip(pipeline.classes_, pipeline.predict_proba(features)[0]))
     correct_probability = float(proba.get(1, 0.0))
 
+    is_normal = bool(prediction == 1)
     return {
-        "is_normal": bool(prediction == 1),
+        "is_normal": is_normal,
         "correct_probability": round(correct_probability, 4),
+        "coaching_message": None if is_normal else LUNGE_COACHING_MESSAGE,
         "model_name": bundle.get("model_name", "unknown"),
     }

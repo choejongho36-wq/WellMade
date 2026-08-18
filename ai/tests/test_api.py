@@ -247,6 +247,55 @@ def test_ml_lunge_analyze_knee_over_toe_case_runs_without_error():
     res = client.post("/ai/ml/lunge/analyze", json=body)
     print("ml_lunge_analyze(knee_over_toe):", res.status_code, res.json())
     assert res.status_code == 200
+    data = res.json()
+    # is_normal 여부와 coaching_message 유무가 서로 모순되면 안 된다
+    # (정상인데 문구가 있거나, 이상인데 문구가 없으면 버그).
+    assert (data["coaching_message"] is None) == data["is_normal"]
+
+
+def make_squat_landmarks(depth="deep"):
+    """스쿼트 ML 다중분류(/ai/ml/squat/analyze) 테스트용 33개 랜드마크.
+    좌우 다리를 대칭으로 배치해서 좌우비대칭(label=5)으로 오분류될 여지를 줄인다."""
+    lms = [landmark() for _ in range(33)]
+    lms[11] = landmark(0.4, 0.2)  # LEFT_SHOULDER
+    lms[12] = landmark(0.6, 0.2)  # RIGHT_SHOULDER
+    lms[23] = landmark(0.4, 0.5)  # LEFT_HIP
+    lms[24] = landmark(0.6, 0.5)  # RIGHT_HIP
+    if depth == "deep":
+        # 무릎을 깊게 굽힌 하단 자세 (엉덩이-무릎-발목이 대략 90도 근처)
+        lms[25] = landmark(0.4, 0.75)  # LEFT_KNEE
+        lms[26] = landmark(0.6, 0.75)  # RIGHT_KNEE
+        lms[27] = landmark(0.65, 0.75)  # LEFT_ANKLE
+        lms[28] = landmark(0.85, 0.75)  # RIGHT_ANKLE (다리 벌어짐 방향은 임의)
+    else:  # "standing": 거의 편 상태
+        lms[25] = landmark(0.4, 0.75)
+        lms[26] = landmark(0.6, 0.75)
+        lms[27] = landmark(0.4, 1.0)
+        lms[28] = landmark(0.6, 1.0)
+    lms[31] = landmark(0.75, 0.78)  # LEFT_FOOT_INDEX
+    lms[32] = landmark(0.95, 0.78)  # RIGHT_FOOT_INDEX
+    return lms
+
+
+def test_ml_squat_analyze_returns_valid_response():
+    body = {"landmarks": make_squat_landmarks("deep")}
+    res = client.post("/ai/ml/squat/analyze", json=body)
+    print("ml_squat_analyze(deep):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["predicted_label"] in (0, 1, 3, 4, 5)  # label=2(상체숙임)는 이 모델의 판정 대상이 아님
+    assert isinstance(data["label_name"], str) and len(data["label_name"]) > 0
+    assert 0.0 <= data["correct_probability"] <= 1.0
+    assert (data["coaching_message"] is None) == data["is_normal"]
+    assert isinstance(data["model_name"], str) and len(data["model_name"]) > 0
+
+
+def test_ml_squat_analyze_standing_case_runs_without_error():
+    # 학습 데이터 분포를 크게 벗어난(거의 선 자세) 입력에도 서버가 에러 없이 응답해야 한다.
+    body = {"landmarks": make_squat_landmarks("standing")}
+    res = client.post("/ai/ml/squat/analyze", json=body)
+    print("ml_squat_analyze(standing):", res.status_code, res.json())
+    assert res.status_code == 200
 
 
 def test_coaching_frame_hip_calibration_changes_normal_judgement():
@@ -292,5 +341,7 @@ if __name__ == "__main__":
     test_personalized_hip_range_invalid_calibration_is_safe()
     test_ml_lunge_analyze_returns_valid_response()
     test_ml_lunge_analyze_knee_over_toe_case_runs_without_error()
+    test_ml_squat_analyze_returns_valid_response()
+    test_ml_squat_analyze_standing_case_runs_without_error()
     test_coaching_frame_hip_calibration_changes_normal_judgement()
     print("\nALL MANUAL CHECKS PASSED")

@@ -166,4 +166,32 @@ class MLLungeAnalyzeRequest(BaseModel):
 class MLLungeAnalyzeResponse(BaseModel):
     is_normal: bool
     correct_probability: float = Field(..., description="학습된 모델이 '정상 자세(C)'로 판단한 확률(0~1)")
+    coaching_message: Optional[str] = Field(
+        None, description="이상으로 판정됐을 때의 한국어 교정 문구(TTS로 바로 읽을 수 있는 텍스트). 정상이면 null."
+    )
+    model_name: str = Field(..., description="교차검증으로 선택된 전통 ML 알고리즘 이름 (예: RandomForest)")
+
+
+# ---- 스쿼트 ML 기반 다중분류 보조 판정 (전통 ML, 포트폴리오/비교실험 목적) ----
+# 런지와 달리 이진(정상/이상)이 아니라 "어떤 오류인지"까지 다중분류로 구분한다 — 오류 유형별로
+# 다른 교정 문구(TTS 텍스트)를 보내달라는 요구사항 때문. 자세한 배경은
+# app/ml/squat_classifier.py 주석 참고.
+
+
+class MLSquatAnalyzeRequest(BaseModel):
+    """스쿼트 ML 다중분류 보조 판정(/ai/ml/squat/analyze) 요청."""
+
+    landmarks: List[Landmark] = Field(
+        ..., min_length=33, max_length=33, description="MediaPipe Pose 33개 관절 좌표 (인덱스 순서 고정)"
+    )
+
+
+class MLSquatAnalyzeResponse(BaseModel):
+    predicted_label: int = Field(..., description="예측된 라벨 번호 (0=정상, 1=얕음, 3=무릎모임, 4=발뒤꿈치뜸, 5=좌우비대칭)")
+    label_name: str = Field(..., description="라벨 번호에 대응하는 한국어 이름")
+    is_normal: bool
+    correct_probability: float = Field(..., description="학습된 모델이 '정상(label=0)'으로 판단한 확률(0~1)")
+    coaching_message: Optional[str] = Field(
+        None, description="예측된 오류 라벨에 맞는 한국어 교정 문구(TTS로 바로 읽을 수 있는 텍스트). 정상이면 null."
+    )
     model_name: str = Field(..., description="교차검증으로 선택된 전통 ML 알고리즘 이름 (예: RandomForest)")

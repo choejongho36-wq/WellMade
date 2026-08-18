@@ -9,10 +9,12 @@ from app.schemas import PoseAnalyzeRequest, PoseAnalyzeResponse, PoseIssue
 from app.schemas import CoachingFrameRequest, CoachingFrameResponse
 from app.schemas import SessionEndCheckRequest, SessionEndCheckResponse
 from app.schemas import MLLungeAnalyzeRequest, MLLungeAnalyzeResponse
+from app.schemas import MLSquatAnalyzeRequest, MLSquatAnalyzeResponse
 from app.pose.rules import judge_static_pose
 from app.coaching.realtime import judge_realtime_coaching
 from app.session.termination import judge_session_end
 from app.ml.lunge_classifier import classify_lunge_form
+from app.ml.squat_classifier import classify_squat_form
 
 app = FastAPI(title="WellMade AI Server")
 
@@ -97,5 +99,32 @@ def ml_lunge_analyze(request: MLLungeAnalyzeRequest):
     return MLLungeAnalyzeResponse(
         is_normal=result["is_normal"],
         correct_probability=result["correct_probability"],
+        coaching_message=result["coaching_message"],
+        model_name=result["model_name"],
+    )
+
+
+@app.post("/ai/ml/squat/analyze", response_model=MLSquatAnalyzeResponse)
+def ml_squat_analyze(request: MLSquatAnalyzeRequest):
+    """
+    스쿼트 자세 ML 기반 다중분류 보조 판정 (전통 ML, 포트폴리오/비교실험 목적).
+    API 명세 표에 없는 신규 엔드포인트 — 팀 확정 필요.
+
+    런지와 달리 정상/이상 이진판정이 아니라 "어떤 오류인지"까지 예측해서, 오류 유형에 맞는
+    한국어 교정 문구(coaching_message)를 함께 반환한다. 이 문구를 프론트가 TTS로 읽어주는
+    식으로 활용할 것을 염두에 두고 설계했다 — 다만 실제 음성 변환은 프론트엔드가 담당하고
+    AI 서버는 텍스트까지만 책임진다 (session 2026-08-18에 사용자와 확인).
+
+    기존 /ai/pose/analyze(규칙기반)를 대체하지 않는다. 상체 숙임(forward lean) 오류는 이
+    모델이 아니라 규칙기반 hip_angle 검사가 담당한다 (이유는 app/ml/features.py 참고).
+    """
+    result = classify_squat_form(request.landmarks)
+
+    return MLSquatAnalyzeResponse(
+        predicted_label=result["predicted_label"],
+        label_name=result["label_name"],
+        is_normal=result["is_normal"],
+        correct_probability=result["correct_probability"],
+        coaching_message=result["coaching_message"],
         model_name=result["model_name"],
     )

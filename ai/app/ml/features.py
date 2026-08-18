@@ -29,6 +29,70 @@ from app.pose.angles import (
 )
 from app.schemas import Landmark
 
+# ---- 스쿼트 ML 특징 (Kaggle "Squat Exercise Pose Dataset" 기반) ----
+# 학습(train_squat_classifier.py)과 추론(squat_classifier.py) 양쪽이 공유하는 순서 목록.
+SQUAT_FEATURE_NAMES = [
+    "left_knee_angle",
+    "right_knee_angle",
+    "left_hip_angle",
+    "right_hip_angle",
+    "left_ankle_angle",
+    "right_ankle_angle",
+]
+
+
+def extract_squat_features(landmarks: list[Landmark]) -> list[float]:
+    """
+    33개 랜드마크에서 스쿼트 정상/이상 다중분류에 쓸 6개 관절 각도를 뽑는다.
+
+    왜 원본 Kaggle 데이터셋의 12개 컬럼(spine_angle, torso_lean, knee_lateral,
+    symmetry_score, hip_depth 포함) 중 이 6개(좌우 무릎/엉덩이/발목 각도)만 쓰는가?
+    - 데이터를 직접 뜯어본 결과, 이 데이터셋은 "정상 데이터의 특정 값 1~2개만 인위적으로
+      왜곡"해서 이상 라벨을 합성한 것으로 확인됨 (예: label=4 "발뒤꿈치 뜸"은 ankle_angle만
+      바뀌고 나머지 컬럼은 label=0과 통계적으로 완전히 동일). 즉 각 오류 유형이 정확히 어느
+      컬럼에 인코딩되어 있는지는 알아냈지만, spine_angle/torso_lean/knee_lateral/hip_depth를
+      "정확히 어떤 수식으로 계산했는지"는 데이터셋에 공개돼 있지 않다.
+    - 우리 실시간 추론은 원본 landmark 좌표에서 매번 새로 특징을 계산해야 하므로, 그 수식을
+      모르는 채로 흉내 냈다가는 학습 때와 추론 때 값이 미묘하게 달라지는 train/serve skew가
+      생긴다. 그래서 "우리가 직접, 확실하게 재현 가능한" 3점 각도 계산(calculate_angle)으로만
+      정의되는 6개 특징만 채택했다.
+    - 이 선택의 대가로 label=2(상체 숙임/forward lean)는 이 6개 특징만으로 label=0(정상)과
+      거의 구별이 안 된다는 것도 실험으로 확인함(원본 데이터가 spine_angle만 따로 왜곡하고
+      hip_angle은 그대로 둬서). 그런데 상체 숙임은 이미 rules.py의 hip_angle 정상범위
+      검사가 규칙기반으로 담당하고 있으므로, ML 모델의 책임 범위에서 아예 제외하기로 했다
+      (학습 데이터에서도 label=2 행을 제외함 — train_squat_classifier.py 참고). 규칙기반과
+      ML이 서로 다른 오류 유형을 나눠 맡는 구조.
+    """
+    left_knee_angle = calculate_angle(
+        landmarks[LEFT_HIP], landmarks[LEFT_KNEE], landmarks[LEFT_ANKLE]
+    )
+    right_knee_angle = calculate_angle(
+        landmarks[RIGHT_HIP], landmarks[RIGHT_KNEE], landmarks[RIGHT_ANKLE]
+    )
+    left_hip_angle = calculate_angle(
+        landmarks[LEFT_SHOULDER], landmarks[LEFT_HIP], landmarks[LEFT_KNEE]
+    )
+    right_hip_angle = calculate_angle(
+        landmarks[RIGHT_SHOULDER], landmarks[RIGHT_HIP], landmarks[RIGHT_KNEE]
+    )
+    # 발목 각도: 무릎-발목-발끝 3점. "발뒤꿈치가 들리는지"는 발목이 얼마나 굽혀지는지와
+    # 직결되므로, 다른 관절과 같은 3점 각도 계산 패턴을 그대로 재사용했다.
+    left_ankle_angle = calculate_angle(
+        landmarks[LEFT_KNEE], landmarks[LEFT_ANKLE], landmarks[LEFT_FOOT_INDEX]
+    )
+    right_ankle_angle = calculate_angle(
+        landmarks[RIGHT_KNEE], landmarks[RIGHT_ANKLE], landmarks[RIGHT_FOOT_INDEX]
+    )
+
+    return [
+        left_knee_angle,
+        right_knee_angle,
+        left_hip_angle,
+        right_hip_angle,
+        left_ankle_angle,
+        right_ankle_angle,
+    ]
+
 # 학습(train_lunge_classifier.py)과 추론(lunge_classifier.py) 양쪽에서 순서를 맞추는 데
 # 쓰는 이름 목록. 실제로 모델에 들어가는 값은 이 순서와 반드시 일치해야 한다.
 FEATURE_NAMES = [
