@@ -11,8 +11,8 @@
    기준 프로파일을 잡을 때 참고자료로만 활용) 없이도 합리적인 판정이 가능하다.
 """
 
-from app.pose.rules import NORMAL_RANGES
-from app.schemas import AngleFrame
+from app.pose.rules import NORMAL_RANGES, personalized_hip_range
+from app.schemas import AngleFrame, HipFlexibilityCalibration
 
 # TODO: 팀 확정 필요 — 아래 임계값들은 실제 사용자 테스트 전까지의 초안값이다.
 MIN_FRAMES = 3  # 판정에 필요한 최소 프레임 수. 너무 적으면 노이즈에, 너무 많으면 반응 지연에 취약.
@@ -64,7 +64,11 @@ def _std_dev(values: list[float]) -> float:
     return variance**0.5
 
 
-def judge_realtime_coaching(angle_history: list[AngleFrame], exercise_type: str) -> dict:
+def judge_realtime_coaching(
+    angle_history: list[AngleFrame],
+    exercise_type: str,
+    hip_calibration: HipFlexibilityCalibration | None = None,
+) -> dict:
     """
     최근 N프레임의 무릎/엉덩이 각도 시계열을 보고
     (1) 현재 동작 단계, (2) 정상/이상 여부, (3) 신뢰도를 판정한다.
@@ -115,7 +119,12 @@ def judge_realtime_coaching(angle_history: list[AngleFrame], exercise_type: str)
     latest_knee = knee_series[-1]
     latest_hip = hip_series[-1]
     knee_low, knee_high = ranges["knee_angle"]
-    hip_low, hip_high = ranges["hip_angle"]
+    # rules.judge_static_pose와 동일한 이유로 hip_angle만 개인별 캘리브레이션으로 바꿔치기한다
+    # (knee_angle은 문헌 기준 보편성이 있지만 hip_angle은 개인차가 커서 고정값이 부적절함).
+    if hip_calibration is not None:
+        hip_low, hip_high = personalized_hip_range(hip_calibration)
+    else:
+        hip_low, hip_high = ranges["hip_angle"]
 
     # --- (2) 정상/이상 판정 ---
     # 움직임 자체가 떨리듯 불규칙하면(단순 카메라 노이즈가 아니라 자세가 흔들리는 경우 포함)

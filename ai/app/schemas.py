@@ -8,7 +8,7 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
   입구에서 바로 막는 편이 디버깅이 훨씬 쉽다.
 """
 
-from typing import List, Literal
+from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 # 지원 종목. 새 종목을 추가할 땐 이 타입과 rules.py의 NORMAL_RANGES를 함께 확장해야 한다.
@@ -31,6 +31,25 @@ class Landmark(BaseModel):
     )
 
 
+class HipFlexibilityCalibration(BaseModel):
+    """사용자 개인별 고관절 유연성 캘리브레이션 결과 (선택 입력).
+
+    왜 필요한가?: rules.py에 있는 hip_angle 고정 정상범위(60~100도)는 스포츠의학 문헌 기준
+    "개인 고관절 가동범위 차이가 커서 고정값으로는 정확한 판정이 어렵다"고 확인된 값이다.
+    그래서 프론트가 세션 시작 전에 "편하게 서 있기"와 "무리하지 않는 선에서 최대한 숙이기"
+    두 동작을 한 번 측정해서 보내주면, AI 서버는 그 사람의 실제 가동범위를 기준으로
+    정상/이상을 판정한다. 이 필드가 없으면 기존처럼 NORMAL_RANGES 고정값으로 판정한다
+    (하위 호환 — 캘리브레이션을 아직 안 한 사용자도 서비스는 계속 쓸 수 있어야 하므로).
+
+    캘리브레이션 동작 자체(측정 UI, 언제 다시 측정할지 등)는 프론트/백엔드 영역이고,
+    AI 파트가 책임지는 범위는 "이 두 각도 값을 받아서 판정 기준으로 바꾸는 로직"까지다."""
+
+    standing_hip_angle: float = Field(..., description="편하게 서 있을 때 측정한 hip_angle (보통 180도 근처)")
+    max_flex_hip_angle: float = Field(
+        ..., description="무리하지 않는 선에서 최대한 숙였을 때 측정한 hip_angle (많이 숙일수록 작은 값)"
+    )
+
+
 class PoseAnalyzeRequest(BaseModel):
     """정지 자세 1차 판정(/ai/pose/analyze) 요청."""
 
@@ -39,6 +58,9 @@ class PoseAnalyzeRequest(BaseModel):
     )
     exercise_type: ExerciseType
     side: Side = "auto"
+    hip_calibration: Optional[HipFlexibilityCalibration] = Field(
+        None, description="개인별 고관절 유연성 캘리브레이션 결과. 없으면 고정 NORMAL_RANGES로 판정."
+    )
 
 
 class PoseIssue(BaseModel):
@@ -82,6 +104,9 @@ class CoachingFrameRequest(BaseModel):
         ...,
         min_length=1,
         description="최근 N프레임 각도 시계열. 오래된 프레임 → 최신 프레임 순으로 정렬되어 있어야 한다.",
+    )
+    hip_calibration: Optional[HipFlexibilityCalibration] = Field(
+        None, description="개인별 고관절 유연성 캘리브레이션 결과. 없으면 고정 NORMAL_RANGES로 판정."
     )
 
 

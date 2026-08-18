@@ -7,6 +7,8 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.pose.rules import personalized_hip_range
+from app.schemas import HipFlexibilityCalibration
 
 client = TestClient(app)
 
@@ -186,6 +188,51 @@ def test_session_end_sustained_poor_form():
     assert data["normal_ratio"] < 0.7
 
 
+def test_personalized_hip_range_formula():
+    # 서 있을 때 160도, 무리 없이 최대한 숙였을 때 100도 -> 가동범위 60도
+    # low = 160 - 0.9*60 = 106, high = 160 - 0.7*60 = 118
+    calibration = HipFlexibilityCalibration(standing_hip_angle=160, max_flex_hip_angle=100)
+    low, high = personalized_hip_range(calibration)
+    print("personalized_hip_range:", low, high)
+    assert round(low, 1) == 106.0
+    assert round(high, 1) == 118.0
+
+
+def test_personalized_hip_range_invalid_calibration_is_safe():
+    # 최대 숙임 각도가 서 있는 각도보다 크거나 같은(측정이 잘못된) 경우 -> 가동범위 <= 0
+    # "항상 범위 밖"으로 처리되는 안전한 값(standing, standing)을 반환해야 함
+    calibration = HipFlexibilityCalibration(standing_hip_angle=160, max_flex_hip_angle=170)
+    low, high = personalized_hip_range(calibration)
+    print("personalized_hip_range(invalid):", low, high)
+    assert low == high == 160
+
+
+def test_coaching_frame_hip_calibration_changes_normal_judgement():
+    # 무릎은 정상범위(70~100) 안에서 정지, 엉덩이는 110도로 정지한 상황.
+    # 고정 NORMAL_RANGES(60~100)로는 110이 범위 밖이라 이상으로 판정되지만,
+    # 유연성이 낮은 사용자의 캘리브레이션(standing 160, max_flex 100 -> 개인 범위 106~118)을
+    # 적용하면 110은 그 사람 기준으로는 정상 범위 안이라 정상으로 바뀌어야 한다.
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 110} for i in range(10)
+    ]
+
+    body_without_calibration = {"exercise_type": "squat", "angle_history": angle_history}
+    res_without = client.post("/ai/coaching/frame", json=body_without_calibration)
+    print("coaching_frame(no calibration, hip=110):", res_without.status_code, res_without.json())
+    assert res_without.status_code == 200
+    assert res_without.json()["is_normal"] is False
+
+    body_with_calibration = {
+        "exercise_type": "squat",
+        "angle_history": angle_history,
+        "hip_calibration": {"standing_hip_angle": 160, "max_flex_hip_angle": 100},
+    }
+    res_with = client.post("/ai/coaching/frame", json=body_with_calibration)
+    print("coaching_frame(with calibration, hip=110):", res_with.status_code, res_with.json())
+    assert res_with.status_code == 200
+    assert res_with.json()["is_normal"] is True
+
+
 if __name__ == "__main__":
     test_health()
     test_pose_analyze_standing_is_abnormal_for_squat_bottom()
@@ -199,4 +246,7 @@ if __name__ == "__main__":
     test_session_end_not_enough_duration_yet()
     test_session_end_sustained_good_form()
     test_session_end_sustained_poor_form()
+    test_personalized_hip_range_formula()
+    test_personalized_hip_range_invalid_calibration_is_safe()
+    test_coaching_frame_hip_calibration_changes_normal_judgement()
     print("\nALL MANUAL CHECKS PASSED")

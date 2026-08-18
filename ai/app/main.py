@@ -28,7 +28,9 @@ def analyze_pose(request: PoseAnalyzeRequest):
     프론트가 MediaPipe로 뽑은 33개 관절 좌표를 보내면,
     이 서버가 각도 계산 + 정상범위 비교를 해서 결과를 돌려준다.
     """
-    result = judge_static_pose(request.landmarks, request.exercise_type)
+    result = judge_static_pose(
+        request.landmarks, request.exercise_type, hip_calibration=request.hip_calibration
+    )
 
     return PoseAnalyzeResponse(
         is_normal=result["is_normal"],
@@ -46,7 +48,9 @@ def coaching_frame(request: CoachingFrameRequest):
     프레임마다 새 딥러닝 추론을 돌리는 대신 이미 계산된 각도 값을 규칙기반으로
     비교하는 가벼운 연산이라, 실시간 호출에도 서버 부하 없이 응답할 수 있다.
     """
-    result = judge_realtime_coaching(request.angle_history, request.exercise_type)
+    result = judge_realtime_coaching(
+        request.angle_history, request.exercise_type, hip_calibration=request.hip_calibration
+    )
 
     return CoachingFrameResponse(
         phase=result["phase"],

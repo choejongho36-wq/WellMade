@@ -11,7 +11,7 @@
 """
 
 from app.pose.angles import get_hip_angle, get_knee_angle
-from app.schemas import Landmark
+from app.schemas import HipFlexibilityCalibration, Landmark
 
 # 스포츠의학/트레이너 자격 기준 자료를 근거로 한 값 (2026-08-18 업데이트).
 #
@@ -63,6 +63,38 @@ NORMAL_RANGES = {
 # TODO: 팀 확정 필요 — 사용자 테스트 후 조정.
 CONFIDENCE_TOLERANCE_DEG = 20
 
+# 개인별 고관절 유연성 캘리브레이션(HipFlexibilityCalibration)이 있을 때, "그 사람이 낼 수
+# 있는 최대 가동범위" 중 몇 %~몇 % 구간을 정상으로 볼지 정하는 값.
+# 100%(자기 한계까지)로 잡지 않고 70~90%로 여유를 두는 이유는, 캘리브레이션 때 잰
+# "무리하지 않는 선의 최대치" 자체가 이미 안전 마진이 있는 값이라, 실제 운동 중 매 반복을
+# 그 한계까지 밀어붙이게 하면 부상 위험이 커지기 때문이다.
+# TODO: 팀 확정 필요 — 사용자 테스트 후 조정.
+CALIBRATION_LOW_PCT = 0.7
+CALIBRATION_HIGH_PCT = 0.9
+
+
+def personalized_hip_range(calibration: HipFlexibilityCalibration) -> tuple[float, float]:
+    """
+    캘리브레이션 결과(서 있을 때 각도, 무리 없이 최대한 숙였을 때 각도)로부터
+    "이 사람 기준 정상 hip_angle 범위"를 계산한다.
+
+    NORMAL_RANGES의 hip_angle이 왜 모두에게 똑같은 고정값이면 안 되는지는 위쪽 주석에
+    적힌 IJSPT 논문 근거와 같다 — 이 함수가 그 문제의 실제 해결책이다. 계산 방식은
+    "숙인 정도(가동범위)의 70~90% 지점을 정상 구간으로 본다": 자기 최대치의 90%보다
+    더 깊이 숙이면 한계에 너무 가까워 위험 신호로, 70%보다 덜 숙이면 아직 목표한 만큼
+    자세를 안 잡은 것으로 판정하겠다는 뜻이다.
+    """
+    available_range = calibration.standing_hip_angle - calibration.max_flex_hip_angle
+    # 가동범위가 0 이하(측정값이 잘못 들어온 경우)면 계산이 무의미하므로, 계산을 포기하고
+    # 서 있는 각도 자체를 상하한으로 반환해 "항상 범위 밖"으로 처리되게 한다 — 잘못된
+    # 캘리브레이션 데이터로 엉뚱하게 "정상"이라고 판정하는 것보다는 안전한 실패 방식이다.
+    if available_range <= 0:
+        return calibration.standing_hip_angle, calibration.standing_hip_angle
+
+    low = calibration.standing_hip_angle - CALIBRATION_HIGH_PCT * available_range
+    high = calibration.standing_hip_angle - CALIBRATION_LOW_PCT * available_range
+    return low, high
+
 
 def _range_confidence(value: float, low: float, high: float) -> float:
     """
@@ -86,7 +118,12 @@ def _range_confidence(value: float, low: float, high: float) -> float:
     return max(0.0, 1.0 - over / CONFIDENCE_TOLERANCE_DEG)
 
 
-def judge_static_pose(landmarks: list[Landmark], exercise_type: str, side: str = "auto") -> dict:
+def judge_static_pose(
+    landmarks: list[Landmark],
+    exercise_type: str,
+    side: str = "auto",
+    hip_calibration: HipFlexibilityCalibration | None = None,
+) -> dict:
     """
     정지 자세 1장을 규칙기반으로 판정한다.
 
@@ -102,7 +139,13 @@ def judge_static_pose(landmarks: list[Landmark], exercise_type: str, side: str =
     hip_angle = get_hip_angle(landmarks, side)
 
     knee_low, knee_high = ranges["knee_angle"]
-    hip_low, hip_high = ranges["hip_angle"]
+    # hip_angle만 개인별로 바꿔치기하는 이유: knee_angle은 문헌상 인구 전체에 어느 정도
+    # 보편적인 기준(IJSPT 논문)이 있지만, hip_angle은 그 문헌이 스스로 "개인차가 커서 고정값
+    # 부적절"이라고 밝힌 값이기 때문 — 캘리브레이션이 있으면 그걸로, 없으면 기존 고정값으로.
+    if hip_calibration is not None:
+        hip_low, hip_high = personalized_hip_range(hip_calibration)
+    else:
+        hip_low, hip_high = ranges["hip_angle"]
 
     issues = []
     if not (knee_low <= knee_angle <= knee_high):
