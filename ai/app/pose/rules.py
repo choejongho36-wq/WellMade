@@ -10,7 +10,7 @@
    판정했는지"를 코칭 문구·RAG 검색 쿼리에 그대로 재사용하기 좋다.
 """
 
-from app.pose.angles import get_hip_angle, get_knee_angle
+from app.pose.angles import get_hip_angle, get_knee_angle, get_shoulder_alignment_angle
 from app.schemas import HipFlexibilityCalibration, Landmark
 
 # 스포츠의학/트레이너 자격 기준 자료를 근거로 한 값 (2026-08-18 업데이트).
@@ -45,16 +45,29 @@ from app.schemas import HipFlexibilityCalibration, Landmark
 # 위아래로 여유를 뒀다. hip_angle은 "상체를 세운(upright) 런지" 전제와 일치해 기존 값을
 # 유지한다.
 #
+# [어깨 정렬] (2026-08-18 추가)
+# "하체 중심 MVP"는 범위를 하체 랜드마크로 제한하겠다는 뜻이 아니었다는 걸 사용자가
+# 확인해줘서(2026-08-18), 필요한 상체 피드백(어깨 정렬)을 추가함.
+# NASM 오버헤드 스쿼트 평가는 "가슴을 펴고 흉추를 살짝 편 상태 유지"를 확인하지만,
+# 육안 평가 항목이라 명확한 각도 수치를 제시하지 않는다(참고:
+# https://blog.nasm.org/newletter/squat-form). 그래서 아래 범위는 knee_angle/hip_angle과
+# 달리 문헌에서 직접 가져온 수치가 아니라, "귀-어깨-엉덩이가 거의 일직선(180도)이어야
+# 어깨가 안 말린 것"이라는 방향성만 근거로 잡은 값이다. 스쿼트/런지 모두 같은 기준을 쓴다
+# (어깨 정렬 기준 자체는 하체 동작 종류와 무관하다고 판단).
+#
 # TODO: 팀 확정 필요 — 스쿼트를 "평행" 대신 "깊은 스쿼트"까지 목표로 할지, 런지의
 # 뒷다리 각도를 별도로 판정에 반영할지는 제품 방향에 따라 달라지므로 재검토 필요.
+# TODO: 팀 확정 필요 — shoulder_angle 범위는 수치 근거가 약해 사용자 테스트 후 조정 필요.
 NORMAL_RANGES = {
     "squat": {
         "knee_angle": (70, 100),  # 평행 스쿼트(굴곡 90~110도) 기준, IJSPT 논문 근거
         "hip_angle": (60, 100),  # 고정 정상범위 아님 — 과도한 상체 숙임/직립 감지용 여유값
+        "shoulder_angle": (155, 180),  # 귀-어깨-엉덩이 일직선 여부 — 수치 근거 약함(위 설명 참고)
     },
     "lunge": {
         "knee_angle": (75, 105),  # NASM "90/90 런지" 기준, 90도 중심으로 여유를 둠
         "hip_angle": (140, 180),  # 런지는 상체를 세운 상태(upright) 유지가 기준
+        "shoulder_angle": (155, 180),  # 스쿼트와 동일 기준 (하체 동작 종류와 무관하다고 판단)
     },
 }
 
@@ -137,6 +150,7 @@ def judge_static_pose(
 
     knee_angle = get_knee_angle(landmarks, side)
     hip_angle = get_hip_angle(landmarks, side)
+    shoulder_angle = get_shoulder_alignment_angle(landmarks, side)
 
     knee_low, knee_high = ranges["knee_angle"]
     # hip_angle만 개인별로 바꿔치기하는 이유: knee_angle은 문헌상 인구 전체에 어느 정도
@@ -146,6 +160,7 @@ def judge_static_pose(
         hip_low, hip_high = personalized_hip_range(hip_calibration)
     else:
         hip_low, hip_high = ranges["hip_angle"]
+    shoulder_low, shoulder_high = ranges["shoulder_angle"]
 
     issues = []
     if not (knee_low <= knee_angle <= knee_high):
@@ -162,11 +177,19 @@ def judge_static_pose(
                 "message": f"엉덩이(고관절) 각도가 {hip_angle:.1f}도로 정상 범위({hip_low}~{hip_high}도)를 벗어났습니다.",
             }
         )
+    if not (shoulder_low <= shoulder_angle <= shoulder_high):
+        issues.append(
+            {
+                "part": "shoulder",
+                "message": f"어깨가 말려 있습니다({shoulder_angle:.1f}도). 가슴을 펴고 어깨를 뒤로 젖혀주세요.",
+            }
+        )
 
     knee_conf = _range_confidence(knee_angle, knee_low, knee_high)
     hip_conf = _range_confidence(hip_angle, hip_low, hip_high)
-    # 두 관절 중 더 낮은 신뢰도를 최종 신뢰도로 사용한다 (가장 취약한 부위가 전체 판정을 좌우하게 함).
-    confidence = min(knee_conf, hip_conf)
+    shoulder_conf = _range_confidence(shoulder_angle, shoulder_low, shoulder_high)
+    # 세 부위 중 가장 낮은 신뢰도를 최종 신뢰도로 사용한다 (가장 취약한 부위가 전체 판정을 좌우하게 함).
+    confidence = min(knee_conf, hip_conf, shoulder_conf)
 
     return {
         "is_normal": len(issues) == 0,

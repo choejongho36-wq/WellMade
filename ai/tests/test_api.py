@@ -18,10 +18,11 @@ def landmark(x=0.5, y=0.5, z=0.0, visibility=0.9):
 
 
 def make_landmarks(knee_bend_deg="standing"):
-    """33개 landmark 중 스쿼트 판정에 쓰이는 어깨/엉덩이/무릎/발목만 의미 있게 채우고
+    """33개 landmark 중 스쿼트 판정에 쓰이는 귀/어깨/엉덩이/무릎/발목만 의미 있게 채우고
     나머지는 더미로 채운 뒤, 무릎 각도가 대략 원하는 상태가 되도록 좌표를 잡는다."""
     lms = [landmark() for _ in range(33)]
     # 왼쪽 다리를 옆에서 본 형태로 배치: 엉덩이(23) - 무릎(25) - 발목(27)
+    lms[7] = landmark(0.5, 0.05)  # LEFT_EAR (어깨 바로 위 -> 어깨 정렬 기본값은 "정상"으로 둠)
     lms[11] = landmark(0.5, 0.2)  # LEFT_SHOULDER
     lms[23] = landmark(0.5, 0.5)  # LEFT_HIP
     if knee_bend_deg == "standing":
@@ -61,6 +62,18 @@ def test_pose_analyze_deep_squat_is_normal():
     assert res.status_code == 200
 
 
+def test_pose_analyze_rounded_shoulder_flagged():
+    # 어깨(11)는 그대로 두고 귀(7)만 앞으로 크게 뺀 자세 -> "어깨 말림"으로 감지돼야 함
+    lms = make_landmarks("standing")
+    lms[7] = landmark(0.75, 0.1)  # LEFT_EAR가 어깨보다 훨씬 앞(x가 큼)으로 나감
+    body = {"landmarks": lms, "exercise_type": "squat", "side": "left"}
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(rounded shoulder):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "shoulder" for issue in data["issues"]), data
+
+
 def test_coaching_frame_descending():
     # 무릎 각도가 175 -> 95로 꾸준히 줄어드는(굽혀지는) 시계열 -> "descending" 기대
     angle_history = [
@@ -89,6 +102,34 @@ def test_coaching_frame_holding_at_bottom_normal():
     assert data["phase"] == "holding", data
     assert data["is_normal"] is True, data
     assert data["confidence"] > 0.7, data  # 떨림이 적은 안정적인 holding이므로 신뢰도가 높아야 함
+
+
+def test_coaching_frame_holding_shoulder_rounded_flagged():
+    # 무릎/엉덩이는 정상 범위인데 shoulder_angle만 낮게(어깨 말림) 들어온 경우 -> 이상 감지돼야 함
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2), "shoulder_angle": 120}
+        for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(holding, rounded shoulder):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "shoulder" for issue in data["issues"]), data
+
+
+def test_coaching_frame_without_shoulder_angle_still_works():
+    # shoulder_angle 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(no shoulder_angle field):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "shoulder" for issue in data["issues"]), data
 
 
 def test_coaching_frame_holding_halfway_abnormal():
@@ -328,8 +369,11 @@ if __name__ == "__main__":
     test_health()
     test_pose_analyze_standing_is_abnormal_for_squat_bottom()
     test_pose_analyze_deep_squat_is_normal()
+    test_pose_analyze_rounded_shoulder_flagged()
     test_coaching_frame_descending()
     test_coaching_frame_holding_at_bottom_normal()
+    test_coaching_frame_holding_shoulder_rounded_flagged()
+    test_coaching_frame_without_shoulder_angle_still_works()
     test_coaching_frame_holding_halfway_abnormal()
     test_coaching_frame_jittery_movement_flagged()
     test_coaching_frame_insufficient_frames()

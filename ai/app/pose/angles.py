@@ -26,6 +26,10 @@ LEFT_HEEL = 29
 RIGHT_HEEL = 30
 LEFT_FOOT_INDEX = 31
 RIGHT_FOOT_INDEX = 32
+# 어깨 정렬(상체) 판정에 쓰는 귀 좌표. 하체 중심 MVP 이후 "하체 랜드마크만 쓴다"는 제약은
+# 없었다는 걸 사용자가 확인해줘서(2026-08-18) 추가함 — get_shoulder_alignment_angle() 참고.
+LEFT_EAR = 7
+RIGHT_EAR = 8
 
 
 def calculate_angle(a: Landmark, b: Landmark, c: Landmark) -> float:
@@ -104,3 +108,35 @@ def get_hip_angle(landmarks: list[Landmark], side: str = "auto") -> float:
         else (landmarks[RIGHT_SHOULDER], landmarks[RIGHT_HIP], landmarks[RIGHT_KNEE])
     )
     return calculate_angle(shoulder, hip, knee)
+
+
+def get_shoulder_alignment_angle(landmarks: list[Landmark], side: str = "auto") -> float:
+    """
+    귀-어깨-엉덩이 3점으로 "어깨가 말리지 않고 펴져 있는지"(가슴을 편 자세)를 계산한다.
+
+    왜 이 3점인가?
+    - hip_angle(어깨-엉덩이-무릎)은 "상체 전체가 다리 기준으로 얼마나 숙여졌는지"를 재는
+      값이라, 어깨가 둥글게 말리는(scapula protraction) 것과는 다른 문제다. 몸통이 곧게
+      펴진 채로 숙여진 것과, 몸통은 안 숙여졌는데 어깨만 앞으로 말린 것을 hip_angle
+      하나로는 구분할 수 없다.
+    - NASM의 오버헤드 스쿼트 평가(Overhead Squat Assessment)는 "가슴을 펴고 흉추를 살짝
+      편 상태로 유지"하는지, "어깨의 과도한 둥글림"이 있는지를 육안으로 확인하는 항목을
+      포함한다(https://blog.nasm.org/newletter/squat-form). 이 육안 평가를 각도로 옮기면,
+      좋은 자세에서는 귀-어깨-엉덩이가 대략 일직선(180도에 가까움)이고, 어깨가 말리면서
+      머리가 앞으로 빠지면(forward head posture) 이 각도가 줄어든다.
+
+    한계 (# TODO: 팀 확정 필요):
+    - NASM 자료도 "몇 도 이상이면 이상"이라는 수치 기준을 제시하지 않는, 육안 평가 항목이라
+      아래 rules.py의 정상범위는 knee_angle/hip_angle과 달리 문헌에서 직접 가져온 수치가
+      아니다 — 방향성만 근거가 있고 정확한 임계값은 사용자 테스트로 조정이 필요하다.
+    - 스쿼트/런지 하단처럼 상체 전체가 앞으로 기울어진 자세에서는, 목/머리가 정상적으로
+      몸통과 같은 방향을 유지해도 이 각도가 자연스럽게 줄어들 수 있어(하체 하나만 굽혀도
+      상체 전체가 같이 기울기 때문), 서 있는 자세만큼 정확하지 않을 수 있다.
+    """
+    chosen = _select_side(landmarks, side)
+    ear, shoulder, hip = (
+        (landmarks[LEFT_EAR], landmarks[LEFT_SHOULDER], landmarks[LEFT_HIP])
+        if chosen == "left"
+        else (landmarks[RIGHT_EAR], landmarks[RIGHT_SHOULDER], landmarks[RIGHT_HIP])
+    )
+    return calculate_angle(ear, shoulder, hip)

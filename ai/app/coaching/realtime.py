@@ -101,6 +101,7 @@ def judge_realtime_coaching(
     timestamps = [f.timestamp for f in angle_history]
     knee_series = [f.knee_angle for f in angle_history]
     hip_series = [f.hip_angle for f in angle_history]
+    latest_shoulder = angle_history[-1].shoulder_angle  # 선택 필드라 None일 수 있음
 
     knee_slope, knee_r2 = _linear_fit(timestamps, knee_series)
     knee_deltas = [b - a for a, b in zip(knee_series, knee_series[1:])]
@@ -158,6 +159,18 @@ def judge_realtime_coaching(
                     "message": f"엉덩이(고관절) 각도가 {latest_hip:.1f}도로 목표 구간({hip_low}~{hip_high}도)을 벗어났습니다.",
                 }
             )
+        # 어깨 정렬은 무릎/엉덩이와 달리 "깊게 앉았을 때"만이 아니라 정지한 어느 시점에서든
+        # 확인할 문제라(어깨가 말리는 건 자세 전반의 문제), is_deep_hold 조건 없이 검사한다.
+        # shoulder_angle이 없으면(하위 호환 — 프론트가 아직 안 보내는 경우) 검사를 건너뛴다.
+        if latest_shoulder is not None:
+            shoulder_low, shoulder_high = ranges["shoulder_angle"]
+            if not (shoulder_low <= latest_shoulder <= shoulder_high):
+                issues.append(
+                    {
+                        "part": "shoulder",
+                        "message": f"어깨가 말려 있습니다({latest_shoulder:.1f}도). 가슴을 펴고 어깨를 뒤로 젖혀주세요.",
+                    }
+                )
     else:
         # 동작 중에는 "정상범위 하한보다 훨씬 더 굽혀지는" 과도한 굽힘만 위험 신호로 본다.
         # (무릎에 부담이 되는 과도한 가동범위는 동작 단계와 무관하게 바로 감지해야 하기 때문)

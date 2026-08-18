@@ -92,6 +92,11 @@ class AngleFrame(BaseModel):
     timestamp: float = Field(..., description="세션(또는 반복 동작) 시작 기준 경과 시간(초)")
     knee_angle: float
     hip_angle: float
+    shoulder_angle: Optional[float] = Field(
+        None,
+        description="귀-어깨-엉덩이 각도(어깨 정렬). 선택 필드 — 없으면 어깨 검사를 건너뛴다 "
+        "(하위 호환: 이 필드를 아직 안 보내는 기존 프론트도 계속 동작해야 하므로).",
+    )
 
 
 class CoachingFrameRequest(BaseModel):
