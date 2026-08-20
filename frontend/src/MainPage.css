@@ -201,6 +201,7 @@ a {
   align-items: center;
   gap: 32px;
   transition: opacity 1.4s ease, transform 1.4s ease;
+  user-select: none;
 }
 .hero.revealed .hero-content {
   opacity: 0;
@@ -265,33 +266,21 @@ a {
   color: transparent;
   -webkit-text-fill-color: transparent;
 }
-.hero-reveal-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  color: #f2f1ee;
-  cursor: pointer;
-  animation: hero-arrow-bounce 2s ease-in-out infinite;
+.hero-reveal-hint {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: rgba(242, 241, 238, 0.7);
+  animation: hero-hint-pulse 2s ease-in-out infinite;
 }
-.hero-reveal-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-}
-.hero.revealed .hero-reveal-btn {
+.hero.revealed .hero-reveal-hint {
   animation: none;
-  pointer-events: none;
 }
-@keyframes hero-arrow-bounce {
+@keyframes hero-hint-pulse {
   0%, 100% {
-    transform: translateY(0);
-    opacity: 0.6;
+    opacity: 0.5;
   }
   50% {
-    transform: translateY(8px);
     opacity: 1;
   }
 }
