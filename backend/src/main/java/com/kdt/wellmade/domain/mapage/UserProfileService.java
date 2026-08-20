@@ -5,11 +5,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.kdt.wellmade.domain.user.User;
 
+
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class UserProfileService {
+    
     private final UserProfileRepository userProfileRepository;
 
     @Transactional(readOnly = true)
@@ -23,4 +25,7 @@ public class UserProfileService {
         UserProfile profile = getProfile(user);
         profile.update(name, profileImageUrl, goal);
     }
+
+   
+
 }
