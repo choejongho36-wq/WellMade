@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import './MainPage.css'
+import wellmadeLogo from './assets/Wellmade.png'
 import googleLoginImg from './assets/Google_login.png'
 import kakaoLoginImg from './assets/kakao_login_large_narrow.png'
 import naverLoginImg from './assets/NAVER_login_H48.png'
@@ -15,7 +16,7 @@ const SOCIAL_PROVIDERS = [
 
 const NAV_ITEMS = [
   { label: '마이페이지', path: '/mypage' },
-  { label: '자세 측정' },
+  { label: '자세 측정', path: '/posture' },
   { label: '운동 추천' },
 ]
 
@@ -115,7 +116,7 @@ function Sidebar() {
       <div className="sidebar-indicator"></div>
       <aside className="sidebar">
         <Link to="/" className="logo">
-          <div className="logo-mark"></div>
+          <img src={wellmadeLogo} alt="" className="logo-mark" />
           <div className="logo-text">WELLMADE</div>
         </Link>
         {user ? (
@@ -146,7 +147,7 @@ function Sidebar() {
           <div className="avatar"></div>
           <div>
             <div className="profile-name">{user ? profile?.name ?? user.email : '게스트'}</div>
-            <div className="profile-sub">{user ? '이번주 3회 완료' : '로그인이 필요합니다'}</div>
+            <div className="profile-sub">{user ? '오늘도 운동하자' : '로그인이 필요합니다'}</div>
           </div>
         </div>
       </aside>
