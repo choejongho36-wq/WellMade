@@ -6,6 +6,7 @@ import kakaoLoginImg from './assets/kakao_login_large_narrow.png'
 import naverLoginImg from './assets/NAVER_login_H48.png'
 
 const API_BASE = 'http://localhost:8080'
+const TOKEN_KEY = 'accessToken'
 const SOCIAL_PROVIDERS = [
   { id: 'google', label: '구글로 시작하기', icon: googleLoginImg },
   { id: 'kakao', label: '카카오로 시작하기', icon: kakaoLoginImg },
@@ -86,6 +87,53 @@ function MainPage() {
   const [loginOpen, setLoginOpen] = useState(false)
 
   const [revealed, setRevealed] = useState(false)
+  const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
+
+  useEffect(() => {
+    const fetchMe = (token) => {
+      const authHeader = { Authorization: `Bearer ${token}` }
+      fetch(`${API_BASE}/api/users/me`, { headers: authHeader })
+        .then((res) => {
+          if (!res.ok) throw new Error('unauthorized')
+          return res.json()
+        })
+        .then(setUser)
+        .catch(() => {
+          localStorage.removeItem(TOKEN_KEY)
+          setUser(null)
+        })
+
+      fetch(`${API_BASE}/api/users/me/profile`, { headers: authHeader })
+        .then((res) => (res.ok ? res.json() : null))
+        .then(setProfile)
+    }
+
+    const code = new URLSearchParams(window.location.search).get('code')
+    if (window.location.pathname === '/oauth/redirect' && code) {
+      fetch(`${API_BASE}/api/auth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          localStorage.setItem(TOKEN_KEY, data.accessToken)
+          window.history.replaceState({}, '', '/')
+          fetchMe(data.accessToken)
+        })
+      return
+    }
+
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (token) fetchMe(token)
+  }, [])
+
+  const handleLogout = () => {
+    localStorage.removeItem(TOKEN_KEY)
+    setUser(null)
+    setProfile(null)
+  }
 
   return (
     <div className={`app${revealed ? ' revealed' : ''}`}>
@@ -96,7 +144,11 @@ function MainPage() {
           <div className="logo-mark"></div>
           <div className="logo-text">WELLMADE</div>
         </div>
-        <button className="login-btn" onClick={() => setLoginOpen(true)}>로그인</button>
+        {user ? (
+          <button className="login-btn" onClick={handleLogout}>로그아웃</button>
+        ) : (
+          <button className="login-btn" onClick={() => setLoginOpen(true)}>로그인</button>
+        )}
         <nav className="nav">
           {NAV_ITEMS.map((item) => (
             <a key={item.label} className={`nav-item${item.active ? ' active' : ''}`} href="#">
@@ -108,8 +160,8 @@ function MainPage() {
         <div className="profile">
           <div className="avatar"></div>
           <div>
-            <div className="profile-name">회원</div>
-            <div className="profile-sub">이번주 3회 완료</div>
+            <div className="profile-name">{user ? profile?.name ?? user.email : '게스트'}</div>
+            <div className="profile-sub">{user ? '이번주 3회 완료' : '로그인이 필요합니다'}</div>
           </div>
         </div>
       </aside>
