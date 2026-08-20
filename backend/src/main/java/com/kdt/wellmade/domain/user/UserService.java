@@ -59,4 +59,11 @@ public class UserService {
         } while (userProfileRepository.existsByName(nickname));
        return nickname;
     }
+
+    @Transactional
+    public void withdraw(Long userId) {
+        User user = getUser(userId);
+        userProfileRepository.deleteByUser(user);
+        userRepository.delete(user);
+    }
 }

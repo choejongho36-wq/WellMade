@@ -9,4 +9,5 @@ import com.kdt.wellmade.domain.user.User;
 public interface UserProfileRepository extends JpaRepository<UserProfile, Long> {
     Optional<UserProfile> findByUser(User user);
     boolean existsByName(String name);
+    void deleteByUser(User user);
 }
