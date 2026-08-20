@@ -6,7 +6,7 @@ import kakaoLoginImg from './assets/kakao_login_large_narrow.png'
 import naverLoginImg from './assets/NAVER_login_H48.png'
 
 const API_BASE = 'http://localhost:8080'
-const TOKEN_KEY = 'accessToken'
+export const TOKEN_KEY = 'accessToken'
 const SOCIAL_PROVIDERS = [
   { id: 'google', label: '구글로 시작하기', icon: googleLoginImg },
   { id: 'kakao', label: '카카오로 시작하기', icon: kakaoLoginImg },

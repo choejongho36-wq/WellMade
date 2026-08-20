@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './MainPage.css'
 import heroBg from './assets/hero-bg.png'
-import Sidebar from './Sidebar.jsx'
+import Sidebar, { TOKEN_KEY } from './Sidebar.jsx'
 
 const PROGRAMS = [
   {
@@ -38,7 +38,7 @@ function ThumbIcon() {
 }
 
 function MainPage() {
-  const [revealed, setRevealed] = useState(false)
+  const [revealed, setRevealed] = useState(() => !!localStorage.getItem(TOKEN_KEY))
 
   return (
     <div className={`app${revealed ? ' revealed' : ''}`}>
