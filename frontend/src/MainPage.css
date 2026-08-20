@@ -17,7 +17,7 @@ a {
   left: 0;
   bottom: 0;
   width: 80px;
-  z-index: 30;
+  z-index: 25;
   pointer-events: none;
 }
 .app.revealed .sidebar-hotzone {
@@ -80,8 +80,7 @@ a {
 .logo-mark {
   width: 22px;
   height: 22px;
-  background: #e6432b;
-  border-radius: 4px;
+  object-fit: contain;
 }
 .logo-text {
   font-size: 15px;
@@ -95,10 +94,17 @@ a {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
   padding: 11px 24px;
   font-size: 13.5px;
   color: #8c8b88;
   position: relative;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #f2f1ee;
 }
 .nav-item .dot {
   width: 15px;
