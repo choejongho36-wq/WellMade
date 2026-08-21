@@ -28,6 +28,8 @@ function drawLandmarks(canvas, image, landmarks) {
   })
 }
 
+const AI_BASE = 'http://localhost:8000'
+
 function PoseCaptureCard({ label, onDetected }) {
   const [imageUrl, setImageUrl] = useState(null)
   const [status, setStatus] = useState('')
@@ -90,6 +92,25 @@ function PoseCaptureCard({ label, onDetected }) {
 }
 
 function PosturePage() {
+  const [insight, setInsight] = useState(null)
+  const [insightError, setInsightError] = useState('')
+
+  // ponytail: 성별/출생년도 입력 UI는 아직 없음 — 연결 테스트 목적으로 임시 고정값 사용
+  const handleFrontDetected = async (landmarks) => {
+    setInsightError('')
+    try {
+      const res = await fetch(`${AI_BASE}/ai/onboarding/posture-insight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ front_landmarks: landmarks, gender: 'M', birth_year: 2000 }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setInsight(await res.json())
+    } catch (err) {
+      setInsightError(`AI 서버 연결 실패: ${err.message}`)
+    }
+  }
+
   return (
     <div className="app revealed">
       <Sidebar />
@@ -104,10 +125,13 @@ function PosturePage() {
           </div>
 
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            {/* ponytail: 좌표 → 백엔드 전송은 API 붙일 때 구현, 지금은 프론트 단독 인식 검증 단계 */}
-            <PoseCaptureCard label="정면 사진" onDetected={(landmarks) => console.log('front', landmarks)} />
+            <PoseCaptureCard label="정면 사진" onDetected={handleFrontDetected} />
+            {/* ponytail: 측면 사진은 아직 어떤 엔드포인트로 보낼지 미정 — 콘솔 확인만 유지 */}
             <PoseCaptureCard label="측면 사진" onDetected={(landmarks) => console.log('side', landmarks)} />
           </div>
+
+          {insightError && <p style={{ color: '#e6432b' }}>{insightError}</p>}
+          {insight && <p className="pcard-desc">{insight.message}</p>}
         </div>
       </main>
     </div>
