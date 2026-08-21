@@ -200,3 +200,47 @@ class MLSquatAnalyzeResponse(BaseModel):
         None, description="예측된 오류 라벨에 맞는 한국어 교정 문구(TTS로 바로 읽을 수 있는 텍스트). 정상이면 null."
     )
     model_name: str = Field(..., description="교차검증으로 선택된 전통 ML 알고리즘 이름 (예: RandomForest)")
+
+
+# ---- 자세 비교 인사이트 (AI-15, 신규 — API 명세 표에 없는 온보딩 캘리브레이션 확장) ----
+# 세션 시작 시 정면 촬영으로 어깨/골반의 좌우 기울기를 재고, 공공데이터 기반 참조 분포와
+# 비교해 백분위 인사이트를 준다. 자세한 배경은 app/insight/posture_percentile.py 참고.
+
+# 참조 분포(세종시 공공데이터)의 성별 표기를 그대로 따른다. 새 값을 늘리려면
+# ml_training/prepare_posture_reference.py의 참조 데이터도 함께 확장해야 한다.
+Gender = Literal["M", "F"]
+
+
+class PostureInsightRequest(BaseModel):
+    """자세 비교 인사이트(/ai/onboarding/posture-insight) 요청.
+
+    다른 엔드포인트와 달리 "정면 촬영" 랜드마크만 받는다 — 어깨/골반의 좌우 높이차
+    (관상면)는 정면 카메라가 있어야 계산할 수 있고, 기존 측면 촬영 랜드마크로는 잴 수 없는
+    값이기 때문이다(app/pose/angles.py의 get_shoulder_tilt_angle 참고). 온보딩 단계에서
+    측면 촬영도 함께 이루어지지만(고관절 유연성 캘리브레이션용), 그건 이 계산과 무관해
+    여기서는 받지 않는다 — 엔드포인트 입력은 실제로 쓰는 데이터로만 최소화한다는 원칙.
+    """
+
+    front_landmarks: List[Landmark] = Field(
+        ..., min_length=33, max_length=33, description="정면 촬영 기준 MediaPipe Pose 33개 관절 좌표"
+    )
+    gender: Gender = Field(..., description="참조 분포 그룹을 나누는 기준. 세종시 공공데이터의 성별 표기를 따름")
+    birth_year: int = Field(..., ge=1900, le=2026, description="출생년도. 서버가 현재 연도 기준으로 나이/연령대를 계산한다")
+
+
+class PostureInsightResponse(BaseModel):
+    age_bracket: int = Field(..., description="비교에 사용한 연령대 (10=10대, ..., 60=60대 이상)")
+    sample_size: int = Field(..., description="비교 대상 참조 그룹의 표본 수")
+    low_sample_warning: bool = Field(..., description="표본이 적어(MIN_RELIABLE_SAMPLE 미만) 참고용으로만 봐야 하는 경우 True")
+
+    shoulder_tilt_deg: float = Field(..., description="어깨 좌우 기울기(도). 양수=왼쪽이 올라감, 음수=오른쪽이 올라감")
+    shoulder_side: Literal["left", "right", "level"]
+    shoulder_percentile: Optional[float] = Field(None, description="같은 성별·연령대 중 이 기울기 크기 이하인 비율(%)")
+    shoulder_message: str
+
+    pelvis_tilt_deg: float = Field(..., description="골반 좌우 기울기(도). 양수=왼쪽이 올라감, 음수=오른쪽이 올라감")
+    pelvis_side: Literal["left", "right", "level"]
+    pelvis_percentile: Optional[float] = Field(None, description="같은 성별·연령대 중 이 기울기 크기 이하인 비율(%)")
+    pelvis_message: str
+
+    message: str = Field(..., description="어깨+골반 인사이트를 하나로 합친 한국어 문구 (TTS로 바로 읽을 수 있는 텍스트)")

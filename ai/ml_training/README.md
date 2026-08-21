@@ -1,9 +1,9 @@
 # ML 학습 스크립트 (오프라인 전용)
 
 `app/`는 FastAPI 서버 실행 코드이고, 이 폴더(`ml_training/`)는 그 서버가 쓰는 ML 모델
-파일(`app/ml/models/*.joblib`)을 만들어내는 **오프라인 학습 스크립트** 모음이다. 서버가
-직접 이 폴더의 코드를 import하지 않는다 — 학습은 사람이 필요할 때 한 번 실행하는 작업이고,
-그 결과물(.joblib)만 서버가 로딩해서 쓴다.
+파일(`app/ml/models/*.joblib`)과 참조 분포 데이터(`app/insight/data/posture_reference.json`)를
+만들어내는 **오프라인 스크립트** 모음이다. 서버가 직접 이 폴더의 코드를 import하지 않는다 —
+전처리는 사람이 필요할 때 한 번 실행하는 작업이고, 그 결과물만 서버가 로딩해서 쓴다.
 
 ## 왜 이 폴더가 필요한가 (배경)
 
@@ -67,3 +67,39 @@ python3 -m ml_training.train_squat_classifier
 12개 컬럼 중 우리가 직접 재현 가능한 6개(좌우 무릎/엉덩이/발목 각도)만 골라 쓴 이유와,
 그로 인해 "상체 숙임(forward lean)" 오류를 이 모델의 판정 범위에서 제외한 이유가 그 파일과
 `train_squat_classifier.py` 주석에 자세히 설명되어 있다 — 재현 전에 꼭 읽어볼 것.
+
+## 참조 분포 데이터 (자세 비교 인사이트, AI-15)
+
+ML 분류기 두 개와는 성격이 다른 스크립트가 하나 더 있다.
+
+| 스크립트 | 만드는 것 | 용도 | 데이터 출처 |
+|---|---|---|---|
+| `prepare_posture_reference.py` | `app/insight/data/posture_reference.json` | 성별×연령대별 어깨/골반 기울기 백분위 비교 | 세종특별자치시_자세 측정 내역 (공공데이터포털) |
+
+이건 분류 모델을 학습하는 게 아니라, "같은 성별·연령대에서 내 기울기가 몇 %에 해당하는지"
+백분위를 계산할 때 쓸 참조 분포(정렬된 각도 리스트)를 미리 만들어두는 전처리 스크립트다.
+자세한 배경(왜 원본 CSV를 그대로 안 쓰는지, 백분위를 어떻게 정의했는지)은
+`prepare_posture_reference.py`와 `app/insight/posture_percentile.py` 주석 참고.
+
+**데이터 준비**
+
+```
+https://www.data.go.kr/data/15128996/fileData.do
+```
+위 페이지에서 "다운로드" 버튼으로 `세종특별자치시_자세 측정 내역_20241231.csv`를 받아
+`ml_training/data/posture/sejong_posture.csv`에 둔다 (로그인 불필요, cp949 인코딩 CSV,
+21,609행). 세종시가 운영하는 "세종 똑똑건강 앱"의 실측정 데이터로, 사용자 고유번호/측정
+일시/성별/출생년도/행정동/어깨·골반·척추·경추 소견 문장으로 구성되어 있다.
+
+**실행**
+
+```bash
+cd ai
+source .venv/bin/activate
+python3 -m ml_training.prepare_posture_reference
+```
+
+사용자당 최신 측정 1건만 남기고(반복 방문자가 참조 분포를 왜곡하지 않도록), 연령대를
+10년 단위(60대 이상은 통합)로 나눠 성별×연령대별 절대 기울기 각도를 정렬된 리스트로 저장한다.
+결과 JSON은 82KB 정도로 작아서 git에 커밋되어 있다 — 원본 CSV(5.6MB)는 다른 학습 데이터와
+마찬가지로 `ml_training/data/`에 있어 git에 커밋되지 않는다.

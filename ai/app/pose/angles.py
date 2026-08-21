@@ -140,3 +140,43 @@ def get_shoulder_alignment_angle(landmarks: list[Landmark], side: str = "auto") 
         else (landmarks[RIGHT_EAR], landmarks[RIGHT_SHOULDER], landmarks[RIGHT_HIP])
     )
     return calculate_angle(ear, shoulder, hip)
+
+
+def _horizontal_tilt_angle(left_point: Landmark, right_point: Landmark) -> float:
+    """
+    좌우 두 점을 잇는 선이 수평선과 이루는 각도(도)를 부호 있게 계산한다.
+    양수 = 왼쪽 점이 더 높음(=왼쪽이 올라감), 음수 = 오른쪽 점이 더 높음.
+
+    MediaPipe 정규화 좌표는 y가 아래로 갈수록 커지므로(이미지 좌표계),
+    "왼쪽이 올라감"은 곧 left_point.y < right_point.y를 의미한다.
+    """
+    dx = right_point.x - left_point.x
+    dy = right_point.y - left_point.y
+    if dx == 0 and dy == 0:
+        return 0.0
+    # atan2(dy, dx): dy가 양수(오른쪽이 더 아래)일 때 양수 각도가 나오도록,
+    # 그대로가 "왼쪽이 올라간 정도"와 부호가 일치한다.
+    return math.degrees(math.atan2(dy, dx))
+
+
+def get_shoulder_tilt_angle(landmarks: list[Landmark]) -> float:
+    """
+    정면 촬영 기준, 좌우 어깨의 높이 차이로 "어깨가 좌우로 얼마나 기울었는지"를 계산한다.
+
+    측면 촬영 전제로 만든 get_shoulder_alignment_angle()(귀-어깨-엉덩이, 어깨가 앞으로
+    말렸는지 = 시상면 문제)과는 완전히 다른 축의 측정값이다 — 이건 좌우 높이 차이(관상면
+    문제)라 정면 카메라가 있어야만 계산할 수 있다. 자세 비교 인사이트(AI-15) 기능을 위해
+    2026-08-18 추가했다. 이름도 다르게 지은 이유는 두 값을 절대 헷갈리지 않게 하기 위함.
+
+    반환값 부호: 양수 = 왼쪽 어깨가 올라감, 음수 = 오른쪽 어깨가 올라감(세종시 공공데이터의
+    "왼쪽 어깨가 N도 올라간 상태입니다" 표현과 부호를 맞춰, 참조 분포와 직접 비교 가능하게 함).
+    """
+    return _horizontal_tilt_angle(landmarks[LEFT_SHOULDER], landmarks[RIGHT_SHOULDER])
+
+
+def get_pelvis_tilt_angle(landmarks: list[Landmark]) -> float:
+    """
+    정면 촬영 기준, 좌우 골반(엉덩이) 높이 차이로 "골반이 좌우로 얼마나 기울었는지"를 계산한다.
+    부호 규칙과 배경은 get_shoulder_tilt_angle()과 동일 — 자세 비교 인사이트(AI-15)용.
+    """
+    return _horizontal_tilt_angle(landmarks[LEFT_HIP], landmarks[RIGHT_HIP])

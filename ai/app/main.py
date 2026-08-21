@@ -4,17 +4,22 @@ AI 서버의 시작점.
 'uvicorn app.main:app --reload' 명령어로 이 서버를 실행한다.
 """
 
+from datetime import date
+
 from fastapi import FastAPI
 from app.schemas import PoseAnalyzeRequest, PoseAnalyzeResponse, PoseIssue
 from app.schemas import CoachingFrameRequest, CoachingFrameResponse
 from app.schemas import SessionEndCheckRequest, SessionEndCheckResponse
 from app.schemas import MLLungeAnalyzeRequest, MLLungeAnalyzeResponse
 from app.schemas import MLSquatAnalyzeRequest, MLSquatAnalyzeResponse
+from app.schemas import PostureInsightRequest, PostureInsightResponse
 from app.pose.rules import judge_static_pose
+from app.pose.angles import get_shoulder_tilt_angle, get_pelvis_tilt_angle
 from app.coaching.realtime import judge_realtime_coaching
 from app.session.termination import judge_session_end
 from app.ml.lunge_classifier import classify_lunge_form
 from app.ml.squat_classifier import classify_squat_form
+from app.insight.posture_percentile import compute_posture_insight
 
 app = FastAPI(title="WellMade AI Server")
 
@@ -128,3 +133,30 @@ def ml_squat_analyze(request: MLSquatAnalyzeRequest):
         coaching_message=result["coaching_message"],
         model_name=result["model_name"],
     )
+
+
+@app.post("/ai/onboarding/posture-insight", response_model=PostureInsightResponse)
+def posture_insight(request: PostureInsightRequest):
+    """
+    자세 비교 인사이트 API (AI-15, 신규 — API 명세 표에 없는 온보딩 캘리브레이션 확장).
+
+    세션 시작 시 "정지 자세에서 정면 촬영"한 랜드마크로 어깨/골반의 좌우 기울기를 재고,
+    세종특별자치시 공공데이터(data.go.kr id 15128996) 기반 참조 분포와 비교해
+    "비슷한 연령대에서는 몇 %에 해당하는지" 백분위 인사이트를 돌려준다.
+    자세한 배경·부호 규칙·백분위 정의는 app/insight/posture_percentile.py 주석 참고.
+
+    다른 정지 자세 판정(/ai/pose/analyze)과 달리 "정상/이상"을 가르지 않는다 — 이 기능은
+    참고용 비교 정보만 제공하고, 판정은 기존 규칙기반 로직이 그대로 담당한다.
+    """
+    shoulder_tilt_deg = get_shoulder_tilt_angle(request.front_landmarks)
+    pelvis_tilt_deg = get_pelvis_tilt_angle(request.front_landmarks)
+    age = date.today().year - request.birth_year
+
+    result = compute_posture_insight(
+        shoulder_tilt_deg=shoulder_tilt_deg,
+        pelvis_tilt_deg=pelvis_tilt_deg,
+        gender=request.gender,
+        age=age,
+    )
+
+    return PostureInsightResponse(**result)

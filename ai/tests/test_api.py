@@ -365,6 +365,77 @@ def test_coaching_frame_hip_calibration_changes_normal_judgement():
     assert res_with.json()["is_normal"] is True
 
 
+def make_front_view_landmarks(shoulder_tilt="level", pelvis_tilt="level"):
+    """자세 비교 인사이트(/ai/onboarding/posture-insight) 테스트용 정면 촬영 랜드마크.
+    좌우 어깨(11/12)와 좌우 골반(23/24)의 y좌표 차이로 기울기를 만든다
+    (y가 작을수록 위 -> 더 "올라간" 쪽)."""
+    lms = [landmark() for _ in range(33)]
+    if shoulder_tilt == "left_up":
+        lms[11] = landmark(0.3, 0.20)  # LEFT_SHOULDER (더 위로 -> 왼쪽이 올라감)
+        lms[12] = landmark(0.7, 0.23)  # RIGHT_SHOULDER
+    else:  # "level"
+        lms[11] = landmark(0.3, 0.20)
+        lms[12] = landmark(0.7, 0.20)
+
+    if pelvis_tilt == "right_up":
+        lms[23] = landmark(0.35, 0.53)  # LEFT_HIP
+        lms[24] = landmark(0.65, 0.49)  # RIGHT_HIP (더 위로 -> 오른쪽이 올라감)
+    else:  # "level"
+        lms[23] = landmark(0.35, 0.50)
+        lms[24] = landmark(0.65, 0.50)
+    return lms
+
+
+def test_posture_insight_level_posture_returns_no_tilt_message():
+    body = {
+        "front_landmarks": make_front_view_landmarks("level", "level"),
+        "gender": "F",
+        "birth_year": 1990,
+    }
+    res = client.post("/ai/onboarding/posture-insight", json=body)
+    print("posture_insight(level):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["shoulder_side"] == "level"
+    assert data["pelvis_side"] == "level"
+    assert data["age_bracket"] == 30  # 2026 - 1990 = 36세 -> 30대
+
+
+def test_posture_insight_tilted_posture_returns_percentile():
+    body = {
+        "front_landmarks": make_front_view_landmarks("left_up", "right_up"),
+        "gender": "M",
+        "birth_year": 1990,
+    }
+    res = client.post("/ai/onboarding/posture-insight", json=body)
+    print("posture_insight(tilted):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["shoulder_side"] == "left"
+    assert data["pelvis_side"] == "right"
+    assert data["shoulder_percentile"] is not None
+    assert 0.0 <= data["shoulder_percentile"] <= 100.0
+    assert data["pelvis_percentile"] is not None
+    assert 0.0 <= data["pelvis_percentile"] <= 100.0
+    assert "왼쪽" in data["shoulder_message"]
+    assert "오른쪽" in data["pelvis_message"]
+    assert data["sample_size"] > 0
+
+
+def test_posture_insight_old_age_maps_to_60_plus_bracket():
+    # 1950년생 -> 76세, 참조 데이터가 60대 이상을 하나로 묶어뒀으므로 age_bracket=60이어야 함
+    body = {
+        "front_landmarks": make_front_view_landmarks("level", "level"),
+        "gender": "F",
+        "birth_year": 1950,
+    }
+    res = client.post("/ai/onboarding/posture-insight", json=body)
+    print("posture_insight(old age):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["age_bracket"] == 60
+
+
 if __name__ == "__main__":
     test_health()
     test_pose_analyze_standing_is_abnormal_for_squat_bottom()
@@ -388,4 +459,7 @@ if __name__ == "__main__":
     test_ml_squat_analyze_returns_valid_response()
     test_ml_squat_analyze_standing_case_runs_without_error()
     test_coaching_frame_hip_calibration_changes_normal_judgement()
+    test_posture_insight_level_posture_returns_no_tilt_message()
+    test_posture_insight_tilted_posture_returns_percentile()
+    test_posture_insight_old_age_maps_to_60_plus_bracket()
     print("\nALL MANUAL CHECKS PASSED")
