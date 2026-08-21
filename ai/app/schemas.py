@@ -244,3 +244,60 @@ class PostureInsightResponse(BaseModel):
     pelvis_message: str
 
     message: str = Field(..., description="어깨+골반 인사이트를 하나로 합친 한국어 문구 (TTS로 바로 읽을 수 있는 텍스트)")
+
+
+# ---- 하네스 오케스트레이션 (AI-07) ----
+# LLM Tool Use 기반으로 "다음에 어떤 행동을 할지"를 동적으로 결정한다. 자세한 배경·판단
+# 규칙(H-01~H-06)은 app/orchestration/harness.py 주석 참고.
+
+# 요구사항 정의서 "2.하네스판단로직" 시트의 "선택 가능 액션"을 도구화한 값과 1:1 대응.
+# harness.py의 HARNESS_TOOLS와 반드시 이름이 일치해야 한다 — 여기서 하나 늘리거나 이름을
+# 바꾸면 harness.py도 같이 수정해야 함.
+NextAction = Literal[
+    "request_retake",
+    "request_reanalysis",
+    "proceed",
+    "recommend_expert_consultation",
+    "hold_judgment",
+    "wait_next_frame",
+    "use_generic_guidance",
+    "trigger_rag_search",
+    "prefer_latest_document",
+    "refine_query_and_research",
+    "end_session",
+]
+
+
+class OrchestrateContext(BaseModel):
+    """하네스가 판단에 쓰는 상황 정보. 전부 선택 필드다 — 호출 시점(정지 자세 판정 중/실시간
+    코칭 중/RAG 검색 후/세션 종료 체크 시 등)마다 그때 알 수 있는 값만 채워 보내면 된다."""
+
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="판정 신뢰도 (H-01, H-03)")
+    landmark_visibility: Optional[float] = Field(None, ge=0.0, le=1.0, description="관절 평균 visibility (H-01)")
+    issue_type: Optional[str] = Field(None, description="감지된 이상 소견 종류 (H-02, H-04)")
+    issue_repeat_count: Optional[int] = Field(None, ge=0, description="동일 소견 반복 감지 횟수 (H-02, H-04)")
+    pelvis_height_diff_deg: Optional[float] = Field(None, description="좌우 골반 높이차(도) (H-02)")
+    elapsed_normal_time_sec: Optional[float] = Field(None, ge=0.0, description="정상판정 상태 누적 지속시간(초) (H-06)")
+    session_end_condition_met: Optional[bool] = Field(None, description="세션 종료 조건(AI-13) 충족 여부 (H-06)")
+    user_requested_end: Optional[bool] = Field(None, description="사용자 직접 종료 요청 여부 (H-06)")
+    rag_result_count: Optional[int] = Field(None, ge=0, description="RAG 검색 결과 문서 수 (H-05)")
+    rag_results_conflicting: Optional[bool] = Field(None, description="RAG 검색 결과 내용 상충 여부 (H-05)")
+
+
+class OrchestrateRequest(BaseModel):
+    """하네스 판단 실행(/ai/orchestrate) 요청. API 명세(5.AI_API명세 시트)의
+    { sessionId, context } 형태를 그대로 따르되, 이 코드베이스의 기존 관례대로
+    필드명은 snake_case로 옮겼다(예: hip_calibration, angle_history와 동일한 관례)."""
+
+    session_id: str
+    context: OrchestrateContext = Field(default_factory=OrchestrateContext)
+
+
+class OrchestrateResponse(BaseModel):
+    next_action: NextAction = Field(..., description="하네스가 결정한 다음 행동")
+    reasoning: str = Field(..., description="이 행동을 선택한 이유(한국어)")
+    action_args: dict = Field(default_factory=dict, description="액션별 부가 인자 (예: end_session의 end_reason)")
+    source: Literal["llm", "fallback"] = Field(
+        ..., description="LLM이 직접 판단했는지, LLM 호출이 불가능/실패해 규칙기반 폴백을 썼는지"
+    )
+    fallback_reason: Optional[str] = Field(None, description="source가 fallback일 때만: 폴백을 쓴 이유")

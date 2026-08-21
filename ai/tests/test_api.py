@@ -4,11 +4,14 @@
   기대한 방향으로 동작하는지 TestClient로 확인한다.
 """
 
+import os
+
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.pose.rules import personalized_hip_range
 from app.schemas import HipFlexibilityCalibration
+from app.orchestration.harness import decide_next_action, API_KEY_ENV_VAR, DEFAULT_MODEL_ENV_VAR
 
 client = TestClient(app)
 
@@ -436,6 +439,140 @@ def test_posture_insight_old_age_maps_to_60_plus_bracket():
     assert data["age_bracket"] == 60
 
 
+def _without_llm_env(fn):
+    """테스트 중 ANTHROPIC_API_KEY/HARNESS_LLM_MODEL이 우연히 설정돼있어도(로컬 .env 등)
+    fallback 경로 테스트가 실제 LLM을 호출하지 않도록, 두 환경변수를 잠시 지웠다가
+    복원한다."""
+    saved = {}
+    for key in (API_KEY_ENV_VAR, DEFAULT_MODEL_ENV_VAR):
+        saved[key] = os.environ.pop(key, None)
+    try:
+        return fn()
+    finally:
+        for key, value in saved.items():
+            if value is not None:
+                os.environ[key] = value
+
+
+def test_orchestrate_fallback_no_signals_proceeds():
+    def run():
+        body = {"session_id": "s1", "context": {}}
+        res = client.post("/ai/orchestrate", json=body)
+        print("orchestrate(no signals):", res.status_code, res.json())
+        assert res.status_code == 200
+        data = res.json()
+        assert data["source"] == "fallback"
+        assert data["next_action"] == "proceed"
+        assert data["fallback_reason"] is not None
+
+    _without_llm_env(run)
+
+
+def test_orchestrate_fallback_low_visibility_requests_retake():
+    def run():
+        body = {"session_id": "s1", "context": {"landmark_visibility": 0.3}}
+        res = client.post("/ai/orchestrate", json=body)
+        print("orchestrate(low visibility):", res.status_code, res.json())
+        assert res.status_code == 200
+        assert res.json()["next_action"] == "request_retake"
+
+    _without_llm_env(run)
+
+
+def test_orchestrate_fallback_user_requested_end_wins_over_low_confidence():
+    # 사용자 직접 종료 요청(H-06)이 낮은 신뢰도(H-01)보다 우선순위가 높아야 한다.
+    def run():
+        body = {
+            "session_id": "s1",
+            "context": {"user_requested_end": True, "confidence": 0.2},
+        }
+        res = client.post("/ai/orchestrate", json=body)
+        print("orchestrate(user requested end + low confidence):", res.status_code, res.json())
+        assert res.status_code == 200
+        data = res.json()
+        assert data["next_action"] == "end_session"
+        assert data["action_args"]["end_reason"] == "user_requested"
+
+    _without_llm_env(run)
+
+
+def test_orchestrate_fallback_repeated_issue_triggers_rag():
+    def run():
+        body = {
+            "session_id": "s1",
+            "context": {"issue_type": "knee_valgus", "issue_repeat_count": 3},
+        }
+        res = client.post("/ai/orchestrate", json=body)
+        print("orchestrate(repeated issue):", res.status_code, res.json())
+        assert res.status_code == 200
+        data = res.json()
+        assert data["next_action"] == "trigger_rag_search"
+        assert data["action_args"]["search_query"] == "knee_valgus"
+
+    _without_llm_env(run)
+
+
+class _FakeToolUseBlock:
+    def __init__(self, name, input_):
+        self.type = "tool_use"
+        self.name = name
+        self.input = input_
+
+
+class _FakeMessage:
+    def __init__(self, content):
+        self.content = content
+
+
+class _FakeMessagesAPI:
+    def __init__(self, block=None, exc=None):
+        self._block = block
+        self._exc = exc
+
+    def create(self, **kwargs):
+        if self._exc is not None:
+            raise self._exc
+        return _FakeMessage([self._block])
+
+
+class _FakeAnthropicClient:
+    """실제 anthropic.Anthropic() 대신 주입하는 가짜 클라이언트 — 네트워크 호출 없이
+    harness.decide_next_action()의 파싱/폴백 로직만 검증한다."""
+
+    def __init__(self, block=None, exc=None):
+        self.messages = _FakeMessagesAPI(block=block, exc=exc)
+
+
+def test_harness_llm_path_parses_tool_use_response():
+    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    try:
+        block = _FakeToolUseBlock(
+            "recommend_expert_consultation", {"reasoning": "골반 비대칭이 반복됐습니다."}
+        )
+        fake_client = _FakeAnthropicClient(block=block)
+        result = decide_next_action("s1", {"issue_type": "pelvis_asymmetry"}, client=fake_client)
+        print("harness(llm path):", result)
+        assert result["source"] == "llm"
+        assert result["next_action"] == "recommend_expert_consultation"
+        assert result["reasoning"] == "골반 비대칭이 반복됐습니다."
+        assert result["action_args"] == {}  # reasoning은 action_args에서 빠져야 함
+    finally:
+        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+
+
+def test_harness_llm_failure_falls_back():
+    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    try:
+        fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
+        result = decide_next_action("s1", {}, client=fake_client)
+        print("harness(llm failure -> fallback):", result)
+        assert result["source"] == "fallback"
+        assert "network down" in result["fallback_reason"]
+        assert result["next_action"] == "proceed"  # 상황 정보가 없으니 안전한 기본값
+    finally:
+        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+
+
 if __name__ == "__main__":
     test_health()
     test_pose_analyze_standing_is_abnormal_for_squat_bottom()
@@ -462,4 +599,10 @@ if __name__ == "__main__":
     test_posture_insight_level_posture_returns_no_tilt_message()
     test_posture_insight_tilted_posture_returns_percentile()
     test_posture_insight_old_age_maps_to_60_plus_bracket()
+    test_orchestrate_fallback_no_signals_proceeds()
+    test_orchestrate_fallback_low_visibility_requests_retake()
+    test_orchestrate_fallback_user_requested_end_wins_over_low_confidence()
+    test_orchestrate_fallback_repeated_issue_triggers_rag()
+    test_harness_llm_path_parses_tool_use_response()
+    test_harness_llm_failure_falls_back()
     print("\nALL MANUAL CHECKS PASSED")

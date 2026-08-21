@@ -13,6 +13,7 @@ from app.schemas import SessionEndCheckRequest, SessionEndCheckResponse
 from app.schemas import MLLungeAnalyzeRequest, MLLungeAnalyzeResponse
 from app.schemas import MLSquatAnalyzeRequest, MLSquatAnalyzeResponse
 from app.schemas import PostureInsightRequest, PostureInsightResponse
+from app.schemas import OrchestrateRequest, OrchestrateResponse
 from app.pose.rules import judge_static_pose
 from app.pose.angles import get_shoulder_tilt_angle, get_pelvis_tilt_angle
 from app.coaching.realtime import judge_realtime_coaching
@@ -20,6 +21,7 @@ from app.session.termination import judge_session_end
 from app.ml.lunge_classifier import classify_lunge_form
 from app.ml.squat_classifier import classify_squat_form
 from app.insight.posture_percentile import compute_posture_insight
+from app.orchestration.harness import decide_next_action
 
 app = FastAPI(title="WellMade AI Server")
 
@@ -160,3 +162,28 @@ def posture_insight(request: PostureInsightRequest):
     )
 
     return PostureInsightResponse(**result)
+
+
+@app.post("/ai/orchestrate", response_model=OrchestrateResponse)
+def orchestrate(request: OrchestrateRequest):
+    """
+    하네스 판단 실행 API (AI-07).
+
+    단순 순차 파이프라인이 아니라, 지금까지 쌓인 상황 정보(신뢰도/소견/지속시간/RAG
+    검색 상태 등)를 보고 "다음에 뭘 해야 하는지"를 LLM Tool Use로 동적으로 결정한다.
+    자세한 판단 규칙(H-01~H-06)과 LLM 호출 실패 시 규칙기반 폴백은
+    app/orchestration/harness.py 주석 참고.
+
+    이 엔드포인트는 액션을 "실행"하지 않고 "결정"만 한다 — 예를 들어 trigger_rag_search를
+    반환해도 이 함수가 직접 RAG를 호출하지는 않는다. 실제 실행은 이 응답을 받은 백엔드/
+    프론트가 담당한다(명세상 응답이 { nextAction, reasoning }인 이유).
+    """
+    result = decide_next_action(request.session_id, request.context.model_dump())
+
+    return OrchestrateResponse(
+        next_action=result["next_action"],
+        reasoning=result["reasoning"],
+        action_args=result.get("action_args", {}),
+        source=result["source"],
+        fallback_reason=result.get("fallback_reason"),
+    )

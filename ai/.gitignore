@@ -4,5 +4,8 @@ __pycache__/
 .venv/
 venv/
 
+# 실제 API 키 등 비밀값 — 예시 파일(.env.example)만 커밋한다.
+.env
+
 # ML 학습 원본 데이터 (용량 문제로 커밋 안 함 — 재현 방법은 ml_training/README.md 참고)
 ml_training/data/
