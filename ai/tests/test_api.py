@@ -954,6 +954,116 @@ def test_coaching_frame_without_frontal_fields_still_works():
     assert not any(issue["part"] in ("knee_valgus", "asymmetry") for issue in data["issues"]), data
 
 
+# ---- 무릎-발끝 규칙기반 검사 (2026-08-21, ML 런지 분류기가 담당하던 항목을 뒤늦게 대체) ----
+from app.pose.angles import get_knee_over_toe_ratio  # noqa: E402
+from app.pose.rules import KNEE_OVER_TOE_RATIO_THRESHOLD  # noqa: E402
+
+
+def test_get_knee_over_toe_ratio_knee_behind_toe_is_not_positive():
+    # 발이 오른쪽(+x)을 향하고(facing_direction=+1), 무릎이 발끝보다 뒤(왼쪽)에 있으면 <= 0.
+    lms = [_lm_obj() for _ in range(33)]
+    lms[25] = _lm_obj(0.5, 0.75)  # LEFT_KNEE
+    lms[27] = _lm_obj(0.6, 1.0)  # LEFT_ANKLE
+    lms[31] = _lm_obj(0.9, 1.0)  # LEFT_FOOT_INDEX (발끝이 발목보다 오른쪽 -> 오른쪽을 향함)
+    ratio = get_knee_over_toe_ratio(lms, "left")
+    print("knee_over_toe_ratio(behind):", ratio)
+    assert ratio <= 0.0
+
+
+def test_get_knee_over_toe_ratio_knee_past_toe_is_positive_and_large():
+    # 같은 오른쪽 방향 기준, 무릎이 발끝보다 앞(오른쪽)으로 많이 나가면 큰 양수.
+    lms = [_lm_obj() for _ in range(33)]
+    lms[25] = _lm_obj(1.05, 0.75)  # LEFT_KNEE (발끝보다 훨씬 앞)
+    lms[27] = _lm_obj(0.6, 1.0)  # LEFT_ANKLE
+    lms[31] = _lm_obj(0.9, 1.0)  # LEFT_FOOT_INDEX
+    ratio = get_knee_over_toe_ratio(lms, "left")
+    print("knee_over_toe_ratio(past):", ratio)
+    assert ratio > KNEE_OVER_TOE_RATIO_THRESHOLD
+
+
+def test_get_knee_over_toe_ratio_facing_left_direction_still_correct():
+    # 발이 왼쪽(-x)을 향해도(facing_direction=-1) 방향 보정이 되어, 무릎이 발끝보다
+    # 실제로 앞(이 경우 왼쪽)에 있으면 양수가 나와야 한다.
+    lms = [_lm_obj() for _ in range(33)]
+    lms[25] = _lm_obj(0.15, 0.75)  # LEFT_KNEE (발끝보다 왼쪽 -> "왼쪽을 향한" 기준으로는 앞)
+    lms[27] = _lm_obj(0.6, 1.0)  # LEFT_ANKLE
+    lms[31] = _lm_obj(0.3, 1.0)  # LEFT_FOOT_INDEX (발끝이 발목보다 왼쪽 -> 왼쪽을 향함)
+    ratio = get_knee_over_toe_ratio(lms, "left")
+    print("knee_over_toe_ratio(facing left, past):", ratio)
+    assert ratio > KNEE_OVER_TOE_RATIO_THRESHOLD
+
+
+def make_knee_over_toe_landmarks(state="normal"):
+    """/ai/pose/analyze 테스트용. make_landmarks("deep")가 만든 정상 딥스쿼트(무릎~90도)를
+    그대로 두고 발목(27)/발끝(31)만 새로 채워, 무릎-발끝 검사 하나만 격리해서 확인한다."""
+    lms = make_landmarks("deep")  # LEFT_KNEE(25) = (0.5, 0.75), LEFT_ANKLE(27) = (0.75, 0.75)
+    if state == "normal":
+        lms[31] = landmark(0.95, 0.78)  # LEFT_FOOT_INDEX (무릎이 발끝보다 뒤)
+    else:  # "past"
+        lms[31] = landmark(0.65, 0.78)  # LEFT_FOOT_INDEX (무릎이 발끝을 크게 넘음)
+    return lms
+
+
+def test_pose_analyze_knee_over_toe_normal_not_flagged():
+    body = {"landmarks": make_knee_over_toe_landmarks("normal"), "exercise_type": "squat", "side": "left"}
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(knee not over toe):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
+
+
+def test_pose_analyze_knee_over_toe_flagged():
+    body = {"landmarks": make_knee_over_toe_landmarks("past"), "exercise_type": "squat", "side": "left"}
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(knee over toe):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
+
+
+def test_pose_analyze_knee_over_toe_flagged_for_lunge_too():
+    # 원래 ML은 런지 전용이었지만, 사용자 요청에 따라 스쿼트/런지 둘 다 적용했다.
+    body = {"landmarks": make_knee_over_toe_landmarks("past"), "exercise_type": "lunge", "side": "left"}
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(knee over toe, lunge):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
+
+
+def test_coaching_frame_knee_over_toe_flagged_when_deep_hold():
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "knee_over_toe_ratio": KNEE_OVER_TOE_RATIO_THRESHOLD + 0.3,
+        }
+        for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(knee over toe, deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
+
+
+def test_coaching_frame_without_knee_over_toe_field_still_works():
+    # knee_over_toe_ratio 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(no knee_over_toe_ratio field):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
+
+
 if __name__ == "__main__":
     test_health()
     test_pose_analyze_standing_is_abnormal_for_squat_bottom()
@@ -1014,4 +1124,12 @@ if __name__ == "__main__":
     test_coaching_frame_knee_valgus_flagged_when_deep_hold()
     test_coaching_frame_knee_asymmetry_flagged_when_deep_hold()
     test_coaching_frame_without_frontal_fields_still_works()
+    test_get_knee_over_toe_ratio_knee_behind_toe_is_not_positive()
+    test_get_knee_over_toe_ratio_knee_past_toe_is_positive_and_large()
+    test_get_knee_over_toe_ratio_facing_left_direction_still_correct()
+    test_pose_analyze_knee_over_toe_normal_not_flagged()
+    test_pose_analyze_knee_over_toe_flagged()
+    test_pose_analyze_knee_over_toe_flagged_for_lunge_too()
+    test_coaching_frame_knee_over_toe_flagged_when_deep_hold()
+    test_coaching_frame_without_knee_over_toe_field_still_works()
     print("\nALL MANUAL CHECKS PASSED")

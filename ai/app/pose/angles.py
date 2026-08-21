@@ -156,6 +156,57 @@ def get_heel_lift_ratio(landmarks: list[Landmark], side: str = "auto") -> float:
     return (toe.y - heel.y) / foot_length
 
 
+def get_knee_over_toe_ratio(landmarks: list[Landmark], side: str = "auto") -> float:
+    """
+    측면 촬영 기준, 무릎이 발끝보다 얼마나 앞으로 나갔는지를 나타내는 비율.
+
+    왜 뒤늦게(2026-08-21) 추가됐는가?
+    - 원래 "무릎이 발끝을 넘는지"는 ML 런지 분류기(app/ml/lunge_classifier.py, 삭제됨)가
+      담당하던 항목이었다. 스쿼트/런지 ML을 전부 규칙기반으로 대체할 때(같은 날짜) 발뒤꿈치
+      뜸/무릎 모임/좌우 비대칭은 대체 지표를 같이 설계했지만, 이 항목은 누락된 채로
+      남아있었다 — RAG 지식베이스(knowledge_base.py)의 lunge_knee_over_toe 문서와 코칭
+      문구에는 언급이 남아있는데 실제로 자동 판정하는 로직이 없는 상태였다. 사용자가 이
+      공백을 지적해서 뒤늦게 추가한다.
+    - get_heel_lift_ratio()와 마찬가지로 "무거운 ML 없이 재현 가능한 기하학적 지표로
+      규칙기반 우선 원칙을 지킨다"는 같은 설계를 따른다.
+
+    왜 스쿼트에도 적용하는가?
+    - 원래 ML 시절엔 런지 전용 판정이었지만, "무릎이 발끝을 넘지 않는 선에서 앉는다"는
+      코칭 지침 자체는 스쿼트에도 똑같이 적용되는 일반적인 원칙이라(NASM 오버헤드 스쿼트
+      평가에도 포함되는 항목), 사용자 요청에 따라 스쿼트/런지 둘 다에 적용한다.
+
+    부호/방향 처리:
+    - 측면 촬영에서는 사람이 카메라 기준 왼쪽을 보고 있을 수도, 오른쪽을 보고 있을 수도
+      있어서, "무릎 x좌표가 발끝 x좌표보다 크다/작다"만으로는 "앞으로 나갔다"를 판단할 수
+      없다 — 마이너스 부호가 반대로 나올 수 있다. 그래서 발목→발끝 벡터의 x축 부호로
+      "몸이 카메라 기준 어느 방향을 보고 있는지"(facing_direction)를 먼저 추정하고, 그
+      방향 기준으로 무릎이 발끝보다 앞에 있으면 항상 양수가 되도록 부호를 맞춘다.
+
+    발목-발끝 사이 x축 거리(발 길이)로 정규화하는 이유는 get_heel_lift_ratio()와 동일
+    (카메라 거리/줌 배율에 따라 비슷한 비율이 나오게 하기 위함).
+
+    값이 0 이하면 무릎이 발끝을 넘지 않은 상태(정상), 값이 클수록 무릎이 발끝보다 앞으로
+    많이 나간 상태를 뜻한다.
+
+    # TODO: 팀 확정 필요 — 이 지표도 heel_lift_ratio와 마찬가지로 문헌에서 가져온 값이
+    # 아니라 새로 설계한 기하학적 근사치이며, 임계값(rules.py의
+    # KNEE_OVER_TOE_RATIO_THRESHOLD)도 잠정값이다. 특히 스쿼트/런지 모두 무릎이 발끝을
+    # "약간" 넘는 것 자체는 정상적인 가동범위(특히 발목 가동성이 좋은 사람이나 깊은
+    # 스쿼트)라는 의견도 있어, 실사용자 테스트로 재조정이 필요하다.
+    """
+    chosen = _select_side(landmarks, side)
+    knee, ankle, toe = (
+        (landmarks[LEFT_KNEE], landmarks[LEFT_ANKLE], landmarks[LEFT_FOOT_INDEX])
+        if chosen == "left"
+        else (landmarks[RIGHT_KNEE], landmarks[RIGHT_ANKLE], landmarks[RIGHT_FOOT_INDEX])
+    )
+    foot_length = abs(ankle.x - toe.x)
+    if foot_length == 0:
+        return 0.0
+    facing_direction = 1.0 if (toe.x - ankle.x) >= 0 else -1.0
+    return ((knee.x - toe.x) * facing_direction) / foot_length
+
+
 def get_shoulder_alignment_angle(landmarks: list[Landmark], side: str = "auto") -> float:
     """
     귀-어깨-엉덩이 3점으로 "어깨가 말리지 않고 펴져 있는지"(가슴을 편 자세)를 계산한다.

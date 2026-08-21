@@ -11,10 +11,16 @@
    기준 프로파일을 잡을 때 참고자료로만 활용) 없이도 합리적인 판정이 가능하다.
 """
 
-from app.pose.coaching_messages import ASYMMETRY_MESSAGE, HEEL_LIFT_MESSAGE, KNEE_VALGUS_MESSAGE
+from app.pose.coaching_messages import (
+    ASYMMETRY_MESSAGE,
+    HEEL_LIFT_MESSAGE,
+    KNEE_OVER_TOE_MESSAGE,
+    KNEE_VALGUS_MESSAGE,
+)
 from app.pose.rules import (
     HEEL_LIFT_RATIO_THRESHOLD,
     KNEE_ASYMMETRY_THRESHOLD_DEG,
+    KNEE_OVER_TOE_RATIO_THRESHOLD,
     KNEE_VALGUS_RATIO_THRESHOLD,
     NORMAL_RANGES,
     personalized_hip_range,
@@ -113,6 +119,8 @@ def judge_realtime_coaching(
     # 정면 랜드마크 기반 지표(2026-08-21 추가) — 프론트가 정면 카메라도 붙였을 때만 채워진다.
     latest_knee_valgus = angle_history[-1].knee_valgus_ratio  # 선택 필드라 None일 수 있음
     latest_knee_asymmetry = angle_history[-1].knee_asymmetry_deg  # 선택 필드라 None일 수 있음
+    # 무릎-발끝(2026-08-21 추가) — 측면 랜드마크 기준이라 정면 카메라 여부와 무관하게 선택 필드다.
+    latest_knee_over_toe = angle_history[-1].knee_over_toe_ratio  # 선택 필드라 None일 수 있음
 
     knee_slope, knee_r2 = _linear_fit(timestamps, knee_series)
     knee_deltas = [b - a for a, b in zip(knee_series, knee_series[1:])]
@@ -198,6 +206,14 @@ def judge_realtime_coaching(
             and latest_knee_asymmetry > KNEE_ASYMMETRY_THRESHOLD_DEG
         ):
             issues.append({"part": "asymmetry", "message": ASYMMETRY_MESSAGE})
+        # 무릎-발끝도 발뒤꿈치와 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 동작
+        # 중(내려가는/올라오는 도중)에는 무릎이 발끝을 순간적으로 넘는 게 자연스러울 수 있다.
+        if (
+            is_deep_hold
+            and latest_knee_over_toe is not None
+            and latest_knee_over_toe > KNEE_OVER_TOE_RATIO_THRESHOLD
+        ):
+            issues.append({"part": "knee_over_toe", "message": KNEE_OVER_TOE_MESSAGE})
     else:
         # 동작 중에는 "정상범위 하한보다 훨씬 더 굽혀지는" 과도한 굽힘만 위험 신호로 본다.
         # (무릎에 부담이 되는 과도한 가동범위는 동작 단계와 무관하게 바로 감지해야 하기 때문)

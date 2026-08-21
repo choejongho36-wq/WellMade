@@ -15,10 +15,16 @@ from app.pose.angles import (
     get_hip_angle,
     get_knee_angle,
     get_knee_lr_asymmetry_deg,
+    get_knee_over_toe_ratio,
     get_knee_valgus_ratio,
     get_shoulder_alignment_angle,
 )
-from app.pose.coaching_messages import ASYMMETRY_MESSAGE, HEEL_LIFT_MESSAGE, KNEE_VALGUS_MESSAGE
+from app.pose.coaching_messages import (
+    ASYMMETRY_MESSAGE,
+    HEEL_LIFT_MESSAGE,
+    KNEE_OVER_TOE_MESSAGE,
+    KNEE_VALGUS_MESSAGE,
+)
 from app.schemas import HipFlexibilityCalibration, Landmark
 
 # 스포츠의학/트레이너 자격 기준 자료를 근거로 한 값 (2026-08-18 업데이트).
@@ -30,18 +36,28 @@ from app.schemas import HipFlexibilityCalibration, Landmark
 # [스쿼트]
 # IJSPT(International Journal of Sports Physical Therapy)의 스쿼트 임상 리뷰 논문은
 # 깊이를 얕음(굴곡 0~90도) / 평행(90~110도) / 깊음(110~135도)으로 나눈다.
-# 이걸 내각으로 바꾸면 평행 스쿼트는 70~90도인데, WellMade는 "대퇴가 바닥과 평행한
-# 지점까지" 내려가는 걸 목표로 잡아서(더 깊은 스쿼트는 개인 유연성 차이가 커 위험 부담이
-# 있음) knee_angle 범위를 이 평행 구간에 맞췄다. 상한을 100도까지 살짝 넉넉하게 둔 건
-# 판정이 너무 빡빡해서 정상 동작도 이상으로 잡아내는 것을 막기 위한 여유값이다.
+# 이걸 내각으로 바꾸면 평행 스쿼트는 70~90도, 깊은(ATG 포함) 스쿼트는 그 아래로도 내려간다.
 # 참고: https://ijspt.scholasticahq.com/article/94600-a-biomechanical-review-of-the-squat-exercise-implications-for-clinical-practice
+#
+# (2026-08-21 변경) 원래는 "대퇴가 바닥과 평행한 지점까지"만 정상으로 잡아(하한 70도),
+# 그보다 깊게 앉으면 "이상"으로 판정했다. 그런데 실제 깊은 스쿼트(ATG) 사진(무릎 53도/
+# 엉덩이 56도)을 테스트해보니 육안으로는 명백히 정상적인(오히려 좋은 가동범위의) 자세인데
+# "이상"으로 잘못 판정되는 문제가 확인됐다. 사용자 확인 후, 깊은 스쿼트도 정상으로 인정하도록
+# 하한을 낮췄다(70→50) — "평행보다 얕은" 자세만 이상으로 잡고, 얼마나 깊이 앉는지는 더 이상
+# 제한하지 않는다는 뜻. 상한(100도)은 그대로 — 판정이 너무 빡빡해서 정상 동작도 이상으로
+# 잡아내는 것을 막기 위한 여유값이라는 원래 취지와 별개로 여전히 유효함.
+# TODO: 팀 확정 필요 — 50도라는 새 하한도 문헌 기준 정확한 수치가 아니라, 이번 실측 사례
+# (53도)가 걸리지 않도록 여유를 둔 잠정치다. 무릎에 무리가 갈 정도로 극단적인 깊이(예: 완전히
+# 쪼그려 앉은 자세)까지 계속 "정상"으로 볼지는 실사용자 테스트 후 재조정이 필요하다.
 #
 # 같은 논문은 엉덩이(고관절) 각도에 대해서는 "개인의 고관절 가동범위가 다 달라서 고정된
 # 정상범위를 제시하기 어렵고, 각자의 가동범위 안에서 척추 중립만 지키면 된다"고 명시한다.
 # 즉 hip_angle에 고정 숫자를 넣는 것 자체가 의학적으로 엄밀한 기준은 아니다.
 # 그래서 아래 값은 "이 범위를 벗어나면 상체를 과도하게 숙이거나 너무 꼿꼿이 세운
 # 상태"라는 느슨한 안전장치(sanity check)로만 쓰고, "이 범위 안 = 완벽한 자세"라고
-# 해석하지 않는다.
+# 해석하지 않는다. hip_angle 하한도 knee_angle과 같은 이유(2026-08-21)로 낮췄다(60→45) —
+# 깊게 앉을수록 상체가 자연히 더 숙여지는(고관절이 더 접히는) 경향이 있어, 무릎 하한만
+# 낮추고 hip_angle을 그대로 두면 깊은 스쿼트가 이번엔 "hip" 이슈로 걸리는 문제가 남기 때문.
 #
 # [런지]
 # NASM(National Academy of Sports Medicine, 트레이너 자격 기준)은 상체를 세운 런지를
@@ -76,17 +92,25 @@ from app.schemas import HipFlexibilityCalibration, Landmark
 # - 발뒤꿈치 뜸: get_heel_lift_ratio() (측면 랜드마크, HEEL_LIFT_RATIO_THRESHOLD)
 # - 무릎 모임: get_knee_valgus_ratio() (정면 랜드마크, KNEE_VALGUS_RATIO_THRESHOLD)
 # - 좌우 비대칭: get_knee_lr_asymmetry_deg() (정면 랜드마크, KNEE_ASYMMETRY_THRESHOLD_DEG)
+#
+# (2026-08-21 추가) 이때 함께 옮겼어야 했는데 누락된 항목이 하나 더 있었다 — "무릎이
+# 발끝을 넘는지"는 원래 ML 런지 분류기가 담당했는데, RAG 지식베이스(knowledge_base.py의
+# lunge_knee_over_toe)와 코칭 문구에는 언급이 남아있으면서도 정작 자동 판정 로직이 없는
+# 채로 방치돼 있었다. 뒤늦게 get_knee_over_toe_ratio()(측면 랜드마크,
+# KNEE_OVER_TOE_RATIO_THRESHOLD)로 추가했다 — 원래 런지 전용이었지만 "무릎이 발끝을
+# 넘지 않는다"는 코칭 지침 자체는 스쿼트에도 똑같이 적용되는 원칙이라 두 종목 모두에 쓴다.
 # 정면 랜드마크(front_landmarks)는 선택 입력이다 — 프론트가 아직 정면 카메라를 붙이지 않은
 # 기존 클라이언트도 계속 동작해야 하므로(하위 호환, shoulder_angle/heel_lift_ratio와 동일한
 # 패턴), 정면 랜드마크가 없으면 무릎 모임/좌우 비대칭 검사를 건너뛴다.
 #
-# TODO: 팀 확정 필요 — 스쿼트를 "평행" 대신 "깊은 스쿼트"까지 목표로 할지, 런지의
-# 뒷다리 각도를 별도로 판정에 반영할지는 제품 방향에 따라 달라지므로 재검토 필요.
+# ~~TODO: 스쿼트를 "평행" 대신 "깊은 스쿼트"까지 목표로 할지~~ → 2026-08-21 사용자 확인 후
+# 확정: 깊은 스쿼트도 정상으로 허용(위 [스쿼트] 절 참고). 런지 뒷다리 각도 별도 판정은
+# 여전히 미정 — 제품 방향에 따라 달라지므로 재검토 필요.
 # TODO: 팀 확정 필요 — shoulder_angle 범위는 수치 근거가 약해 사용자 테스트 후 조정 필요.
 NORMAL_RANGES = {
     "squat": {
-        "knee_angle": (70, 100),  # 평행 스쿼트(굴곡 90~110도) 기준, IJSPT 논문 근거
-        "hip_angle": (60, 100),  # 고정 정상범위 아님 — 과도한 상체 숙임/직립 감지용 여유값
+        "knee_angle": (50, 100),  # (2026-08-21) 깊은 스쿼트도 정상 허용 — 하한 70→50, 위 주석 참고
+        "hip_angle": (45, 100),  # (2026-08-21) 위와 같은 이유로 하한 60→45, 위 주석 참고
         "shoulder_angle": (155, 180),  # 귀-어깨-엉덩이 일직선 여부 — 수치 근거 약함(위 설명 참고)
     },
     "lunge": {
@@ -128,6 +152,15 @@ KNEE_VALGUS_RATIO_THRESHOLD = 0.8
 # (예: coaching/realtime.py의 DEEP_MARGIN_DEG)과 같은 자릿수로 맞춘 잠정치다.
 # TODO: 팀 확정 필요 — 실사용자 테스트로 조정.
 KNEE_ASYMMETRY_THRESHOLD_DEG = 15.0
+
+# 무릎이 발끝보다 발 길이의 몇 %만큼 더 나가면 "발끝을 넘었다"고 볼지의 잠정 임계값
+# (2026-08-21 추가 — ML 런지 분류기가 담당하던 항목을 규칙기반으로 뒤늦게 대체).
+# get_knee_over_toe_ratio()가 반환하는 값과 비교한다. 0.3은 "무릎이 발 길이의 30%만큼
+# 발끝을 넘으면 눈에 띄게 나간 것"이라는 상식적인 잠정치이고, 약간 넘는 정도는 정상적인
+# 가동범위로 보고 여유를 뒀다. 스쿼트/런지 둘 다 같은 임계값을 쓴다(app/pose/angles.py의
+# get_knee_over_toe_ratio() 주석 참고 — 원래 런지 전용이었지만 스쿼트에도 적용).
+# TODO: 팀 확정 필요 — 실사용자 테스트로 조정.
+KNEE_OVER_TOE_RATIO_THRESHOLD = 0.3
 
 
 def personalized_hip_range(calibration: HipFlexibilityCalibration) -> tuple[float, float]:
@@ -201,6 +234,7 @@ def judge_static_pose(
     hip_angle = get_hip_angle(landmarks, side)
     shoulder_angle = get_shoulder_alignment_angle(landmarks, side)
     heel_lift_ratio = get_heel_lift_ratio(landmarks, side)
+    knee_over_toe_ratio = get_knee_over_toe_ratio(landmarks, side)
 
     knee_low, knee_high = ranges["knee_angle"]
     # hip_angle만 개인별로 바꿔치기하는 이유: knee_angle은 문헌상 인구 전체에 어느 정도
@@ -236,6 +270,8 @@ def judge_static_pose(
         )
     if heel_lift_ratio > HEEL_LIFT_RATIO_THRESHOLD:
         issues.append({"part": "heel", "message": HEEL_LIFT_MESSAGE})
+    if knee_over_toe_ratio > KNEE_OVER_TOE_RATIO_THRESHOLD:
+        issues.append({"part": "knee_over_toe", "message": KNEE_OVER_TOE_MESSAGE})
 
     knee_conf = _range_confidence(knee_angle, knee_low, knee_high)
     hip_conf = _range_confidence(hip_angle, hip_low, hip_high)
@@ -244,7 +280,12 @@ def judge_static_pose(
     # 임계값을 얼마나 넘었는지에 비례해 완만하게 신뢰도를 낮추고, 임계값의 2배 이상
     # 벗어나면 0으로 수렴시킨다(다른 부위의 "여유값 벗어나면 0" 패턴과 동일한 취지).
     heel_conf = max(0.0, 1.0 - max(0.0, heel_lift_ratio - HEEL_LIFT_RATIO_THRESHOLD) / HEEL_LIFT_RATIO_THRESHOLD)
-    confidences = [knee_conf, hip_conf, shoulder_conf, heel_conf]
+    # 무릎-발끝도 heel_conf와 같은 방식(단일 임계값, 클수록 이상)의 신뢰도 계산을 재사용한다.
+    knee_over_toe_conf = max(
+        0.0,
+        1.0 - max(0.0, knee_over_toe_ratio - KNEE_OVER_TOE_RATIO_THRESHOLD) / KNEE_OVER_TOE_RATIO_THRESHOLD,
+    )
+    confidences = [knee_conf, hip_conf, shoulder_conf, heel_conf, knee_over_toe_conf]
 
     # 정면 랜드마크가 있을 때만 무릎 모임/좌우 비대칭을 검사한다 — 없으면(하위 호환) 이 두
     # 항목은 판정에서 완전히 빠진다(신뢰도 계산에도 관여하지 않음).

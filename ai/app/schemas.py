@@ -125,6 +125,13 @@ class AngleFrame(BaseModel):
         "get_knee_lr_asymmetry_deg 참고, 2026-08-21 추가). knee_valgus_ratio와 동일한 이유로 "
         "프론트가 직접 계산해서 보낸다. 선택 필드 — 없으면 좌우 비대칭 검사를 건너뛴다(하위 호환).",
     )
+    knee_over_toe_ratio: Optional[float] = Field(
+        None,
+        description="무릎이 발끝보다 앞으로 나간 비율(app/pose/angles.py의 "
+        "get_knee_over_toe_ratio 참고, 2026-08-21 추가 — ML 런지 분류기가 담당하던 항목을 "
+        "뒤늦게 규칙기반으로 대체). heel_lift_ratio와 동일하게 측면 랜드마크 기준이라 프론트가 "
+        "매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면 이 검사를 건너뛴다(하위 호환).",
+    )
 
 
 class CoachingFrameRequest(BaseModel):
