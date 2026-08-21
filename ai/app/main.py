@@ -15,6 +15,8 @@ from app.schemas import MLLungeAnalyzeRequest, MLLungeAnalyzeResponse
 from app.schemas import MLSquatAnalyzeRequest, MLSquatAnalyzeResponse
 from app.schemas import PostureInsightRequest, PostureInsightResponse
 from app.schemas import OrchestrateRequest, OrchestrateResponse
+from app.schemas import RagGuideRequest, RagGuideResponse, RagQnaRequest, RagQnaResponse
+from app.schemas import SessionReportRequest, SessionReportResponse
 from app.pose.rules import judge_static_pose
 from app.pose.angles import get_shoulder_tilt_angle, get_pelvis_tilt_angle
 from app.coaching.realtime import judge_realtime_coaching
@@ -23,6 +25,8 @@ from app.ml.lunge_classifier import classify_lunge_form
 from app.ml.squat_classifier import classify_squat_form
 from app.insight.posture_percentile import compute_posture_insight
 from app.orchestration.harness import decide_next_action
+from app.rag.generation import generate_guide, generate_qna
+from app.session.report import generate_session_report
 
 app = FastAPI(title="WellMade AI Server")
 
@@ -133,6 +137,12 @@ def ml_squat_analyze(request: MLSquatAnalyzeRequest):
 
     기존 /ai/pose/analyze(규칙기반)를 대체하지 않는다. 상체 숙임(forward lean) 오류는 이
     모델이 아니라 규칙기반 hip_angle 검사가 담당한다 (이유는 app/ml/features.py 참고).
+
+    주의(2026-08-21): 이 모델의 무릎 모임(label=3)/발뒤꿈치 뜸(label=4)/좌우비대칭(label=5)
+    예측은 실제 사진 테스트 결과 신뢰할 수 없는 것으로 확인됐다 — 자세한 원인(train/serve
+    skew, 측면 촬영으로는 애초에 관측 불가능한 항목)은 app/ml/squat_classifier.py 주석 참고.
+    발뒤꿈치 뜸은 app/pose/rules.py의 규칙기반 검사(get_heel_lift_ratio)로 대체됐고,
+    /ai/pose/analyze·/ai/coaching/frame 응답의 "heel" 이슈를 대신 참고해야 한다.
     """
     result = classify_squat_form(request.landmarks)
 
@@ -196,3 +206,46 @@ def orchestrate(request: OrchestrateRequest):
         source=result["source"],
         fallback_reason=result.get("fallback_reason"),
     )
+
+
+@app.post("/ai/rag/guide", response_model=RagGuideResponse)
+def rag_guide(request: RagGuideRequest):
+    """
+    지시형 RAG 가이드 API (AI-09).
+
+    하네스(AI-07)가 trigger_rag_search를 선택하며 돌려준 search_query를 받아, 지식베이스에서
+    가장 관련 있는 문서를 찾아 근거 기반 코칭 문구를 만든다. 자세한 검색·생성 방식(TF-IDF
+    검색 채택 이유, LLM 실패 시 폴백)은 app/rag/retrieval.py, app/rag/generation.py 주석 참고.
+    """
+    result = generate_guide(request.query)
+    return RagGuideResponse(**result)
+
+
+@app.post("/ai/rag/qna", response_model=RagQnaResponse)
+def rag_qna(request: RagQnaRequest):
+    """
+    설명형 RAG Q&A API (AI-14).
+
+    사용자가 직접 입력한 자유 질문을 받아, 지식베이스에서 관련 문서를 검색해 근거 기반으로
+    답변한다. "문서에 없는 내용은 지어내지 않는다"는 원칙은 app/rag/generation.py의
+    시스템 프롬프트에 명시돼 있다.
+    """
+    result = generate_qna(request.question)
+    return RagQnaResponse(**result)
+
+
+@app.post("/ai/session/report", response_model=SessionReportResponse)
+def session_report(request: SessionReportRequest):
+    """
+    세션 리포트 생성 API (AI-12).
+
+    세션 종료 시(하네스의 end_session 이후) 호출된다고 전제한다. ①각도 편차·정상비율 등을
+    규칙기반으로 집계하고, ②그 수치를 근거로 자연어 코칭 요약 문구를 생성한다. 두 단계
+    모두의 자세한 설계 이유는 app/session/report.py 주석 참고.
+    """
+    result = generate_session_report(
+        frame_history=[f.model_dump() for f in request.frame_history],
+        session_duration_sec=request.session_duration_sec,
+        previous_sessions=[p.model_dump() for p in request.previous_sessions],
+    )
+    return SessionReportResponse(**result)
