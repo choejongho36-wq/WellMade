@@ -110,6 +110,52 @@ def get_hip_angle(landmarks: list[Landmark], side: str = "auto") -> float:
     return calculate_angle(shoulder, hip, knee)
 
 
+def get_heel_lift_ratio(landmarks: list[Landmark], side: str = "auto") -> float:
+    """
+    측면 촬영 기준, 발뒤꿈치가 발끝 대비 얼마나 떠 있는지를 나타내는 비율.
+
+    왜 각도(calculate_angle) 대신 이런 비율을 쓰는가? (2026-08-21, ML 분류기 대체 배경)
+    - 원래 "발뒤꿈치 뜸"은 Kaggle 데이터셋 기반 ML 분류기(app/ml/squat_classifier.py의
+      label=4)가 담당했는데, 실제 사진으로 테스트해보니 정상 자세도 대부분 "발뒤꿈치 뜸"으로
+      오탐되는 문제가 확인됐다. 원인은 그 데이터셋의 사전 계산된 ankle_angle 컬럼이 우리
+      calculate_angle(knee, ankle, foot_index)와 같은 방식으로 계산됐다는 보장이 없었고,
+      실제 값 범위를 비교해보니 완전히 다른 스케일이었다(train/serve skew — 자세한 근거는
+      squat_classifier.py 주석 참고). 그래서 이 프로젝트의 기본 원칙("규칙기반 우선")대로,
+      검증되지 않은 ML 대신 우리가 직접 재현 가능한 기하학적 지표로 대체했다.
+    - "무릎 모임(knee valgus)"도 같은 이유로 대체를 시도했지만, 그건 좌우(관상면) 판단이라
+      측면 촬영 랜드마크만으로는 애초에 관측이 불가능하다고 판단해 대체하지 않았다(정면
+      촬영이 필요 — rules.py 주석 참고). 발뒤꿈치 뜸은 순수 상하(시상면) 움직임이라 측면
+      촬영으로도 원리적으로 관측 가능하다는 점이 다르다.
+
+    값이 0에 가까우면 발뒤꿈치가 발끝과 비슷한 높이(바닥에 붙어있는 상태), 값이 클수록
+    발뒤꿈치가 발끝보다 위로 들려 있는(뜬) 상태를 뜻한다. MediaPipe 좌표는 y가 아래로
+    갈수록 커지는 이미지 좌표계이므로, "발뒤꿈치가 발끝보다 위로 들림"은
+    heel.y < toe.y, 즉 (toe.y - heel.y) > 0으로 나타난다.
+
+    발목-발끝 사이 x축 거리(대략적인 발 길이)로 나눠 정규화한다 — 카메라 거리/줌 배율이
+    달라져도(발이 화면에 크게/작게 찍혀도) 비슷한 비율이 나오게 하기 위함. 발뒤꿈치-발끝
+    거리 대신 발목-발끝 거리를 정규화 기준으로 쓴 이유: 발뒤꿈치는 이 지표가 감지하려는
+    "들림" 현상 자체로 위치가 크게 바뀌는 점이라 정규화 기준으로 쓰면 값이 함께 흔들린다.
+    발목은 발뒤꿈치가 뜨는 동안에도 상대적으로 안정적인 기준점이다.
+
+    # TODO: 팀 확정 필요 — knee_angle/hip_angle과 달리 이 지표는 문헌에서 가져온 값이
+    # 아니라 이번에 새로 설계한 기하학적 근사치다. 실사용자 테스트 데이터가 쌓이기 전까지는
+    # 임계값(rules.py의 HEEL_LIFT_RATIO_THRESHOLD)도 잠정값으로 봐야 한다.
+    """
+    chosen = _select_side(landmarks, side)
+    heel, toe, ankle = (
+        (landmarks[LEFT_HEEL], landmarks[LEFT_FOOT_INDEX], landmarks[LEFT_ANKLE])
+        if chosen == "left"
+        else (landmarks[RIGHT_HEEL], landmarks[RIGHT_FOOT_INDEX], landmarks[RIGHT_ANKLE])
+    )
+    foot_length = abs(ankle.x - toe.x)
+    if foot_length == 0:
+        # 발목/발끝 좌표가 겹치는 경우(트래킹 실패 등) 계산이 불가능하므로, calculate_angle()과
+        # 동일한 방식으로 "판정 불가 -> 안전한 기본값(0, 정상 쪽)"을 반환한다.
+        return 0.0
+    return (toe.y - heel.y) / foot_length
+
+
 def get_shoulder_alignment_angle(landmarks: list[Landmark], side: str = "auto") -> float:
     """
     귀-어깨-엉덩이 3점으로 "어깨가 말리지 않고 펴져 있는지"(가슴을 편 자세)를 계산한다.

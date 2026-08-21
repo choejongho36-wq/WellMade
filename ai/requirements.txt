@@ -34,6 +34,11 @@ pandas>=2.2   # ml_training/train_squat_classifier.py, prepare_posture_reference
 # harness.py의 _get_client()/decide_next_action() 참고).
 anthropic==1.0.0
 
-# --- 아래는 다음 단계(RAG 파이프라인, AI-08/09/14)에서 실제로 사용할 때 주석 해제 ---
-# chromadb>=0.5             # RAG 벡터DB
-# sentence-transformers>=3.0  # RAG 임베딩 (또는 Anthropic/OpenAI 임베딩 API로 대체 가능)
+# --- RAG 검색 (AI-08/09/14, app/rag/retrieval.py) ---
+# 요구사항 정의서는 벡터DB(Chroma)+임베딩 모델 조합을 제안하지만, 이 프로젝트는 대신
+# scikit-learn TF-IDF(문자 n-gram)+코사인 유사도를 채택했다. chromadb/sentence-transformers를
+# 새로 추가하지 않는 이유(비용, 딥러닝 프레임워크 배제 원칙, 기존 scikit-learn 재사용)는
+# app/rag/retrieval.py 모듈 docstring에 자세히 적어뒀다 — scikit-learn/numpy는 이미 위에서
+# 의존성에 포함돼 있어 이 섹션에 새로 추가할 패키지는 없다.
+# TODO: 팀 확정 필요 — 검색 품질이 부족하다고 판단되면 그때 chromadb/sentence-transformers
+# 도입을 재검토한다(retrieval.py의 search() 인터페이스는 그대로 유지한 채 내부만 교체 가능).

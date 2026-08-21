@@ -10,7 +10,12 @@
    판정했는지"를 코칭 문구·RAG 검색 쿼리에 그대로 재사용하기 좋다.
 """
 
-from app.pose.angles import get_hip_angle, get_knee_angle, get_shoulder_alignment_angle
+from app.pose.angles import (
+    get_heel_lift_ratio,
+    get_hip_angle,
+    get_knee_angle,
+    get_shoulder_alignment_angle,
+)
 from app.schemas import HipFlexibilityCalibration, Landmark
 
 # 스포츠의학/트레이너 자격 기준 자료를 근거로 한 값 (2026-08-18 업데이트).
@@ -55,6 +60,20 @@ from app.schemas import HipFlexibilityCalibration, Landmark
 # 어깨가 안 말린 것"이라는 방향성만 근거로 잡은 값이다. 스쿼트/런지 모두 같은 기준을 쓴다
 # (어깨 정렬 기준 자체는 하체 동작 종류와 무관하다고 판단).
 #
+# [발뒤꿈치 뜸/무릎 모임] (2026-08-21 추가 — ML 분류기 실측 오탐 대응)
+# 실제 사진으로 테스트한 결과, ML 스쿼트 분류기(app/ml/squat_classifier.py)가 정상 자세도
+# "발뒤꿈치 뜸"/"무릎 모임"으로 자주 오탐하는 문제가 확인됐다. 조사 결과:
+# - 발뒤꿈치 뜸: 학습에 쓴 Kaggle 데이터셋의 ankle_angle 컬럼과 우리 calculate_angle() 계산
+#   방식이 서로 다른 값 범위를 갖고 있어(train/serve skew), 실측 랜드마크를 넣으면 거의
+#   항상 "발뒤꿈치 뜸" 쪽으로 쏠렸다. 그래서 여기 규칙기반 검사(HEEL_LIFT_RATIO_THRESHOLD)로
+#   대체했다 — get_heel_lift_ratio() 주석에 근거를 자세히 적어둠.
+# - 무릎 모임: 좌우(관상면) 판단이라 애초에 측면 촬영 랜드마크만으로는 관측이 불가능하다고
+#   판단해 규칙기반으로도 대체하지 않았다(정면 촬영이 필요 — schemas.py의 Side 설명 참고,
+#   이번에 사용자에게 촬영 방향을 재확인함). ML 분류기가 내놓는 "무릎 모임"/"좌우 비대칭"
+#   예측은 같은 이유(+ train/serve skew)로 신뢰할 수 없다는 점을 squat_classifier.py에
+#   명시해뒀다 — 정면 촬영 지원이 추가되기 전까지는 이 두 가지를 실시간 판정에서 다루지
+#   않는다.
+#
 # TODO: 팀 확정 필요 — 스쿼트를 "평행" 대신 "깊은 스쿼트"까지 목표로 할지, 런지의
 # 뒷다리 각도를 별도로 판정에 반영할지는 제품 방향에 따라 달라지므로 재검토 필요.
 # TODO: 팀 확정 필요 — shoulder_angle 범위는 수치 근거가 약해 사용자 테스트 후 조정 필요.
@@ -84,6 +103,13 @@ CONFIDENCE_TOLERANCE_DEG = 20
 # TODO: 팀 확정 필요 — 사용자 테스트 후 조정.
 CALIBRATION_LOW_PCT = 0.7
 CALIBRATION_HIGH_PCT = 0.9
+
+# 발뒤꿈치가 얼마나 뜨면 이상으로 볼지의 잠정 임계값. get_heel_lift_ratio()가 반환하는
+# 값(대략적인 발 길이 대비 발뒤꿈치-발끝 높이차 비율)과 비교한다. 0.5는 "발뒤꿈치가
+# 발끝보다 발 길이의 절반만큼 들렸다"는 뜻으로, 실측 문헌값이 아니라 이번에 새로 설계한
+# 지표라 상식적으로 "눈에 띄게 뜬 정도"를 가늠한 잠정치다.
+# TODO: 팀 확정 필요 — 실사용자 테스트로 조정.
+HEEL_LIFT_RATIO_THRESHOLD = 0.5
 
 
 def personalized_hip_range(calibration: HipFlexibilityCalibration) -> tuple[float, float]:
@@ -151,6 +177,7 @@ def judge_static_pose(
     knee_angle = get_knee_angle(landmarks, side)
     hip_angle = get_hip_angle(landmarks, side)
     shoulder_angle = get_shoulder_alignment_angle(landmarks, side)
+    heel_lift_ratio = get_heel_lift_ratio(landmarks, side)
 
     knee_low, knee_high = ranges["knee_angle"]
     # hip_angle만 개인별로 바꿔치기하는 이유: knee_angle은 문헌상 인구 전체에 어느 정도
@@ -184,12 +211,23 @@ def judge_static_pose(
                 "message": f"어깨가 말려 있습니다({shoulder_angle:.1f}도). 가슴을 펴고 어깨를 뒤로 젖혀주세요.",
             }
         )
+    if heel_lift_ratio > HEEL_LIFT_RATIO_THRESHOLD:
+        issues.append(
+            {
+                "part": "heel",
+                "message": "발뒤꿈치가 바닥에서 떨어지고 있어요. 체중을 발뒤꿈치 쪽에 실어주세요.",
+            }
+        )
 
     knee_conf = _range_confidence(knee_angle, knee_low, knee_high)
     hip_conf = _range_confidence(hip_angle, hip_low, hip_high)
     shoulder_conf = _range_confidence(shoulder_angle, shoulder_low, shoulder_high)
-    # 세 부위 중 가장 낮은 신뢰도를 최종 신뢰도로 사용한다 (가장 취약한 부위가 전체 판정을 좌우하게 함).
-    confidence = min(knee_conf, hip_conf, shoulder_conf)
+    # 발뒤꿈치는 범위가 아니라 단일 임계값 비교라 _range_confidence를 그대로 쓸 수 없다 —
+    # 임계값을 얼마나 넘었는지에 비례해 완만하게 신뢰도를 낮추고, 임계값의 2배 이상
+    # 벗어나면 0으로 수렴시킨다(다른 부위의 "여유값 벗어나면 0" 패턴과 동일한 취지).
+    heel_conf = max(0.0, 1.0 - max(0.0, heel_lift_ratio - HEEL_LIFT_RATIO_THRESHOLD) / HEEL_LIFT_RATIO_THRESHOLD)
+    # 네 부위 중 가장 낮은 신뢰도를 최종 신뢰도로 사용한다 (가장 취약한 부위가 전체 판정을 좌우하게 함).
+    confidence = min(knee_conf, hip_conf, shoulder_conf, heel_conf)
 
     return {
         "is_normal": len(issues) == 0,
