@@ -7,12 +7,9 @@ AI 서버의 시작점.
 from datetime import date
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from app.schemas import PoseAnalyzeRequest, PoseAnalyzeResponse, PoseIssue
 from app.schemas import CoachingFrameRequest, CoachingFrameResponse
 from app.schemas import SessionEndCheckRequest, SessionEndCheckResponse
-from app.schemas import MLLungeAnalyzeRequest, MLLungeAnalyzeResponse
-from app.schemas import MLSquatAnalyzeRequest, MLSquatAnalyzeResponse
 from app.schemas import PostureInsightRequest, PostureInsightResponse
 from app.schemas import OrchestrateRequest, OrchestrateResponse
 from app.schemas import RagGuideRequest, RagGuideResponse, RagQnaRequest, RagQnaResponse
@@ -21,22 +18,12 @@ from app.pose.rules import judge_static_pose
 from app.pose.angles import get_shoulder_tilt_angle, get_pelvis_tilt_angle
 from app.coaching.realtime import judge_realtime_coaching
 from app.session.termination import judge_session_end
-from app.ml.lunge_classifier import classify_lunge_form
-from app.ml.squat_classifier import classify_squat_form
 from app.insight.posture_percentile import compute_posture_insight
 from app.orchestration.harness import decide_next_action
 from app.rag.generation import generate_guide, generate_qna
 from app.session.report import generate_session_report
 
 app = FastAPI(title="WellMade AI Server")
-
-# ponytail: 프론트 로컬 개발 서버(vite 기본 포트)만 허용 — 배포 도메인 확정되면 origin 목록 갱신
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 @app.get("/health")
@@ -51,9 +38,17 @@ def analyze_pose(request: PoseAnalyzeRequest):
     정지 자세 1차 판정 API (AI-03)
     프론트가 MediaPipe로 뽑은 33개 관절 좌표를 보내면,
     이 서버가 각도 계산 + 정상범위 비교를 해서 결과를 돌려준다.
+
+    front_landmarks(정면 촬영, 2026-08-21 추가)를 함께 보내면 무릎 모임/좌우 비대칭 검사도
+    같이 수행한다 — 이 두 항목은 측면 촬영만으로는 관측할 수 없는 관상면(좌우) 판단이라
+    정면 촬영이 있어야만 검사할 수 있다(app/pose/rules.py 주석 참고). 안 보내면(기존
+    클라이언트) 이 두 검사만 건너뛰고 나머지는 그대로 동작한다.
     """
     result = judge_static_pose(
-        request.landmarks, request.exercise_type, hip_calibration=request.hip_calibration
+        request.landmarks,
+        request.exercise_type,
+        hip_calibration=request.hip_calibration,
+        front_landmarks=request.front_landmarks,
     )
 
     return PoseAnalyzeResponse(
@@ -71,6 +66,11 @@ def coaching_frame(request: CoachingFrameRequest):
     (내려감/올라옴/정지)와 정상/이상 여부, 신뢰도를 계산해 돌려준다.
     프레임마다 새 딥러닝 추론을 돌리는 대신 이미 계산된 각도 값을 규칙기반으로
     비교하는 가벼운 연산이라, 실시간 호출에도 서버 부하 없이 응답할 수 있다.
+
+    각 프레임(AngleFrame)의 knee_valgus_ratio/knee_asymmetry_deg(2026-08-21 추가, 선택
+    필드)는 정면 카메라 랜드마크로 프론트가 직접 계산해서 보낸다 — 정지 자세 판정과 달리
+    이 엔드포인트는 원본 좌표를 받지 않으므로, 정면 촬영을 지원하려면 이 두 값을 프레임마다
+    함께 보내야 한다(app/schemas.py의 AngleFrame 참고).
     """
     result = judge_realtime_coaching(
         request.angle_history, request.exercise_type, hip_calibration=request.hip_calibration
@@ -100,59 +100,6 @@ def session_end_check(request: SessionEndCheckRequest):
         reason=result["reason"],
         normal_ratio=result["normal_ratio"],
         window_duration_sec=result["window_duration_sec"],
-    )
-
-
-@app.post("/ai/ml/lunge/analyze", response_model=MLLungeAnalyzeResponse)
-def ml_lunge_analyze(request: MLLungeAnalyzeRequest):
-    """
-    런지 자세 ML 기반 보조 판정 (전통 ML, 포트폴리오/비교실험 목적).
-    API 명세 표에 없는 신규 엔드포인트 — 팀 확정 필요.
-
-    기존 /ai/pose/analyze(규칙기반)를 대체하지 않는다. 실제 참가자 영상 기반 라벨
-    데이터(NgoQuocBao1010/Exercise-Correction)로 학습한 전통 ML 모델의 "참고용 2차 의견"만
-    제공하며, 이 결과를 프론트가 어떻게(그대로 노출 / 규칙기반과 다를 때만 표시 / 미사용)
-    쓸지는 팀이 정할 문제다.
-    """
-    result = classify_lunge_form(request.landmarks)
-
-    return MLLungeAnalyzeResponse(
-        is_normal=result["is_normal"],
-        correct_probability=result["correct_probability"],
-        coaching_message=result["coaching_message"],
-        model_name=result["model_name"],
-    )
-
-
-@app.post("/ai/ml/squat/analyze", response_model=MLSquatAnalyzeResponse)
-def ml_squat_analyze(request: MLSquatAnalyzeRequest):
-    """
-    스쿼트 자세 ML 기반 다중분류 보조 판정 (전통 ML, 포트폴리오/비교실험 목적).
-    API 명세 표에 없는 신규 엔드포인트 — 팀 확정 필요.
-
-    런지와 달리 정상/이상 이진판정이 아니라 "어떤 오류인지"까지 예측해서, 오류 유형에 맞는
-    한국어 교정 문구(coaching_message)를 함께 반환한다. 이 문구를 프론트가 TTS로 읽어주는
-    식으로 활용할 것을 염두에 두고 설계했다 — 다만 실제 음성 변환은 프론트엔드가 담당하고
-    AI 서버는 텍스트까지만 책임진다 (session 2026-08-18에 사용자와 확인).
-
-    기존 /ai/pose/analyze(규칙기반)를 대체하지 않는다. 상체 숙임(forward lean) 오류는 이
-    모델이 아니라 규칙기반 hip_angle 검사가 담당한다 (이유는 app/ml/features.py 참고).
-
-    주의(2026-08-21): 이 모델의 무릎 모임(label=3)/발뒤꿈치 뜸(label=4)/좌우비대칭(label=5)
-    예측은 실제 사진 테스트 결과 신뢰할 수 없는 것으로 확인됐다 — 자세한 원인(train/serve
-    skew, 측면 촬영으로는 애초에 관측 불가능한 항목)은 app/ml/squat_classifier.py 주석 참고.
-    발뒤꿈치 뜸은 app/pose/rules.py의 규칙기반 검사(get_heel_lift_ratio)로 대체됐고,
-    /ai/pose/analyze·/ai/coaching/frame 응답의 "heel" 이슈를 대신 참고해야 한다.
-    """
-    result = classify_squat_form(request.landmarks)
-
-    return MLSquatAnalyzeResponse(
-        predicted_label=result["predicted_label"],
-        label_name=result["label_name"],
-        is_normal=result["is_normal"],
-        correct_probability=result["correct_probability"],
-        coaching_message=result["coaching_message"],
-        model_name=result["model_name"],
     )
 
 

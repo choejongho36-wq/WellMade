@@ -11,7 +11,14 @@
    기준 프로파일을 잡을 때 참고자료로만 활용) 없이도 합리적인 판정이 가능하다.
 """
 
-from app.pose.rules import HEEL_LIFT_RATIO_THRESHOLD, NORMAL_RANGES, personalized_hip_range
+from app.pose.coaching_messages import ASYMMETRY_MESSAGE, HEEL_LIFT_MESSAGE, KNEE_VALGUS_MESSAGE
+from app.pose.rules import (
+    HEEL_LIFT_RATIO_THRESHOLD,
+    KNEE_ASYMMETRY_THRESHOLD_DEG,
+    KNEE_VALGUS_RATIO_THRESHOLD,
+    NORMAL_RANGES,
+    personalized_hip_range,
+)
 from app.schemas import AngleFrame, HipFlexibilityCalibration
 
 # TODO: 팀 확정 필요 — 아래 임계값들은 실제 사용자 테스트 전까지의 초안값이다.
@@ -103,6 +110,9 @@ def judge_realtime_coaching(
     hip_series = [f.hip_angle for f in angle_history]
     latest_shoulder = angle_history[-1].shoulder_angle  # 선택 필드라 None일 수 있음
     latest_heel_lift = angle_history[-1].heel_lift_ratio  # 선택 필드라 None일 수 있음
+    # 정면 랜드마크 기반 지표(2026-08-21 추가) — 프론트가 정면 카메라도 붙였을 때만 채워진다.
+    latest_knee_valgus = angle_history[-1].knee_valgus_ratio  # 선택 필드라 None일 수 있음
+    latest_knee_asymmetry = angle_history[-1].knee_asymmetry_deg  # 선택 필드라 None일 수 있음
 
     knee_slope, knee_r2 = _linear_fit(timestamps, knee_series)
     knee_deltas = [b - a for a, b in zip(knee_series, knee_series[1:])]
@@ -176,12 +186,18 @@ def judge_realtime_coaching(
         # 상태에서는 애초에 발뒤꿈치가 뜰 이유가 없어 검사 대상이 아니고, 동작 중(내려감/올라옴)에
         # 순간적으로 값이 흔들리는 걸 이상으로 잡으면 오탐이 늘어난다(rules.py 2026-08-21 주석 참고).
         if is_deep_hold and latest_heel_lift is not None and latest_heel_lift > HEEL_LIFT_RATIO_THRESHOLD:
-            issues.append(
-                {
-                    "part": "heel",
-                    "message": "발뒤꿈치가 바닥에서 떨어지고 있어요. 체중을 발뒤꿈치 쪽에 실어주세요.",
-                }
-            )
+            issues.append({"part": "heel", "message": HEEL_LIFT_MESSAGE})
+        # 무릎 모임/좌우 비대칭도 발뒤꿈치와 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다
+        # (rules.py 2026-08-21 주석 참고). 정면 카메라를 아직 안 붙인 프론트는 이 필드를
+        # 안 보내므로(None) 자동으로 검사가 건너뛰어진다 — 하위 호환.
+        if is_deep_hold and latest_knee_valgus is not None and latest_knee_valgus < KNEE_VALGUS_RATIO_THRESHOLD:
+            issues.append({"part": "knee_valgus", "message": KNEE_VALGUS_MESSAGE})
+        if (
+            is_deep_hold
+            and latest_knee_asymmetry is not None
+            and latest_knee_asymmetry > KNEE_ASYMMETRY_THRESHOLD_DEG
+        ):
+            issues.append({"part": "asymmetry", "message": ASYMMETRY_MESSAGE})
     else:
         # 동작 중에는 "정상범위 하한보다 훨씬 더 굽혀지는" 과도한 굽힘만 위험 신호로 본다.
         # (무릎에 부담이 되는 과도한 가동범위는 동작 단계와 무관하게 바로 감지해야 하기 때문)

@@ -254,97 +254,6 @@ def test_personalized_hip_range_invalid_calibration_is_safe():
     assert low == high == 160
 
 
-def make_lunge_landmarks(front_knee_form="good"):
-    """런지 ML 보조 판정(/ai/ml/lunge/analyze) 테스트용 33개 랜드마크.
-    왼쪽 다리를 앞다리(더 굽혀진 쪽, 무릎 각도 약 90도)로, 오른쪽 다리를 뒷다리
-    (거의 편 상태, 약 180도)로 배치한다 — extract_lunge_features()가 "더 굽혀진 쪽"을
-    앞다리로 판단하는 휴리스틱을 쓰기 때문."""
-    lms = [landmark() for _ in range(33)]
-    lms[11] = landmark(0.5, 0.2)  # LEFT_SHOULDER
-    lms[23] = landmark(0.5, 0.5)  # LEFT_HIP (앞다리)
-    lms[25] = landmark(0.5, 0.75)  # LEFT_KNEE (앞다리 무릎, 각도 약 90도)
-    lms[27] = landmark(0.75, 0.75)  # LEFT_ANKLE
-    if front_knee_form == "good":
-        lms[31] = landmark(0.9, 0.78)  # LEFT_FOOT_INDEX: 발끝(0.9)이 무릎(0.5)보다 훨씬 앞 -> 무릎이 발끝을 안 넘음
-    else:  # "knee_over_toe": 발끝이 무릎보다 뒤에 있어 무릎이 발끝을 넘은 것처럼 배치
-        lms[31] = landmark(0.3, 0.78)
-    lms[24] = landmark(0.5, 0.5)  # RIGHT_HIP (뒷다리)
-    lms[26] = landmark(0.5, 0.75)  # RIGHT_KNEE
-    lms[28] = landmark(0.5, 1.0)  # RIGHT_ANKLE (뒷다리 무릎 각도 약 180도, 거의 편 상태)
-    return lms
-
-
-def test_ml_lunge_analyze_returns_valid_response():
-    # 학습된 모델이 실제로 판정 방향까지 항상 맞다고 단정하기는 어려우므로(96% 테스트 정확도),
-    # 여기서는 "정상적인 형태의 응답을 반환하는가"(구조/범위)를 검증한다 — 규칙기반 테스트처럼
-    # 특정 자세에서 반드시 True/False가 나와야 한다고 강하게 단정하지 않는다.
-    body = {"landmarks": make_lunge_landmarks("good")}
-    res = client.post("/ai/ml/lunge/analyze", json=body)
-    print("ml_lunge_analyze(good):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert isinstance(data["is_normal"], bool)
-    assert 0.0 <= data["correct_probability"] <= 1.0
-    assert isinstance(data["model_name"], str) and len(data["model_name"]) > 0
-
-
-def test_ml_lunge_analyze_knee_over_toe_case_runs_without_error():
-    # 극단적인(무릎이 발끝을 크게 넘은) 입력에도 서버가 에러 없이 응답해야 한다.
-    body = {"landmarks": make_lunge_landmarks("knee_over_toe")}
-    res = client.post("/ai/ml/lunge/analyze", json=body)
-    print("ml_lunge_analyze(knee_over_toe):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    # is_normal 여부와 coaching_message 유무가 서로 모순되면 안 된다
-    # (정상인데 문구가 있거나, 이상인데 문구가 없으면 버그).
-    assert (data["coaching_message"] is None) == data["is_normal"]
-
-
-def make_squat_landmarks(depth="deep"):
-    """스쿼트 ML 다중분류(/ai/ml/squat/analyze) 테스트용 33개 랜드마크.
-    좌우 다리를 대칭으로 배치해서 좌우비대칭(label=5)으로 오분류될 여지를 줄인다."""
-    lms = [landmark() for _ in range(33)]
-    lms[11] = landmark(0.4, 0.2)  # LEFT_SHOULDER
-    lms[12] = landmark(0.6, 0.2)  # RIGHT_SHOULDER
-    lms[23] = landmark(0.4, 0.5)  # LEFT_HIP
-    lms[24] = landmark(0.6, 0.5)  # RIGHT_HIP
-    if depth == "deep":
-        # 무릎을 깊게 굽힌 하단 자세 (엉덩이-무릎-발목이 대략 90도 근처)
-        lms[25] = landmark(0.4, 0.75)  # LEFT_KNEE
-        lms[26] = landmark(0.6, 0.75)  # RIGHT_KNEE
-        lms[27] = landmark(0.65, 0.75)  # LEFT_ANKLE
-        lms[28] = landmark(0.85, 0.75)  # RIGHT_ANKLE (다리 벌어짐 방향은 임의)
-    else:  # "standing": 거의 편 상태
-        lms[25] = landmark(0.4, 0.75)
-        lms[26] = landmark(0.6, 0.75)
-        lms[27] = landmark(0.4, 1.0)
-        lms[28] = landmark(0.6, 1.0)
-    lms[31] = landmark(0.75, 0.78)  # LEFT_FOOT_INDEX
-    lms[32] = landmark(0.95, 0.78)  # RIGHT_FOOT_INDEX
-    return lms
-
-
-def test_ml_squat_analyze_returns_valid_response():
-    body = {"landmarks": make_squat_landmarks("deep")}
-    res = client.post("/ai/ml/squat/analyze", json=body)
-    print("ml_squat_analyze(deep):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert data["predicted_label"] in (0, 1, 3, 4, 5)  # label=2(상체숙임)는 이 모델의 판정 대상이 아님
-    assert isinstance(data["label_name"], str) and len(data["label_name"]) > 0
-    assert 0.0 <= data["correct_probability"] <= 1.0
-    assert (data["coaching_message"] is None) == data["is_normal"]
-    assert isinstance(data["model_name"], str) and len(data["model_name"]) > 0
-
-
-def test_ml_squat_analyze_standing_case_runs_without_error():
-    # 학습 데이터 분포를 크게 벗어난(거의 선 자세) 입력에도 서버가 에러 없이 응답해야 한다.
-    body = {"landmarks": make_squat_landmarks("standing")}
-    res = client.post("/ai/ml/squat/analyze", json=body)
-    print("ml_squat_analyze(standing):", res.status_code, res.json())
-    assert res.status_code == 200
-
-
 def test_coaching_frame_hip_calibration_changes_normal_judgement():
     # 무릎은 정상범위(70~100) 안에서 정지, 엉덩이는 110도로 정지한 상황.
     # 고정 NORMAL_RANGES(60~100)로는 110이 범위 밖이라 이상으로 판정되지만,
@@ -772,12 +681,12 @@ class _FakeTextBlock:
         self.text = text
 
 
-# knowledge_base.py가 squat_labels.py의 문구를 그대로 재사용하므로, 테스트에서도 같은
+# knowledge_base.py가 coaching_messages.py의 문구를 그대로 재사용하므로, 테스트에서도 같은
 # 상수를 참조해 "문구가 우연히 같다"가 아니라 "의도적으로 같은 출처를 쓴다"를 검증한다.
-from app.ml.squat_labels import SQUAT_COACHING_MESSAGES
+from app.pose.coaching_messages import KNEE_VALGUS_MESSAGE
 from app.rag.generation import NO_MATCH_QNA_MESSAGE
 
-SQUAT_COACHING_MESSAGES_KNEE_VALGUS = SQUAT_COACHING_MESSAGES[3]
+SQUAT_COACHING_MESSAGES_KNEE_VALGUS = KNEE_VALGUS_MESSAGE
 
 
 # ---- 발뒤꿈치 뜸 규칙기반 검사 (2026-08-21, ML 분류기 실측 오탐 대응으로 추가) ----
@@ -897,6 +806,154 @@ def test_coaching_frame_heel_lift_ignored_while_standing():
     assert not any(issue["part"] == "heel" for issue in data["issues"]), data
 
 
+# ---- 무릎 모임/좌우 비대칭 규칙기반 검사 (2026-08-21, ML 분류기 완전 대체로 추가) ----
+# heel_lift_ratio와 달리 정면(front) 촬영 랜드마크가 있어야 계산 가능한 지표라, 아래 헬퍼들은
+# make_landmarks()(측면 전용, 왼쪽 다리만 채움)와 별도로 좌우 다리를 모두 채운다.
+from app.pose.angles import get_knee_lr_asymmetry_deg, get_knee_valgus_ratio  # noqa: E402
+from app.pose.rules import KNEE_ASYMMETRY_THRESHOLD_DEG, KNEE_VALGUS_RATIO_THRESHOLD  # noqa: E402
+
+
+def make_front_squat_landmarks(mode="normal"):
+    """정면 촬영 무릎 모임/좌우 비대칭 검사 테스트용 33개 랜드마크. 엉덩이/발목은 좌우
+    대칭으로 고정하고, mode에 따라 무릎 위치만 바꾼다.
+    - "normal": 무릎이 발목과 같은 x좌표(정상 정렬), 좌우 대칭 굽힘
+    - "valgus": 무릎 사이 간격이 발목 사이 간격보다 훨씬 좁음(안쪽으로 모임)
+    - "asymmetric": 무릎 너비는 정상이지만 오른쪽 다리만 거의 펴진 상태(좌우 굽힘 차이)"""
+    lms = [landmark() for _ in range(33)]
+    lms[23] = landmark(0.35, 0.5)  # LEFT_HIP
+    lms[24] = landmark(0.65, 0.5)  # RIGHT_HIP
+    lms[27] = landmark(0.3, 1.0)  # LEFT_ANKLE
+    lms[28] = landmark(0.7, 1.0)  # RIGHT_ANKLE
+
+    if mode == "valgus":
+        lms[25] = landmark(0.45, 0.75)  # LEFT_KNEE (안쪽으로 모임)
+        lms[26] = landmark(0.55, 0.75)  # RIGHT_KNEE (안쪽으로 모임)
+    elif mode == "asymmetric":
+        lms[25] = landmark(0.3, 0.75)  # LEFT_KNEE (깊게 굽힘 유지)
+        lms[26] = landmark(0.7, 0.6)  # RIGHT_KNEE (거의 편 상태 -> 오른쪽만 얕음)
+    else:  # "normal"
+        lms[25] = landmark(0.3, 0.75)  # LEFT_KNEE
+        lms[26] = landmark(0.7, 0.75)  # RIGHT_KNEE
+    return lms
+
+
+def test_get_knee_valgus_ratio_normal_is_at_or_above_one():
+    lms = [_lm_obj(**{"x": lm["x"], "y": lm["y"]}) for lm in make_front_squat_landmarks("normal")]
+    ratio = get_knee_valgus_ratio(lms)
+    print("knee_valgus_ratio(normal):", ratio)
+    assert ratio >= KNEE_VALGUS_RATIO_THRESHOLD
+
+
+def test_get_knee_valgus_ratio_valgus_is_low():
+    lms = [_lm_obj(**{"x": lm["x"], "y": lm["y"]}) for lm in make_front_squat_landmarks("valgus")]
+    ratio = get_knee_valgus_ratio(lms)
+    print("knee_valgus_ratio(valgus):", ratio)
+    assert ratio < KNEE_VALGUS_RATIO_THRESHOLD
+
+
+def test_get_knee_lr_asymmetry_deg_symmetric_is_near_zero():
+    lms = [_lm_obj(**{"x": lm["x"], "y": lm["y"]}) for lm in make_front_squat_landmarks("normal")]
+    deg = get_knee_lr_asymmetry_deg(lms)
+    print("knee_lr_asymmetry_deg(symmetric):", deg)
+    assert deg <= KNEE_ASYMMETRY_THRESHOLD_DEG
+
+
+def test_get_knee_lr_asymmetry_deg_asymmetric_is_large():
+    lms = [_lm_obj(**{"x": lm["x"], "y": lm["y"]}) for lm in make_front_squat_landmarks("asymmetric")]
+    deg = get_knee_lr_asymmetry_deg(lms)
+    print("knee_lr_asymmetry_deg(asymmetric):", deg)
+    assert deg > KNEE_ASYMMETRY_THRESHOLD_DEG
+
+
+def test_pose_analyze_front_landmarks_valgus_flagged():
+    body = {
+        "landmarks": make_heel_landmarks("flat"),  # 측면 랜드마크 — 발뒤꿈치/무릎/엉덩이는 정상
+        "front_landmarks": make_front_squat_landmarks("valgus"),
+        "exercise_type": "squat",
+        "side": "left",
+    }
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(front valgus):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
+
+
+def test_pose_analyze_front_landmarks_asymmetric_flagged():
+    body = {
+        "landmarks": make_heel_landmarks("flat"),
+        "front_landmarks": make_front_squat_landmarks("asymmetric"),
+        "exercise_type": "squat",
+        "side": "left",
+    }
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(front asymmetric):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "asymmetry" for issue in data["issues"]), data
+
+
+def test_pose_analyze_without_front_landmarks_skips_frontal_checks():
+    # front_landmarks 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
+    body = {"landmarks": make_heel_landmarks("flat"), "exercise_type": "squat", "side": "left"}
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(no front_landmarks):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] in ("knee_valgus", "asymmetry") for issue in data["issues"]), data
+
+
+def test_coaching_frame_knee_valgus_flagged_when_deep_hold():
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "knee_valgus_ratio": KNEE_VALGUS_RATIO_THRESHOLD - 0.3,
+        }
+        for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(knee valgus, deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
+
+
+def test_coaching_frame_knee_asymmetry_flagged_when_deep_hold():
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "knee_asymmetry_deg": KNEE_ASYMMETRY_THRESHOLD_DEG + 10.0,
+        }
+        for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(knee asymmetry, deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "asymmetry" for issue in data["issues"]), data
+
+
+def test_coaching_frame_without_frontal_fields_still_works():
+    # knee_valgus_ratio/knee_asymmetry_deg 필드를 아예 안 보내도 에러 없이 동작해야 한다(하위 호환).
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(no frontal fields):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] in ("knee_valgus", "asymmetry") for issue in data["issues"]), data
+
+
 if __name__ == "__main__":
     test_health()
     test_pose_analyze_standing_is_abnormal_for_squat_bottom()
@@ -915,10 +972,6 @@ if __name__ == "__main__":
     test_session_end_sustained_poor_form()
     test_personalized_hip_range_formula()
     test_personalized_hip_range_invalid_calibration_is_safe()
-    test_ml_lunge_analyze_returns_valid_response()
-    test_ml_lunge_analyze_knee_over_toe_case_runs_without_error()
-    test_ml_squat_analyze_returns_valid_response()
-    test_ml_squat_analyze_standing_case_runs_without_error()
     test_coaching_frame_hip_calibration_changes_normal_judgement()
     test_posture_insight_level_posture_returns_no_tilt_message()
     test_posture_insight_tilted_posture_returns_percentile()
@@ -951,4 +1004,14 @@ if __name__ == "__main__":
     test_coaching_frame_heel_lift_flagged_when_deep_hold()
     test_coaching_frame_without_heel_lift_field_still_works()
     test_coaching_frame_heel_lift_ignored_while_standing()
+    test_get_knee_valgus_ratio_normal_is_at_or_above_one()
+    test_get_knee_valgus_ratio_valgus_is_low()
+    test_get_knee_lr_asymmetry_deg_symmetric_is_near_zero()
+    test_get_knee_lr_asymmetry_deg_asymmetric_is_large()
+    test_pose_analyze_front_landmarks_valgus_flagged()
+    test_pose_analyze_front_landmarks_asymmetric_flagged()
+    test_pose_analyze_without_front_landmarks_skips_frontal_checks()
+    test_coaching_frame_knee_valgus_flagged_when_deep_hold()
+    test_coaching_frame_knee_asymmetry_flagged_when_deep_hold()
+    test_coaching_frame_without_frontal_fields_still_works()
     print("\nALL MANUAL CHECKS PASSED")

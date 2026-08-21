@@ -54,12 +54,21 @@ class PoseAnalyzeRequest(BaseModel):
     """정지 자세 1차 판정(/ai/pose/analyze) 요청."""
 
     landmarks: List[Landmark] = Field(
-        ..., min_length=33, max_length=33, description="MediaPipe Pose 33개 관절 좌표 (인덱스 순서 고정)"
+        ..., min_length=33, max_length=33, description="MediaPipe Pose 33개 관절 좌표 (인덱스 순서 고정, 측면 촬영)"
     )
     exercise_type: ExerciseType
     side: Side = "auto"
     hip_calibration: Optional[HipFlexibilityCalibration] = Field(
         None, description="개인별 고관절 유연성 캘리브레이션 결과. 없으면 고정 NORMAL_RANGES로 판정."
+    )
+    front_landmarks: Optional[List[Landmark]] = Field(
+        None,
+        min_length=33,
+        max_length=33,
+        description="정면 촬영 기준 MediaPipe Pose 33개 관절 좌표 (선택, 2026-08-21 추가). 있으면 "
+        "무릎 모임/좌우 비대칭 검사도 함께 수행한다 — 이 두 항목은 관상면(좌우) 판단이라 측면 "
+        "촬영만으로는 관측할 수 없어 정면 촬영이 있어야만 검사할 수 있다(app/pose/rules.py 주석 "
+        "참고). 없으면 기존(측면 전용)과 동일하게 이 두 검사만 건너뛴다 — 하위 호환.",
     )
 
 
@@ -102,6 +111,19 @@ class AngleFrame(BaseModel):
         description="발뒤꿈치 들림 비율(app/pose/angles.py의 get_heel_lift_ratio 참고, 2026-08-21 "
         "추가 — ML 분류기의 '발뒤꿈치 뜸' 오탐을 대체하는 규칙기반 지표). 선택 필드 — 없으면 "
         "발뒤꿈치 검사를 건너뛴다(하위 호환, shoulder_angle과 동일한 이유).",
+    )
+    knee_valgus_ratio: Optional[float] = Field(
+        None,
+        description="정면 촬영 기준 무릎 모임 비율(app/pose/angles.py의 get_knee_valgus_ratio 참고, "
+        "2026-08-21 추가). 프론트가 정면 카메라 랜드마크로 매 프레임 직접 계산해서 보낸다 — "
+        "무거운 연산(좌표 계산)은 클라이언트가 담당한다는 원칙을 이 필드에도 그대로 적용. "
+        "선택 필드 — 없으면(정면 카메라 미지원 클라이언트) 무릎 모임 검사를 건너뛴다(하위 호환).",
+    )
+    knee_asymmetry_deg: Optional[float] = Field(
+        None,
+        description="정면 촬영 기준 좌우 무릎 굽힘 각도 차이(app/pose/angles.py의 "
+        "get_knee_lr_asymmetry_deg 참고, 2026-08-21 추가). knee_valgus_ratio와 동일한 이유로 "
+        "프론트가 직접 계산해서 보낸다. 선택 필드 — 없으면 좌우 비대칭 검사를 건너뛴다(하위 호환).",
     )
 
 
@@ -159,53 +181,10 @@ class SessionEndCheckResponse(BaseModel):
     window_duration_sec: float = Field(..., description="판단에 사용한 구간의 실제 길이(초)")
 
 
-# ---- 런지 ML 기반 보조 판정 (전통 ML, 포트폴리오/비교실험 목적 — API 명세 표에 없는 신규 엔드포인트) ----
-# 기존 규칙기반 판정(judge_static_pose)을 대체하지 않는 "참고용 2차 의견"이라는 점을 명확히
-# 하기 위해 별도 요청/응답 모델로 분리했다. 자세한 배경은 app/ml/lunge_classifier.py 주석 참고.
-
-
-class MLLungeAnalyzeRequest(BaseModel):
-    """런지 ML 보조 판정(/ai/ml/lunge/analyze) 요청.
-    특징 추출에 실제로 쓰이는 관절은 일부(어깨/엉덩이/무릎/발목/발끝)지만, 다른 정지 자세
-    판정 엔드포인트와 입력 형식을 통일해 프론트 구현 부담을 줄이기 위해 33개 전체를 받는다."""
-
-    landmarks: List[Landmark] = Field(
-        ..., min_length=33, max_length=33, description="MediaPipe Pose 33개 관절 좌표 (인덱스 순서 고정)"
-    )
-
-
-class MLLungeAnalyzeResponse(BaseModel):
-    is_normal: bool
-    correct_probability: float = Field(..., description="학습된 모델이 '정상 자세(C)'로 판단한 확률(0~1)")
-    coaching_message: Optional[str] = Field(
-        None, description="이상으로 판정됐을 때의 한국어 교정 문구(TTS로 바로 읽을 수 있는 텍스트). 정상이면 null."
-    )
-    model_name: str = Field(..., description="교차검증으로 선택된 전통 ML 알고리즘 이름 (예: RandomForest)")
-
-
-# ---- 스쿼트 ML 기반 다중분류 보조 판정 (전통 ML, 포트폴리오/비교실험 목적) ----
-# 런지와 달리 이진(정상/이상)이 아니라 "어떤 오류인지"까지 다중분류로 구분한다 — 오류 유형별로
-# 다른 교정 문구(TTS 텍스트)를 보내달라는 요구사항 때문. 자세한 배경은
-# app/ml/squat_classifier.py 주석 참고.
-
-
-class MLSquatAnalyzeRequest(BaseModel):
-    """스쿼트 ML 다중분류 보조 판정(/ai/ml/squat/analyze) 요청."""
-
-    landmarks: List[Landmark] = Field(
-        ..., min_length=33, max_length=33, description="MediaPipe Pose 33개 관절 좌표 (인덱스 순서 고정)"
-    )
-
-
-class MLSquatAnalyzeResponse(BaseModel):
-    predicted_label: int = Field(..., description="예측된 라벨 번호 (0=정상, 1=얕음, 3=무릎모임, 4=발뒤꿈치뜸, 5=좌우비대칭)")
-    label_name: str = Field(..., description="라벨 번호에 대응하는 한국어 이름")
-    is_normal: bool
-    correct_probability: float = Field(..., description="학습된 모델이 '정상(label=0)'으로 판단한 확률(0~1)")
-    coaching_message: Optional[str] = Field(
-        None, description="예측된 오류 라벨에 맞는 한국어 교정 문구(TTS로 바로 읽을 수 있는 텍스트). 정상이면 null."
-    )
-    model_name: str = Field(..., description="교차검증으로 선택된 전통 ML 알고리즘 이름 (예: RandomForest)")
+# 런지/스쿼트 ML 보조 판정(전통 ML, 포트폴리오/비교실험 목적)용 요청/응답 모델이 이 자리에
+# 있었다. 2026-08-21, 실제 사진 테스트에서 신뢰도 문제가 확인된 뒤(app/pose/rules.py 주석
+# 참고) 정면+측면 듀얼 카메라 규칙기반 판정으로 완전히 대체하며 삭제했다 — 자세한 배경은
+# claude/wellmade-ai-progress.md 참고.
 
 
 # ---- 자세 비교 인사이트 (AI-15, 신규 — API 명세 표에 없는 온보딩 캘리브레이션 확장) ----

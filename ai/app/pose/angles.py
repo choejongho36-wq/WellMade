@@ -20,8 +20,8 @@ LEFT_KNEE = 25
 RIGHT_KNEE = 26
 LEFT_ANKLE = 27
 RIGHT_ANKLE = 28
-# 아래 두 개는 규칙기반 각도 계산에는 안 쓰지만, ML 특징 추출(app/ml/features.py)에서
-# "무릎이 발끝보다 앞으로 나갔는지" 판단에 발끝(foot_index) 좌표가 필요해 추가했다.
+# 발뒤꿈치/발끝 좌표. get_heel_lift_ratio()(발뒤꿈치 뜸 규칙기반 검사)와
+# get_knee_valgus_ratio()(무릎 모임 규칙기반 검사)에서 쓴다.
 LEFT_HEEL = 29
 RIGHT_HEEL = 30
 LEFT_FOOT_INDEX = 31
@@ -226,3 +226,75 @@ def get_pelvis_tilt_angle(landmarks: list[Landmark]) -> float:
     부호 규칙과 배경은 get_shoulder_tilt_angle()과 동일 — 자세 비교 인사이트(AI-15)용.
     """
     return _horizontal_tilt_angle(landmarks[LEFT_HIP], landmarks[RIGHT_HIP])
+
+
+def get_knee_valgus_ratio(front_landmarks: list[Landmark]) -> float:
+    """
+    정면 촬영 기준, 무릎 사이 가로 거리를 발목 사이 가로 거리로 나눈 비율.
+
+    왜 이 지표가 필요한가? (2026-08-21, ML 분류기 완전 대체 배경)
+    - 무릎 모임(knee valgus)은 원래 Kaggle 데이터셋 기반 ML 분류기(app/ml/squat_classifier.py,
+      이제 삭제됨)의 label=3이 담당했는데, 실제 사진 테스트에서 신뢰할 수 없는 것으로 확인됐다.
+      근본 원인은 학습 데이터의 knee_lateral(좌우 편차) 컬럼을 우리가 재현할 수 없어 애초에
+      특징에서 제외했었고(features.py, 이제 삭제됨), 그래서 그 예측이 사실상 무관한 특징에
+      의존한 우연한 상관관계였다는 점이다.
+    - 더 근본적인 문제는 "좌우(관상면) 판단은 측면 촬영만으로는 관측 자체가 불가능하다"는
+      것이었다(get_heel_lift_ratio() 주석 참고). 이번에 카메라 전제를 "측면 단독"에서
+      "측면 + 정면 듀얼"로 바꾸면서, 정면 랜드마크로 직접 계산 가능한 지표로 교체했다.
+
+    왜 각도 대신 이 비율(너비 비교)을 쓰는가?
+    - NgoQuocBao1010/Exercise-Correction 레포(이 프로젝트가 런지 학습 데이터 출처로도 참고한
+      곳)의 자체 스쿼트 폼 오류 검출도 3점 각도가 아니라 "무릎 너비 vs 발목 너비" 비율로
+      무릎 모임을 판정한다 — 무릎이 안쪽으로 모이면 무릎 사이 거리가 발목 사이 거리보다
+      좁아진다는 게 이 현상을 정의하는 방식 자체이기 때문에, 각도보다 이 비율이 더 직접적인
+      지표다.
+    - 발목 너비로 정규화하는 이유는 get_heel_lift_ratio()와 동일 — 카메라 거리/줌 배율이
+      달라져도 비슷한 비율이 나오게 하기 위함.
+
+    값이 1.0에 가깝거나 클수록 무릎이 발목만큼(또는 그 이상) 벌어진 정상 자세, 값이 작을수록
+    무릎이 발목보다 안쪽으로 모인(valgus) 상태를 뜻한다.
+
+    # TODO: 팀 확정 필요 — get_heel_lift_ratio()와 마찬가지로 문헌값이 아니라 이번에 새로
+    # 설계한 기하학적 근사치다. 임계값(rules.py의 KNEE_VALGUS_RATIO_THRESHOLD)도 잠정값이다.
+    """
+    knee_width = abs(front_landmarks[RIGHT_KNEE].x - front_landmarks[LEFT_KNEE].x)
+    ankle_width = abs(front_landmarks[RIGHT_ANKLE].x - front_landmarks[LEFT_ANKLE].x)
+    if ankle_width == 0:
+        # 발목 좌표가 겹치는 경우(트래킹 실패 등) 계산이 불가능하므로, 다른 지표와 동일하게
+        # "판정 불가 -> 안전한 기본값"을 반환한다. 이 지표는 1.0 이상이 정상이므로 넉넉한 값(1.0)을
+        # 기본값으로 둔다.
+        return 1.0
+    return knee_width / ankle_width
+
+
+def get_knee_lr_asymmetry_deg(front_landmarks: list[Landmark]) -> float:
+    """
+    정면 촬영 기준, 좌우 무릎 굽힘 각도 차이(도, 절대값)로 "양쪽 다리에 체중이 고르게
+    실렸는지"를 근사한다.
+
+    왜 이 지표가 필요한가? (2026-08-21, ML 분류기 완전 대체 배경)
+    - 좌우 비대칭(label=5)도 knee valgus와 같은 이유로 신뢰할 수 없었다: 측면 촬영으로는
+      한쪽 다리만 보여서 애초에 좌우를 비교할 근거 자체가 없었다(squat_classifier.py 주석
+      참고, 이제 삭제됨). 정면 촬영을 추가하면서 양쪽 다리가 동시에 보이므로, 처음으로
+      "진짜 좌우 비교"가 가능해졌다.
+
+    왜 get_knee_angle()처럼 한쪽만 고르지 않고 양쪽을 모두 계산하는가?
+    - get_knee_angle()의 _select_side()는 "측면 촬영에서 어느 쪽이 더 잘 보이는지" 고르기
+      위한 것으로, 애초에 한쪽만 볼 수 있다는 전제에서 나온 설계다. 정면 촬영은 양쪽 다리가
+      동시에 보이므로 그 전제 자체가 다르다 — 이 함수는 side 선택 없이 좌우 무릎 각도를
+      각각 직접 계산해서 비교한다.
+
+    값이 0에 가까울수록 양쪽 다리가 비슷하게 굽혀진(대칭) 상태, 값이 클수록 한쪽만 더 깊이
+    굽혀진(비대칭 — 체중이 한쪽으로 쏠렸을 가능성) 상태를 뜻한다.
+
+    # TODO: 팀 확정 필요 — 이 지표는 "굽힘 정도 차이"로 체중 분배 차이를 근사한 값이지,
+    # 실제 압력(체중) 분포를 직접 측정한 값이 아니다. 임계값(rules.py의
+    # KNEE_ASYMMETRY_THRESHOLD_DEG)도 잠정값이다.
+    """
+    left_angle = calculate_angle(
+        front_landmarks[LEFT_HIP], front_landmarks[LEFT_KNEE], front_landmarks[LEFT_ANKLE]
+    )
+    right_angle = calculate_angle(
+        front_landmarks[RIGHT_HIP], front_landmarks[RIGHT_KNEE], front_landmarks[RIGHT_ANKLE]
+    )
+    return abs(left_angle - right_angle)
