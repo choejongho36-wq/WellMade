@@ -26,8 +26,13 @@ Cleveland Clinic, IJSPT)를 참고해 직접 작성한 문서다. 원문을 그�
 # 있는 "최신성" 신호로 쓰려면, 팀이 원 출처의 실제 개정일을 확인해 교체해야 한다.
 """
 
-from app.ml.lunge_classifier import LUNGE_COACHING_MESSAGE
-from app.ml.squat_labels import SQUAT_COACHING_MESSAGES
+from app.pose.coaching_messages import (
+    ASYMMETRY_MESSAGE,
+    HEEL_LIFT_MESSAGE,
+    KNEE_VALGUS_MESSAGE,
+    LUNGE_FORM_MESSAGE,
+    SHALLOW_SQUAT_MESSAGE,
+)
 
 # 이슈 종류(issue_type)/part/ML 라벨명 등 이 프로젝트 여기저기서 쓰이는 여러 표현이
 # 같은 문서를 가리킬 수 있어, 검색 매칭을 돕는 태그를 문서마다 여러 개 붙여둔다.
@@ -38,9 +43,10 @@ KNOWLEDGE_BASE = [
         "id": "knee_valgus",
         "title": "스쿼트·런지 무릎 모임(Knee Valgus) 교정",
         "tags": ["knee_valgus", "무릎 모임", "니밸거스", "무릎 안쪽", "knee", "무릎이 안쪽으로"],
-        # 기존 ML 분류기(squat_labels.py)가 이미 쓰고 있는 문구를 그대로 재사용한다 —
-        # 같은 이슈에 대해 모듈마다 표현이 미묘하게 달라지는 걸 막기 위함(단일 출처 원칙).
-        "short_message": SQUAT_COACHING_MESSAGES[3],
+        # 규칙기반 판정(app/pose/rules.py)이 쓰는 것과 같은 문구를 재사용한다 —
+        # 같은 이슈에 대해 모듈마다 표현이 미묘하게 달라지는 걸 막기 위함(단일 출처 원칙,
+        # app/pose/coaching_messages.py 참고).
+        "short_message": KNEE_VALGUS_MESSAGE,
         "body": (
             "무릎 모임(knee valgus)은 스쿼트나 런지에서 무릎이 발끝보다 안쪽으로 밀려 들어가는 "
             "현상을 말한다. NASM 등 트레이너 자격 기준 자료들은 이를 대개 엉덩이 바깥쪽 근육"
@@ -63,7 +69,7 @@ KNOWLEDGE_BASE = [
         "id": "squat_shallow",
         "title": "얕은 스쿼트(깊이 부족) 교정",
         "tags": ["squat_shallow", "얕은 스쿼트", "깊이 부족", "shallow", "knee"],
-        "short_message": SQUAT_COACHING_MESSAGES[1],
+        "short_message": SHALLOW_SQUAT_MESSAGE,
         "body": (
             "스쿼트 깊이가 목표(허벅지가 바닥과 평행해지는 지점)에 못 미치는 경우다. IJSPT의 "
             "스쿼트 생체역학 리뷰 논문은 깊이를 얕음/평행/깊음 세 구간으로 나누는데, 깊이가 "
@@ -84,7 +90,7 @@ KNOWLEDGE_BASE = [
         "id": "heel_rise",
         "title": "발뒤꿈치 뜸(체중 이동) 교정",
         "tags": ["heel_rise", "발뒤꿈치 뜸", "발뒤꿈치", "체중 앞쏠림", "ankle"],
-        "short_message": SQUAT_COACHING_MESSAGES[4],
+        "short_message": HEEL_LIFT_MESSAGE,
         "body": (
             "스쿼트 중 발뒤꿈치가 바닥에서 떨어지는 현상은 체중이 발 앞쪽으로 쏠렸다는 신호로, "
             "흔히 발목 배측굴곡(발목을 몸 쪽으로 꺾는 동작) 가동범위 제한과 관련이 있다고 "
@@ -103,7 +109,7 @@ KNOWLEDGE_BASE = [
         "id": "squat_asymmetry",
         "title": "스쿼트 좌우 비대칭(체중 쏠림) 교정",
         "tags": ["squat_asymmetry", "좌우 비대칭", "비대칭", "체중 쏠림", "movement"],
-        "short_message": SQUAT_COACHING_MESSAGES[5],
+        "short_message": ASYMMETRY_MESSAGE,
         "body": (
             "좌우 다리에 실리는 체중이 눈에 띄게 다른 경우다. 한쪽으로 체중이 쏠린 채 반복하면 "
             "쏠리는 쪽 무릎·고관절에 부담이 누적될 수 있다는 점이 일반적으로 지적된다.\n\n"
@@ -159,7 +165,7 @@ KNOWLEDGE_BASE = [
         "id": "lunge_knee_over_toe",
         "title": "런지 무릎이 발끝을 넘는 경우 교정",
         "tags": ["lunge_knee_over_toe", "런지", "무릎 발끝", "knee"],
-        "short_message": LUNGE_COACHING_MESSAGE,
+        "short_message": LUNGE_FORM_MESSAGE,
         "body": (
             "런지에서 앞다리 무릎이 발끝을 많이 넘어가면 무릎 관절(특히 슬개골 아래쪽)에 "
             "걸리는 부담이 커질 수 있다고 설명된다. NASM은 상체를 세운 런지('90/90 런지')를 "

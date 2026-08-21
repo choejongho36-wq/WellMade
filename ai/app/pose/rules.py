@@ -14,8 +14,11 @@ from app.pose.angles import (
     get_heel_lift_ratio,
     get_hip_angle,
     get_knee_angle,
+    get_knee_lr_asymmetry_deg,
+    get_knee_valgus_ratio,
     get_shoulder_alignment_angle,
 )
+from app.pose.coaching_messages import ASYMMETRY_MESSAGE, HEEL_LIFT_MESSAGE, KNEE_VALGUS_MESSAGE
 from app.schemas import HipFlexibilityCalibration, Landmark
 
 # 스포츠의학/트레이너 자격 기준 자료를 근거로 한 값 (2026-08-18 업데이트).
@@ -60,19 +63,22 @@ from app.schemas import HipFlexibilityCalibration, Landmark
 # 어깨가 안 말린 것"이라는 방향성만 근거로 잡은 값이다. 스쿼트/런지 모두 같은 기준을 쓴다
 # (어깨 정렬 기준 자체는 하체 동작 종류와 무관하다고 판단).
 #
-# [발뒤꿈치 뜸/무릎 모임] (2026-08-21 추가 — ML 분류기 실측 오탐 대응)
+# [발뒤꿈치 뜸/무릎 모임/좌우 비대칭] (2026-08-21 — ML 분류기 완전 대체)
 # 실제 사진으로 테스트한 결과, ML 스쿼트 분류기(app/ml/squat_classifier.py)가 정상 자세도
-# "발뒤꿈치 뜸"/"무릎 모임"으로 자주 오탐하는 문제가 확인됐다. 조사 결과:
-# - 발뒤꿈치 뜸: 학습에 쓴 Kaggle 데이터셋의 ankle_angle 컬럼과 우리 calculate_angle() 계산
-#   방식이 서로 다른 값 범위를 갖고 있어(train/serve skew), 실측 랜드마크를 넣으면 거의
-#   항상 "발뒤꿈치 뜸" 쪽으로 쏠렸다. 그래서 여기 규칙기반 검사(HEEL_LIFT_RATIO_THRESHOLD)로
-#   대체했다 — get_heel_lift_ratio() 주석에 근거를 자세히 적어둠.
-# - 무릎 모임: 좌우(관상면) 판단이라 애초에 측면 촬영 랜드마크만으로는 관측이 불가능하다고
-#   판단해 규칙기반으로도 대체하지 않았다(정면 촬영이 필요 — schemas.py의 Side 설명 참고,
-#   이번에 사용자에게 촬영 방향을 재확인함). ML 분류기가 내놓는 "무릎 모임"/"좌우 비대칭"
-#   예측은 같은 이유(+ train/serve skew)로 신뢰할 수 없다는 점을 squat_classifier.py에
-#   명시해뒀다 — 정면 촬영 지원이 추가되기 전까지는 이 두 가지를 실시간 판정에서 다루지
-#   않는다.
+# "발뒤꿈치 뜸"/"무릎 모임"으로 자주 오탐하는 문제가 확인됐다. 조사 결과 두 가지 원인이 있었다:
+# 1) 발뒤꿈치 뜸은 학습에 쓴 Kaggle 데이터셋의 ankle_angle 컬럼과 우리 calculate_angle() 계산
+#    방식이 서로 다른 값 범위를 갖고 있던 train/serve skew 문제였고,
+# 2) 무릎 모임/좌우 비대칭은 애초에 좌우(관상면) 판단이라 "측면 촬영만" 전제로는 관측 자체가
+#    불가능한 구조적 한계였다(측면에서는 카메라 반대쪽 다리가 가려지거나 원근 때문에 좌우
+#    비교 기준이 없음).
+# 그래서 카메라 전제를 "측면 단독"에서 "측면 + 정면 듀얼"로 확장하고, ML 모델은 완전히
+# 삭제한 뒤 세 가지 모두 규칙기반 기하학적 지표로 대체했다:
+# - 발뒤꿈치 뜸: get_heel_lift_ratio() (측면 랜드마크, HEEL_LIFT_RATIO_THRESHOLD)
+# - 무릎 모임: get_knee_valgus_ratio() (정면 랜드마크, KNEE_VALGUS_RATIO_THRESHOLD)
+# - 좌우 비대칭: get_knee_lr_asymmetry_deg() (정면 랜드마크, KNEE_ASYMMETRY_THRESHOLD_DEG)
+# 정면 랜드마크(front_landmarks)는 선택 입력이다 — 프론트가 아직 정면 카메라를 붙이지 않은
+# 기존 클라이언트도 계속 동작해야 하므로(하위 호환, shoulder_angle/heel_lift_ratio와 동일한
+# 패턴), 정면 랜드마크가 없으면 무릎 모임/좌우 비대칭 검사를 건너뛴다.
 #
 # TODO: 팀 확정 필요 — 스쿼트를 "평행" 대신 "깊은 스쿼트"까지 목표로 할지, 런지의
 # 뒷다리 각도를 별도로 판정에 반영할지는 제품 방향에 따라 달라지므로 재검토 필요.
@@ -110,6 +116,18 @@ CALIBRATION_HIGH_PCT = 0.9
 # 지표라 상식적으로 "눈에 띄게 뜬 정도"를 가늠한 잠정치다.
 # TODO: 팀 확정 필요 — 실사용자 테스트로 조정.
 HEEL_LIFT_RATIO_THRESHOLD = 0.5
+
+# 무릎 사이 너비가 발목 사이 너비의 몇 %보다 좁아지면 무릎 모임(valgus)으로 볼지의 잠정
+# 임계값. get_knee_valgus_ratio()가 반환하는 값(무릎너비/발목너비)과 비교한다. 0.8은
+# "무릎이 발목 너비의 80% 미만으로 좁아지면 눈에 띄게 모인 것"이라는 상식적인 잠정치다.
+# TODO: 팀 확정 필요 — 실사용자 테스트로 조정.
+KNEE_VALGUS_RATIO_THRESHOLD = 0.8
+
+# 좌우 무릎 굽힘 각도 차이가 몇 도 이상이면 좌우 비대칭(체중 쏠림)으로 볼지의 잠정 임계값.
+# get_knee_lr_asymmetry_deg()가 반환하는 값과 비교한다. 15도는 다른 각도 기반 판정의 여유값
+# (예: coaching/realtime.py의 DEEP_MARGIN_DEG)과 같은 자릿수로 맞춘 잠정치다.
+# TODO: 팀 확정 필요 — 실사용자 테스트로 조정.
+KNEE_ASYMMETRY_THRESHOLD_DEG = 15.0
 
 
 def personalized_hip_range(calibration: HipFlexibilityCalibration) -> tuple[float, float]:
@@ -162,9 +180,14 @@ def judge_static_pose(
     exercise_type: str,
     side: str = "auto",
     hip_calibration: HipFlexibilityCalibration | None = None,
+    front_landmarks: list[Landmark] | None = None,
 ) -> dict:
     """
     정지 자세 1장을 규칙기반으로 판정한다.
+
+    front_landmarks(정면 촬영, 2026-08-21 추가)는 선택 입력이다 — 없으면 무릎 모임/좌우
+    비대칭 검사를 건너뛰고 기존(측면 전용)과 동일하게 동작한다(하위 호환). 있으면 두 검사를
+    추가로 수행한다. 자세한 배경은 위쪽 "[발뒤꿈치 뜸/무릎 모임/좌우 비대칭]" 주석 참고.
 
     반환값을 Pydantic 모델이 아닌 dict로 두는 이유: main.py가 API 응답으로 감싸기 전에,
     하네스(AI-07)나 세션 리포트(AI-12) 같은 다른 모듈에서도 가볍게 재사용할 수 있도록
@@ -212,12 +235,7 @@ def judge_static_pose(
             }
         )
     if heel_lift_ratio > HEEL_LIFT_RATIO_THRESHOLD:
-        issues.append(
-            {
-                "part": "heel",
-                "message": "발뒤꿈치가 바닥에서 떨어지고 있어요. 체중을 발뒤꿈치 쪽에 실어주세요.",
-            }
-        )
+        issues.append({"part": "heel", "message": HEEL_LIFT_MESSAGE})
 
     knee_conf = _range_confidence(knee_angle, knee_low, knee_high)
     hip_conf = _range_confidence(hip_angle, hip_low, hip_high)
@@ -226,8 +244,35 @@ def judge_static_pose(
     # 임계값을 얼마나 넘었는지에 비례해 완만하게 신뢰도를 낮추고, 임계값의 2배 이상
     # 벗어나면 0으로 수렴시킨다(다른 부위의 "여유값 벗어나면 0" 패턴과 동일한 취지).
     heel_conf = max(0.0, 1.0 - max(0.0, heel_lift_ratio - HEEL_LIFT_RATIO_THRESHOLD) / HEEL_LIFT_RATIO_THRESHOLD)
-    # 네 부위 중 가장 낮은 신뢰도를 최종 신뢰도로 사용한다 (가장 취약한 부위가 전체 판정을 좌우하게 함).
-    confidence = min(knee_conf, hip_conf, shoulder_conf, heel_conf)
+    confidences = [knee_conf, hip_conf, shoulder_conf, heel_conf]
+
+    # 정면 랜드마크가 있을 때만 무릎 모임/좌우 비대칭을 검사한다 — 없으면(하위 호환) 이 두
+    # 항목은 판정에서 완전히 빠진다(신뢰도 계산에도 관여하지 않음).
+    if front_landmarks is not None:
+        knee_valgus_ratio = get_knee_valgus_ratio(front_landmarks)
+        knee_asymmetry_deg = get_knee_lr_asymmetry_deg(front_landmarks)
+
+        if knee_valgus_ratio < KNEE_VALGUS_RATIO_THRESHOLD:
+            issues.append({"part": "knee_valgus", "message": KNEE_VALGUS_MESSAGE})
+        if knee_asymmetry_deg > KNEE_ASYMMETRY_THRESHOLD_DEG:
+            issues.append({"part": "asymmetry", "message": ASYMMETRY_MESSAGE})
+
+        # 무릎 모임은 "1.0 이상이 정상, 낮을수록 이상"이라 heel과 방향이 반대다 — 임계값
+        # 미만으로 떨어진 정도에 비례해 완만하게 낮추고, 임계값의 절반(즉 0에 근접)까지
+        # 벌어지면 0으로 수렴시킨다.
+        valgus_conf = (
+            1.0
+            if knee_valgus_ratio >= KNEE_VALGUS_RATIO_THRESHOLD
+            else max(0.0, knee_valgus_ratio / KNEE_VALGUS_RATIO_THRESHOLD)
+        )
+        # 좌우 비대칭은 heel_conf와 같은 방향(클수록 이상)이라 같은 공식을 재사용한다.
+        asymmetry_conf = max(
+            0.0, 1.0 - max(0.0, knee_asymmetry_deg - KNEE_ASYMMETRY_THRESHOLD_DEG) / KNEE_ASYMMETRY_THRESHOLD_DEG
+        )
+        confidences.extend([valgus_conf, asymmetry_conf])
+
+    # 검사한 부위 중 가장 낮은 신뢰도를 최종 신뢰도로 사용한다 (가장 취약한 부위가 전체 판정을 좌우하게 함).
+    confidence = min(confidences)
 
     return {
         "is_normal": len(issues) == 0,
