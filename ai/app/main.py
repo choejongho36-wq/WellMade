@@ -8,7 +8,7 @@ from datetime import date
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.schemas import PoseAnalyzeRequest, PoseAnalyzeResponse, PoseIssue
+from app.schemas import PoseAnalyzeRequest, PoseAnalyzeResponse, PoseAngleValues, PoseIssue
 from app.schemas import CoachingFrameRequest, CoachingFrameResponse
 from app.schemas import SessionEndCheckRequest, SessionEndCheckResponse
 from app.schemas import PostureInsightRequest, PostureInsightResponse
@@ -73,6 +73,7 @@ def analyze_pose(request: PoseAnalyzeRequest):
         is_normal=result["is_normal"],
         confidence=result["confidence"],
         issues=[PoseIssue(**issue) for issue in result["issues"]],
+        angles=PoseAngleValues(**result["angles"]),
     )
 
 

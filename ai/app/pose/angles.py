@@ -31,6 +31,17 @@ RIGHT_FOOT_INDEX = 32
 LEFT_EAR = 7
 RIGHT_EAR = 8
 
+# get_heel_lift_ratio()/get_knee_over_toe_ratio()가 정규화 기준(발목-발끝 거리, foot_length)
+# 으로 나눌 때 쓰는 최소 허용값(2026-08-21 추가). 발이 카메라를 거의 정면으로 향하거나
+# (foot_length가 0에 가까워짐) 랜드마크 인식이 불안정한 프레임에서는, 분모가 아주 작은
+# 값으로 나뉘면서 분자의 작은 노이즈(몇 픽셀 수준의 오차)가 비율을 몇 배로 증폭시킨다 —
+# 실제로 러닝/스프린트 크라우치처럼 발이 거의 겹쳐 보이는 사진에서 "무릎이 발끝을 크게
+# 넘었다"는 오탐이 이 방식으로 재현됨을 확인했다. foot_length가 이 값보다 작으면
+# calculate_angle()의 "판정 불가 -> 안전한 기본값" 패턴과 동일하게 0.0(정상 쪽)을 반환한다.
+# TODO: 팀 확정 필요 — 0.03(정규화 좌표 기준 화면 너비의 3%)은 실측 근거가 아니라
+# 상식적으로 잡은 잠정치.
+MIN_RELIABLE_FOOT_LENGTH = 0.03
+
 
 def calculate_angle(a: Landmark, b: Landmark, c: Landmark) -> float:
     """
@@ -149,16 +160,18 @@ def get_heel_lift_ratio(landmarks: list[Landmark], side: str = "auto") -> float:
         else (landmarks[RIGHT_HEEL], landmarks[RIGHT_FOOT_INDEX], landmarks[RIGHT_ANKLE])
     )
     foot_length = abs(ankle.x - toe.x)
-    if foot_length == 0:
-        # 발목/발끝 좌표가 겹치는 경우(트래킹 실패 등) 계산이 불가능하므로, calculate_angle()과
-        # 동일한 방식으로 "판정 불가 -> 안전한 기본값(0, 정상 쪽)"을 반환한다.
+    if foot_length < MIN_RELIABLE_FOOT_LENGTH:
+        # 발목/발끝 좌표가 거의 겹치는 경우(트래킹 실패, 또는 발이 카메라 쪽을 거의 정면으로
+        # 향해 2D 투영상 거리가 매우 작아진 경우) 계산이 불안정해지므로(MIN_RELIABLE_FOOT_LENGTH
+        # 주석 참고), calculate_angle()과 동일한 방식으로 "판정 불가 -> 안전한 기본값(0, 정상
+        # 쪽)"을 반환한다.
         return 0.0
     return (toe.y - heel.y) / foot_length
 
 
 def get_knee_over_toe_ratio(landmarks: list[Landmark], side: str = "auto") -> float:
     """
-    측면 촬영 기준, 무릎이 발끝보다 얼마나 앞으로 나갔는지를 나타내는 비율.
+    측면 촬영 기준, 무릎이 발끝보다 얼마나 앞으로 나갔는지를 나타내는 값.
 
     왜 뒤늦게(2026-08-21) 추가됐는가?
     - 원래 "무릎이 발끝을 넘는지"는 ML 런지 분류기(app/ml/lunge_classifier.py, 삭제됨)가
@@ -182,8 +195,20 @@ def get_knee_over_toe_ratio(landmarks: list[Landmark], side: str = "auto") -> fl
       "몸이 카메라 기준 어느 방향을 보고 있는지"(facing_direction)를 먼저 추정하고, 그
       방향 기준으로 무릎이 발끝보다 앞에 있으면 항상 양수가 되도록 부호를 맞춘다.
 
-    발목-발끝 사이 x축 거리(발 길이)로 정규화하는 이유는 get_heel_lift_ratio()와 동일
-    (카메라 거리/줌 배율에 따라 비슷한 비율이 나오게 하기 위함).
+    왜 발 길이로 정규화하지 않는가 (2026-08-21 변경, get_heel_lift_ratio()와의 차이):
+    - 처음엔 get_heel_lift_ratio()와 동일하게 발목-발끝 거리(발 길이)로 나눠 "발 길이
+      대비 몇 %"라는 비율로 반환했었다. 그런데 실사용자 테스트 사진(손을 바닥에 짚은
+      크라우칭/스프린트 스타트 자세)을 다시 진단하는 과정에서, 사용자가 "그냥 좌표로
+      발끝/발목 위치를 보고 무릎이 그 방향으로 넘어갔는지만 보면 되는 거 아니냐"고 직접
+      문제를 제기했고, 순수 좌표 비교 + 약간의 여유(margin)를 둔 방식으로 이 사진을
+      다시 판정해보고 싶다고 명시적으로 요청함 → 발 길이 정규화를 제거하고, 무릎-발끝의
+      원시 좌표 거리(facing_direction 방향 보정만 반영)를 그대로 반환하도록 바꿨다.
+    - 트레이드오프: 카메라 거리/줌 배율이 달라지면 같은 정도로 무릎이 넘어가도 원시 좌표
+      거리 값 자체는 달라질 수 있어(비율 방식보다 카메라 거리 변화에 덜 강건함),
+      rules.py의 KNEE_OVER_TOE_RATIO_THRESHOLD도 "발 길이의 몇 %"가 아니라 "원시 좌표
+      거리로 이 정도"라는 작은 여유값으로 함께 바꿨다 — 자세한 근거는 그쪽 주석 참고.
+      # TODO: 팀 확정 필요 — 실사용자 테스트로 이 방식이 충분한지, 다시 발 길이 비율
+      방식으로 되돌릴지 판단 필요.
 
     값이 0 이하면 무릎이 발끝을 넘지 않은 상태(정상), 값이 클수록 무릎이 발끝보다 앞으로
     많이 나간 상태를 뜻한다.
@@ -201,10 +226,17 @@ def get_knee_over_toe_ratio(landmarks: list[Landmark], side: str = "auto") -> fl
         else (landmarks[RIGHT_KNEE], landmarks[RIGHT_ANKLE], landmarks[RIGHT_FOOT_INDEX])
     )
     foot_length = abs(ankle.x - toe.x)
-    if foot_length == 0:
+    if foot_length < MIN_RELIABLE_FOOT_LENGTH:
+        # get_heel_lift_ratio()와 동일한 이유(MIN_RELIABLE_FOOT_LENGTH 주석 참고) — foot_length가
+        # 아주 작으면 facing_direction 부호 자체도 노이즈에 따라 뒤집힐 수 있어 판정 자체가
+        # 무의미해진다. 실제로 이 문제로 오탐이 발생한 걸 확인해 뒤늦게 추가한 안전장치다.
+        # (2026-08-21 갱신: 아래에서 더 이상 foot_length로 나누지는 않지만, facing_direction
+        # 부호를 신뢰할 수 있는지 판단하는 용도로는 계속 필요해서 이 가드는 그대로 유지한다.)
         return 0.0
     facing_direction = 1.0 if (toe.x - ankle.x) >= 0 else -1.0
-    return ((knee.x - toe.x) * facing_direction) / foot_length
+    # (2026-08-21 변경) 더 이상 foot_length로 나누지 않는다 — 위 docstring의 "왜 발 길이로
+    # 정규화하지 않는가" 참고. 순수 좌표 거리(facing_direction 방향 보정만 반영)를 반환한다.
+    return (knee.x - toe.x) * facing_direction
 
 
 def get_shoulder_alignment_angle(landmarks: list[Landmark], side: str = "auto") -> float:

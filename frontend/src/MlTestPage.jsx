@@ -114,64 +114,6 @@ function drawLandmarks(imgEl, canvasEl, landmarks) {
   })
 }
 
-// 아래 두 함수(calculateAngle, computeSideDebugInfo)는 app/pose/angles.py의
-// calculate_angle()/_select_side()를 프론트에서 그대로 재현한 것이다(2026-08-21 추가).
-//
-// 왜 필요한가?
-// AI 서버 응답(/ai/pose/analyze)은 최종 판정 결과(is_normal/confidence/issues)만 돌려주고,
-// "실제로 왼쪽/오른쪽 중 어느 다리를 골랐는지", "그 선택이 왜 그렇게 됐는지"는 알려주지
-// 않는다. 그런데 측면 촬영에서 몸통에 가려 반대쪽 다리의 관절(특히 무릎) 하나만 인식이
-// 불안정해도, _select_side()가 "엉덩이+무릎+발목 3곳 평균 신뢰도"로 좌우를 고르기 때문에
-// 그 무릎 하나가 낮아도 나머지 두 곳(엉덩이/발목)이 잘 보이면 여전히 그 다리가 선택될 수
-// 있다 — 이 경우 계산에 쓰이는 무릎 좌표 자체가 부정확해서 각도가 실제 자세와 다르게 나올
-// 수 있다. 이걸 눈으로 직접 확인할 수 있도록, 좌우 각각의 신뢰도 평균과 각도를 모두
-// 계산해서 화면에 함께 보여준다.
-function calculateAngle(a, b, c) {
-  const ba = { x: a.x - b.x, y: a.y - b.y }
-  const bc = { x: c.x - b.x, y: c.y - b.y }
-  const magBa = Math.hypot(ba.x, ba.y)
-  const magBc = Math.hypot(bc.x, bc.y)
-  if (magBa === 0 || magBc === 0) return 0
-  const dot = ba.x * bc.x + ba.y * bc.y
-  let cos = dot / (magBa * magBc)
-  cos = Math.max(-1, Math.min(1, cos))
-  return (Math.acos(cos) * 180) / Math.PI
-}
-
-function computeSideDebugInfo(landmarks) {
-  const li = KEY_LANDMARKS
-  const avg = (a, b, c) => (a.visibility + b.visibility + c.visibility) / 3
-  const leftScore = avg(landmarks[li.leftHip], landmarks[li.leftKnee], landmarks[li.leftAnkle])
-  const rightScore = avg(landmarks[li.rightHip], landmarks[li.rightKnee], landmarks[li.rightAnkle])
-  // app/pose/angles.py의 _select_side()와 동일한 규칙: 왼쪽 점수가 오른쪽 이상이면 왼쪽
-  const chosenSide = leftScore >= rightScore ? 'left' : 'right'
-
-  const kneeAngle = (side) =>
-    calculateAngle(landmarks[li[`${side}Hip`]], landmarks[li[`${side}Knee`]], landmarks[li[`${side}Ankle`]])
-  const hipAngle = (side) =>
-    calculateAngle(landmarks[li[`${side}Shoulder`]], landmarks[li[`${side}Hip`]], landmarks[li[`${side}Knee`]])
-
-  return {
-    chosenSide,
-    leftScore,
-    rightScore,
-    left: {
-      hipVis: landmarks[li.leftHip].visibility,
-      kneeVis: landmarks[li.leftKnee].visibility,
-      ankleVis: landmarks[li.leftAnkle].visibility,
-      kneeAngle: kneeAngle('left'),
-      hipAngle: hipAngle('left'),
-    },
-    right: {
-      hipVis: landmarks[li.rightHip].visibility,
-      kneeVis: landmarks[li.rightKnee].visibility,
-      ankleVis: landmarks[li.rightAnkle].visibility,
-      kneeAngle: kneeAngle('right'),
-      hipAngle: hipAngle('right'),
-    },
-  }
-}
-
 // 2026-08-21: 원래 이 페이지는 팀원이 학습시킨 스쿼트/런지 ML 모델(HistGradientBoosting 등)을
 // 테스트하는 용도였다. 실제 사진 테스트에서 정상 자세도 "발뒤꿈치 뜸"/"무릎 모임"으로 자주
 // 오탐하는 신뢰도 문제가 확인됐고(원인: train/serve skew + 측면 촬영만으로는 무릎 모임/좌우
@@ -187,7 +129,6 @@ function MlTestPage() {
   const [frontImageUrl, setFrontImageUrl] = useState(null)
   const [sideLandmarks, setSideLandmarks] = useState(null)
   const [frontLandmarks, setFrontLandmarks] = useState(null)
-  const [sideDebug, setSideDebug] = useState(null)
   const [status, setStatus] = useState('')
   const [result, setResult] = useState(null)
   const sideImgRef = useRef(null)
@@ -203,7 +144,6 @@ function MlTestPage() {
     if (which === 'side') {
       setSideImageUrl(url)
       setSideLandmarks(null)
-      setSideDebug(null)
     } else {
       setFrontImageUrl(url)
       setFrontLandmarks(null)
@@ -219,7 +159,6 @@ function MlTestPage() {
       return
     }
     setSideLandmarks(landmarks)
-    setSideDebug(computeSideDebugInfo(landmarks))
     setStatus('')
     // onLoad 시점엔 이미지가 막 배치돼 clientWidth가 아직 0일 수 있어 다음 페인트 이후로 미룸
     requestAnimationFrame(() => drawLandmarks(sideImgRef.current, sideCanvasRef.current, landmarks))
@@ -389,65 +328,6 @@ function MlTestPage() {
 
           {status && <p className="pcard-desc" style={{ marginTop: 12 }}>{status}</p>}
 
-          {sideDebug && (
-            <div className="pcard" style={{ maxWidth: 480, marginTop: 16 }}>
-              <div className="pcard-body">
-                <div className="pcard-title">
-                  디버그: 좌우 다리 선택 정보 (측면 사진 기준)
-                </div>
-                <p className="pcard-desc" style={{ marginTop: 4, marginBottom: 8 }}>
-                  AI가 실제로 고른 다리:{' '}
-                  <strong style={{ color: sideDebug.chosenSide === 'left' ? LEFT_COLOR : RIGHT_COLOR }}>
-                    {sideDebug.chosenSide === 'left' ? '왼쪽' : '오른쪽'}
-                  </strong>{' '}
-                  (엉덩이+무릎+발목 평균 신뢰도: 왼쪽 {(sideDebug.leftScore * 100).toFixed(0)}% vs 오른쪽{' '}
-                  {(sideDebug.rightScore * 100).toFixed(0)}%)
-                </p>
-                <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', opacity: 0.7 }}>
-                      <th></th>
-                      <th style={{ color: LEFT_COLOR }}>왼쪽</th>
-                      <th style={{ color: RIGHT_COLOR }}>오른쪽</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>엉덩이 인식 신뢰도</td>
-                      <td>{(sideDebug.left.hipVis * 100).toFixed(0)}%</td>
-                      <td>{(sideDebug.right.hipVis * 100).toFixed(0)}%</td>
-                    </tr>
-                    <tr>
-                      <td>무릎 인식 신뢰도</td>
-                      <td>{(sideDebug.left.kneeVis * 100).toFixed(0)}%</td>
-                      <td>{(sideDebug.right.kneeVis * 100).toFixed(0)}%</td>
-                    </tr>
-                    <tr>
-                      <td>발목 인식 신뢰도</td>
-                      <td>{(sideDebug.left.ankleVis * 100).toFixed(0)}%</td>
-                      <td>{(sideDebug.right.ankleVis * 100).toFixed(0)}%</td>
-                    </tr>
-                    <tr>
-                      <td>이 다리로 계산한 무릎 각도</td>
-                      <td>{sideDebug.left.kneeAngle.toFixed(1)}도</td>
-                      <td>{sideDebug.right.kneeAngle.toFixed(1)}도</td>
-                    </tr>
-                    <tr>
-                      <td>이 다리로 계산한 엉덩이 각도</td>
-                      <td>{sideDebug.left.hipAngle.toFixed(1)}도</td>
-                      <td>{sideDebug.right.hipAngle.toFixed(1)}도</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <p className="pcard-desc" style={{ marginTop: 8 }}>
-                  실제 AI 서버 판정({exercise === 'squat' ? '무릎 50~100도/엉덩이 45~100도' : '무릎 75~105도'})은
-                  위에서 "AI가 고른 다리" 쪽 각도로 계산됩니다. 반대쪽 다리 각도가 더 정상 범위에 가깝다면,
-                  좌우 선택 로직이 잘못된 다리를 골랐을 가능성이 커요.
-                </p>
-              </div>
-            </div>
-          )}
-
           {result && (
             <div className="pcard" style={{ maxWidth: 480, marginTop: 16 }}>
               <div className="pcard-body">
@@ -463,6 +343,35 @@ function MlTestPage() {
                   </div>
                 ) : (
                   <div style={{ marginTop: 8, opacity: 0.8 }}>이슈 없음</div>
+                )}
+                {/* 2026-08-21 추가: 예전엔 "정상"으로 뜨면 issues가 비어 있어서 실제
+                    knee_angle/hip_angle/shoulder_angle 등 원시 숫자가 화면 어디에도
+                    안 보이는 문제가 있었다("정상으로 떠서인지 결과 패널 수치가 안 떠"라고
+                    사용자가 직접 지적함). AI 서버 응답에 angles 필드를 새로 추가하고,
+                    정상/이상과 무관하게 항상 이 원시 값을 보여주도록 했다. */}
+                {result.angles && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTop: '1px solid #444',
+                      fontSize: 13,
+                      opacity: 0.85,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <div>무릎 각도: {result.angles.knee_angle}도</div>
+                    <div>엉덩이 각도: {result.angles.hip_angle}도</div>
+                    <div>어깨 각도: {result.angles.shoulder_angle}도</div>
+                    <div>발뒤꿈치 뜸 비율: {result.angles.heel_lift_ratio}</div>
+                    <div>무릎-발끝 좌표 거리: {result.angles.knee_over_toe_ratio}</div>
+                    {result.angles.knee_valgus_ratio !== null && (
+                      <div>무릎 모임 비율: {result.angles.knee_valgus_ratio}</div>
+                    )}
+                    {result.angles.knee_asymmetry_deg !== null && (
+                      <div>좌우 비대칭: {result.angles.knee_asymmetry_deg}도</div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

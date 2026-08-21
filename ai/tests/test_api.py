@@ -255,27 +255,28 @@ def test_personalized_hip_range_invalid_calibration_is_safe():
 
 
 def test_coaching_frame_hip_calibration_changes_normal_judgement():
-    # 무릎은 정상범위(70~100) 안에서 정지, 엉덩이는 110도로 정지한 상황.
-    # 고정 NORMAL_RANGES(60~100)로는 110이 범위 밖이라 이상으로 판정되지만,
-    # 유연성이 낮은 사용자의 캘리브레이션(standing 160, max_flex 100 -> 개인 범위 106~118)을
-    # 적용하면 110은 그 사람 기준으로는 정상 범위 안이라 정상으로 바뀌어야 한다.
+    # 무릎은 정상범위(30~120) 안에서 정지, 엉덩이는 130도로 정지한 상황(2026-08-21 상하한
+    # 확대 이후 고정 범위는 25~120이라 130은 여전히 범위 밖 — 아래 수치도 그에 맞게 갱신).
+    # 고정 NORMAL_RANGES(25~120)로는 130이 범위 밖이라 이상으로 판정되지만,
+    # 유연성이 낮은 사용자의 캘리브레이션(standing 178, max_flex 118 -> 개인 범위 124~136)을
+    # 적용하면 130은 그 사람 기준으로는 정상 범위 안이라 정상으로 바뀌어야 한다.
     angle_history = [
-        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 110} for i in range(10)
+        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 130} for i in range(10)
     ]
 
     body_without_calibration = {"exercise_type": "squat", "angle_history": angle_history}
     res_without = client.post("/ai/coaching/frame", json=body_without_calibration)
-    print("coaching_frame(no calibration, hip=110):", res_without.status_code, res_without.json())
+    print("coaching_frame(no calibration, hip=130):", res_without.status_code, res_without.json())
     assert res_without.status_code == 200
     assert res_without.json()["is_normal"] is False
 
     body_with_calibration = {
         "exercise_type": "squat",
         "angle_history": angle_history,
-        "hip_calibration": {"standing_hip_angle": 160, "max_flex_hip_angle": 100},
+        "hip_calibration": {"standing_hip_angle": 178, "max_flex_hip_angle": 118},
     }
     res_with = client.post("/ai/coaching/frame", json=body_with_calibration)
-    print("coaching_frame(with calibration, hip=110):", res_with.status_code, res_with.json())
+    print("coaching_frame(with calibration, hip=130):", res_with.status_code, res_with.json())
     assert res_with.status_code == 200
     assert res_with.json()["is_normal"] is True
 
@@ -959,6 +960,22 @@ from app.pose.angles import get_knee_over_toe_ratio  # noqa: E402
 from app.pose.rules import KNEE_OVER_TOE_RATIO_THRESHOLD  # noqa: E402
 
 
+def test_get_knee_over_toe_ratio_tiny_foot_length_returns_safe_zero():
+    # 발목-발끝 거리가 MIN_RELIABLE_FOOT_LENGTH보다 작으면(발이 카메라를 거의 정면으로
+    # 향하거나 인식이 불안정한 프레임), facing_direction 부호 자체가 노이즈에 따라 뒤집힐
+    # 수 있어 판정을 포기하고 안전한 기본값(0.0)을 반환해야 한다 — 2026-08-21 재변경으로
+    # 더 이상 foot_length로 나누지는 않지만(순수 좌표 거리 방식), 방향 판단용 가드는 계속
+    # 유효하다(app/pose/angles.py 주석 참고). 실제로 이 문제로 오탐이 발생한 걸 확인해
+    # 추가한 테스트.
+    lms = [_lm_obj() for _ in range(33)]
+    lms[25] = _lm_obj(0.48, 0.75)  # LEFT_KNEE (발끝과 살짝만 떨어짐)
+    lms[27] = _lm_obj(0.50, 1.0)  # LEFT_ANKLE
+    lms[31] = _lm_obj(0.501, 1.0)  # LEFT_FOOT_INDEX (발목과 거의 겹침 -> foot_length < 0.03)
+    ratio = get_knee_over_toe_ratio(lms, "left")
+    print("knee_over_toe_ratio(tiny foot_length):", ratio)
+    assert ratio == 0.0
+
+
 def test_get_knee_over_toe_ratio_knee_behind_toe_is_not_positive():
     # 발이 오른쪽(+x)을 향하고(facing_direction=+1), 무릎이 발끝보다 뒤(왼쪽)에 있으면 <= 0.
     lms = [_lm_obj() for _ in range(33)]
@@ -1124,6 +1141,7 @@ if __name__ == "__main__":
     test_coaching_frame_knee_valgus_flagged_when_deep_hold()
     test_coaching_frame_knee_asymmetry_flagged_when_deep_hold()
     test_coaching_frame_without_frontal_fields_still_works()
+    test_get_knee_over_toe_ratio_tiny_foot_length_returns_safe_zero()
     test_get_knee_over_toe_ratio_knee_behind_toe_is_not_positive()
     test_get_knee_over_toe_ratio_knee_past_toe_is_positive_and_large()
     test_get_knee_over_toe_ratio_facing_left_direction_still_correct()

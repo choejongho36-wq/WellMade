@@ -80,10 +80,36 @@ class PoseIssue(BaseModel):
     message: str
 
 
+class PoseAngleValues(BaseModel):
+    """
+    judge_static_pose()가 실제로 계산한 원시 각도/비율 값 (2026-08-21 추가).
+
+    왜 추가했는가?
+    - 기존에는 is_normal/confidence/issues만 반환해서, "정상"으로 판정되면(issues가 비어
+      있으면) 실제 knee_angle/hip_angle/shoulder_angle이 몇 도였는지 응답 어디에도 남지
+      않았다. 사용자가 "왜 이 사진이 정상으로 뜨는지 숫자로 확인하고 싶다"고 요청했는데,
+      막상 /ml-test 페이지에도 그 숫자를 보여줄 데이터 자체가 없다는 게 이번에 드러남.
+    - 프로덕션 코칭 UX(실제 앱 화면)에는 굳이 필요 없는 디버깅용 정보지만, 개발/QA 단계에서
+      오탐 원인을 눈으로 바로 확인하려면 필수적이라 판단해 응답에 추가했다.
+
+    knee_valgus_ratio/knee_asymmetry_deg는 front_landmarks를 보냈을 때만 값이 채워진다
+    (안 보내면 None — front_landmarks 선택 필드와 동일한 하위 호환 패턴).
+    """
+
+    knee_angle: float
+    hip_angle: float
+    shoulder_angle: float
+    heel_lift_ratio: float
+    knee_over_toe_ratio: float
+    knee_valgus_ratio: Optional[float] = None
+    knee_asymmetry_deg: Optional[float] = None
+
+
 class PoseAnalyzeResponse(BaseModel):
     is_normal: bool
     confidence: float
     issues: List[PoseIssue]
+    angles: PoseAngleValues
 
 
 # ---- 실시간 코칭 판정 (AI-06) ----
@@ -127,10 +153,13 @@ class AngleFrame(BaseModel):
     )
     knee_over_toe_ratio: Optional[float] = Field(
         None,
-        description="무릎이 발끝보다 앞으로 나간 비율(app/pose/angles.py의 "
+        description="무릎이 발끝보다 앞으로 나간 정도(app/pose/angles.py의 "
         "get_knee_over_toe_ratio 참고, 2026-08-21 추가 — ML 런지 분류기가 담당하던 항목을 "
-        "뒤늦게 규칙기반으로 대체). heel_lift_ratio와 동일하게 측면 랜드마크 기준이라 프론트가 "
-        "매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면 이 검사를 건너뛴다(하위 호환).",
+        "뒤늦게 규칙기반으로 대체). 필드명은 '_ratio'지만 2026-08-21 재변경 이후로는 발 길이로 "
+        "정규화한 비율이 아니라 원시 좌표 거리(facing_direction 방향 보정만 반영)다 — 필드명은 "
+        "기존 API 호환을 위해 유지, 자세한 배경은 angles.py 주석 참고. heel_lift_ratio와 동일하게 "
+        "측면 랜드마크 기준이라 프론트가 매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면 이 "
+        "검사를 건너뛴다(하위 호환).",
     )
 
 
