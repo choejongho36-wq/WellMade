@@ -97,6 +97,12 @@ class AngleFrame(BaseModel):
         description="귀-어깨-엉덩이 각도(어깨 정렬). 선택 필드 — 없으면 어깨 검사를 건너뛴다 "
         "(하위 호환: 이 필드를 아직 안 보내는 기존 프론트도 계속 동작해야 하므로).",
     )
+    heel_lift_ratio: Optional[float] = Field(
+        None,
+        description="발뒤꿈치 들림 비율(app/pose/angles.py의 get_heel_lift_ratio 참고, 2026-08-21 "
+        "추가 — ML 분류기의 '발뒤꿈치 뜸' 오탐을 대체하는 규칙기반 지표). 선택 필드 — 없으면 "
+        "발뒤꿈치 검사를 건너뛴다(하위 호환, shoulder_angle과 동일한 이유).",
+    )
 
 
 class CoachingFrameRequest(BaseModel):
@@ -301,3 +307,121 @@ class OrchestrateResponse(BaseModel):
         ..., description="LLM이 직접 판단했는지, LLM 호출이 불가능/실패해 규칙기반 폴백을 썼는지"
     )
     fallback_reason: Optional[str] = Field(None, description="source가 fallback일 때만: 폴백을 쓴 이유")
+
+
+# ---- RAG 지식베이스 검색·생성 (AI-08/09/14) ----
+# 요구사항 정의서 "3.RAG파이프라인" 시트에는 이 두 엔드포인트의 정확한 요청/응답 필드명이
+# 표로 정리돼 있지 않다(다른 엔드포인트는 "5.AI_API명세" 시트에 명시돼 있었지만 RAG는
+# 파이프라인 단계 설명만 있음) — 그래서 AI-15/ML 엔드포인트와 마찬가지로 기존 코드베이스
+# 관례(session_id, snake_case)를 따라 자체적으로 설계했다.
+# TODO: 팀 확정 필요 — 실제 프론트/백엔드 연동 시 필드명 재검토.
+
+
+class RagSource(BaseModel):
+    """RAG 응답에 실리는 출처 정보 1건. 요구사항 정의서 ⑦ 출처 표기 단계에 대응."""
+
+    title: str
+    source: str = Field(..., description="출처 기관명 (예: NASM, Mayo Clinic)")
+    source_url: Optional[str] = None
+    source_date: Optional[str] = Field(None, description="지식베이스 문서 작성/확인 시점 (YYYY-MM). knowledge_base.py 주석 참고")
+
+
+class RagGuideRequest(BaseModel):
+    """지시형 RAG 가이드(/ai/rag/guide, AI-09) 요청.
+    하네스(AI-07)가 trigger_rag_search를 선택하며 돌려준 search_query를 그대로 받는
+    흐름을 전제로 한다 — 즉 이 엔드포인트는 하네스 응답을 받은 백엔드/프론트가 이어서
+    호출하는 것을 기대한다(harness.py 모듈 docstring의 "결정과 실행은 분리" 설명 참고)."""
+
+    query: str = Field(..., min_length=1, description="검색 쿼리 (예: 이슈 종류 '무릎 모임', 'knee_valgus')")
+    session_id: Optional[str] = None
+
+
+class RagGuideResponse(BaseModel):
+    guidance_message: str = Field(..., description="근거 문서 기반 코칭 문구 (TTS로 바로 읽을 수 있는 한국어 텍스트)")
+    sources: List[RagSource]
+    matched: bool = Field(..., description="관련 지식베이스 문서를 찾았는지 여부. False면 일반 안내로 대체됨")
+    generation_source: Literal["llm", "fallback"] = Field(
+        ..., description="LLM이 직접 문구를 생성했는지, 문서에 준비된 고정 문구(short_message)로 대체했는지"
+    )
+
+
+class RagQnaRequest(BaseModel):
+    """설명형 RAG Q&A(/ai/rag/qna, AI-14) 요청. 사용자가 자유 형식으로 입력하는 질문을 받는다."""
+
+    question: str = Field(..., min_length=1)
+    session_id: Optional[str] = None
+
+
+class RagQnaResponse(BaseModel):
+    answer: str = Field(..., description="근거 문서 기반 답변")
+    sources: List[RagSource]
+    matched: bool = Field(..., description="관련 지식베이스 문서를 찾았는지 여부")
+    generation_source: Literal["llm", "fallback"] = Field(
+        ..., description="LLM이 직접 답변을 생성했는지, 검색된 문서를 그대로 발췌해 답했는지"
+    )
+
+
+# ---- 세션 리포트 생성 (AI-12) ----
+# TODO: 팀 확정 필요 — app/session/report.py 상단 주석 참고: 이 기능의 ID가 시트마다
+# 다르게 쓰여 있다(1.AI모듈상세=AI-12, 8.요구사항정의서=AI-08). 여기서는 "1.AI모듈상세"
+# 기준(AI-12)으로 구현했다.
+
+
+class SessionIssueRecord(BaseModel):
+    """세션 리포트 집계에 쓰이는 이상 소견 1건. 기존 PoseIssue(part, message)와 달리
+    "사람이 읽을 문장(message)" 대신 "집계 가능한 편차 수치(deviation_deg)"를 받는다 —
+    리포트는 "무릎 각도가 180도였습니다" 같은 개별 메시지가 아니라 "평균 편차 12도"처럼
+    여러 프레임을 합산한 통계가 필요하기 때문이다. deviation_deg는 선택 필드다 — 호출부가
+    편차 수치까지는 계산해서 넘기지 않는 경우(예: movement 이슈처럼 각도 하나로 정의되지
+    않는 소견)도 있어, 그런 경우는 발생 횟수 집계에만 반영되고 평균 편차 계산에서는 제외된다
+    (app/session/report.py의 aggregate_session_stats 참고)."""
+
+    part: str = Field(..., description="이상이 감지된 부위. rules.py/coaching/realtime.py의 PoseIssue.part와 동일 값")
+    deviation_deg: Optional[float] = Field(None, description="정상범위 기준 벗어난 정도(도). 계산하지 않았다면 None")
+
+
+class SessionFrameRecord(BaseModel):
+    """세션 리포트 집계에 쓰이는 프레임(또는 반복 동작) 1건의 판정 결과.
+    JudgmentRecord(AI-13)와 비슷하지만, 리포트는 "몇 도나 벗어났는지"까지 집계해야 해서
+    issues 필드가 추가로 필요하다 — 그래서 별도 모델로 분리했다(JudgmentRecord를
+    확장하지 않은 이유: AI-13은 오직 정상/이상 비율만 필요해 issues가 있으면 오히려
+    불필요한 페이로드가 커짐)."""
+
+    timestamp: float
+    is_normal: bool
+    issues: List[SessionIssueRecord] = Field(default_factory=list)
+
+
+class PreviousSessionSummary(BaseModel):
+    """"최근 N회 세션 이력" 중 1건. AI 서버는 세션 이력을 직접 저장하지 않는 무상태
+    설계이므로(harness.py/termination.py와 동일 원칙), 비교에 필요한 최소 요약값만 받는다."""
+
+    session_date: Optional[str] = None
+    normal_ratio: float = Field(..., ge=0.0, le=1.0)
+
+
+class SessionReportRequest(BaseModel):
+    """세션 리포트 생성(/ai/session/report) 요청."""
+
+    session_id: str
+    frame_history: List[SessionFrameRecord] = Field(..., min_length=1, description="세션 시작부터 종료까지의 프레임별 판정 이력")
+    session_duration_sec: float = Field(..., ge=0.0)
+    previous_sessions: List[PreviousSessionSummary] = Field(
+        default_factory=list,
+        description="최근 N회 세션 이력(시간순 정렬, 마지막 원소가 가장 최근). 없으면 첫 세션으로 처리해 개선폭을 계산하지 않는다.",
+    )
+    end_reason: Optional[Literal["target_sustained", "user_requested"]] = Field(
+        None, description="세션 종료 사유. 하네스(AI-07)의 end_session 액션이 돌려준 action_args.end_reason을 그대로 넘기는 흐름을 전제로 한다."
+    )
+
+
+class SessionReportResponse(BaseModel):
+    normal_ratio: float = Field(..., description="세션 전체 정상 자세 비율(0~1)")
+    avg_deviation_deg: Optional[float] = Field(None, description="이상 소견의 평균 편차(도). deviation_deg가 제공된 소견이 하나도 없으면 None")
+    most_frequent_issue_part: Optional[str] = Field(None, description="가장 자주 감지된 이상 부위. 이상 소견이 없으면 None")
+    improvement_vs_previous_pct: Optional[float] = Field(None, description="직전 세션 대비 정상 비율 개선폭(%p). previous_sessions가 없으면 None")
+    recommended_frequency_message: str = Field(..., description="정상 비율 기준 규칙기반 권장 운동 빈도 문구")
+    summary_message: str = Field(..., description="세션 전체를 요약하는 한국어 코칭 문구 (TTS로 바로 읽을 수 있는 텍스트)")
+    generation_source: Literal["llm", "fallback"] = Field(
+        ..., description="LLM이 summary_message를 직접 생성했는지, 규칙기반 템플릿 문구로 대체했는지"
+    )

@@ -9,9 +9,12 @@ import os
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.pose.rules import personalized_hip_range
-from app.schemas import HipFlexibilityCalibration
+from app.pose.rules import personalized_hip_range, HEEL_LIFT_RATIO_THRESHOLD
+from app.schemas import HipFlexibilityCalibration, Landmark
 from app.orchestration.harness import decide_next_action, API_KEY_ENV_VAR, DEFAULT_MODEL_ENV_VAR
+from app.rag.retrieval import search as rag_search
+from app.rag.generation import generate_guide, generate_qna
+from app.session.report import generate_session_report, aggregate_session_stats
 
 client = TestClient(app)
 
@@ -573,6 +576,327 @@ def test_harness_llm_failure_falls_back():
         os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
 
 
+def test_rag_search_finds_relevant_document():
+    # "무릎 모임"으로 검색하면 knee_valgus 문서가 최상위로 나와야 한다.
+    results = rag_search("무릎 모임", top_k=3)
+    print("rag_search(무릎 모임):", [(r["doc_id"], round(r["score"], 3)) for r in results])
+    assert results
+    assert results[0]["doc_id"] == "knee_valgus"
+
+
+def test_rag_search_unrelated_query_returns_empty():
+    # 전혀 무관한 문장은 검색 결과가 없어야 한다(MIN_SIMILARITY_SCORE 미만).
+    results = rag_search("오늘 저녁 뭐 먹지", top_k=3)
+    print("rag_search(무관한 문장):", results)
+    assert results == []
+
+
+def test_rag_guide_fallback_matched():
+    def run():
+        result = generate_guide("무릎 모임")
+        print("generate_guide(무릎 모임, fallback):", result)
+        assert result["matched"] is True
+        assert result["generation_source"] == "fallback"
+        assert result["guidance_message"] == SQUAT_COACHING_MESSAGES_KNEE_VALGUS
+        assert result["sources"][0]["source"] == "NASM (National Academy of Sports Medicine)"
+
+    _without_llm_env(run)
+
+
+def test_rag_guide_fallback_no_match_uses_generic_message():
+    def run():
+        result = generate_guide("완전히 무관한 검색어 아무말")
+        print("generate_guide(무관, fallback):", result)
+        assert result["matched"] is False
+        assert result["sources"] == []
+
+    _without_llm_env(run)
+
+
+def test_rag_qna_fallback_matched():
+    def run():
+        result = generate_qna("스쿼트 할 때 무릎이 안쪽으로 모여요 어떻게 하죠")
+        print("generate_qna(fallback):", result)
+        assert result["matched"] is True
+        assert result["generation_source"] == "fallback"
+        assert len(result["sources"]) > 0
+
+    _without_llm_env(run)
+
+
+def test_rag_qna_fallback_no_match():
+    def run():
+        result = generate_qna("오늘 저녁 뭐 먹지")
+        print("generate_qna(무관, fallback):", result)
+        assert result["matched"] is False
+        assert result["answer"] == NO_MATCH_QNA_MESSAGE
+
+    _without_llm_env(run)
+
+
+def test_rag_guide_llm_path_uses_generated_text():
+    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    try:
+        block = _FakeTextBlock("무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요.")
+        fake_client = _FakeAnthropicClient(block=block)
+        result = generate_guide("무릎 모임", client=fake_client)
+        print("generate_guide(llm path):", result)
+        assert result["generation_source"] == "llm"
+        assert result["guidance_message"] == "무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요."
+        assert result["matched"] is True
+    finally:
+        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+
+
+def test_rag_guide_llm_failure_falls_back_to_short_message():
+    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    try:
+        fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
+        result = generate_guide("무릎 모임", client=fake_client)
+        print("generate_guide(llm failure -> fallback):", result)
+        assert result["generation_source"] == "fallback"
+        assert result["matched"] is True
+    finally:
+        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+
+
+def test_rag_guide_endpoint_returns_valid_response():
+    def run():
+        res = client.post("/ai/rag/guide", json={"query": "무릎 모임"})
+        print("POST /ai/rag/guide:", res.status_code, res.json())
+        assert res.status_code == 200
+        data = res.json()
+        assert data["matched"] is True
+        assert data["generation_source"] == "fallback"
+        assert len(data["sources"]) > 0
+
+    _without_llm_env(run)
+
+
+def make_frame_history(normal_count, abnormal_count, part="knee", deviation_deg=15.0):
+    """정상 프레임과 이상 프레임(지정한 부위/편차로)을 섞은 세션 리포트용 프레임 이력."""
+    history = [{"timestamp": float(i), "is_normal": True, "issues": []} for i in range(normal_count)]
+    history += [
+        {
+            "timestamp": float(normal_count + i),
+            "is_normal": False,
+            "issues": [{"part": part, "deviation_deg": deviation_deg}],
+        }
+        for i in range(abnormal_count)
+    ]
+    return history
+
+
+def test_aggregate_session_stats_basic():
+    history = make_frame_history(normal_count=7, abnormal_count=3, part="knee", deviation_deg=10.0)
+    stats = aggregate_session_stats(history, previous_sessions=[])
+    print("aggregate_session_stats(7 normal, 3 abnormal knee):", stats)
+    assert stats["normal_ratio"] == 0.7
+    assert stats["avg_deviation_deg"] == 10.0
+    assert stats["most_frequent_issue_part"] == "knee"
+    assert stats["improvement_vs_previous_pct"] is None
+
+
+def test_aggregate_session_stats_improvement_vs_previous():
+    history = make_frame_history(normal_count=9, abnormal_count=1)
+    stats = aggregate_session_stats(history, previous_sessions=[{"session_date": "2026-08-01", "normal_ratio": 0.6}])
+    print("aggregate_session_stats(improvement):", stats)
+    # 이번 세션 정상비율 0.9 - 직전 0.6 = +30.0%p
+    assert stats["improvement_vs_previous_pct"] == 30.0
+
+
+def test_generate_session_report_fallback():
+    def run():
+        history = make_frame_history(normal_count=6, abnormal_count=4, part="shoulder", deviation_deg=20.0)
+        result = generate_session_report(history, session_duration_sec=300.0, previous_sessions=[])
+        print("generate_session_report(fallback):", result)
+        assert result["generation_source"] == "fallback"
+        assert result["normal_ratio"] == 0.6
+        assert result["most_frequent_issue_part"] == "shoulder"
+        assert "어깨" in result["summary_message"]  # PART_LABELS 매핑이 폴백 문구에 반영됐는지
+        assert isinstance(result["summary_message"], str) and len(result["summary_message"]) > 0
+
+    _without_llm_env(run)
+
+
+def test_generate_session_report_llm_path():
+    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    try:
+        block = _FakeTextBlock("오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요.")
+        fake_client = _FakeAnthropicClient(block=block)
+        history = make_frame_history(normal_count=8, abnormal_count=2, part="knee", deviation_deg=8.0)
+        result = generate_session_report(history, session_duration_sec=180.0, client=fake_client)
+        print("generate_session_report(llm path):", result)
+        assert result["generation_source"] == "llm"
+        assert result["summary_message"] == "오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요."
+    finally:
+        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+
+
+def test_session_report_endpoint_returns_valid_response():
+    def run():
+        body = {
+            "session_id": "s1",
+            "frame_history": make_frame_history(normal_count=7, abnormal_count=3, part="knee", deviation_deg=12.0),
+            "session_duration_sec": 240.0,
+            "previous_sessions": [{"session_date": "2026-08-10", "normal_ratio": 0.5}],
+        }
+        res = client.post("/ai/session/report", json=body)
+        print("POST /ai/session/report:", res.status_code, res.json())
+        assert res.status_code == 200
+        data = res.json()
+        assert data["normal_ratio"] == 0.7
+        assert data["improvement_vs_previous_pct"] == 20.0
+        assert data["generation_source"] == "fallback"
+
+    _without_llm_env(run)
+
+
+def test_rag_qna_endpoint_returns_valid_response():
+    def run():
+        res = client.post("/ai/rag/qna", json={"question": "런지 무릎이 발끝을 넘어가요"})
+        print("POST /ai/rag/qna:", res.status_code, res.json())
+        assert res.status_code == 200
+        data = res.json()
+        assert data["matched"] is True
+        assert isinstance(data["answer"], str) and len(data["answer"]) > 0
+
+    _without_llm_env(run)
+
+
+class _FakeTextBlock:
+    """generation.py가 파싱하는 텍스트 응답 블록(anthropic SDK의 TextBlock 흉내)."""
+
+    def __init__(self, text):
+        self.type = "text"
+        self.text = text
+
+
+# knowledge_base.py가 squat_labels.py의 문구를 그대로 재사용하므로, 테스트에서도 같은
+# 상수를 참조해 "문구가 우연히 같다"가 아니라 "의도적으로 같은 출처를 쓴다"를 검증한다.
+from app.ml.squat_labels import SQUAT_COACHING_MESSAGES
+from app.rag.generation import NO_MATCH_QNA_MESSAGE
+
+SQUAT_COACHING_MESSAGES_KNEE_VALGUS = SQUAT_COACHING_MESSAGES[3]
+
+
+# ---- 발뒤꿈치 뜸 규칙기반 검사 (2026-08-21, ML 분류기 실측 오탐 대응으로 추가) ----
+from app.pose.angles import get_heel_lift_ratio  # noqa: E402
+
+
+def _lm_obj(x=0.5, y=0.5):
+    """get_heel_lift_ratio()를 직접 호출하는 단위 테스트용 — API 테스트가 쓰는 landmark()
+    dict 헬퍼(JSON 요청 바디용)와 달리, 실제 Landmark 객체가 필요하다."""
+    return Landmark(x=x, y=y, z=0.0, visibility=0.9)
+
+
+def test_get_heel_lift_ratio_flat_heel_is_near_zero():
+    # 발뒤꿈치(29)와 발끝(31)이 같은 높이(y)에 있으면 "바닥에 붙어있는" 상태 -> 비율 ~0
+    lms = [_lm_obj() for _ in range(33)]
+    lms[27] = _lm_obj(0.5, 0.75)  # LEFT_ANKLE
+    lms[29] = _lm_obj(0.45, 0.78)  # LEFT_HEEL
+    lms[31] = _lm_obj(0.65, 0.78)  # LEFT_FOOT_INDEX (같은 y)
+    ratio = get_heel_lift_ratio(lms, "left")
+    print("heel_lift_ratio(flat):", ratio)
+    assert ratio == 0.0
+
+
+def test_get_heel_lift_ratio_raised_heel_is_positive_and_large():
+    # 발뒤꿈치가 발끝보다 위(y가 작음)로 들려있으면 비율이 크게 나와야 한다.
+    lms = [_lm_obj() for _ in range(33)]
+    lms[27] = _lm_obj(0.5, 0.75)  # LEFT_ANKLE
+    lms[29] = _lm_obj(0.45, 0.65)  # LEFT_HEEL (들림 -> y가 작음)
+    lms[31] = _lm_obj(0.65, 0.78)  # LEFT_FOOT_INDEX (바닥에 붙음)
+    ratio = get_heel_lift_ratio(lms, "left")
+    print("heel_lift_ratio(raised):", ratio)
+    assert ratio > HEEL_LIFT_RATIO_THRESHOLD
+
+
+def make_heel_landmarks(heel_state="flat"):
+    """/ai/pose/analyze 테스트용 33개 랜드마크. 무릎/엉덩이는 make_landmarks("deep")가 만든
+    정상 딥스쿼트 범위(knee_angle~90도, ANKLE=(0.75, 0.75))를 그대로 두고 발뒤꿈치(29)/
+    발끝(31)만 새로 채워, 발뒤꿈치 검사 하나만 격리해서 확인할 수 있게 한다."""
+    lms = make_landmarks("deep")  # LEFT_ANKLE(27) = (0.75, 0.75)
+    if heel_state == "flat":
+        lms[29] = landmark(0.6, 0.78)  # LEFT_HEEL (발끝과 같은 높이 -> 바닥에 붙음)
+        lms[31] = landmark(0.95, 0.78)  # LEFT_FOOT_INDEX
+    else:  # "raised"
+        lms[29] = landmark(0.6, 0.65)  # LEFT_HEEL (발끝보다 위로 들림)
+        lms[31] = landmark(0.95, 0.78)  # LEFT_FOOT_INDEX
+    return lms
+
+
+def test_pose_analyze_heel_flat_not_flagged():
+    body = {"landmarks": make_heel_landmarks("flat"), "exercise_type": "squat", "side": "left"}
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(heel flat):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
+def test_pose_analyze_heel_raised_flagged():
+    body = {"landmarks": make_heel_landmarks("raised"), "exercise_type": "squat", "side": "left"}
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(heel raised):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
+def test_coaching_frame_heel_lift_flagged_when_deep_hold():
+    # 무릎/엉덩이는 정상 범위(holding, deep)인데 heel_lift_ratio만 임계값을 넘는 경우.
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "heel_lift_ratio": HEEL_LIFT_RATIO_THRESHOLD + 0.3,
+        }
+        for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(heel lift, deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
+def test_coaching_frame_without_heel_lift_field_still_works():
+    # heel_lift_ratio 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(no heel_lift_ratio field):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
+def test_coaching_frame_heel_lift_ignored_while_standing():
+    # 서 있는 상태(is_deep_hold=False)에서는 heel_lift_ratio가 커도 검사 대상이 아니다
+    # (realtime.py 주석 참고 — 서 있을 땐 애초에 발뒤꿈치가 뜰 이유가 없는 상황을 가정).
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 175 + (i % 2),
+            "hip_angle": 170 + (i % 2),
+            "heel_lift_ratio": HEEL_LIFT_RATIO_THRESHOLD + 0.3,
+        }
+        for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(heel lift while standing):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
 if __name__ == "__main__":
     test_health()
     test_pose_analyze_standing_is_abnormal_for_squat_bottom()
@@ -605,4 +929,26 @@ if __name__ == "__main__":
     test_orchestrate_fallback_repeated_issue_triggers_rag()
     test_harness_llm_path_parses_tool_use_response()
     test_harness_llm_failure_falls_back()
+    test_rag_search_finds_relevant_document()
+    test_rag_search_unrelated_query_returns_empty()
+    test_rag_guide_fallback_matched()
+    test_rag_guide_fallback_no_match_uses_generic_message()
+    test_rag_qna_fallback_matched()
+    test_rag_qna_fallback_no_match()
+    test_rag_guide_llm_path_uses_generated_text()
+    test_rag_guide_llm_failure_falls_back_to_short_message()
+    test_rag_guide_endpoint_returns_valid_response()
+    test_rag_qna_endpoint_returns_valid_response()
+    test_aggregate_session_stats_basic()
+    test_aggregate_session_stats_improvement_vs_previous()
+    test_generate_session_report_fallback()
+    test_generate_session_report_llm_path()
+    test_session_report_endpoint_returns_valid_response()
+    test_get_heel_lift_ratio_flat_heel_is_near_zero()
+    test_get_heel_lift_ratio_raised_heel_is_positive_and_large()
+    test_pose_analyze_heel_flat_not_flagged()
+    test_pose_analyze_heel_raised_flagged()
+    test_coaching_frame_heel_lift_flagged_when_deep_hold()
+    test_coaching_frame_without_heel_lift_field_still_works()
+    test_coaching_frame_heel_lift_ignored_while_standing()
     print("\nALL MANUAL CHECKS PASSED")
