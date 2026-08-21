@@ -7,6 +7,7 @@ AI 서버의 시작점.
 from datetime import date
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.schemas import PoseAnalyzeRequest, PoseAnalyzeResponse, PoseIssue
 from app.schemas import CoachingFrameRequest, CoachingFrameResponse
 from app.schemas import SessionEndCheckRequest, SessionEndCheckResponse
@@ -24,6 +25,23 @@ from app.rag.generation import generate_guide, generate_qna
 from app.session.report import generate_session_report
 
 app = FastAPI(title="WellMade AI Server")
+
+# 프론트(Vite 개발 서버, localhost:5173)가 브라우저에서 이 서버를 직접 호출하려면 CORS
+# 설정이 필요하다 — 이게 없으면 브라우저가 실제 요청 전에 보내는 사전요청(OPTIONS)이
+# 405 Method Not Allowed로 거부되어, POST 요청 자체가 서버에 도달하지 못한다(2026-08-21,
+# /ml-test 페이지에서 프론트→AI 서버 직접 호출을 테스트하며 실제로 겪은 문제).
+# 로컬 개발용 오리진만 허용해뒀다.
+# TODO: 팀 확정 필요 — 실제 배포 도메인이 정해지면 allow_origins를 그 도메인으로 좁혀야
+# 한다(지금처럼 로컬 포트만 있는 상태를 운영에도 그대로 쓰면 안 됨).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",  # Vite 기본 개발 서버 포트
+        "http://127.0.0.1:5173",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
