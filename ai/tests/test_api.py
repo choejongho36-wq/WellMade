@@ -69,15 +69,41 @@ def test_pose_analyze_deep_squat_is_normal():
 
 
 def test_pose_analyze_rounded_shoulder_flagged():
-    # 어깨(11)는 그대로 두고 귀(7)만 앞으로 크게 뺀 자세 -> "어깨 말림"으로 감지돼야 함
+    # 상체(엉덩이-어깨)는 수직으로 곧게 선 채(torso_tilt=0), 귀(7)만 어깨보다 훨씬 앞으로
+    # 뺀 자세 -> 목이 상체보다 크게 앞으로 기운 "진짜" 어깨 말림이므로 감지돼야 함.
+    # (2026-08-24: shoulder_forward_lean_deg로 판정 방식이 바뀌면서, facing_direction
+    # 판별에 쓰이는 발끝(31) 랜드마크가 있어야 판정이 가능해져 make_landmarks("standing")에는
+    # 없는 이 좌표를 추가했다 — angles.py의 get_shoulder_forward_lean_deg 주석 참고.)
     lms = make_landmarks("standing")
-    lms[7] = landmark(0.75, 0.1)  # LEFT_EAR가 어깨보다 훨씬 앞(x가 큼)으로 나감
+    lms[31] = landmark(0.7, 1.0)  # LEFT_FOOT_INDEX (발목(0.5,1.0)보다 오른쪽 -> facing_direction=+1)
+    lms[7] = landmark(0.65, 0.1)  # LEFT_EAR가 어깨(0.5,0.2)보다 훨씬 앞(facing_direction 쪽)으로 나감
     body = {"landmarks": lms, "exercise_type": "squat", "side": "left"}
     res = client.post("/ai/pose/analyze", json=body)
     print("pose_analyze(rounded shoulder):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
     assert any(issue["part"] == "shoulder" for issue in data["issues"]), data
+
+
+def test_pose_analyze_forward_lean_with_level_head_not_flagged_as_shoulder():
+    # 2026-08-24 실제 오탐 사례 재현 + 회귀 테스트: 상체는 앞으로 크게 기울었지만(스쿼트
+    # 중 자연스러운 전방 기울임) 목/머리는 상체보다 덜 기울어(고개를 세운, 좋은 자세) 있는
+    # 경우 -> 절대각도(shoulder_angle) 방식이었다면 오탐했겠지만, 이제는 플래그되면 안 됨.
+    # 실사용자가 보낸 정상 스쿼트 사진을 mediapipe로 직접 분석해 얻은 실측 좌표를 그대로 씀.
+    lms = [landmark() for _ in range(33)]
+    lms[7] = landmark(0.4184, 0.1209)  # LEFT_EAR
+    lms[11] = landmark(0.4527, 0.2782)  # LEFT_SHOULDER
+    lms[23] = landmark(0.6415, 0.4883)  # LEFT_HIP
+    lms[25] = landmark(0.4738, 0.5901)  # LEFT_KNEE
+    lms[27] = landmark(0.5708, 0.8772)  # LEFT_ANKLE
+    lms[31] = landmark(0.4955, 0.9372)  # LEFT_FOOT_INDEX
+    body = {"landmarks": lms, "exercise_type": "squat", "side": "left"}
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(forward lean, level head):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "shoulder" for issue in data["issues"]), data
+    assert data["angles"]["shoulder_forward_lean_deg"] < 0, data
 
 
 def test_coaching_frame_descending():
@@ -111,9 +137,16 @@ def test_coaching_frame_holding_at_bottom_normal():
 
 
 def test_coaching_frame_holding_shoulder_rounded_flagged():
-    # 무릎/엉덩이는 정상 범위인데 shoulder_angle만 낮게(어깨 말림) 들어온 경우 -> 이상 감지돼야 함
+    # 무릎/엉덩이는 정상 범위인데 shoulder_forward_lean_deg만 임계값(20.0)을 넘게(어깨
+    # 말림) 들어온 경우 -> 이상 감지돼야 함. (2026-08-24: shoulder_angle 절대각도 대신
+    # shoulder_forward_lean_deg로 판정 방식이 바뀜 — rules.py 주석 참고.)
     angle_history = [
-        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2), "shoulder_angle": 120}
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "shoulder_forward_lean_deg": 30,
+        }
         for i in range(10)
     ]
     body = {"exercise_type": "squat", "angle_history": angle_history}
@@ -125,14 +158,35 @@ def test_coaching_frame_holding_shoulder_rounded_flagged():
     assert any(issue["part"] == "shoulder" for issue in data["issues"]), data
 
 
-def test_coaching_frame_without_shoulder_angle_still_works():
-    # shoulder_angle 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
+def test_coaching_frame_negative_shoulder_lean_not_flagged():
+    # shoulder_forward_lean_deg가 0 이하(목이 상체보다 세워진, 좋은 자세)면 절대 플래그되면
+    # 안 된다 — 2026-08-24에 고친 실제 오탐 사례의 회귀 테스트.
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "shoulder_forward_lean_deg": -29.6,
+        }
+        for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(negative shoulder lean):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "shoulder" for issue in data["issues"]), data
+
+
+def test_coaching_frame_without_shoulder_fields_still_works():
+    # shoulder_angle/shoulder_forward_lean_deg 필드를 아예 안 보내는 기존 프론트 호출도
+    # 에러 없이 동작해야 한다(하위 호환).
     angle_history = [
         {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
     ]
     body = {"exercise_type": "squat", "angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(no shoulder_angle field):", res.status_code, res.json())
+    print("coaching_frame(no shoulder fields):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
     assert not any(issue["part"] == "shoulder" for issue in data["issues"]), data
@@ -664,7 +718,7 @@ def test_session_report_endpoint_returns_valid_response():
 
 def test_rag_qna_endpoint_returns_valid_response():
     def run():
-        res = client.post("/ai/rag/qna", json={"question": "런지 무릎이 발끝을 넘어가요"})
+        res = client.post("/ai/rag/qna", json={"question": "스쿼트할 때 무릎이 발끝을 넘어가요"})
         print("POST /ai/rag/qna:", res.status_code, res.json())
         assert res.status_code == 200
         data = res.json()
@@ -1039,14 +1093,15 @@ def test_pose_analyze_knee_over_toe_flagged():
     assert any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
 
 
-def test_pose_analyze_knee_over_toe_flagged_for_lunge_too():
-    # 원래 ML은 런지 전용이었지만, 사용자 요청에 따라 스쿼트/런지 둘 다 적용했다.
+def test_pose_analyze_rejects_lunge_exercise_type():
+    # 2026-08-24: 사용자 요청으로 런지 지원이 완전히 제거됐다(schemas.py의 ExerciseType이
+    # "squat" 하나만 허용). exercise_type="lunge" 요청은 이제 핸들러까지 가지도 못하고
+    # Pydantic 검증 단계에서 422로 걸려야 한다 — 예전엔 이 값이 정상 처리됐던 것과 대비되는
+    # 회귀 테스트.
     body = {"landmarks": make_knee_over_toe_landmarks("past"), "exercise_type": "lunge", "side": "left"}
     res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(knee over toe, lunge):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
+    print("pose_analyze(exercise_type=lunge, rejected):", res.status_code, res.json())
+    assert res.status_code == 422
 
 
 def test_coaching_frame_knee_over_toe_flagged_when_deep_hold():
@@ -1081,15 +1136,251 @@ def test_coaching_frame_without_knee_over_toe_field_still_works():
     assert not any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
 
 
+# ---- 등 굽음(척추 굴곡) 규칙기반 검사 (2026-08-21 추가 — 어깨-엉덩이 직선거리(현) 축소로
+# 판정, 자세한 배경은 app/pose/angles.py의 get_torso_length_ratio()와 app/pose/rules.py의
+# BACK_ROUNDING_RATIO_THRESHOLD 주석 참고) ----
+from app.pose.angles import get_torso_length_ratio  # noqa: E402
+from app.pose.rules import BACK_ROUNDING_RATIO_THRESHOLD  # noqa: E402
+
+
+def make_torso_landmarks(state="straight"):
+    """/ai/pose/analyze, get_torso_length_ratio() 테스트용. make_landmarks("deep")가 만든
+    정상 딥스쿼트(무릎~90도, 발목(27)=(0.75,0.75))를 그대로 두고 발끝(31)을 추가해
+    foot_length=0.2로 고정한 뒤, 어깨(11)만 옮겨서 "곧게 편 등" vs "둥글게 말린 등"을
+    구별한다 — 등 굽음 판정의 핵심(shoulder-hip 직선거리 축소)을 다른 조건과 분리해 확인."""
+    lms = make_landmarks("deep")  # LEFT_HIP(23)=(0.5,0.5), LEFT_ANKLE(27)=(0.75,0.75)
+    lms[31] = landmark(0.95, 0.78)  # LEFT_FOOT_INDEX -> foot_length = |0.75-0.95| = 0.2
+    if state == "straight":
+        lms[11] = landmark(0.5, 0.2)  # LEFT_SHOULDER (make_landmarks 기본값) -> chord = 0.3, ratio = 1.5
+    else:  # "rounded" — 어깨를 엉덩이 쪽으로 당겨 직선거리를 줄임(척추가 활처럼 말린 것과 동일한 효과)
+        lms[11] = landmark(0.65, 0.35)  # -> chord ≈ 0.212, ratio ≈ 1.06
+    return lms
+
+
+def _as_landmark_objs(dict_landmarks):
+    """make_landmarks() 등이 만드는 dict 좌표 목록을, angles.py 함수를 직접 호출할 때
+    필요한 Landmark 객체(.x/.y 속성 접근) 목록으로 변환한다 (API 바디용 dict와 순수 함수
+    호출용 객체가 서로 다른 형태를 요구하는 것뿐, 값 자체는 동일)."""
+    return [Landmark(x=lm["x"], y=lm["y"], z=lm.get("z", 0.0), visibility=lm.get("visibility", 0.9)) for lm in dict_landmarks]
+
+
+def test_get_torso_length_ratio_rounded_back_is_smaller_than_straight():
+    straight_ratio = get_torso_length_ratio(_as_landmark_objs(make_torso_landmarks("straight")), "left")
+    rounded_ratio = get_torso_length_ratio(_as_landmark_objs(make_torso_landmarks("rounded")), "left")
+    print("torso_length_ratio(straight):", straight_ratio, "torso_length_ratio(rounded):", rounded_ratio)
+    assert rounded_ratio < straight_ratio
+
+
+def test_get_torso_length_ratio_tiny_foot_length_returns_safe_large_sentinel():
+    # foot_length가 MIN_RELIABLE_FOOT_LENGTH보다 작으면, 다른 foot_length 정규화 함수들과
+    # 반대 방향(값이 작을수록 이상)이라 999.0(안전한 큰 값)을 반환해야 한다 — angles.py 주석 참고.
+    lms = make_landmarks("deep")
+    lms[27] = landmark(0.75, 0.75)  # LEFT_ANKLE
+    lms[31] = landmark(0.76, 0.75)  # LEFT_FOOT_INDEX (발목과 거의 겹침 -> foot_length ≈ 0.01)
+    ratio = get_torso_length_ratio(_as_landmark_objs(lms), "left")
+    print("torso_length_ratio(tiny foot_length):", ratio)
+    assert ratio == 999.0
+
+
+def _calibration_with_baseline(standing_shoulder_hip_ratio=1.5):
+    return {
+        "standing_hip_angle": 178,
+        "max_flex_hip_angle": 118,
+        "standing_shoulder_hip_ratio": standing_shoulder_hip_ratio,
+    }
+
+
+def test_pose_analyze_back_rounded_flagged_with_calibration():
+    body = {
+        "landmarks": make_torso_landmarks("rounded"),
+        "exercise_type": "squat",
+        "side": "left",
+        "hip_calibration": _calibration_with_baseline(),
+    }
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(back rounded, with calibration):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "back_rounded" for issue in data["issues"]), data
+    assert data["angles"]["torso_length_ratio"] < 1.5 * BACK_ROUNDING_RATIO_THRESHOLD
+
+
+def test_pose_analyze_back_straight_not_flagged_with_calibration():
+    body = {
+        "landmarks": make_torso_landmarks("straight"),
+        "exercise_type": "squat",
+        "side": "left",
+        "hip_calibration": _calibration_with_baseline(),
+    }
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(back straight, with calibration):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
+
+
+def test_pose_analyze_back_rounded_not_flagged_without_baseline():
+    # hip_calibration 자체가 없으면(기존 클라이언트, 하위 호환) 등 굽음이 실제로 심해도 검사를
+    # 건너뛴다 — 기준값 없이는 판단할 수 없다는 게 이 지표의 설계 전제이기 때문.
+    body = {"landmarks": make_torso_landmarks("rounded"), "exercise_type": "squat", "side": "left"}
+    res = client.post("/ai/pose/analyze", json=body)
+    print("pose_analyze(back rounded, no calibration):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
+    # torso_length_ratio 값 자체는 응답에 계속 노출된다(디버깅용) — 판정에만 안 쓰일 뿐.
+    assert data["angles"]["torso_length_ratio"] is not None
+
+
+def test_coaching_frame_back_rounded_flagged_when_deep_hold():
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "torso_length_ratio": 1.0,  # 1.5 * 0.85 = 1.275보다 작음 -> 등 굽음으로 판정돼야 함
+        }
+        for i in range(10)
+    ]
+    body = {
+        "exercise_type": "squat",
+        "angle_history": angle_history,
+        "hip_calibration": _calibration_with_baseline(),
+    }
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(back rounded, deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "back_rounded" for issue in data["issues"]), data
+
+
+def test_coaching_frame_back_rounded_ignored_while_standing():
+    # 서 있는 상태(is_deep_hold=False)에서는 다른 깊게-앉은-상태 전용 검사들과 마찬가지로
+    # torso_length_ratio가 낮아도 검사 대상이 아니다.
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 175 + (i % 2),
+            "hip_angle": 170 + (i % 2),
+            "torso_length_ratio": 1.0,
+        }
+        for i in range(10)
+    ]
+    body = {
+        "exercise_type": "squat",
+        "angle_history": angle_history,
+        "hip_calibration": _calibration_with_baseline(),
+    }
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(back rounded while standing):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
+
+
+def test_coaching_frame_back_rounded_ignored_without_baseline():
+    # torso_length_ratio 필드는 보내더라도, hip_calibration.standing_shoulder_hip_ratio가
+    # 없으면(하위 호환) 기준값이 없어 판정 자체를 건너뛴다.
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "torso_length_ratio": 1.0,
+        }
+        for i in range(10)
+    ]
+    body = {"exercise_type": "squat", "angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(back rounded, no baseline):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
+
+
+def test_coaching_frame_without_torso_length_ratio_field_still_works():
+    # torso_length_ratio 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
+    ]
+    body = {
+        "exercise_type": "squat",
+        "angle_history": angle_history,
+        "hip_calibration": _calibration_with_baseline(),
+    }
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(no torso_length_ratio field):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
+
+
+# ---- 어깨 말림 판정을 절대각도(shoulder_angle) -> 상체 기울기 상대 편차
+# (shoulder_forward_lean_deg)로 교체 (2026-08-24 추가 — 실사용자가 보낸 정상 스쿼트 사진이
+# 절대각도 방식에서 오탐된 것을 mediapipe 직접 분석으로 확인 후 재설계, 자세한 배경은
+# app/pose/angles.py의 get_shoulder_forward_lean_deg()와 app/pose/rules.py의
+# SHOULDER_FORWARD_LEAN_THRESHOLD_DEG 주석 참고) ----
+from app.pose.angles import get_shoulder_forward_lean_deg  # noqa: E402
+from app.pose.rules import SHOULDER_FORWARD_LEAN_THRESHOLD_DEG  # noqa: E402
+
+
+def test_get_shoulder_forward_lean_deg_level_head_during_forward_lean_is_negative():
+    # 실사용자가 보낸 정상 스쿼트 사진을 mediapipe로 직접 분석해 얻은 실측 좌표(상체는 수직
+    # 대비 약 42도 앞으로 기울었지만 목은 약 12도만 기울어 시선을 세운 좋은 자세) — 이
+    # 사례가 바로 절대각도(shoulder_angle=150.3, 정상범위 하한 155 미달) 방식의 오탐
+    # 원인이었다. 새 지표는 음수(목이 상체보다 덜 기울었음)가 나와야 한다.
+    lms = [_lm_obj() for _ in range(33)]
+    lms[7] = _lm_obj(0.4184, 0.1209)  # LEFT_EAR
+    lms[11] = _lm_obj(0.4527, 0.2782)  # LEFT_SHOULDER
+    lms[23] = _lm_obj(0.6415, 0.4883)  # LEFT_HIP
+    lms[27] = _lm_obj(0.5708, 0.8772)  # LEFT_ANKLE
+    lms[31] = _lm_obj(0.4955, 0.9372)  # LEFT_FOOT_INDEX
+    lean_deg = get_shoulder_forward_lean_deg(lms, "left")
+    print("shoulder_forward_lean_deg(level head, forward lean):", lean_deg)
+    assert lean_deg < 0
+    assert lean_deg <= -SHOULDER_FORWARD_LEAN_THRESHOLD_DEG  # 확실히 임계값과 구분되는 정도로 음수여야 함
+
+
+def test_get_shoulder_forward_lean_deg_forward_head_while_upright_is_positive():
+    # 상체(엉덩이-어깨)는 수직으로 곧게 선 채, 목만 앞으로 많이 뺀 경우 -> 큰 양수(진짜 어깨
+    # 말림)가 나와야 한다.
+    lms = [_lm_obj() for _ in range(33)]
+    lms[11] = _lm_obj(0.5, 0.2)  # LEFT_SHOULDER
+    lms[23] = _lm_obj(0.5, 0.5)  # LEFT_HIP (어깨 바로 아래 -> torso_tilt ≈ 0)
+    lms[7] = _lm_obj(0.65, 0.1)  # LEFT_EAR (어깨보다 앞으로 많이 뺌)
+    lms[27] = _lm_obj(0.5, 1.0)  # LEFT_ANKLE
+    lms[31] = _lm_obj(0.7, 1.0)  # LEFT_FOOT_INDEX (발목보다 오른쪽 -> facing_direction=+1)
+    lean_deg = get_shoulder_forward_lean_deg(lms, "left")
+    print("shoulder_forward_lean_deg(forward head, upright torso):", lean_deg)
+    assert lean_deg > SHOULDER_FORWARD_LEAN_THRESHOLD_DEG
+
+
+def test_get_shoulder_forward_lean_deg_tiny_foot_length_returns_safe_zero():
+    # foot_length가 MIN_RELIABLE_FOOT_LENGTH보다 작으면 facing_direction을 신뢰할 수 없어
+    # 판정을 포기한다 — "값이 클수록 이상"인 지표라 get_knee_over_toe_ratio()와 동일하게
+    # 0.0(안전한 정상 쪽)을 반환해야 한다.
+    lms = [_lm_obj() for _ in range(33)]
+    lms[11] = _lm_obj(0.5, 0.2)
+    lms[23] = _lm_obj(0.5, 0.5)
+    lms[7] = _lm_obj(0.65, 0.1)  # 목을 크게 뺀 상태로 둬도(원래라면 큰 양수가 나와야 함)
+    lms[27] = _lm_obj(0.5, 1.0)
+    lms[31] = _lm_obj(0.51, 1.0)  # 발목과 거의 겹침 -> foot_length ≈ 0.01
+    lean_deg = get_shoulder_forward_lean_deg(lms, "left")
+    print("shoulder_forward_lean_deg(tiny foot_length):", lean_deg)
+    assert lean_deg == 0.0
+
+
 if __name__ == "__main__":
     test_health()
     test_pose_analyze_standing_is_abnormal_for_squat_bottom()
     test_pose_analyze_deep_squat_is_normal()
     test_pose_analyze_rounded_shoulder_flagged()
+    test_pose_analyze_forward_lean_with_level_head_not_flagged_as_shoulder()
     test_coaching_frame_descending()
     test_coaching_frame_holding_at_bottom_normal()
     test_coaching_frame_holding_shoulder_rounded_flagged()
-    test_coaching_frame_without_shoulder_angle_still_works()
+    test_coaching_frame_negative_shoulder_lean_not_flagged()
+    test_coaching_frame_without_shoulder_fields_still_works()
     test_coaching_frame_holding_halfway_abnormal()
     test_coaching_frame_jittery_movement_flagged()
     test_coaching_frame_insufficient_frames()
@@ -1147,7 +1438,19 @@ if __name__ == "__main__":
     test_get_knee_over_toe_ratio_facing_left_direction_still_correct()
     test_pose_analyze_knee_over_toe_normal_not_flagged()
     test_pose_analyze_knee_over_toe_flagged()
-    test_pose_analyze_knee_over_toe_flagged_for_lunge_too()
+    test_pose_analyze_rejects_lunge_exercise_type()
     test_coaching_frame_knee_over_toe_flagged_when_deep_hold()
     test_coaching_frame_without_knee_over_toe_field_still_works()
+    test_get_torso_length_ratio_rounded_back_is_smaller_than_straight()
+    test_get_torso_length_ratio_tiny_foot_length_returns_safe_large_sentinel()
+    test_pose_analyze_back_rounded_flagged_with_calibration()
+    test_pose_analyze_back_straight_not_flagged_with_calibration()
+    test_pose_analyze_back_rounded_not_flagged_without_baseline()
+    test_coaching_frame_back_rounded_flagged_when_deep_hold()
+    test_coaching_frame_back_rounded_ignored_while_standing()
+    test_coaching_frame_back_rounded_ignored_without_baseline()
+    test_coaching_frame_without_torso_length_ratio_field_still_works()
+    test_get_shoulder_forward_lean_deg_level_head_during_forward_lean_is_negative()
+    test_get_shoulder_forward_lean_deg_forward_head_while_upright_is_positive()
+    test_get_shoulder_forward_lean_deg_tiny_foot_length_returns_safe_zero()
     print("\nALL MANUAL CHECKS PASSED")

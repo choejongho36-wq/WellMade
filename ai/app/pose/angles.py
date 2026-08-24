@@ -177,16 +177,19 @@ def get_knee_over_toe_ratio(landmarks: list[Landmark], side: str = "auto") -> fl
     - 원래 "무릎이 발끝을 넘는지"는 ML 런지 분류기(app/ml/lunge_classifier.py, 삭제됨)가
       담당하던 항목이었다. 스쿼트/런지 ML을 전부 규칙기반으로 대체할 때(같은 날짜) 발뒤꿈치
       뜸/무릎 모임/좌우 비대칭은 대체 지표를 같이 설계했지만, 이 항목은 누락된 채로
-      남아있었다 — RAG 지식베이스(knowledge_base.py)의 lunge_knee_over_toe 문서와 코칭
-      문구에는 언급이 남아있는데 실제로 자동 판정하는 로직이 없는 상태였다. 사용자가 이
-      공백을 지적해서 뒤늦게 추가한다.
+      남아있었다 — RAG 지식베이스(knowledge_base.py, 당시엔 lunge_knee_over_toe라는 런지
+      전용 문서였고 2026-08-24 런지 제거 후 knee_over_toe로 다시 씀)와 코칭 문구에는
+      언급이 남아있는데 실제로 자동 판정하는 로직이 없는 상태였다. 사용자가 이 공백을
+      지적해서 뒤늦게 추가한다.
     - get_heel_lift_ratio()와 마찬가지로 "무거운 ML 없이 재현 가능한 기하학적 지표로
       규칙기반 우선 원칙을 지킨다"는 같은 설계를 따른다.
 
     왜 스쿼트에도 적용하는가?
     - 원래 ML 시절엔 런지 전용 판정이었지만, "무릎이 발끝을 넘지 않는 선에서 앉는다"는
       코칭 지침 자체는 스쿼트에도 똑같이 적용되는 일반적인 원칙이라(NASM 오버헤드 스쿼트
-      평가에도 포함되는 항목), 사용자 요청에 따라 스쿼트/런지 둘 다에 적용한다.
+      평가에도 포함되는 항목), 사용자 요청에 따라 스쿼트/런지 둘 다에 적용했었다.
+      (2026-08-24: 런지 지원 자체가 사용자 요청으로 제거돼(스쿼트만 지원) 이제는 사실상
+      스쿼트 전용으로 쓰인다 — 함수/임계값을 고칠 필요는 없어서 그대로 남겨뒀다.)
 
     부호/방향 처리:
     - 측면 촬영에서는 사람이 카메라 기준 왼쪽을 보고 있을 수도, 오른쪽을 보고 있을 수도
@@ -215,9 +218,9 @@ def get_knee_over_toe_ratio(landmarks: list[Landmark], side: str = "auto") -> fl
 
     # TODO: 팀 확정 필요 — 이 지표도 heel_lift_ratio와 마찬가지로 문헌에서 가져온 값이
     # 아니라 새로 설계한 기하학적 근사치이며, 임계값(rules.py의
-    # KNEE_OVER_TOE_RATIO_THRESHOLD)도 잠정값이다. 특히 스쿼트/런지 모두 무릎이 발끝을
-    # "약간" 넘는 것 자체는 정상적인 가동범위(특히 발목 가동성이 좋은 사람이나 깊은
-    # 스쿼트)라는 의견도 있어, 실사용자 테스트로 재조정이 필요하다.
+    # KNEE_OVER_TOE_RATIO_THRESHOLD)도 잠정값이다. 특히 스쿼트에서 무릎이 발끝을 "약간"
+    # 넘는 것 자체는 정상적인 가동범위(특히 발목 가동성이 좋은 사람이나 깊은 스쿼트)라는
+    # 의견도 있어, 실사용자 테스트로 재조정이 필요하다.
     """
     chosen = _select_side(landmarks, side)
     knee, ankle, toe = (
@@ -269,6 +272,134 @@ def get_shoulder_alignment_angle(landmarks: list[Landmark], side: str = "auto") 
         else (landmarks[RIGHT_EAR], landmarks[RIGHT_SHOULDER], landmarks[RIGHT_HIP])
     )
     return calculate_angle(ear, shoulder, hip)
+
+
+def get_shoulder_forward_lean_deg(landmarks: list[Landmark], side: str = "auto") -> float:
+    """
+    "목이 상체 기울기보다 얼마나 더 앞으로 기울었는지"를 재는, 상체 기울기 상대적 어깨
+    말림 지표 (2026-08-24 추가 — get_shoulder_alignment_angle()의 실측 오탐을 고쳐서 대체).
+
+    왜 get_shoulder_alignment_angle()(귀-어깨-엉덩이 절대각도)을 대체하는가?
+    - 그 함수의 docstring에 이미 "상체 전체가 앞으로 기울어진 자세에서는 목/머리가
+      정상적으로 몸통과 같은 방향을 유지해도 이 각도가 자연스럽게 줄어들 수 있다"고
+      한계가 적혀 있었는데, 실사용자가 좋은 자세의 스쿼트 사진을 보내 실제로 이 한계가
+      재현됨을 확인했다(2026-08-24). mediapipe로 그 사진을 직접 분석해보니: 무릎/엉덩이
+      각도는 정상 범위 안인데 어깨만 걸림 — 실측값은 hip_angle 79.3도, shoulder_angle
+      150.3도(정상범위 하한 155도에서 4.7도 모자람). 좌표를 더 뜯어보니 엉덩이→어깨(상체)
+      선은 수직에서 약 42도 앞으로 기울어 있는데, 어깨→귀(목) 선은 수직에서 약 12도만
+      기울어 있었다 — 즉 이 사람은 상체를 숙이면서도 시선/머리는 자연스럽게 세운, 바로
+      "좋은" 자세였다. 그런데 절대각도 방식은 "목이 상체가 기운 선을 그대로 연장해야
+      180도"로 계산하기 때문에, 상체를 숙인 채 고개만 정상적으로 들어도 각도가 줄어들어
+      정상 자세를 오탐한다 — 이건 사진의 밝기/실루엣 문제가 아니라(랜드마크는 전부
+      visibility 1.0으로 정상 인식됐다) 지표 자체의 구조적 결함이었다.
+    - "진짜 어깨 말림"이 의미하는 것은 목이 상체보다 훨씬 더 앞으로(아래로) 숙여진
+      경우이지, 목이 상체보다 덜 기울어(고개를 든) 경우가 아니다. 그래서 절대각도 대신
+      "목 기울기 - 상체 기울기"라는 상대적 편차를 쓴다: 상체가 얼마나 기울었든, 목이
+      그보다 더 앞으로 기울어야만(양수, 그것도 크게) 진짜 문제로 본다. 목이 상체와
+      비슷하거나 더 세워져 있으면(0 이하) 스쿼트 중 시선을 세우는 정상적인 자세다.
+
+    부호/방향 처리:
+    - get_knee_over_toe_ratio()와 동일하게 발목→발끝 벡터의 x축 부호로 촬영 방향
+      (facing_direction)을 판별해, "몸이 향한 방향 쪽으로 기울면 항상 양수"가 되도록
+      상체/목 기울기 부호를 통일한다(측면 촬영에서 사람이 카메라 기준 왼쪽을 보는지
+      오른쪽을 보는지에 따라 원시 x좌표 부호가 뒤바뀌므로 이 보정이 필요하다).
+    - torso_tilt_deg = atan2(상체 벡터의 보정된 가로성분, 상체 벡터의 세로성분(위쪽이 +))
+      neck_tilt_deg = atan2(목 벡터의 보정된 가로성분, 목 벡터의 세로성분(위쪽이 +))
+      반환값 = neck_tilt_deg - torso_tilt_deg. 0에 가깝거나 음수면 목이 상체만큼(또는
+      더) 세워진 정상 자세, 크게 양수면 목이 상체보다 훨씬 더 앞으로 숙여진(진짜 말린)
+      자세다.
+
+    한계 (# TODO: 팀 확정 필요):
+    - 이 지표도 문헌값이 아니라 위 실측 사례를 근거로 새로 설계한 기하학적 근사치이며,
+      임계값(rules.py의 SHOULDER_FORWARD_LEAN_THRESHOLD_DEG)도 잠정값이다.
+    - get_shoulder_alignment_angle()과 마찬가지로 "귀"가 유일한 머리 랜드마크라, 머리를
+      좌우로 살짝 돌리는 등 순수 시상면이 아닌 움직임에는 다소 취약할 수 있다.
+    """
+    chosen = _select_side(landmarks, side)
+    ear, shoulder, hip, ankle, toe = (
+        (landmarks[LEFT_EAR], landmarks[LEFT_SHOULDER], landmarks[LEFT_HIP], landmarks[LEFT_ANKLE], landmarks[LEFT_FOOT_INDEX])
+        if chosen == "left"
+        else (landmarks[RIGHT_EAR], landmarks[RIGHT_SHOULDER], landmarks[RIGHT_HIP], landmarks[RIGHT_ANKLE], landmarks[RIGHT_FOOT_INDEX])
+    )
+    foot_length = abs(ankle.x - toe.x)
+    if foot_length < MIN_RELIABLE_FOOT_LENGTH:
+        # get_knee_over_toe_ratio()와 동일한 이유 — facing_direction 부호를 신뢰할 수 없는
+        # 구간이라 판정을 포기하고, "값이 클수록 이상"인 지표이므로 0.0(안전한 정상 쪽)을
+        # 반환한다.
+        return 0.0
+    facing_direction = 1.0 if (toe.x - ankle.x) >= 0 else -1.0
+
+    torso_dx = (shoulder.x - hip.x) * facing_direction
+    torso_dy = shoulder.y - hip.y  # 이미지 좌표는 아래로 갈수록 y가 커지므로, 위쪽이 음수
+    torso_tilt_deg = math.degrees(math.atan2(torso_dx, -torso_dy))
+
+    neck_dx = (ear.x - shoulder.x) * facing_direction
+    neck_dy = ear.y - shoulder.y
+    neck_tilt_deg = math.degrees(math.atan2(neck_dx, -neck_dy))
+
+    return neck_tilt_deg - torso_tilt_deg
+
+
+def get_torso_length_ratio(landmarks: list[Landmark], side: str = "auto") -> float:
+    """
+    측면 촬영 기준, 어깨-엉덩이 사이 직선 거리를 발 길이로 정규화한 비율. 등이 둥글게
+    말렸는지(척추 굴곡)를 규칙기반으로 잡아내기 위해 2026-08-21 추가.
+
+    왜 이 방식인가? (get_shoulder_alignment_angle()로는 못 잡는 것)
+    - MediaPipe의 33개 랜드마크에는 어깨(11/12)와 엉덩이(23/24)만 있고, 그 사이를 지나는
+      등/척추 중간 지점이 아예 없다. 그래서 "등이 굽었는지"를 좌표 기하학으로 직접 재려면
+      사실상 2점(어깨-엉덩이)만 갖고 판단해야 하는데, 2점은 항상 직선이라 그 자체로는
+      "굽었다/안 굽었다"를 구분할 정보가 없다 — 이건 계산 방식을 바꿔서 해결되는 문제가
+      아니라 입력 데이터에 아예 없는 정보를 요구하는 것이다(실사용자가 이 한계를 직접
+      확인하고 다른 방법을 요청해서 이 함수가 추가됨).
+    - 대신 "척추 끝점 사이의 직선 거리(현, chord)"를 이용한다: 척추 자체의 길이(뼈 길이)는
+      자세가 바뀌어도 변하지 않지만, 등이 곧게 펴져 있으면 어깨-엉덩이 직선 거리가 척추
+      길이에 가깝게 나오고, 등이 둥글게 말리면 두 끝점이 서로 가까워지면서(활이 굽으면
+      양 끝이 가까워지는 것과 같은 원리) 직선 거리가 짧아진다. 반대로 등이 곧게 편 채로
+      카메라 평면 안에서 앞으로 기울기(회전)만 한다면, 이론적으로는 이 직선 거리가 거의
+      그대로 유지된다 — 그래서 "직선 거리가 기준치보다 줄었는지"가 "등이 굽었는지 vs
+      그냥 앞으로 기울었는지"를 구분하는 신호가 될 수 있다.
+    - "기준치"가 필요한 이유: 사람마다 몸통 길이가 달라서, 지금 잰 거리가 짧은 게 이
+      사람이 원래 몸통이 짧아서인지 등이 굽어서인지 이 값 하나만으로는 알 수 없다. 그래서
+      hip_calibration과 같은 타이밍("편하게 서 있기")에 이 비율도 함께 재서
+      HipFlexibilityCalibration.standing_shoulder_hip_ratio로 기준값을 받는다(rules.py의
+      judge_static_pose/coaching/realtime.py의 judge_realtime_coaching 참고). 기준값이
+      없으면 이 함수가 계산한 값 자체는 응답에 그대로 노출되지만(디버깅용), 정상/이상
+      판정에는 쓰이지 않는다.
+
+    발목-발끝 거리(foot_length)로 정규화하는 이유는 get_heel_lift_ratio()/
+    get_knee_over_toe_ratio()와 동일 — 발은 동작 내내 바닥에 고정돼 있어(자세 자체로는
+    안 변함) 카메라 거리/줌 배율 변화만 반영하는 안정적인 "자" 역할을 한다. 벽/바닥 같은
+    외부 배경으로 카메라 거리를 추정하는 방안도 검토했지만, 사진마다 배경이 다르고 실제
+    물리적 크기를 알 방법이 없어(예: 벽 폭을 모름) 안정적인 기준이 될 수 없다고 판단해
+    채택하지 않았다 — 이미 있는 몸 안의 다른 거리(발 길이)로 정규화하는 쪽이 훨씬
+    간단하고 안정적이다.
+
+    한계 (# TODO: 팀 확정 필요):
+    - 카메라가 완전한 측면이 아니라 몸이 카메라 평면 밖으로 살짝 회전(사선 촬영)해 있으면,
+      등이 안 굽었어도 어깨-엉덩이 직선 거리가 원근 때문에 짧아 보일 수 있다(오탐 위험).
+    - 캘리브레이션 시점과 실제 측정 시점 사이에 카메라와의 거리가 크게 달라지면(예: 세션
+      중간에 자리를 옮김) foot_length로 정규화해도 완전히 상쇄되지 않을 수 있다.
+    """
+    chosen = _select_side(landmarks, side)
+    shoulder, hip, ankle, toe = (
+        (landmarks[LEFT_SHOULDER], landmarks[LEFT_HIP], landmarks[LEFT_ANKLE], landmarks[LEFT_FOOT_INDEX])
+        if chosen == "left"
+        else (landmarks[RIGHT_SHOULDER], landmarks[RIGHT_HIP], landmarks[RIGHT_ANKLE], landmarks[RIGHT_FOOT_INDEX])
+    )
+    foot_length = abs(ankle.x - toe.x)
+    if foot_length < MIN_RELIABLE_FOOT_LENGTH:
+        # 다른 foot_length 정규화 함수들과 동일한 이유(MIN_RELIABLE_FOOT_LENGTH 주석 참고) —
+        # 분모가 아주 작으면 노이즈가 증폭돼 판정 자체가 무의미해진다. 다만 "안전한 기본값"의
+        # 방향이 다른 함수들과 반대라는 점에 주의: heel_lift_ratio/knee_over_toe_ratio는
+        # "값이 클수록 이상"이라 0.0이 안전(정상) 쪽이지만, 이 함수는 "값이 기준치보다 작을수록
+        # 이상"이라 0.0을 반환하면 오히려 "극단적으로 굽었다"로 오판된다. 그래서 비교 방향이
+        # 반대인 999.0(비정상적으로 큰 값 — 항상 기준치 이상이라 "굽지 않음"으로 처리됨)을
+        # 안전한 기본값으로 쓴다. (float('inf')는 표준 JSON으로 직렬화되지 않아 프론트 파싱이
+        # 깨질 수 있어 피했다.)
+        return 999.0
+    torso_length = math.hypot(shoulder.x - hip.x, shoulder.y - hip.y)
+    return torso_length / foot_length
 
 
 def _horizontal_tilt_angle(left_point: Landmark, right_point: Landmark) -> float:

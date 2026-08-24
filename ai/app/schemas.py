@@ -12,7 +12,10 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 # 지원 종목. 새 종목을 추가할 땐 이 타입과 rules.py의 NORMAL_RANGES를 함께 확장해야 한다.
-ExerciseType = Literal["squat", "lunge"]
+# 2026-08-24: 사용자 요청에 따라 런지 지원을 완전히 제거했다(스쿼트만 지원) — 이전에 있던
+# "lunge" 값을 여기서 뺀 뒤 rules.py의 NORMAL_RANGES에서도 "lunge" 키를 함께 제거했다.
+# exercise_type="lunge"로 오는 요청은 이제 Pydantic이 422로 바로 거른다.
+ExerciseType = Literal["squat"]
 
 # 측면 촬영이 전제이므로 좌/우 중 어느 쪽 옆모습인지가 필요하다.
 # "auto"는 서버가 visibility(카메라에 보이는 정도)를 보고 알아서 더 신뢰도 높은 쪽을 선택하게 한다.
@@ -47,6 +50,16 @@ class HipFlexibilityCalibration(BaseModel):
     standing_hip_angle: float = Field(..., description="편하게 서 있을 때 측정한 hip_angle (보통 180도 근처)")
     max_flex_hip_angle: float = Field(
         ..., description="무리하지 않는 선에서 최대한 숙였을 때 측정한 hip_angle (많이 숙일수록 작은 값)"
+    )
+    standing_shoulder_hip_ratio: Optional[float] = Field(
+        None,
+        description="편하게 서 있을 때(standing_hip_angle과 같은 순간) 측정한 어깨-엉덩이 "
+        "직선거리/발 길이 비율(app/pose/angles.py의 get_torso_length_ratio 참고, 2026-08-21 "
+        "추가). 등이 곧게 펴진 상태의 기준값으로 써서, 실제 자세에서 이 비율이 얼마나 "
+        "줄었는지로 '등이 둥글게 말렸는지'(척추 굴곡)를 판정한다. hip_angle 캘리브레이션과 "
+        "같은 '편하게 서 있기' 측정 한 번으로 같이 얻을 수 있는 값이라 이 모델에 함께 둔다. "
+        "선택 필드 — 없으면(하위 호환) 등 굽음 검사만 건너뛰고 나머지 캘리브레이션은 그대로 "
+        "동작한다.",
     )
 
 
@@ -98,9 +111,24 @@ class PoseAngleValues(BaseModel):
 
     knee_angle: float
     hip_angle: float
-    shoulder_angle: float
+    shoulder_angle: float = Field(
+        ..., description="귀-어깨-엉덩이 절대각도(app/pose/angles.py의 get_shoulder_alignment_angle "
+        "참고). 2026-08-24부터 어깨 판정에는 더 이상 쓰이지 않고(상체가 앞으로 기울면 목이 "
+        "정상적으로 세워져도 이 값이 자연히 줄어드는 실측 오탐이 확인됨) 참고용으로만 노출된다 "
+        "— 실제 판정은 shoulder_forward_lean_deg가 담당한다."
+    )
+    shoulder_forward_lean_deg: float = Field(
+        ..., description="목이 상체 기울기보다 얼마나 더 앞으로 기울었는지(app/pose/angles.py의 "
+        "get_shoulder_forward_lean_deg 참고, 2026-08-24 추가). 어깨 말림(forward head/shoulder "
+        "rounding) 판정에 실제로 쓰이는 값 — 0 이하면 정상, rules.py의 "
+        "SHOULDER_FORWARD_LEAN_THRESHOLD_DEG보다 크면 이상으로 판정한다."
+    )
     heel_lift_ratio: float
     knee_over_toe_ratio: float
+    torso_length_ratio: float = Field(
+        ..., description="get_torso_length_ratio 참고. hip_calibration에 standing_shoulder_hip_ratio가 "
+        "없으면 이 숫자는 응답에 노출만 되고 판정에는 쓰이지 않는다."
+    )
     knee_valgus_ratio: Optional[float] = None
     knee_asymmetry_deg: Optional[float] = None
 
@@ -129,8 +157,18 @@ class AngleFrame(BaseModel):
     hip_angle: float
     shoulder_angle: Optional[float] = Field(
         None,
-        description="귀-어깨-엉덩이 각도(어깨 정렬). 선택 필드 — 없으면 어깨 검사를 건너뛴다 "
-        "(하위 호환: 이 필드를 아직 안 보내는 기존 프론트도 계속 동작해야 하므로).",
+        description="귀-어깨-엉덩이 절대각도(어깨 정렬). 2026-08-24부터 어깨 판정에는 더 이상 "
+        "쓰이지 않는다(shoulder_forward_lean_deg로 대체됨, 아래 참고) — 이 필드는 참고용으로만 "
+        "남아있고, 안 보내도 아무 영향 없다.",
+    )
+    shoulder_forward_lean_deg: Optional[float] = Field(
+        None,
+        description="목이 상체 기울기보다 얼마나 더 앞으로 기울었는지(app/pose/angles.py의 "
+        "get_shoulder_forward_lean_deg 참고, 2026-08-24 추가 — 기존 shoulder_angle 절대각도 "
+        "방식의 실측 오탐을 고쳐서 대체함: 상체가 앞으로 기울면 목이 정상적으로 세워져도 "
+        "절대각도가 자연히 줄어드는 문제가 있었다). heel_lift_ratio/knee_over_toe_ratio와 "
+        "동일하게 측면 랜드마크만으로 계산 가능한 값이라, 프론트가 매 프레임 직접 계산해서 "
+        "보낸다. 선택 필드 — 없으면(하위 호환) 어깨 검사를 건너뛴다.",
     )
     heel_lift_ratio: Optional[float] = Field(
         None,
@@ -160,6 +198,14 @@ class AngleFrame(BaseModel):
         "기존 API 호환을 위해 유지, 자세한 배경은 angles.py 주석 참고. heel_lift_ratio와 동일하게 "
         "측면 랜드마크 기준이라 프론트가 매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면 이 "
         "검사를 건너뛴다(하위 호환).",
+    )
+    torso_length_ratio: Optional[float] = Field(
+        None,
+        description="어깨-엉덩이 직선거리/발 길이 비율(app/pose/angles.py의 "
+        "get_torso_length_ratio 참고, 2026-08-21 추가). hip_calibration에 "
+        "standing_shoulder_hip_ratio가 함께 있을 때만 '등이 둥글게 말렸는지' 판정에 쓰인다 "
+        "(기준값 없이는 이 숫자 하나만으로는 판단 불가). 선택 필드 — 없으면 등 굽음 검사를 "
+        "건너뛴다(하위 호환).",
     )
 
 

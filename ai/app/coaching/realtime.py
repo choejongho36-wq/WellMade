@@ -6,23 +6,27 @@
 이렇게 설계한 이유:
 1) 실시간(수십 ms 이내) 응답이 필요한데, 규칙기반 비교는 연산량이 거의 없어
    매 프레임 호출해도 서버 부하가 생기지 않는다.
-2) 스쿼트/런지처럼 "내려갔다 올라오는" 단순 반복 동작은 각도의 증가/감소 "방향"만으로도
+2) 스쿼트처럼 "내려갔다 올라오는" 단순 반복 동작은 각도의 증가/감소 "방향"만으로도
    동작 단계를 충분히 구분할 수 있어, 별도 학습 데이터(Kaggle 관절각도 시계열 등은
    기준 프로파일을 잡을 때 참고자료로만 활용) 없이도 합리적인 판정이 가능하다.
 """
 
 from app.pose.coaching_messages import (
     ASYMMETRY_MESSAGE,
+    BACK_ROUNDED_MESSAGE,
     HEEL_LIFT_MESSAGE,
     KNEE_OVER_TOE_MESSAGE,
     KNEE_VALGUS_MESSAGE,
+    SHOULDER_FORWARD_LEAN_MESSAGE,
 )
 from app.pose.rules import (
+    BACK_ROUNDING_RATIO_THRESHOLD,
     HEEL_LIFT_RATIO_THRESHOLD,
     KNEE_ASYMMETRY_THRESHOLD_DEG,
     KNEE_OVER_TOE_RATIO_THRESHOLD,
     KNEE_VALGUS_RATIO_THRESHOLD,
     NORMAL_RANGES,
+    SHOULDER_FORWARD_LEAN_THRESHOLD_DEG,
     personalized_hip_range,
 )
 from app.schemas import AngleFrame, HipFlexibilityCalibration
@@ -114,13 +118,18 @@ def judge_realtime_coaching(
     timestamps = [f.timestamp for f in angle_history]
     knee_series = [f.knee_angle for f in angle_history]
     hip_series = [f.hip_angle for f in angle_history]
-    latest_shoulder = angle_history[-1].shoulder_angle  # 선택 필드라 None일 수 있음
+    # shoulder_angle(절대각도)은 2026-08-24부터 판정에 안 쓰인다 — 아래 shoulder_forward_lean_deg가
+    # 대신 담당한다(schemas.py/rules.py 주석 참고).
+    latest_shoulder_forward_lean = angle_history[-1].shoulder_forward_lean_deg  # 선택 필드라 None일 수 있음
     latest_heel_lift = angle_history[-1].heel_lift_ratio  # 선택 필드라 None일 수 있음
     # 정면 랜드마크 기반 지표(2026-08-21 추가) — 프론트가 정면 카메라도 붙였을 때만 채워진다.
     latest_knee_valgus = angle_history[-1].knee_valgus_ratio  # 선택 필드라 None일 수 있음
     latest_knee_asymmetry = angle_history[-1].knee_asymmetry_deg  # 선택 필드라 None일 수 있음
     # 무릎-발끝(2026-08-21 추가) — 측면 랜드마크 기준이라 정면 카메라 여부와 무관하게 선택 필드다.
     latest_knee_over_toe = angle_history[-1].knee_over_toe_ratio  # 선택 필드라 None일 수 있음
+    # 등 굽음(2026-08-21 추가) — 측면 랜드마크 기준. hip_calibration.standing_shoulder_hip_ratio라는
+    # 기준값이 함께 있어야만 실제 판정에 쓰인다(rules.py의 BACK_ROUNDING_RATIO_THRESHOLD 주석 참고).
+    latest_torso_length_ratio = angle_history[-1].torso_length_ratio  # 선택 필드라 None일 수 있음
 
     knee_slope, knee_r2 = _linear_fit(timestamps, knee_series)
     knee_deltas = [b - a for a, b in zip(knee_series, knee_series[1:])]
@@ -128,7 +137,7 @@ def judge_realtime_coaching(
 
     # --- (1) 동작 단계 판정 ---
     # 무릎 각도가 시간에 따라 "감소"하면 굽히는 중(내려감), "증가"하면 펴는 중(올라옴)으로 정의했다.
-    # 스쿼트/런지 모두 하강 시 무릎 각도가 작아지는 방향이라 종목에 상관없이 같은 기준을 쓸 수 있다.
+    # 스쿼트는 하강 시 무릎 각도가 작아지는 방향이라 이 기준을 그대로 쓸 수 있다.
     if knee_slope < -STATIC_SLOPE_THRESHOLD_DEG_PER_SEC:
         phase = "descending"
     elif knee_slope > STATIC_SLOPE_THRESHOLD_DEG_PER_SEC:
@@ -180,16 +189,16 @@ def judge_realtime_coaching(
             )
         # 어깨 정렬은 무릎/엉덩이와 달리 "깊게 앉았을 때"만이 아니라 정지한 어느 시점에서든
         # 확인할 문제라(어깨가 말리는 건 자세 전반의 문제), is_deep_hold 조건 없이 검사한다.
-        # shoulder_angle이 없으면(하위 호환 — 프론트가 아직 안 보내는 경우) 검사를 건너뛴다.
-        if latest_shoulder is not None:
-            shoulder_low, shoulder_high = ranges["shoulder_angle"]
-            if not (shoulder_low <= latest_shoulder <= shoulder_high):
-                issues.append(
-                    {
-                        "part": "shoulder",
-                        "message": f"어깨가 말려 있습니다({latest_shoulder:.1f}도). 가슴을 펴고 어깨를 뒤로 젖혀주세요.",
-                    }
-                )
+        # shoulder_forward_lean_deg가 없으면(하위 호환 — 프론트가 아직 안 보내는 경우) 검사를
+        # 건너뛴다. (2026-08-24: 절대각도 기준 shoulder_angle 판정은 실측 오탐이 확인돼
+        # shoulder_forward_lean_deg로 교체됐다 — rules.py 주석 참고.)
+        if latest_shoulder_forward_lean is not None and latest_shoulder_forward_lean > SHOULDER_FORWARD_LEAN_THRESHOLD_DEG:
+            issues.append(
+                {
+                    "part": "shoulder",
+                    "message": SHOULDER_FORWARD_LEAN_MESSAGE,
+                }
+            )
         # 발뒤꿈치 뜸도 knee/hip과 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 서 있는
         # 상태에서는 애초에 발뒤꿈치가 뜰 이유가 없어 검사 대상이 아니고, 동작 중(내려감/올라옴)에
         # 순간적으로 값이 흔들리는 걸 이상으로 잡으면 오탐이 늘어난다(rules.py 2026-08-21 주석 참고).
@@ -214,6 +223,19 @@ def judge_realtime_coaching(
             and latest_knee_over_toe > KNEE_OVER_TOE_RATIO_THRESHOLD
         ):
             issues.append({"part": "knee_over_toe", "message": KNEE_OVER_TOE_MESSAGE})
+        # 등 굽음도 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — rules.judge_static_pose와
+        # 동일하게, 기준값(hip_calibration.standing_shoulder_hip_ratio)이 없으면(캘리브레이션을
+        # 안 한 기존 클라이언트) 검사 자체를 건너뛴다.
+        back_rounding_baseline = (
+            hip_calibration.standing_shoulder_hip_ratio if hip_calibration is not None else None
+        )
+        if (
+            is_deep_hold
+            and latest_torso_length_ratio is not None
+            and back_rounding_baseline is not None
+            and latest_torso_length_ratio < back_rounding_baseline * BACK_ROUNDING_RATIO_THRESHOLD
+        ):
+            issues.append({"part": "back_rounded", "message": BACK_ROUNDED_MESSAGE})
     else:
         # 동작 중에는 "정상범위 하한보다 훨씬 더 굽혀지는" 과도한 굽힘만 위험 신호로 본다.
         # (무릎에 부담이 되는 과도한 가동범위는 동작 단계와 무관하게 바로 감지해야 하기 때문)

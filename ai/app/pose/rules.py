@@ -4,8 +4,9 @@
 "파인튜닝 금지, 규칙기반 우선"이라는 기술 원칙에 따라, 각도 계산 결과를
 사전에 정의한 정상 범위(NORMAL_RANGES)와 비교하는 방식으로 구현했다.
 딥러닝 분류기 대신 규칙기반을 택한 이유:
-1) 스쿼트/런지의 "바른 자세" 각도 기준은 운동/재활 자료에 이미 잘 정리되어 있어,
-   별도 라벨링 데이터 없이도 신뢰할 수 있는 규칙을 세울 수 있다.
+1) 스쿼트의 "바른 자세" 각도 기준은 운동/재활 자료에 이미 잘 정리되어 있어,
+   별도 라벨링 데이터 없이도 신뢰할 수 있는 규칙을 세울 수 있다. (2026-08-24: 런지는
+   사용자 요청으로 지원 대상에서 제거됐다 — 스쿼트만 지원.)
 2) 규칙기반은 판정 근거를 사람이 바로 설명할 수 있어(설명가능성), "왜 이상 자세로
    판정했는지"를 코칭 문구·RAG 검색 쿼리에 그대로 재사용하기 좋다.
 """
@@ -18,12 +19,16 @@ from app.pose.angles import (
     get_knee_over_toe_ratio,
     get_knee_valgus_ratio,
     get_shoulder_alignment_angle,
+    get_shoulder_forward_lean_deg,
+    get_torso_length_ratio,
 )
 from app.pose.coaching_messages import (
     ASYMMETRY_MESSAGE,
+    BACK_ROUNDED_MESSAGE,
     HEEL_LIFT_MESSAGE,
     KNEE_OVER_TOE_MESSAGE,
     KNEE_VALGUS_MESSAGE,
+    SHOULDER_FORWARD_LEAN_MESSAGE,
 )
 from app.schemas import HipFlexibilityCalibration, Landmark
 
@@ -65,25 +70,33 @@ from app.schemas import HipFlexibilityCalibration, Landmark
 # 넓혔다(45→25, 100→120) — 깊게 앉을수록 상체가 자연히 더 숙여지는(고관절이 더 접히는)
 # 경향이 있어 무릎만 넓히고 hip_angle을 그대로 두면 같은 오탐이 hip 쪽에서 재발하기 때문.
 #
-# [런지]
-# NASM(National Academy of Sports Medicine, 트레이너 자격 기준)은 상체를 세운 런지를
-# "90/90 런지"라 부르며, 하단에서 앞다리·뒷다리 무릎이 둘 다 약 90도라고 명시한다.
-# (참고로 Cleveland Clinic 자료는 뒷다리를 45도라고 설명하는데, 어느 각도 정의를 쓴
-# 건지 불명확하고 트레이너 자격 기준인 NASM 쪽이 더 표준적이라 판단해 NASM 값을 채택함.)
-# 참고: https://blog.nasm.org/training-benefits/lunge-effective-lower-body-training-exercise
-# knee_angle 범위는 이 90도를 중심으로 실제 반복 동작에서 나올 수 있는 오차를 감안해
-# 위아래로 여유를 뒀다. hip_angle은 "상체를 세운(upright) 런지" 전제와 일치해 기존 값을
-# 유지한다.
+# [런지] — 2026-08-24 제거됨
+# 원래 이 자리에 NASM "90/90 런지" 기준(knee_angle 75~105도, hip_angle 140~180도)으로 잡은
+# 런지 전용 NORMAL_RANGES가 있었다. 사용자가 "스쿼트만 하겠다, 런지는 다 밀어달라"고 요청해
+# (2026-08-24) 런지 지원 자체를 스키마(schemas.py의 ExerciseType)와 NORMAL_RANGES 양쪽에서
+# 완전히 제거했다 — 관련 세부 근거(NASM/Cleveland Clinic 각도 정의 비교 등)는 git 히스토리에
+# 남아있으니 나중에 런지를 다시 지원해야 하면 그쪽을 참고하면 된다.
 #
-# [어깨 정렬] (2026-08-18 추가)
+# [어깨 정렬] (2026-08-18 추가, 2026-08-24 판정 방식 교체)
 # "하체 중심 MVP"는 범위를 하체 랜드마크로 제한하겠다는 뜻이 아니었다는 걸 사용자가
 # 확인해줘서(2026-08-18), 필요한 상체 피드백(어깨 정렬)을 추가함.
 # NASM 오버헤드 스쿼트 평가는 "가슴을 펴고 흉추를 살짝 편 상태 유지"를 확인하지만,
 # 육안 평가 항목이라 명확한 각도 수치를 제시하지 않는다(참고:
-# https://blog.nasm.org/newletter/squat-form). 그래서 아래 범위는 knee_angle/hip_angle과
-# 달리 문헌에서 직접 가져온 수치가 아니라, "귀-어깨-엉덩이가 거의 일직선(180도)이어야
-# 어깨가 안 말린 것"이라는 방향성만 근거로 잡은 값이다. 스쿼트/런지 모두 같은 기준을 쓴다
-# (어깨 정렬 기준 자체는 하체 동작 종류와 무관하다고 판단).
+# https://blog.nasm.org/newletter/squat-form). 그래서 처음엔 "귀-어깨-엉덩이가 거의
+# 일직선(180도)이어야 어깨가 안 말린 것"이라는 방향성만 근거로 shoulder_angle 고정 범위
+# (155~180)를 잡았었다.
+#
+# (2026-08-24 교체) 그런데 이 절대각도 방식은 실사용자가 보낸 정상적인 스쿼트 사진에서
+# 실제로 오탐이 재현됨을 mediapipe 직접 분석으로 확인했다 — hip_angle 79.3도(정상)인데
+# shoulder_angle이 150.3도로 정상범위 하한(155)에 살짝 못 미쳐 걸림. 상체(엉덩이→어깨)는
+# 수직에서 약 42도 앞으로 기울어 있었는데 목(어깨→귀)은 약 12도만 기울어 있어서(=시선을
+# 자연스럽게 세운, 오히려 좋은 자세) 절대각도가 줄어든 것으로 확인됨 — 사진 밝기/실루엣
+# 문제가 아니라(랜드마크 전부 visibility 1.0으로 정상 인식) 지표 자체가 "상체가 기울면
+# 목도 같이 기울어야 정상"이라고 잘못 가정하는 구조적 결함이었다. 상체 기울기와 무관하게
+# "목이 상체보다 얼마나 더 앞으로 숙여졌는지"만 보는 get_shoulder_forward_lean_deg()로
+# 교체함(자세한 진단·설계 근거는 그쪽 docstring 참고) — NORMAL_RANGES에서 shoulder_angle을
+# 빼고 아래 SHOULDER_FORWARD_LEAN_THRESHOLD_DEG 단일 임계값으로 판정한다. 절대각도
+# (shoulder_angle)는 판정에는 더 이상 안 쓰이지만 참고용으로 응답(angles)에는 계속 노출한다.
 #
 # [발뒤꿈치 뜸/무릎 모임/좌우 비대칭] (2026-08-21 — ML 분류기 완전 대체)
 # 실제 사진으로 테스트한 결과, ML 스쿼트 분류기(app/ml/squat_classifier.py)가 정상 자세도
@@ -100,30 +113,29 @@ from app.schemas import HipFlexibilityCalibration, Landmark
 # - 좌우 비대칭: get_knee_lr_asymmetry_deg() (정면 랜드마크, KNEE_ASYMMETRY_THRESHOLD_DEG)
 #
 # (2026-08-21 추가) 이때 함께 옮겼어야 했는데 누락된 항목이 하나 더 있었다 — "무릎이
-# 발끝을 넘는지"는 원래 ML 런지 분류기가 담당했는데, RAG 지식베이스(knowledge_base.py의
-# lunge_knee_over_toe)와 코칭 문구에는 언급이 남아있으면서도 정작 자동 판정 로직이 없는
-# 채로 방치돼 있었다. 뒤늦게 get_knee_over_toe_ratio()(측면 랜드마크,
-# KNEE_OVER_TOE_RATIO_THRESHOLD)로 추가했다 — 원래 런지 전용이었지만 "무릎이 발끝을
-# 넘지 않는다"는 코칭 지침 자체는 스쿼트에도 똑같이 적용되는 원칙이라 두 종목 모두에 쓴다.
+# 발끝을 넘는지"는 원래 ML 런지 분류기가 담당했는데, RAG 지식베이스(knowledge_base.py)와
+# 코칭 문구에는 언급이 남아있으면서도 정작 자동 판정 로직이 없는 채로 방치돼 있었다. 뒤늦게
+# get_knee_over_toe_ratio()(측면 랜드마크, KNEE_OVER_TOE_RATIO_THRESHOLD)로 추가했다 —
+# 원래 런지 전용이었지만 "무릎이 발끝을 넘지 않는다"는 코칭 지침 자체는 스쿼트에도 똑같이
+# 적용되는 원칙이라 스쿼트에도 그대로 쓴다(2026-08-24 런지 지원 자체는 제거됐지만, 이
+# 판정 로직은 원래도 스쿼트에 적용되고 있었으므로 그대로 유지).
 # 정면 랜드마크(front_landmarks)는 선택 입력이다 — 프론트가 아직 정면 카메라를 붙이지 않은
 # 기존 클라이언트도 계속 동작해야 하므로(하위 호환, shoulder_angle/heel_lift_ratio와 동일한
 # 패턴), 정면 랜드마크가 없으면 무릎 모임/좌우 비대칭 검사를 건너뛴다.
 #
 # ~~TODO: 스쿼트를 "평행" 대신 "깊은 스쿼트"까지 목표로 할지~~ → 2026-08-21 사용자 확인 후
-# 확정: 깊은 스쿼트도 정상으로 허용(위 [스쿼트] 절 참고). 런지 뒷다리 각도 별도 판정은
-# 여전히 미정 — 제품 방향에 따라 달라지므로 재검토 필요.
-# TODO: 팀 확정 필요 — shoulder_angle 범위는 수치 근거가 약해 사용자 테스트 후 조정 필요.
+# 확정: 깊은 스쿼트도 정상으로 허용(위 [스쿼트] 절 참고).
+# TODO: 팀 확정 필요 — SHOULDER_FORWARD_LEAN_THRESHOLD_DEG(아래)는 수치 근거가 약해
+# 사용자 테스트 후 조정 필요. shoulder_angle은 2026-08-24부터 이 딕셔너리에서 빠졌다 —
+# 판정에는 더 이상 안 쓰이고(위 [어깨 정렬] 주석 참고), get_shoulder_alignment_angle()로
+# 계산한 값은 참고용으로만 응답(angles)에 노출된다.
 NORMAL_RANGES = {
     "squat": {
         "knee_angle": (30, 120),  # (2026-08-21) 상하한 20도씩 확대(50~100→30~120), 위 주석 참고
         "hip_angle": (25, 120),  # (2026-08-21) 위와 같은 이유로 상하한 확대(45~100→25~120), 위 주석 참고
-        "shoulder_angle": (155, 180),  # 귀-어깨-엉덩이 일직선 여부 — 수치 근거 약함(위 설명 참고)
     },
-    "lunge": {
-        "knee_angle": (75, 105),  # NASM "90/90 런지" 기준, 90도 중심으로 여유를 둠
-        "hip_angle": (140, 180),  # 런지는 상체를 세운 상태(upright) 유지가 기준
-        "shoulder_angle": (155, 180),  # 스쿼트와 동일 기준 (하체 동작 종류와 무관하다고 판단)
-    },
+    # "lunge" 키는 2026-08-24 사용자 요청으로 제거됐다(위 [런지] 절 참고). schemas.py의
+    # ExerciseType도 함께 "squat"만 남도록 좁혀서, 애초에 여기까지 "lunge"가 안 들어온다.
 }
 
 # 정상범위를 살짝 벗어나도 confidence가 완만하게 낮아지도록, "이만큼 벗어나면 신뢰도 0"으로
@@ -172,11 +184,51 @@ KNEE_ASYMMETRY_THRESHOLD_DEG = 15.0
 # angles.py 주석 참고). 그에 맞춰 이 임계값도 "발 길이의 30%"가 아니라 "원시 좌표 거리로
 # 0.03"이라는 작은 여유값으로 바꿨다 — MIN_RELIABLE_FOOT_LENGTH(0.03)와 같은 자릿수로
 # 맞춘 잠정치로, "이 정도(이미지 너비의 약 3%)까지는 노이즈/정상 가동범위로 보고 봐주고,
-# 그 이상 넘으면 이상으로 본다"는 취지다. 스쿼트/런지 둘 다 같은 임계값을 쓴다
-# (app/pose/angles.py의 get_knee_over_toe_ratio() 주석 참고 — 원래 런지 전용이었지만
-# 스쿼트에도 적용).
+# 그 이상 넘으면 이상으로 본다"는 취지다(app/pose/angles.py의 get_knee_over_toe_ratio()
+# 주석 참고 — 원래 런지 전용이었지만 스쿼트에도 똑같이 적용되던 값이었고, 2026-08-24
+# 런지 지원 자체가 제거되며 이제는 스쿼트 전용 값이다).
 # TODO: 팀 확정 필요 — 실사용자 테스트로 이 값과 "비율 vs 원시 좌표" 방식 자체를 재검토.
 KNEE_OVER_TOE_RATIO_THRESHOLD = 0.03
+
+# 어깨 말림(forward head/shoulder rounding) 판정 임계값 (2026-08-24 추가 — 절대각도
+# 방식의 실측 오탐을 고치며 새로 도입, 위 [어깨 정렬] 주석과
+# get_shoulder_forward_lean_deg() docstring 참고).
+#
+# get_shoulder_forward_lean_deg()가 반환하는 값(목 기울기 - 상체 기울기, 도 단위)과
+# 비교한다. 0 이하는 목이 상체와 비슷하거나 더 세워진 정상 자세이므로, 그보다 얼마나
+# 더 커야("목이 상체보다 이만큼 더 앞으로 숙여져야") 진짜 어깨 말림으로 볼지를 정하는
+# 값이다. 20.0은 문헌값이 아니라, 실측 정상 사례(-29.6도)와 확실히 구분되도록 잡은
+# 상식적인 잠정치 — 다른 각도 기반 검사들의 여유값(KNEE_ASYMMETRY_THRESHOLD_DEG=15.0,
+# coaching/realtime.py의 DEEP_MARGIN_DEG=15.0)보다 살짝 넉넉하게 잡았다. 목 기울기
+# 계산이 "귀" 랜드마크 하나에 의존해 다른 각도보다 노이즈에 민감할 수 있다고 판단해서다.
+# TODO: 팀 확정 필요 — 실제 어깨 말림(양성) 사례로 검증된 적이 없는 잠정치.
+SHOULDER_FORWARD_LEAN_THRESHOLD_DEG = 20.0
+
+# 등 굽음(척추 굴곡) 판정 임계값 (2026-08-21 추가).
+#
+# 배경: MediaPipe의 33개 랜드마크에는 척추 중간(흉추) 지점이 없어서, 좌표만으로는 "등이
+# 굽었는지"(척추 곡률)를 직접 잴 방법이 없다 — 이건 좌표 기반 규칙이든 같은 좌표를 입력으로
+# 쓰는 전통 ML이든 똑같이 못 피하는 구조적 한계다. 사용자와 상의 끝에 채택한 방법은 "직선
+# 거리(현, chord)로 곡률을 간접 추정"하는 방식이다: 어깨-엉덩이를 잇는 직선 거리는 순수하게
+# 상체가 앞으로 회전(기울임)만 할 때는 2D 투영에서도 거의 그대로 유지되지만, 척추가 둥글게
+# 말리면(등이 굽으면) 두 끝점이 활시위처럼 가까워져 직선 거리가 줄어든다. 즉 "기울임"과
+# "굽음"을 직선 거리 하나로 구별할 수 있다는 게 핵심 통찰이다(get_torso_length_ratio() 참고).
+#
+# 다만 이 값은 카메라와의 거리에 따라 원본 좌표 스케일이 달라지므로, 같은 프레임 안에서
+# 동작에 따라 거의 안 변하는 발 길이(foot_length)로 나눠 정규화한다(벽/바닥 거리 추정은
+# 절대 스케일을 알 수 없어 불가능하다고 판단해 기각 — 자세한 배경은
+# get_torso_length_ratio() 주석 참고).
+#
+# 그리고 사람마다 원래 체형(어깨-엉덩이 길이 대 발 길이 비율)이 달라서, 고정된 절대 기준값을
+# 둘 수 없다 — 그래서 온보딩 캘리브레이션(HipFlexibilityCalibration.standing_shoulder_hip_ratio,
+# "편하게 서 있을 때" 잰 이 사람의 기준 비율) 대비 "몇 % 이상 줄었는지"로 판정한다. 이
+# 캘리브레이션이 없으면(하위 호환) 이 검사 자체를 건너뛴다 — 기준값 없이 절대치 하나만으로는
+# "굽었다/안 굽었다"를 판단할 수 없기 때문이다.
+#
+# 0.85는 "기준값보다 15% 이상 줄어들면 등이 굽었다고 본다"는 뜻으로, 문헌값이 아니라 사용자와
+# 상의해 정한 잠정치다.
+# TODO: 팀 확정 필요 — 실사용자 테스트로 15%라는 폭 자체를 재검토해야 한다.
+BACK_ROUNDING_RATIO_THRESHOLD = 0.85
 
 
 def personalized_hip_range(calibration: HipFlexibilityCalibration) -> tuple[float, float]:
@@ -248,9 +300,13 @@ def judge_static_pose(
 
     knee_angle = get_knee_angle(landmarks, side)
     hip_angle = get_hip_angle(landmarks, side)
+    # shoulder_angle(절대각도)은 더 이상 판정에는 안 쓰이고 참고용으로만 응답에 노출한다 —
+    # 실제 어깨 말림 판정은 shoulder_forward_lean_deg로 한다(위 [어깨 정렬] 주석 참고).
     shoulder_angle = get_shoulder_alignment_angle(landmarks, side)
+    shoulder_forward_lean_deg = get_shoulder_forward_lean_deg(landmarks, side)
     heel_lift_ratio = get_heel_lift_ratio(landmarks, side)
     knee_over_toe_ratio = get_knee_over_toe_ratio(landmarks, side)
+    torso_length_ratio = get_torso_length_ratio(landmarks, side)
 
     knee_low, knee_high = ranges["knee_angle"]
     # hip_angle만 개인별로 바꿔치기하는 이유: knee_angle은 문헌상 인구 전체에 어느 정도
@@ -260,7 +316,6 @@ def judge_static_pose(
         hip_low, hip_high = personalized_hip_range(hip_calibration)
     else:
         hip_low, hip_high = ranges["hip_angle"]
-    shoulder_low, shoulder_high = ranges["shoulder_angle"]
 
     issues = []
     if not (knee_low <= knee_angle <= knee_high):
@@ -277,11 +332,11 @@ def judge_static_pose(
                 "message": f"엉덩이(고관절) 각도가 {hip_angle:.1f}도로 정상 범위({hip_low}~{hip_high}도)를 벗어났습니다.",
             }
         )
-    if not (shoulder_low <= shoulder_angle <= shoulder_high):
+    if shoulder_forward_lean_deg > SHOULDER_FORWARD_LEAN_THRESHOLD_DEG:
         issues.append(
             {
                 "part": "shoulder",
-                "message": f"어깨가 말려 있습니다({shoulder_angle:.1f}도). 가슴을 펴고 어깨를 뒤로 젖혀주세요.",
+                "message": SHOULDER_FORWARD_LEAN_MESSAGE,
             }
         )
     if heel_lift_ratio > HEEL_LIFT_RATIO_THRESHOLD:
@@ -289,9 +344,25 @@ def judge_static_pose(
     if knee_over_toe_ratio > KNEE_OVER_TOE_RATIO_THRESHOLD:
         issues.append({"part": "knee_over_toe", "message": KNEE_OVER_TOE_MESSAGE})
 
+    # 등 굽음은 hip_calibration.standing_shoulder_hip_ratio(기준값)가 있을 때만 판정할 수
+    # 있다 — 위 BACK_ROUNDING_RATIO_THRESHOLD 주석 참고. 없으면(하위 호환) 검사를 건너뛴다.
+    back_rounding_baseline = (
+        hip_calibration.standing_shoulder_hip_ratio if hip_calibration is not None else None
+    )
+    if back_rounding_baseline is not None:
+        if torso_length_ratio < back_rounding_baseline * BACK_ROUNDING_RATIO_THRESHOLD:
+            issues.append({"part": "back_rounded", "message": BACK_ROUNDED_MESSAGE})
+
     knee_conf = _range_confidence(knee_angle, knee_low, knee_high)
     hip_conf = _range_confidence(hip_angle, hip_low, hip_high)
-    shoulder_conf = _range_confidence(shoulder_angle, shoulder_low, shoulder_high)
+    # 어깨도 이제 범위가 아니라 단일 임계값 비교라(위 SHOULDER_FORWARD_LEAN_THRESHOLD_DEG
+    # 참고) heel_conf와 같은 방식(클수록 이상)을 쓴다 — _range_confidence는 더 이상 안 씀.
+    shoulder_conf = max(
+        0.0,
+        1.0
+        - max(0.0, shoulder_forward_lean_deg - SHOULDER_FORWARD_LEAN_THRESHOLD_DEG)
+        / SHOULDER_FORWARD_LEAN_THRESHOLD_DEG,
+    )
     # 발뒤꿈치는 범위가 아니라 단일 임계값 비교라 _range_confidence를 그대로 쓸 수 없다 —
     # 임계값을 얼마나 넘었는지에 비례해 완만하게 신뢰도를 낮추고, 임계값의 2배 이상
     # 벗어나면 0으로 수렴시킨다(다른 부위의 "여유값 벗어나면 0" 패턴과 동일한 취지).
@@ -303,14 +374,31 @@ def judge_static_pose(
     )
     confidences = [knee_conf, hip_conf, shoulder_conf, heel_conf, knee_over_toe_conf]
 
+    # 등 굽음은 기준값(back_rounding_baseline)이 있을 때만 신뢰도 계산에도 반영한다 —
+    # 기준값이 없으면 애초에 판정을 안 하므로(위 참고) confidences에도 넣지 않는다.
+    # 무릎 모임(valgus)과 같은 방향(작을수록 이상)이라 같은 형태의 공식을 쓴다: 기준값의
+    # BACK_ROUNDING_RATIO_THRESHOLD 배 미만으로 줄어든 정도에 비례해 완만하게 낮추고,
+    # 그 절반까지 더 줄어들면(즉 기준값의 약 42%까지) 0으로 수렴시킨다.
+    if back_rounding_baseline is not None:
+        back_rounding_threshold_value = back_rounding_baseline * BACK_ROUNDING_RATIO_THRESHOLD
+        back_rounding_conf = (
+            1.0
+            if torso_length_ratio >= back_rounding_threshold_value
+            else max(0.0, torso_length_ratio / back_rounding_threshold_value)
+        )
+        confidences.append(back_rounding_conf)
+
     # 응답에 그대로 실어 보낼 원시 값 — 처음엔 정면 랜드마크가 없을 때의 기본값(None)으로
-    # 시작하고, 아래에서 front_landmarks가 있으면 실제 값으로 채운다.
+    # 시작하고, 아래에서 front_landmarks가 있으면 실제 값으로 채운다. torso_length_ratio는
+    # front_landmarks와 무관하게(측면 랜드마크만으로) 항상 계산되므로 바로 채운다.
     angle_values = {
         "knee_angle": round(knee_angle, 1),
         "hip_angle": round(hip_angle, 1),
         "shoulder_angle": round(shoulder_angle, 1),
+        "shoulder_forward_lean_deg": round(shoulder_forward_lean_deg, 1),
         "heel_lift_ratio": round(heel_lift_ratio, 3),
         "knee_over_toe_ratio": round(knee_over_toe_ratio, 3),
+        "torso_length_ratio": round(torso_length_ratio, 3),
         "knee_valgus_ratio": None,
         "knee_asymmetry_deg": None,
     }

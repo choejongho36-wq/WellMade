@@ -12,8 +12,13 @@ RAG 지식베이스 (AI-08/09/14).
   동작 교정 코칭과는 결이 달랐다.
 그래서 이 파일은 rules.py가 이미 쓰고 있는 것과 같은 급의 출처(NASM, ACE, Mayo Clinic,
 Cleveland Clinic, IJSPT)를 참고해 직접 작성한 문서다. 원문을 그대로 옮기지 않고 일반적으로
-알려진 가이드라인을 우리 서비스 상황(스쿼트/런지, MediaPipe 랜드마크 기반 판정)에 맞게
-풀어서 다시 썼다.
+알려진 가이드라인을 우리 서비스 상황(스쿼트, MediaPipe 랜드마크 기반 판정)에 맞게 풀어서
+다시 썼다.
+
+# 2026-08-24: 사용자 요청에 따라 런지 지원을 서비스에서 완전히 제거했다(스쿼트만 지원).
+# 런지 전용 문서였던 "lunge_knee_over_toe"(→ 스쿼트 기준으로 다시 써서 "knee_over_toe"로
+# 대체)와 "general_lunge_form"(삭제)을 여기서 함께 정리했다 — 나머지 문서들의 본문에서도
+# "런지" 언급을 뺐다.
 
 # 골반 비대칭 문서는 다른 문서들과 톤이 다르다 — "교정법"이 아니라 "전문가 상담 권장"으로만
 # 쓰여 있다. 이건 검수 여부와 무관하게 의도적인 설계다: harness.py의 H-02 Human-in-the-loop
@@ -29,9 +34,10 @@ Cleveland Clinic, IJSPT)를 참고해 직접 작성한 문서다. 원문을 그�
 from app.pose.coaching_messages import (
     ASYMMETRY_MESSAGE,
     HEEL_LIFT_MESSAGE,
+    KNEE_OVER_TOE_MESSAGE,
     KNEE_VALGUS_MESSAGE,
-    LUNGE_FORM_MESSAGE,
     SHALLOW_SQUAT_MESSAGE,
+    SHOULDER_FORWARD_LEAN_MESSAGE,
 )
 
 # 이슈 종류(issue_type)/part/ML 라벨명 등 이 프로젝트 여기저기서 쓰이는 여러 표현이
@@ -41,14 +47,14 @@ from app.pose.coaching_messages import (
 KNOWLEDGE_BASE = [
     {
         "id": "knee_valgus",
-        "title": "스쿼트·런지 무릎 모임(Knee Valgus) 교정",
+        "title": "스쿼트 무릎 모임(Knee Valgus) 교정",
         "tags": ["knee_valgus", "무릎 모임", "니밸거스", "무릎 안쪽", "knee", "무릎이 안쪽으로"],
         # 규칙기반 판정(app/pose/rules.py)이 쓰는 것과 같은 문구를 재사용한다 —
         # 같은 이슈에 대해 모듈마다 표현이 미묘하게 달라지는 걸 막기 위함(단일 출처 원칙,
         # app/pose/coaching_messages.py 참고).
         "short_message": KNEE_VALGUS_MESSAGE,
         "body": (
-            "무릎 모임(knee valgus)은 스쿼트나 런지에서 무릎이 발끝보다 안쪽으로 밀려 들어가는 "
+            "무릎 모임(knee valgus)은 스쿼트에서 무릎이 발끝보다 안쪽으로 밀려 들어가는 "
             "현상을 말한다. NASM 등 트레이너 자격 기준 자료들은 이를 대개 엉덩이 바깥쪽 근육"
             "(중둔근 등)의 힘이 상대적으로 약하거나, 무릎을 굽히는 동안 발이 안쪽으로 회전하는 "
             "습관 때문에 나타난다고 설명한다.\n\n"
@@ -127,9 +133,13 @@ KNOWLEDGE_BASE = [
         "id": "shoulder_rounding",
         "title": "어깨 말림(라운드 숄더) 교정",
         "tags": ["shoulder_rounding", "어깨 말림", "라운드 숄더", "shoulder", "굽은 어깨"],
-        "short_message": "어깨가 말려 있어요. 가슴을 펴고 어깨를 뒤로 젖혀주세요.",
+        # 2026-08-24: rules.py/realtime.py의 판정 로직이 shoulder_forward_lean_deg로
+        # 바뀌면서(목 기울기 - 상체 기울기 방식), 원인을 어깨로 단정하지 않는 문구로
+        # coaching_messages.py에서 갱신됐다 — single source of truth 원칙에 따라 여기도
+        # 하드코딩 대신 그 상수를 그대로 가져다 쓴다.
+        "short_message": SHOULDER_FORWARD_LEAN_MESSAGE,
         "body": (
-            "스쿼트나 런지 중 어깨가 앞으로 말리는 것은 흉추(등 윗부분)가 과도하게 굽거나, "
+            "스쿼트 중 어깨가 앞으로 말리는 것은 흉추(등 윗부분)가 과도하게 굽거나, "
             "가슴 근육이 상대적으로 긴장돼 어깨가 앞으로 당겨지기 때문인 경우가 많다고 "
             "설명된다. NASM의 오버헤드 스쿼트 평가 항목에서도 '가슴을 펴고 흉추를 살짝 편 "
             "상태 유지'를 정상 자세의 기준 중 하나로 본다.\n\n"
@@ -162,22 +172,26 @@ KNOWLEDGE_BASE = [
         "source_date": "2026-08",
     },
     {
-        "id": "lunge_knee_over_toe",
-        "title": "런지 무릎이 발끝을 넘는 경우 교정",
-        "tags": ["lunge_knee_over_toe", "런지", "무릎 발끝", "knee"],
-        "short_message": LUNGE_FORM_MESSAGE,
+        # 2026-08-24: 원래 "lunge_knee_over_toe"(런지 전용)였는데, 런지 지원 자체가
+        # 제거되면서 스쿼트 기준 문서로 다시 썼다. short_message도 이 이슈에 실제로 쓰이는
+        # KNEE_OVER_TOE_MESSAGE로 맞췄다 — 기존에는 LUNGE_FORM_MESSAGE(다른 문구)를 썼는데,
+        # get_knee_over_toe_ratio() 판정이 실제로 반환하는 문구와 달라 단일 출처 원칙에
+        # 어긋나 있었다.
+        "id": "knee_over_toe",
+        "title": "무릎이 발끝을 넘는 경우 교정",
+        "tags": ["knee_over_toe", "무릎 발끝", "knee"],
+        "short_message": KNEE_OVER_TOE_MESSAGE,
         "body": (
-            "런지에서 앞다리 무릎이 발끝을 많이 넘어가면 무릎 관절(특히 슬개골 아래쪽)에 "
-            "걸리는 부담이 커질 수 있다고 설명된다. NASM은 상체를 세운 런지('90/90 런지')를 "
-            "기준으로, 하단에서 앞다리·뒷다리 무릎이 각각 약 90도가 되는 자세를 정상 범위로 "
-            "본다.\n\n"
-            "교정 방향은 보폭을 조금 더 넓히거나, '무릎이 발끝을 넘지 않는 선에서 허벅지가 "
-            "바닥과 평행해지는 지점까지만 앉는다'는 감각으로 동작을 조절하는 것이다. 다리 "
-            "길이나 개인 가동범위에 따라 적정 보폭이 다를 수 있으므로, 처음 시도할 때는 평소 "
-            "보폭보다 살짝 넓게 잡고 조정해보는 것을 권장한다."
+            "스쿼트에서 무릎이 발끝을 많이 넘어가면 무릎 관절(특히 슬개골 아래쪽)에 걸리는 "
+            "부담이 커질 수 있다고 설명된다. NASM의 오버헤드 스쿼트 평가에서도 무릎이 발끝을 "
+            "과도하게 넘지 않는 것을 정상 자세의 기준 중 하나로 본다.\n\n"
+            "교정 방향은 '무릎이 발끝을 넘지 않는 선에서 허벅지가 바닥과 평행해지는 지점까지만 "
+            "앉는다'는 감각으로 동작을 조절하는 것이다. 발목 가동범위가 부족하면 무릎이 쉽게 "
+            "발끝을 넘어가므로, 준비 운동으로 발목 스트레칭을 함께 해보는 것도 도움이 될 수 "
+            "있다."
         ),
         "source": "NASM (National Academy of Sports Medicine)",
-        "source_url": "https://blog.nasm.org/training-benefits/lunge-effective-lower-body-training-exercise",
+        "source_url": "https://blog.nasm.org/newletter/squat-form",
         "source_date": "2026-08",
     },
     {
@@ -241,23 +255,6 @@ KNOWLEDGE_BASE = [
         "source_date": "2026-08",
     },
     {
-        "id": "general_lunge_form",
-        "title": "런지 기본 자세 가이드",
-        "tags": ["lunge", "런지", "기본 자세", "general"],
-        "short_message": "앞다리·뒷다리 무릎이 모두 약 90도가 되도록, 상체는 세운 채로 곧게 내려가주세요.",
-        "body": (
-            "NASM은 상체를 세운 런지를 '90/90 런지'라고 부르며, 하단 자세에서 앞다리·뒷다리 "
-            "무릎이 각각 약 90도를 이루는 것을 기준으로 제시한다. 앞으로 한 걸음 내딛은 뒤, "
-            "상체를 곧게 세운 채로 뒷무릎이 바닥 가까이 내려갈 때까지 수직으로 앉는 동작이다.\n\n"
-            "흔한 실수는 앞무릎이 발끝을 많이 넘어가거나, 상체가 앞으로 쏠리는 것이다. 보폭을 "
-            "충분히 넓게 잡고, 뒷다리보다 앞다리에 체중 중심을 두되 상체는 수직을 유지한다는 "
-            "느낌으로 연습하면 두 가지 실수를 동시에 줄이는 데 도움이 된다."
-        ),
-        "source": "NASM (National Academy of Sports Medicine)",
-        "source_url": "https://blog.nasm.org/training-benefits/lunge-effective-lower-body-training-exercise",
-        "source_date": "2026-08",
-    },
-    {
         "id": "warmup_cooldown",
         "title": "준비운동·마무리 스트레칭 일반 가이드",
         "tags": ["warmup", "cooldown", "준비운동", "스트레칭", "마무리"],
@@ -265,7 +262,7 @@ KNOWLEDGE_BASE = [
         "body": (
             "일반적으로 운동 전에는 관절을 움직이며 체온을 올리는 동적 스트레칭(예: 다리 "
             "스윙, 몸통 회전)이, 운동 후에는 한 자세를 20~30초 정도 유지하며 근육을 늘리는 "
-            "정적 스트레칭이 권장된다고 알려져 있다. 스쿼트·런지처럼 하체 위주의 운동이라면 "
+            "정적 스트레칭이 권장된다고 알려져 있다. 스쿼트처럼 하체 위주의 운동이라면 "
             "고관절 굴곡근, 햄스트링, 종아리(비복근)를 중심으로 마무리 스트레칭을 하는 것이 "
             "흔히 권장된다.\n\n"
             "한국산업안전보건공단(KOSHA)이 배포한 직업병 예방 스트레칭 자료도 같은 맥락에서, "
