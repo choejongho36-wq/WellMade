@@ -83,20 +83,17 @@ def _std_dev(values: list[float]) -> float:
 
 def judge_realtime_coaching(
     angle_history: list[AngleFrame],
-    exercise_type: str,
     hip_calibration: HipFlexibilityCalibration | None = None,
 ) -> dict:
     """
     최근 N프레임의 무릎/엉덩이 각도 시계열을 보고
-    (1) 현재 동작 단계, (2) 정상/이상 여부, (3) 신뢰도를 판정한다.
+    (1) 현재 동작 단계, (2) 정상/이상 여부, (3) 신뢰도를 판정한다(스쿼트 전용 — 2026-08-24
+    런지 지원 제거와 함께 exercise_type 파라미터도 없앴다. rules.py의 NORMAL_RANGES가
+    종목별 중첩 딕셔너리에서 평범한 상수로 단순화된 것과 같은 이유).
 
     반환값을 dict로 두는 이유는 rules.judge_static_pose와 동일 — main.py가 API 응답으로
     감싸기 전, 하네스(AI-07)에서도 그대로 재사용할 수 있는 순수 값 형태를 유지하기 위함.
     """
-    ranges = NORMAL_RANGES.get(exercise_type)
-    if ranges is None:
-        raise ValueError(f"지원하지 않는 운동 종목: {exercise_type}")
-
     issues: list[dict] = []
 
     # 프레임이 너무 적으면 추세를 신뢰할 수 없다. 예외를 던지는 대신 "정지"로 잠정 판단하고
@@ -147,13 +144,13 @@ def judge_realtime_coaching(
 
     latest_knee = knee_series[-1]
     latest_hip = hip_series[-1]
-    knee_low, knee_high = ranges["knee_angle"]
+    knee_low, knee_high = NORMAL_RANGES["knee_angle"]
     # rules.judge_static_pose와 동일한 이유로 hip_angle만 개인별 캘리브레이션으로 바꿔치기한다
     # (knee_angle은 문헌 기준 보편성이 있지만 hip_angle은 개인차가 커서 고정값이 부적절함).
     if hip_calibration is not None:
         hip_low, hip_high = personalized_hip_range(hip_calibration)
     else:
-        hip_low, hip_high = ranges["hip_angle"]
+        hip_low, hip_high = NORMAL_RANGES["hip_angle"]
 
     # --- (2) 정상/이상 판정 ---
     # 움직임 자체가 떨리듯 불규칙하면(단순 카메라 노이즈가 아니라 자세가 흔들리는 경우 포함)

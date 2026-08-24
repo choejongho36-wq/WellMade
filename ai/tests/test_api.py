@@ -49,7 +49,6 @@ def test_health():
 def test_pose_analyze_standing_is_abnormal_for_squat_bottom():
     body = {
         "landmarks": make_landmarks("standing"),
-        "exercise_type": "squat",
         "side": "left",
     }
     res = client.post("/ai/pose/analyze", json=body)
@@ -60,7 +59,6 @@ def test_pose_analyze_standing_is_abnormal_for_squat_bottom():
 def test_pose_analyze_deep_squat_is_normal():
     body = {
         "landmarks": make_landmarks("deep"),
-        "exercise_type": "squat",
         "side": "left",
     }
     res = client.post("/ai/pose/analyze", json=body)
@@ -77,7 +75,7 @@ def test_pose_analyze_rounded_shoulder_flagged():
     lms = make_landmarks("standing")
     lms[31] = landmark(0.7, 1.0)  # LEFT_FOOT_INDEX (발목(0.5,1.0)보다 오른쪽 -> facing_direction=+1)
     lms[7] = landmark(0.65, 0.1)  # LEFT_EAR가 어깨(0.5,0.2)보다 훨씬 앞(facing_direction 쪽)으로 나감
-    body = {"landmarks": lms, "exercise_type": "squat", "side": "left"}
+    body = {"landmarks": lms, "side": "left"}
     res = client.post("/ai/pose/analyze", json=body)
     print("pose_analyze(rounded shoulder):", res.status_code, res.json())
     assert res.status_code == 200
@@ -97,7 +95,7 @@ def test_pose_analyze_forward_lean_with_level_head_not_flagged_as_shoulder():
     lms[25] = landmark(0.4738, 0.5901)  # LEFT_KNEE
     lms[27] = landmark(0.5708, 0.8772)  # LEFT_ANKLE
     lms[31] = landmark(0.4955, 0.9372)  # LEFT_FOOT_INDEX
-    body = {"landmarks": lms, "exercise_type": "squat", "side": "left"}
+    body = {"landmarks": lms, "side": "left"}
     res = client.post("/ai/pose/analyze", json=body)
     print("pose_analyze(forward lean, level head):", res.status_code, res.json())
     assert res.status_code == 200
@@ -112,7 +110,7 @@ def test_coaching_frame_descending():
         {"timestamp": i * 0.1, "knee_angle": 175 - i * 8, "hip_angle": 170 - i * 7}
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(descending):", res.status_code, res.json())
     assert res.status_code == 200
@@ -126,7 +124,7 @@ def test_coaching_frame_holding_at_bottom_normal():
         {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)}
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(holding@bottom):", res.status_code, res.json())
     assert res.status_code == 200
@@ -149,7 +147,7 @@ def test_coaching_frame_holding_shoulder_rounded_flagged():
         }
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(holding, rounded shoulder):", res.status_code, res.json())
     assert res.status_code == 200
@@ -170,7 +168,7 @@ def test_coaching_frame_negative_shoulder_lean_not_flagged():
         }
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(negative shoulder lean):", res.status_code, res.json())
     assert res.status_code == 200
@@ -184,7 +182,7 @@ def test_coaching_frame_without_shoulder_fields_still_works():
     angle_history = [
         {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(no shoulder fields):", res.status_code, res.json())
     assert res.status_code == 200
@@ -198,7 +196,7 @@ def test_coaching_frame_holding_halfway_abnormal():
         {"timestamp": i * 0.1, "knee_angle": 130 + (i % 2), "hip_angle": 150}
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(holding halfway):", res.status_code, res.json())
     assert res.status_code == 200
@@ -213,7 +211,7 @@ def test_coaching_frame_jittery_movement_flagged():
     angle_history = [
         {"timestamp": i * 0.1, "knee_angle": v, "hip_angle": 150} for i, v in enumerate(values)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(jittery):", res.status_code, res.json())
     assert res.status_code == 200
@@ -223,7 +221,7 @@ def test_coaching_frame_jittery_movement_flagged():
 
 def test_coaching_frame_insufficient_frames():
     angle_history = [{"timestamp": 0.0, "knee_angle": 170, "hip_angle": 160}]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(insufficient):", res.status_code, res.json())
     assert res.status_code == 200
@@ -318,14 +316,13 @@ def test_coaching_frame_hip_calibration_changes_normal_judgement():
         {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 130} for i in range(10)
     ]
 
-    body_without_calibration = {"exercise_type": "squat", "angle_history": angle_history}
+    body_without_calibration = {"angle_history": angle_history}
     res_without = client.post("/ai/coaching/frame", json=body_without_calibration)
     print("coaching_frame(no calibration, hip=130):", res_without.status_code, res_without.json())
     assert res_without.status_code == 200
     assert res_without.json()["is_normal"] is False
 
     body_with_calibration = {
-        "exercise_type": "squat",
         "angle_history": angle_history,
         "hip_calibration": {"standing_hip_angle": 178, "max_flex_hip_angle": 118},
     }
@@ -791,7 +788,7 @@ def make_heel_landmarks(heel_state="flat"):
 
 
 def test_pose_analyze_heel_flat_not_flagged():
-    body = {"landmarks": make_heel_landmarks("flat"), "exercise_type": "squat", "side": "left"}
+    body = {"landmarks": make_heel_landmarks("flat"), "side": "left"}
     res = client.post("/ai/pose/analyze", json=body)
     print("pose_analyze(heel flat):", res.status_code, res.json())
     assert res.status_code == 200
@@ -800,7 +797,7 @@ def test_pose_analyze_heel_flat_not_flagged():
 
 
 def test_pose_analyze_heel_raised_flagged():
-    body = {"landmarks": make_heel_landmarks("raised"), "exercise_type": "squat", "side": "left"}
+    body = {"landmarks": make_heel_landmarks("raised"), "side": "left"}
     res = client.post("/ai/pose/analyze", json=body)
     print("pose_analyze(heel raised):", res.status_code, res.json())
     assert res.status_code == 200
@@ -819,7 +816,7 @@ def test_coaching_frame_heel_lift_flagged_when_deep_hold():
         }
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(heel lift, deep hold):", res.status_code, res.json())
     assert res.status_code == 200
@@ -833,7 +830,7 @@ def test_coaching_frame_without_heel_lift_field_still_works():
     angle_history = [
         {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(no heel_lift_ratio field):", res.status_code, res.json())
     assert res.status_code == 200
@@ -853,7 +850,7 @@ def test_coaching_frame_heel_lift_ignored_while_standing():
         }
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(heel lift while standing):", res.status_code, res.json())
     assert res.status_code == 200
@@ -924,7 +921,6 @@ def test_pose_analyze_front_landmarks_valgus_flagged():
     body = {
         "landmarks": make_heel_landmarks("flat"),  # 측면 랜드마크 — 발뒤꿈치/무릎/엉덩이는 정상
         "front_landmarks": make_front_squat_landmarks("valgus"),
-        "exercise_type": "squat",
         "side": "left",
     }
     res = client.post("/ai/pose/analyze", json=body)
@@ -938,7 +934,6 @@ def test_pose_analyze_front_landmarks_asymmetric_flagged():
     body = {
         "landmarks": make_heel_landmarks("flat"),
         "front_landmarks": make_front_squat_landmarks("asymmetric"),
-        "exercise_type": "squat",
         "side": "left",
     }
     res = client.post("/ai/pose/analyze", json=body)
@@ -950,7 +945,7 @@ def test_pose_analyze_front_landmarks_asymmetric_flagged():
 
 def test_pose_analyze_without_front_landmarks_skips_frontal_checks():
     # front_landmarks 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
-    body = {"landmarks": make_heel_landmarks("flat"), "exercise_type": "squat", "side": "left"}
+    body = {"landmarks": make_heel_landmarks("flat"), "side": "left"}
     res = client.post("/ai/pose/analyze", json=body)
     print("pose_analyze(no front_landmarks):", res.status_code, res.json())
     assert res.status_code == 200
@@ -968,7 +963,7 @@ def test_coaching_frame_knee_valgus_flagged_when_deep_hold():
         }
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(knee valgus, deep hold):", res.status_code, res.json())
     assert res.status_code == 200
@@ -987,7 +982,7 @@ def test_coaching_frame_knee_asymmetry_flagged_when_deep_hold():
         }
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(knee asymmetry, deep hold):", res.status_code, res.json())
     assert res.status_code == 200
@@ -1001,7 +996,7 @@ def test_coaching_frame_without_frontal_fields_still_works():
     angle_history = [
         {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(no frontal fields):", res.status_code, res.json())
     assert res.status_code == 200
@@ -1076,7 +1071,7 @@ def make_knee_over_toe_landmarks(state="normal"):
 
 
 def test_pose_analyze_knee_over_toe_normal_not_flagged():
-    body = {"landmarks": make_knee_over_toe_landmarks("normal"), "exercise_type": "squat", "side": "left"}
+    body = {"landmarks": make_knee_over_toe_landmarks("normal"), "side": "left"}
     res = client.post("/ai/pose/analyze", json=body)
     print("pose_analyze(knee not over toe):", res.status_code, res.json())
     assert res.status_code == 200
@@ -1085,7 +1080,7 @@ def test_pose_analyze_knee_over_toe_normal_not_flagged():
 
 
 def test_pose_analyze_knee_over_toe_flagged():
-    body = {"landmarks": make_knee_over_toe_landmarks("past"), "exercise_type": "squat", "side": "left"}
+    body = {"landmarks": make_knee_over_toe_landmarks("past"), "side": "left"}
     res = client.post("/ai/pose/analyze", json=body)
     print("pose_analyze(knee over toe):", res.status_code, res.json())
     assert res.status_code == 200
@@ -1093,15 +1088,21 @@ def test_pose_analyze_knee_over_toe_flagged():
     assert any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
 
 
-def test_pose_analyze_rejects_lunge_exercise_type():
-    # 2026-08-24: 사용자 요청으로 런지 지원이 완전히 제거됐다(schemas.py의 ExerciseType이
-    # "squat" 하나만 허용). exercise_type="lunge" 요청은 이제 핸들러까지 가지도 못하고
-    # Pydantic 검증 단계에서 422로 걸려야 한다 — 예전엔 이 값이 정상 처리됐던 것과 대비되는
-    # 회귀 테스트.
-    body = {"landmarks": make_knee_over_toe_landmarks("past"), "exercise_type": "lunge", "side": "left"}
+def test_pose_analyze_ignores_legacy_exercise_type_field():
+    # 2026-08-24: exercise_type 필드 자체를 스키마에서 제거했다(종목이 스쿼트 하나뿐이라
+    # 값이 항상 같아서 실질적인 정보가 없었기 때문 — schemas.py 주석 참고). 이 필드를
+    # 아직 보내는 예전 클라이언트가 있어도 요청이 깨지면 안 되므로, Pydantic 기본 동작대로
+    # 모르는 필드는 조용히 무시되고(422 아님) 나머지 판정은 정상 동작해야 한다는 회귀 테스트.
+    body = {
+        "landmarks": make_knee_over_toe_landmarks("past"),
+        "exercise_type": "lunge",  # 더 이상 스키마에 없는 필드 — 무시되어야 함
+        "side": "left",
+    }
     res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(exercise_type=lunge, rejected):", res.status_code, res.json())
-    assert res.status_code == 422
+    print("pose_analyze(legacy exercise_type field ignored):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
 
 
 def test_coaching_frame_knee_over_toe_flagged_when_deep_hold():
@@ -1114,7 +1115,7 @@ def test_coaching_frame_knee_over_toe_flagged_when_deep_hold():
         }
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(knee over toe, deep hold):", res.status_code, res.json())
     assert res.status_code == 200
@@ -1128,7 +1129,7 @@ def test_coaching_frame_without_knee_over_toe_field_still_works():
     angle_history = [
         {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(no knee_over_toe_ratio field):", res.status_code, res.json())
     assert res.status_code == 200
@@ -1193,7 +1194,6 @@ def _calibration_with_baseline(standing_shoulder_hip_ratio=1.5):
 def test_pose_analyze_back_rounded_flagged_with_calibration():
     body = {
         "landmarks": make_torso_landmarks("rounded"),
-        "exercise_type": "squat",
         "side": "left",
         "hip_calibration": _calibration_with_baseline(),
     }
@@ -1208,7 +1208,6 @@ def test_pose_analyze_back_rounded_flagged_with_calibration():
 def test_pose_analyze_back_straight_not_flagged_with_calibration():
     body = {
         "landmarks": make_torso_landmarks("straight"),
-        "exercise_type": "squat",
         "side": "left",
         "hip_calibration": _calibration_with_baseline(),
     }
@@ -1222,7 +1221,7 @@ def test_pose_analyze_back_straight_not_flagged_with_calibration():
 def test_pose_analyze_back_rounded_not_flagged_without_baseline():
     # hip_calibration 자체가 없으면(기존 클라이언트, 하위 호환) 등 굽음이 실제로 심해도 검사를
     # 건너뛴다 — 기준값 없이는 판단할 수 없다는 게 이 지표의 설계 전제이기 때문.
-    body = {"landmarks": make_torso_landmarks("rounded"), "exercise_type": "squat", "side": "left"}
+    body = {"landmarks": make_torso_landmarks("rounded"), "side": "left"}
     res = client.post("/ai/pose/analyze", json=body)
     print("pose_analyze(back rounded, no calibration):", res.status_code, res.json())
     assert res.status_code == 200
@@ -1243,7 +1242,6 @@ def test_coaching_frame_back_rounded_flagged_when_deep_hold():
         for i in range(10)
     ]
     body = {
-        "exercise_type": "squat",
         "angle_history": angle_history,
         "hip_calibration": _calibration_with_baseline(),
     }
@@ -1267,7 +1265,6 @@ def test_coaching_frame_back_rounded_ignored_while_standing():
         for i in range(10)
     ]
     body = {
-        "exercise_type": "squat",
         "angle_history": angle_history,
         "hip_calibration": _calibration_with_baseline(),
     }
@@ -1290,7 +1287,7 @@ def test_coaching_frame_back_rounded_ignored_without_baseline():
         }
         for i in range(10)
     ]
-    body = {"exercise_type": "squat", "angle_history": angle_history}
+    body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(back rounded, no baseline):", res.status_code, res.json())
     assert res.status_code == 200
@@ -1304,7 +1301,6 @@ def test_coaching_frame_without_torso_length_ratio_field_still_works():
         {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
     ]
     body = {
-        "exercise_type": "squat",
         "angle_history": angle_history,
         "hip_calibration": _calibration_with_baseline(),
     }
@@ -1438,7 +1434,7 @@ if __name__ == "__main__":
     test_get_knee_over_toe_ratio_facing_left_direction_still_correct()
     test_pose_analyze_knee_over_toe_normal_not_flagged()
     test_pose_analyze_knee_over_toe_flagged()
-    test_pose_analyze_rejects_lunge_exercise_type()
+    test_pose_analyze_ignores_legacy_exercise_type_field()
     test_coaching_frame_knee_over_toe_flagged_when_deep_hold()
     test_coaching_frame_without_knee_over_toe_field_still_works()
     test_get_torso_length_ratio_rounded_back_is_smaller_than_straight()

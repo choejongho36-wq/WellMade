@@ -4,11 +4,10 @@ import { usePoseLandmarker } from './components/usePoseLandmarker.js'
 
 const AI_BASE = 'http://localhost:8000'
 
-// 2026-08-24: 사용자 요청에 따라 런지 지원을 제거했다(스쿼트만 지원) — 백엔드
-// schemas.py의 ExerciseType도 함께 "squat" 하나만 남도록 좁혔다.
-const EXERCISES = {
-  squat: { label: '스쿼트' },
-}
+// 2026-08-24: 런지 지원 제거 후 종목이 스쿼트 하나만 남았다가, "선택지가 하나뿐인데
+// exercise_type을 굳이 요청마다 보낼 필요가 있냐"는 지적에 따라 백엔드 schemas.py에서
+// exercise_type 필드 자체를 없앴다. 프론트도 같은 이유로 종목 선택 UI(버튼 로우)와
+// EXERCISES 상수, exercise state를 완전히 제거하고 항상 스쿼트 판정만 요청하도록 단순화.
 
 // AI 서버(app/pose/angles.py)가 각도 계산에 실제로 쓰는 관절 인덱스와 동일하게 맞춤.
 // 여기 없는 나머지 랜드마크(손가락/얼굴 세부 등)는 옅은 점으로만 표시한다.
@@ -180,7 +179,6 @@ function drawLandmarks(imgEl, canvasEl, landmarks) {
 // 정면 사진을 동시에 보내 규칙기반 판정 전체(무릎/엉덩이/어깨/발뒤꿈치 + 무릎 모임/좌우
 // 비대칭)를 한 번에 확인하는 용도로 재구성했다.
 function MlTestPage() {
-  const [exercise, setExercise] = useState('squat')
   const [sideImageUrl, setSideImageUrl] = useState(null)
   const [frontImageUrl, setFrontImageUrl] = useState(null)
   const [sideLandmarks, setSideLandmarks] = useState(null)
@@ -295,7 +293,6 @@ function MlTestPage() {
     const hasFullCalibration = calibStandingHipAngle != null && calibMaxFlexHipAngle != null
     const body = {
       landmarks: sideLandmarks,
-      exercise_type: exercise,
       ...(frontLandmarks ? { front_landmarks: frontLandmarks } : {}),
       ...(hasFullCalibration
         ? {
@@ -331,29 +328,6 @@ function MlTestPage() {
               <div className="section-eyebrow">POSE TEST</div>
               <div className="section-title">스쿼트 규칙기반 판정 테스트 (측면+정면)</div>
             </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            {Object.entries(EXERCISES).map(([key, { label }]) => (
-              <button
-                key={key}
-                onClick={() => {
-                  setExercise(key)
-                  setResult(null)
-                  setStatus('')
-                }}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 6,
-                  border: '1px solid #444',
-                  background: exercise === key ? '#e6432b' : 'transparent',
-                  color: '#fff',
-                  cursor: 'pointer',
-                }}
-              >
-                {label}
-              </button>
-            ))}
           </div>
 
           <p className="pcard-desc" style={{ marginBottom: 12 }}>

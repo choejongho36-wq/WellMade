@@ -64,7 +64,6 @@ def analyze_pose(request: PoseAnalyzeRequest):
     """
     result = judge_static_pose(
         request.landmarks,
-        request.exercise_type,
         hip_calibration=request.hip_calibration,
         front_landmarks=request.front_landmarks,
     )
@@ -91,9 +90,7 @@ def coaching_frame(request: CoachingFrameRequest):
     이 엔드포인트는 원본 좌표를 받지 않으므로, 정면 촬영을 지원하려면 이 두 값을 프레임마다
     함께 보내야 한다(app/schemas.py의 AngleFrame 참고).
     """
-    result = judge_realtime_coaching(
-        request.angle_history, request.exercise_type, hip_calibration=request.hip_calibration
-    )
+    result = judge_realtime_coaching(request.angle_history, hip_calibration=request.hip_calibration)
 
     return CoachingFrameResponse(
         phase=result["phase"],

@@ -129,13 +129,14 @@ from app.schemas import HipFlexibilityCalibration, Landmark
 # 사용자 테스트 후 조정 필요. shoulder_angle은 2026-08-24부터 이 딕셔너리에서 빠졌다 —
 # 판정에는 더 이상 안 쓰이고(위 [어깨 정렬] 주석 참고), get_shoulder_alignment_angle()로
 # 계산한 값은 참고용으로만 응답(angles)에 노출된다.
+# 2026-08-24: 원래 "종목 이름 -> 범위" 형태의 중첩 딕셔너리(NORMAL_RANGES["squat"][...])
+# 였는데, 런지 지원 제거로 "squat" 키 하나만 남게 되면서 이 중첩 구조 자체가 무의미해졌다.
+# schemas.py의 exercise_type 필드도 같은 이유(값이 항상 "squat" 하나뿐이라 정보가 없음)로
+# 함께 제거했다 — 이제 이 값은 스쿼트 판정에서만 쓰이는 평범한 상수다. 나중에 종목이
+# 다시 여러 개가 되면, 그때 다시 "종목 -> 범위" 딕셔너리로 되돌리면 된다(git 히스토리 참고).
 NORMAL_RANGES = {
-    "squat": {
-        "knee_angle": (30, 120),  # (2026-08-21) 상하한 20도씩 확대(50~100→30~120), 위 주석 참고
-        "hip_angle": (25, 120),  # (2026-08-21) 위와 같은 이유로 상하한 확대(45~100→25~120), 위 주석 참고
-    },
-    # "lunge" 키는 2026-08-24 사용자 요청으로 제거됐다(위 [런지] 절 참고). schemas.py의
-    # ExerciseType도 함께 "squat"만 남도록 좁혀서, 애초에 여기까지 "lunge"가 안 들어온다.
+    "knee_angle": (30, 120),  # (2026-08-21) 상하한 20도씩 확대(50~100→30~120), 위 주석 참고
+    "hip_angle": (25, 120),  # (2026-08-21) 위와 같은 이유로 상하한 확대(45~100→25~120), 위 주석 참고
 }
 
 # 정상범위를 살짝 벗어나도 confidence가 완만하게 낮아지도록, "이만큼 벗어나면 신뢰도 0"으로
@@ -278,13 +279,14 @@ def _range_confidence(value: float, low: float, high: float) -> float:
 
 def judge_static_pose(
     landmarks: list[Landmark],
-    exercise_type: str,
     side: str = "auto",
     hip_calibration: HipFlexibilityCalibration | None = None,
     front_landmarks: list[Landmark] | None = None,
 ) -> dict:
     """
-    정지 자세 1장을 규칙기반으로 판정한다.
+    정지 자세 1장을 규칙기반으로 판정한다(스쿼트 전용 — 2026-08-24 런지 지원 제거와 함께
+    exercise_type 파라미터도 없앴다. 값이 항상 "squat" 하나뿐이라 실질적인 정보가 없었고,
+    NORMAL_RANGES도 종목별 중첩 딕셔너리에서 평범한 상수로 단순화됐다).
 
     front_landmarks(정면 촬영, 2026-08-21 추가)는 선택 입력이다 — 없으면 무릎 모임/좌우
     비대칭 검사를 건너뛰고 기존(측면 전용)과 동일하게 동작한다(하위 호환). 있으면 두 검사를
@@ -294,10 +296,6 @@ def judge_static_pose(
     하네스(AI-07)나 세션 리포트(AI-12) 같은 다른 모듈에서도 가볍게 재사용할 수 있도록
     순수 값 형태를 유지하기 위함 (불필요하게 스키마 모듈에 의존하지 않게 함).
     """
-    ranges = NORMAL_RANGES.get(exercise_type)
-    if ranges is None:
-        raise ValueError(f"지원하지 않는 운동 종목: {exercise_type}")
-
     knee_angle = get_knee_angle(landmarks, side)
     hip_angle = get_hip_angle(landmarks, side)
     # shoulder_angle(절대각도)은 더 이상 판정에는 안 쓰이고 참고용으로만 응답에 노출한다 —
@@ -308,14 +306,14 @@ def judge_static_pose(
     knee_over_toe_ratio = get_knee_over_toe_ratio(landmarks, side)
     torso_length_ratio = get_torso_length_ratio(landmarks, side)
 
-    knee_low, knee_high = ranges["knee_angle"]
+    knee_low, knee_high = NORMAL_RANGES["knee_angle"]
     # hip_angle만 개인별로 바꿔치기하는 이유: knee_angle은 문헌상 인구 전체에 어느 정도
     # 보편적인 기준(IJSPT 논문)이 있지만, hip_angle은 그 문헌이 스스로 "개인차가 커서 고정값
     # 부적절"이라고 밝힌 값이기 때문 — 캘리브레이션이 있으면 그걸로, 없으면 기존 고정값으로.
     if hip_calibration is not None:
         hip_low, hip_high = personalized_hip_range(hip_calibration)
     else:
-        hip_low, hip_high = ranges["hip_angle"]
+        hip_low, hip_high = NORMAL_RANGES["hip_angle"]
 
     issues = []
     if not (knee_low <= knee_angle <= knee_high):

@@ -11,11 +11,12 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
-# 지원 종목. 새 종목을 추가할 땐 이 타입과 rules.py의 NORMAL_RANGES를 함께 확장해야 한다.
-# 2026-08-24: 사용자 요청에 따라 런지 지원을 완전히 제거했다(스쿼트만 지원) — 이전에 있던
-# "lunge" 값을 여기서 뺀 뒤 rules.py의 NORMAL_RANGES에서도 "lunge" 키를 함께 제거했다.
-# exercise_type="lunge"로 오는 요청은 이제 Pydantic이 422로 바로 거른다.
-ExerciseType = Literal["squat"]
+# 2026-08-24: 런지 지원을 제거하며(스쿼트만 지원) exercise_type 필드 자체를 없앴다 —
+# "값이 사실상 항상 squat 하나뿐인 필드를 굳이 요청마다 받을 필요가 있냐"는 사용자 지적에
+# 따른 결정. 종목이 스쿼트 하나뿐인 지금은 이 필드가 정보를 전혀 담지 못했고(항상 같은 값),
+# 오히려 "확장 가능해 보이지만 실제로는 squat 외 값이 전부 422로 막히는" 혼란만 줬다. 다시
+# 운동 종목을 여러 개 지원하게 되면(예: 런지 재도입), 그때 이 필드를 되살리고 rules.py의
+# NORMAL_RANGES도 다시 종목별로 나누면 된다 — 관련 이력은 git에 그대로 남아있다.
 
 # 측면 촬영이 전제이므로 좌/우 중 어느 쪽 옆모습인지가 필요하다.
 # "auto"는 서버가 visibility(카메라에 보이는 정도)를 보고 알아서 더 신뢰도 높은 쪽을 선택하게 한다.
@@ -69,7 +70,6 @@ class PoseAnalyzeRequest(BaseModel):
     landmarks: List[Landmark] = Field(
         ..., min_length=33, max_length=33, description="MediaPipe Pose 33개 관절 좌표 (인덱스 순서 고정, 측면 촬영)"
     )
-    exercise_type: ExerciseType
     side: Side = "auto"
     hip_calibration: Optional[HipFlexibilityCalibration] = Field(
         None, description="개인별 고관절 유연성 캘리브레이션 결과. 없으면 고정 NORMAL_RANGES로 판정."
@@ -214,7 +214,6 @@ class CoachingFrameRequest(BaseModel):
     프론트는 매 호출마다 "최근 N프레임 윈도우"를 통째로 보낸다 (단일 프레임이 아님).
     단일 프레임만으로는 "지금 굽히는 중인지 펴는 중인지" 방향을 알 수 없기 때문."""
 
-    exercise_type: ExerciseType
     angle_history: List[AngleFrame] = Field(
         ...,
         min_length=1,
