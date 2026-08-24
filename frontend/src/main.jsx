@@ -6,6 +6,7 @@ import MainPage from './MainPage.jsx'
 import MyPage from './MyPage.jsx'
 import PosturePage from './PosturePage.jsx'
 import MlTestPage from './MlTestPage.jsx'
+import DietPage from './DietPage.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -14,6 +15,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/" element={<MainPage />} />
         <Route path="/mypage" element={<MyPage />} />
         <Route path="/posture" element={<PosturePage />} />
+        <Route path="/diet" element={<DietPage />} />
         <Route path="/ml-test" element={<MlTestPage />} />
         <Route path="/oauth/redirect" element={<MainPage />} />
       </Routes>
