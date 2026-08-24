@@ -1,7 +1,15 @@
 """
 빠른 수동 검증용 스크립트 (정식 테스트 스위트 아님, 임시 확인용).
-- 정지 자세 판정(/ai/pose/analyze)과 실시간 코칭 판정(/ai/coaching/frame)이
-  기대한 방향으로 동작하는지 TestClient로 확인한다.
+- 실시간 코칭 판정(/ai/coaching/frame) 등 AI 엔드포인트가 기대한 방향으로 동작하는지
+  TestClient로 확인한다.
+
+(2026-08-24) 원래는 정지 자세 판정(/ai/pose/analyze, AI-03)도 함께 검증했다. 사용자가
+업로드한 서비스 흐름도를 기준으로 "정지자세 촬영 관련 부분은 다른 팀원이 맡기로 했다"며
+AI-03 삭제를 요청해(동년배 비교 인사이트 AI-15는 예외로 유지), 그 엔드포인트와 전용 각도
+계산 함수들(app/pose/angles.py)이 제거되며 관련 테스트도 함께 삭제했다 — 원래 테스트는
+git 히스토리 참고. 삭제된 판정 로직 중 실시간 코칭(AI-06)이 여전히 쓰는 부분(어깨 말림/
+발뒤꿈치 뜸/무릎 모임/좌우 비대칭/무릎-발끝/등 굽음 임계값 비교)은 test_coaching_frame_*
+테스트들이 계속 검증한다.
 """
 
 import os
@@ -10,7 +18,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.pose.rules import personalized_hip_range, HEEL_LIFT_RATIO_THRESHOLD
-from app.schemas import HipFlexibilityCalibration, Landmark
+from app.schemas import HipFlexibilityCalibration
 from app.orchestration.harness import decide_next_action, API_KEY_ENV_VAR, DEFAULT_MODEL_ENV_VAR
 from app.rag.retrieval import search as rag_search
 from app.rag.generation import generate_guide, generate_qna
@@ -23,21 +31,10 @@ def landmark(x=0.5, y=0.5, z=0.0, visibility=0.9):
     return {"x": x, "y": y, "z": z, "visibility": visibility}
 
 
-def make_landmarks(knee_bend_deg="standing"):
-    """33개 landmark 중 스쿼트 판정에 쓰이는 귀/어깨/엉덩이/무릎/발목만 의미 있게 채우고
-    나머지는 더미로 채운 뒤, 무릎 각도가 대략 원하는 상태가 되도록 좌표를 잡는다."""
-    lms = [landmark() for _ in range(33)]
-    # 왼쪽 다리를 옆에서 본 형태로 배치: 엉덩이(23) - 무릎(25) - 발목(27)
-    lms[7] = landmark(0.5, 0.05)  # LEFT_EAR (어깨 바로 위 -> 어깨 정렬 기본값은 "정상"으로 둠)
-    lms[11] = landmark(0.5, 0.2)  # LEFT_SHOULDER
-    lms[23] = landmark(0.5, 0.5)  # LEFT_HIP
-    if knee_bend_deg == "standing":
-        lms[25] = landmark(0.5, 0.75)  # LEFT_KNEE (거의 일직선 -> 각도 180 근처)
-        lms[27] = landmark(0.5, 1.0)  # LEFT_ANKLE
-    else:  # "deep" : 무릎을 굽힌 하단 자세 (약 90도)
-        lms[25] = landmark(0.5, 0.75)  # LEFT_KNEE
-        lms[27] = landmark(0.75, 0.75)  # LEFT_ANKLE (무릎에서 옆으로 꺾임 -> 약 90도)
-    return [lm for lm in lms]
+# (2026-08-24) make_landmarks()(측면 촬영 33개 landmark를 스쿼트 정지 자세로 채우는 헬퍼)가
+# 이 자리에 있었다 — /ai/pose/analyze(AI-03) 테스트 전용이었는데, 그 엔드포인트 자체가
+# 삭제되며(위 주석 참고) 더 이상 쓰는 곳이 없어져 함께 삭제했다. 아래 posture-insight(AI-15)
+# 테스트가 쓰는 landmark()/make_front_view_landmarks()는 이것과 무관하게 그대로 남아있다.
 
 
 def test_health():
@@ -46,62 +43,12 @@ def test_health():
     print("health:", res.json())
 
 
-def test_pose_analyze_standing_is_abnormal_for_squat_bottom():
-    body = {
-        "landmarks": make_landmarks("standing"),
-        "side": "left",
-    }
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(standing):", res.status_code, res.json())
-    assert res.status_code == 200
-
-
-def test_pose_analyze_deep_squat_is_normal():
-    body = {
-        "landmarks": make_landmarks("deep"),
-        "side": "left",
-    }
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(deep):", res.status_code, res.json())
-    assert res.status_code == 200
-
-
-def test_pose_analyze_rounded_shoulder_flagged():
-    # 상체(엉덩이-어깨)는 수직으로 곧게 선 채(torso_tilt=0), 귀(7)만 어깨보다 훨씬 앞으로
-    # 뺀 자세 -> 목이 상체보다 크게 앞으로 기운 "진짜" 어깨 말림이므로 감지돼야 함.
-    # (2026-08-24: shoulder_forward_lean_deg로 판정 방식이 바뀌면서, facing_direction
-    # 판별에 쓰이는 발끝(31) 랜드마크가 있어야 판정이 가능해져 make_landmarks("standing")에는
-    # 없는 이 좌표를 추가했다 — angles.py의 get_shoulder_forward_lean_deg 주석 참고.)
-    lms = make_landmarks("standing")
-    lms[31] = landmark(0.7, 1.0)  # LEFT_FOOT_INDEX (발목(0.5,1.0)보다 오른쪽 -> facing_direction=+1)
-    lms[7] = landmark(0.65, 0.1)  # LEFT_EAR가 어깨(0.5,0.2)보다 훨씬 앞(facing_direction 쪽)으로 나감
-    body = {"landmarks": lms, "side": "left"}
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(rounded shoulder):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "shoulder" for issue in data["issues"]), data
-
-
-def test_pose_analyze_forward_lean_with_level_head_not_flagged_as_shoulder():
-    # 2026-08-24 실제 오탐 사례 재현 + 회귀 테스트: 상체는 앞으로 크게 기울었지만(스쿼트
-    # 중 자연스러운 전방 기울임) 목/머리는 상체보다 덜 기울어(고개를 세운, 좋은 자세) 있는
-    # 경우 -> 절대각도(shoulder_angle) 방식이었다면 오탐했겠지만, 이제는 플래그되면 안 됨.
-    # 실사용자가 보낸 정상 스쿼트 사진을 mediapipe로 직접 분석해 얻은 실측 좌표를 그대로 씀.
-    lms = [landmark() for _ in range(33)]
-    lms[7] = landmark(0.4184, 0.1209)  # LEFT_EAR
-    lms[11] = landmark(0.4527, 0.2782)  # LEFT_SHOULDER
-    lms[23] = landmark(0.6415, 0.4883)  # LEFT_HIP
-    lms[25] = landmark(0.4738, 0.5901)  # LEFT_KNEE
-    lms[27] = landmark(0.5708, 0.8772)  # LEFT_ANKLE
-    lms[31] = landmark(0.4955, 0.9372)  # LEFT_FOOT_INDEX
-    body = {"landmarks": lms, "side": "left"}
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(forward lean, level head):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "shoulder" for issue in data["issues"]), data
-    assert data["angles"]["shoulder_forward_lean_deg"] < 0, data
+# (2026-08-24) 정지 자세 판정(/ai/pose/analyze, AI-03) 관련 테스트들이 이 자리에 있었다.
+# 사용자가 업로드한 서비스 흐름도를 기준으로 "정지자세 촬영 관련 부분은 다른 팀원이
+# 맡기로 했다"며 AI-03 삭제를 요청해(동년배 비교 인사이트 AI-15는 예외로 유지), 그
+# 엔드포인트를 검증하던 테스트도 함께 제거했다 — 어깨 말림 판정(shoulder_forward_lean_deg)
+# 등 판정 로직 자체는 실시간 코칭(AI-06)에 그대로 남아있고, 아래 test_coaching_frame_*
+# 테스트들이 이어서 검증한다. 원래 테스트는 git 히스토리 참고.
 
 
 def test_coaching_frame_descending():
@@ -741,68 +688,11 @@ from app.rag.generation import NO_MATCH_QNA_MESSAGE
 SQUAT_COACHING_MESSAGES_KNEE_VALGUS = KNEE_VALGUS_MESSAGE
 
 
-# ---- 발뒤꿈치 뜸 규칙기반 검사 (2026-08-21, ML 분류기 실측 오탐 대응으로 추가) ----
-from app.pose.angles import get_heel_lift_ratio  # noqa: E402
-
-
-def _lm_obj(x=0.5, y=0.5):
-    """get_heel_lift_ratio()를 직접 호출하는 단위 테스트용 — API 테스트가 쓰는 landmark()
-    dict 헬퍼(JSON 요청 바디용)와 달리, 실제 Landmark 객체가 필요하다."""
-    return Landmark(x=x, y=y, z=0.0, visibility=0.9)
-
-
-def test_get_heel_lift_ratio_flat_heel_is_near_zero():
-    # 발뒤꿈치(29)와 발끝(31)이 같은 높이(y)에 있으면 "바닥에 붙어있는" 상태 -> 비율 ~0
-    lms = [_lm_obj() for _ in range(33)]
-    lms[27] = _lm_obj(0.5, 0.75)  # LEFT_ANKLE
-    lms[29] = _lm_obj(0.45, 0.78)  # LEFT_HEEL
-    lms[31] = _lm_obj(0.65, 0.78)  # LEFT_FOOT_INDEX (같은 y)
-    ratio = get_heel_lift_ratio(lms, "left")
-    print("heel_lift_ratio(flat):", ratio)
-    assert ratio == 0.0
-
-
-def test_get_heel_lift_ratio_raised_heel_is_positive_and_large():
-    # 발뒤꿈치가 발끝보다 위(y가 작음)로 들려있으면 비율이 크게 나와야 한다.
-    lms = [_lm_obj() for _ in range(33)]
-    lms[27] = _lm_obj(0.5, 0.75)  # LEFT_ANKLE
-    lms[29] = _lm_obj(0.45, 0.65)  # LEFT_HEEL (들림 -> y가 작음)
-    lms[31] = _lm_obj(0.65, 0.78)  # LEFT_FOOT_INDEX (바닥에 붙음)
-    ratio = get_heel_lift_ratio(lms, "left")
-    print("heel_lift_ratio(raised):", ratio)
-    assert ratio > HEEL_LIFT_RATIO_THRESHOLD
-
-
-def make_heel_landmarks(heel_state="flat"):
-    """/ai/pose/analyze 테스트용 33개 랜드마크. 무릎/엉덩이는 make_landmarks("deep")가 만든
-    정상 딥스쿼트 범위(knee_angle~90도, ANKLE=(0.75, 0.75))를 그대로 두고 발뒤꿈치(29)/
-    발끝(31)만 새로 채워, 발뒤꿈치 검사 하나만 격리해서 확인할 수 있게 한다."""
-    lms = make_landmarks("deep")  # LEFT_ANKLE(27) = (0.75, 0.75)
-    if heel_state == "flat":
-        lms[29] = landmark(0.6, 0.78)  # LEFT_HEEL (발끝과 같은 높이 -> 바닥에 붙음)
-        lms[31] = landmark(0.95, 0.78)  # LEFT_FOOT_INDEX
-    else:  # "raised"
-        lms[29] = landmark(0.6, 0.65)  # LEFT_HEEL (발끝보다 위로 들림)
-        lms[31] = landmark(0.95, 0.78)  # LEFT_FOOT_INDEX
-    return lms
-
-
-def test_pose_analyze_heel_flat_not_flagged():
-    body = {"landmarks": make_heel_landmarks("flat"), "side": "left"}
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(heel flat):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "heel" for issue in data["issues"]), data
-
-
-def test_pose_analyze_heel_raised_flagged():
-    body = {"landmarks": make_heel_landmarks("raised"), "side": "left"}
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(heel raised):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "heel" for issue in data["issues"]), data
+# (2026-08-24) 발뒤꿈치 뜸 규칙기반 검사의 단위 테스트(get_heel_lift_ratio 직접 호출)와
+# 그 /ai/pose/analyze 통합 테스트가 이 자리에 있었다 — AI-03 삭제(위 주석 참고)와 함께
+# get_heel_lift_ratio() 자체가 angles.py에서 제거되며 같이 삭제했다. 아래
+# test_coaching_frame_heel_lift_* 테스트들이 실시간 코칭(AI-06) 경로로 같은 임계값
+# (HEEL_LIFT_RATIO_THRESHOLD) 판정을 계속 검증한다.
 
 
 def test_coaching_frame_heel_lift_flagged_when_deep_hold():
@@ -858,99 +748,13 @@ def test_coaching_frame_heel_lift_ignored_while_standing():
     assert not any(issue["part"] == "heel" for issue in data["issues"]), data
 
 
-# ---- 무릎 모임/좌우 비대칭 규칙기반 검사 (2026-08-21, ML 분류기 완전 대체로 추가) ----
-# heel_lift_ratio와 달리 정면(front) 촬영 랜드마크가 있어야 계산 가능한 지표라, 아래 헬퍼들은
-# make_landmarks()(측면 전용, 왼쪽 다리만 채움)와 별도로 좌우 다리를 모두 채운다.
-from app.pose.angles import get_knee_lr_asymmetry_deg, get_knee_valgus_ratio  # noqa: E402
+# (2026-08-24) 무릎 모임/좌우 비대칭 규칙기반 검사의 단위 테스트(get_knee_valgus_ratio/
+# get_knee_lr_asymmetry_deg 직접 호출)와 그 /ai/pose/analyze 통합 테스트가 이 자리에
+# 있었다 — AI-03 삭제(위 주석 참고)와 함께 이 두 함수 자체가 angles.py에서 제거되며 같이
+# 삭제했다. 아래 test_coaching_frame_knee_valgus_*/knee_asymmetry_* 테스트들이 실시간
+# 코칭(AI-06) 경로로 같은 임계값(KNEE_VALGUS_RATIO_THRESHOLD/KNEE_ASYMMETRY_THRESHOLD_DEG)
+# 판정을 계속 검증한다.
 from app.pose.rules import KNEE_ASYMMETRY_THRESHOLD_DEG, KNEE_VALGUS_RATIO_THRESHOLD  # noqa: E402
-
-
-def make_front_squat_landmarks(mode="normal"):
-    """정면 촬영 무릎 모임/좌우 비대칭 검사 테스트용 33개 랜드마크. 엉덩이/발목은 좌우
-    대칭으로 고정하고, mode에 따라 무릎 위치만 바꾼다.
-    - "normal": 무릎이 발목과 같은 x좌표(정상 정렬), 좌우 대칭 굽힘
-    - "valgus": 무릎 사이 간격이 발목 사이 간격보다 훨씬 좁음(안쪽으로 모임)
-    - "asymmetric": 무릎 너비는 정상이지만 오른쪽 다리만 거의 펴진 상태(좌우 굽힘 차이)"""
-    lms = [landmark() for _ in range(33)]
-    lms[23] = landmark(0.35, 0.5)  # LEFT_HIP
-    lms[24] = landmark(0.65, 0.5)  # RIGHT_HIP
-    lms[27] = landmark(0.3, 1.0)  # LEFT_ANKLE
-    lms[28] = landmark(0.7, 1.0)  # RIGHT_ANKLE
-
-    if mode == "valgus":
-        lms[25] = landmark(0.45, 0.75)  # LEFT_KNEE (안쪽으로 모임)
-        lms[26] = landmark(0.55, 0.75)  # RIGHT_KNEE (안쪽으로 모임)
-    elif mode == "asymmetric":
-        lms[25] = landmark(0.3, 0.75)  # LEFT_KNEE (깊게 굽힘 유지)
-        lms[26] = landmark(0.7, 0.6)  # RIGHT_KNEE (거의 편 상태 -> 오른쪽만 얕음)
-    else:  # "normal"
-        lms[25] = landmark(0.3, 0.75)  # LEFT_KNEE
-        lms[26] = landmark(0.7, 0.75)  # RIGHT_KNEE
-    return lms
-
-
-def test_get_knee_valgus_ratio_normal_is_at_or_above_one():
-    lms = [_lm_obj(**{"x": lm["x"], "y": lm["y"]}) for lm in make_front_squat_landmarks("normal")]
-    ratio = get_knee_valgus_ratio(lms)
-    print("knee_valgus_ratio(normal):", ratio)
-    assert ratio >= KNEE_VALGUS_RATIO_THRESHOLD
-
-
-def test_get_knee_valgus_ratio_valgus_is_low():
-    lms = [_lm_obj(**{"x": lm["x"], "y": lm["y"]}) for lm in make_front_squat_landmarks("valgus")]
-    ratio = get_knee_valgus_ratio(lms)
-    print("knee_valgus_ratio(valgus):", ratio)
-    assert ratio < KNEE_VALGUS_RATIO_THRESHOLD
-
-
-def test_get_knee_lr_asymmetry_deg_symmetric_is_near_zero():
-    lms = [_lm_obj(**{"x": lm["x"], "y": lm["y"]}) for lm in make_front_squat_landmarks("normal")]
-    deg = get_knee_lr_asymmetry_deg(lms)
-    print("knee_lr_asymmetry_deg(symmetric):", deg)
-    assert deg <= KNEE_ASYMMETRY_THRESHOLD_DEG
-
-
-def test_get_knee_lr_asymmetry_deg_asymmetric_is_large():
-    lms = [_lm_obj(**{"x": lm["x"], "y": lm["y"]}) for lm in make_front_squat_landmarks("asymmetric")]
-    deg = get_knee_lr_asymmetry_deg(lms)
-    print("knee_lr_asymmetry_deg(asymmetric):", deg)
-    assert deg > KNEE_ASYMMETRY_THRESHOLD_DEG
-
-
-def test_pose_analyze_front_landmarks_valgus_flagged():
-    body = {
-        "landmarks": make_heel_landmarks("flat"),  # 측면 랜드마크 — 발뒤꿈치/무릎/엉덩이는 정상
-        "front_landmarks": make_front_squat_landmarks("valgus"),
-        "side": "left",
-    }
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(front valgus):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
-
-
-def test_pose_analyze_front_landmarks_asymmetric_flagged():
-    body = {
-        "landmarks": make_heel_landmarks("flat"),
-        "front_landmarks": make_front_squat_landmarks("asymmetric"),
-        "side": "left",
-    }
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(front asymmetric):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "asymmetry" for issue in data["issues"]), data
-
-
-def test_pose_analyze_without_front_landmarks_skips_frontal_checks():
-    # front_landmarks 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
-    body = {"landmarks": make_heel_landmarks("flat"), "side": "left"}
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(no front_landmarks):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] in ("knee_valgus", "asymmetry") for issue in data["issues"]), data
 
 
 def test_coaching_frame_knee_valgus_flagged_when_deep_hold():
@@ -1004,105 +808,14 @@ def test_coaching_frame_without_frontal_fields_still_works():
     assert not any(issue["part"] in ("knee_valgus", "asymmetry") for issue in data["issues"]), data
 
 
-# ---- 무릎-발끝 규칙기반 검사 (2026-08-21, ML 런지 분류기가 담당하던 항목을 뒤늦게 대체) ----
-from app.pose.angles import get_knee_over_toe_ratio  # noqa: E402
+# (2026-08-24) 무릎-발끝 규칙기반 검사의 단위 테스트(get_knee_over_toe_ratio 직접 호출),
+# 그 /ai/pose/analyze 통합 테스트, 그리고 그 자리에 있던 레거시 exercise_type 필드 무시
+# 회귀 테스트가 이 자리에 있었다 — AI-03 삭제(위 주석 참고)와 함께 get_knee_over_toe_ratio()
+# 자체가 angles.py에서 제거되고 /ai/pose/analyze 엔드포인트도 없어지며 같이 삭제했다.
+# (exercise_type 필드 무시 동작은 그 자체가 AI-03 전용 검증이라 함께 제거 — 다른 엔드포인트는
+# 애초에 그 필드를 받은 적이 없다.) 아래 test_coaching_frame_knee_over_toe_* 테스트들이
+# 실시간 코칭(AI-06) 경로로 같은 임계값(KNEE_OVER_TOE_RATIO_THRESHOLD) 판정을 계속 검증한다.
 from app.pose.rules import KNEE_OVER_TOE_RATIO_THRESHOLD  # noqa: E402
-
-
-def test_get_knee_over_toe_ratio_tiny_foot_length_returns_safe_zero():
-    # 발목-발끝 거리가 MIN_RELIABLE_FOOT_LENGTH보다 작으면(발이 카메라를 거의 정면으로
-    # 향하거나 인식이 불안정한 프레임), facing_direction 부호 자체가 노이즈에 따라 뒤집힐
-    # 수 있어 판정을 포기하고 안전한 기본값(0.0)을 반환해야 한다 — 2026-08-21 재변경으로
-    # 더 이상 foot_length로 나누지는 않지만(순수 좌표 거리 방식), 방향 판단용 가드는 계속
-    # 유효하다(app/pose/angles.py 주석 참고). 실제로 이 문제로 오탐이 발생한 걸 확인해
-    # 추가한 테스트.
-    lms = [_lm_obj() for _ in range(33)]
-    lms[25] = _lm_obj(0.48, 0.75)  # LEFT_KNEE (발끝과 살짝만 떨어짐)
-    lms[27] = _lm_obj(0.50, 1.0)  # LEFT_ANKLE
-    lms[31] = _lm_obj(0.501, 1.0)  # LEFT_FOOT_INDEX (발목과 거의 겹침 -> foot_length < 0.03)
-    ratio = get_knee_over_toe_ratio(lms, "left")
-    print("knee_over_toe_ratio(tiny foot_length):", ratio)
-    assert ratio == 0.0
-
-
-def test_get_knee_over_toe_ratio_knee_behind_toe_is_not_positive():
-    # 발이 오른쪽(+x)을 향하고(facing_direction=+1), 무릎이 발끝보다 뒤(왼쪽)에 있으면 <= 0.
-    lms = [_lm_obj() for _ in range(33)]
-    lms[25] = _lm_obj(0.5, 0.75)  # LEFT_KNEE
-    lms[27] = _lm_obj(0.6, 1.0)  # LEFT_ANKLE
-    lms[31] = _lm_obj(0.9, 1.0)  # LEFT_FOOT_INDEX (발끝이 발목보다 오른쪽 -> 오른쪽을 향함)
-    ratio = get_knee_over_toe_ratio(lms, "left")
-    print("knee_over_toe_ratio(behind):", ratio)
-    assert ratio <= 0.0
-
-
-def test_get_knee_over_toe_ratio_knee_past_toe_is_positive_and_large():
-    # 같은 오른쪽 방향 기준, 무릎이 발끝보다 앞(오른쪽)으로 많이 나가면 큰 양수.
-    lms = [_lm_obj() for _ in range(33)]
-    lms[25] = _lm_obj(1.05, 0.75)  # LEFT_KNEE (발끝보다 훨씬 앞)
-    lms[27] = _lm_obj(0.6, 1.0)  # LEFT_ANKLE
-    lms[31] = _lm_obj(0.9, 1.0)  # LEFT_FOOT_INDEX
-    ratio = get_knee_over_toe_ratio(lms, "left")
-    print("knee_over_toe_ratio(past):", ratio)
-    assert ratio > KNEE_OVER_TOE_RATIO_THRESHOLD
-
-
-def test_get_knee_over_toe_ratio_facing_left_direction_still_correct():
-    # 발이 왼쪽(-x)을 향해도(facing_direction=-1) 방향 보정이 되어, 무릎이 발끝보다
-    # 실제로 앞(이 경우 왼쪽)에 있으면 양수가 나와야 한다.
-    lms = [_lm_obj() for _ in range(33)]
-    lms[25] = _lm_obj(0.15, 0.75)  # LEFT_KNEE (발끝보다 왼쪽 -> "왼쪽을 향한" 기준으로는 앞)
-    lms[27] = _lm_obj(0.6, 1.0)  # LEFT_ANKLE
-    lms[31] = _lm_obj(0.3, 1.0)  # LEFT_FOOT_INDEX (발끝이 발목보다 왼쪽 -> 왼쪽을 향함)
-    ratio = get_knee_over_toe_ratio(lms, "left")
-    print("knee_over_toe_ratio(facing left, past):", ratio)
-    assert ratio > KNEE_OVER_TOE_RATIO_THRESHOLD
-
-
-def make_knee_over_toe_landmarks(state="normal"):
-    """/ai/pose/analyze 테스트용. make_landmarks("deep")가 만든 정상 딥스쿼트(무릎~90도)를
-    그대로 두고 발목(27)/발끝(31)만 새로 채워, 무릎-발끝 검사 하나만 격리해서 확인한다."""
-    lms = make_landmarks("deep")  # LEFT_KNEE(25) = (0.5, 0.75), LEFT_ANKLE(27) = (0.75, 0.75)
-    if state == "normal":
-        lms[31] = landmark(0.95, 0.78)  # LEFT_FOOT_INDEX (무릎이 발끝보다 뒤)
-    else:  # "past"
-        lms[31] = landmark(0.65, 0.78)  # LEFT_FOOT_INDEX (무릎이 발끝을 크게 넘음)
-    return lms
-
-
-def test_pose_analyze_knee_over_toe_normal_not_flagged():
-    body = {"landmarks": make_knee_over_toe_landmarks("normal"), "side": "left"}
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(knee not over toe):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
-
-
-def test_pose_analyze_knee_over_toe_flagged():
-    body = {"landmarks": make_knee_over_toe_landmarks("past"), "side": "left"}
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(knee over toe):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
-
-
-def test_pose_analyze_ignores_legacy_exercise_type_field():
-    # 2026-08-24: exercise_type 필드 자체를 스키마에서 제거했다(종목이 스쿼트 하나뿐이라
-    # 값이 항상 같아서 실질적인 정보가 없었기 때문 — schemas.py 주석 참고). 이 필드를
-    # 아직 보내는 예전 클라이언트가 있어도 요청이 깨지면 안 되므로, Pydantic 기본 동작대로
-    # 모르는 필드는 조용히 무시되고(422 아님) 나머지 판정은 정상 동작해야 한다는 회귀 테스트.
-    body = {
-        "landmarks": make_knee_over_toe_landmarks("past"),
-        "exercise_type": "lunge",  # 더 이상 스키마에 없는 필드 — 무시되어야 함
-        "side": "left",
-    }
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(legacy exercise_type field ignored):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
 
 
 def test_coaching_frame_knee_over_toe_flagged_when_deep_hold():
@@ -1137,50 +850,11 @@ def test_coaching_frame_without_knee_over_toe_field_still_works():
     assert not any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
 
 
-# ---- 등 굽음(척추 굴곡) 규칙기반 검사 (2026-08-21 추가 — 어깨-엉덩이 직선거리(현) 축소로
-# 판정, 자세한 배경은 app/pose/angles.py의 get_torso_length_ratio()와 app/pose/rules.py의
-# BACK_ROUNDING_RATIO_THRESHOLD 주석 참고) ----
-from app.pose.angles import get_torso_length_ratio  # noqa: E402
-from app.pose.rules import BACK_ROUNDING_RATIO_THRESHOLD  # noqa: E402
-
-
-def make_torso_landmarks(state="straight"):
-    """/ai/pose/analyze, get_torso_length_ratio() 테스트용. make_landmarks("deep")가 만든
-    정상 딥스쿼트(무릎~90도, 발목(27)=(0.75,0.75))를 그대로 두고 발끝(31)을 추가해
-    foot_length=0.2로 고정한 뒤, 어깨(11)만 옮겨서 "곧게 편 등" vs "둥글게 말린 등"을
-    구별한다 — 등 굽음 판정의 핵심(shoulder-hip 직선거리 축소)을 다른 조건과 분리해 확인."""
-    lms = make_landmarks("deep")  # LEFT_HIP(23)=(0.5,0.5), LEFT_ANKLE(27)=(0.75,0.75)
-    lms[31] = landmark(0.95, 0.78)  # LEFT_FOOT_INDEX -> foot_length = |0.75-0.95| = 0.2
-    if state == "straight":
-        lms[11] = landmark(0.5, 0.2)  # LEFT_SHOULDER (make_landmarks 기본값) -> chord = 0.3, ratio = 1.5
-    else:  # "rounded" — 어깨를 엉덩이 쪽으로 당겨 직선거리를 줄임(척추가 활처럼 말린 것과 동일한 효과)
-        lms[11] = landmark(0.65, 0.35)  # -> chord ≈ 0.212, ratio ≈ 1.06
-    return lms
-
-
-def _as_landmark_objs(dict_landmarks):
-    """make_landmarks() 등이 만드는 dict 좌표 목록을, angles.py 함수를 직접 호출할 때
-    필요한 Landmark 객체(.x/.y 속성 접근) 목록으로 변환한다 (API 바디용 dict와 순수 함수
-    호출용 객체가 서로 다른 형태를 요구하는 것뿐, 값 자체는 동일)."""
-    return [Landmark(x=lm["x"], y=lm["y"], z=lm.get("z", 0.0), visibility=lm.get("visibility", 0.9)) for lm in dict_landmarks]
-
-
-def test_get_torso_length_ratio_rounded_back_is_smaller_than_straight():
-    straight_ratio = get_torso_length_ratio(_as_landmark_objs(make_torso_landmarks("straight")), "left")
-    rounded_ratio = get_torso_length_ratio(_as_landmark_objs(make_torso_landmarks("rounded")), "left")
-    print("torso_length_ratio(straight):", straight_ratio, "torso_length_ratio(rounded):", rounded_ratio)
-    assert rounded_ratio < straight_ratio
-
-
-def test_get_torso_length_ratio_tiny_foot_length_returns_safe_large_sentinel():
-    # foot_length가 MIN_RELIABLE_FOOT_LENGTH보다 작으면, 다른 foot_length 정규화 함수들과
-    # 반대 방향(값이 작을수록 이상)이라 999.0(안전한 큰 값)을 반환해야 한다 — angles.py 주석 참고.
-    lms = make_landmarks("deep")
-    lms[27] = landmark(0.75, 0.75)  # LEFT_ANKLE
-    lms[31] = landmark(0.76, 0.75)  # LEFT_FOOT_INDEX (발목과 거의 겹침 -> foot_length ≈ 0.01)
-    ratio = get_torso_length_ratio(_as_landmark_objs(lms), "left")
-    print("torso_length_ratio(tiny foot_length):", ratio)
-    assert ratio == 999.0
+# (2026-08-24) 등 굽음(척추 굴곡) 규칙기반 검사의 단위 테스트(get_torso_length_ratio
+# 직접 호출)와 그 /ai/pose/analyze 통합 테스트가 이 자리에 있었다 — AI-03 삭제(위 주석
+# 참고)와 함께 get_torso_length_ratio() 자체가 angles.py에서 제거되며 같이 삭제했다.
+# 아래 test_coaching_frame_back_rounded_* 테스트들이 실시간 코칭(AI-06) 경로로 같은
+# 판정(hip_calibration.standing_shoulder_hip_ratio 기준 비교)을 계속 검증한다.
 
 
 def _calibration_with_baseline(standing_shoulder_hip_ratio=1.5):
@@ -1189,46 +863,6 @@ def _calibration_with_baseline(standing_shoulder_hip_ratio=1.5):
         "max_flex_hip_angle": 118,
         "standing_shoulder_hip_ratio": standing_shoulder_hip_ratio,
     }
-
-
-def test_pose_analyze_back_rounded_flagged_with_calibration():
-    body = {
-        "landmarks": make_torso_landmarks("rounded"),
-        "side": "left",
-        "hip_calibration": _calibration_with_baseline(),
-    }
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(back rounded, with calibration):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "back_rounded" for issue in data["issues"]), data
-    assert data["angles"]["torso_length_ratio"] < 1.5 * BACK_ROUNDING_RATIO_THRESHOLD
-
-
-def test_pose_analyze_back_straight_not_flagged_with_calibration():
-    body = {
-        "landmarks": make_torso_landmarks("straight"),
-        "side": "left",
-        "hip_calibration": _calibration_with_baseline(),
-    }
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(back straight, with calibration):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
-
-
-def test_pose_analyze_back_rounded_not_flagged_without_baseline():
-    # hip_calibration 자체가 없으면(기존 클라이언트, 하위 호환) 등 굽음이 실제로 심해도 검사를
-    # 건너뛴다 — 기준값 없이는 판단할 수 없다는 게 이 지표의 설계 전제이기 때문.
-    body = {"landmarks": make_torso_landmarks("rounded"), "side": "left"}
-    res = client.post("/ai/pose/analyze", json=body)
-    print("pose_analyze(back rounded, no calibration):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
-    # torso_length_ratio 값 자체는 응답에 계속 노출된다(디버깅용) — 판정에만 안 쓰일 뿐.
-    assert data["angles"]["torso_length_ratio"] is not None
 
 
 def test_coaching_frame_back_rounded_flagged_when_deep_hold():
@@ -1311,67 +945,15 @@ def test_coaching_frame_without_torso_length_ratio_field_still_works():
     assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
 
 
-# ---- 어깨 말림 판정을 절대각도(shoulder_angle) -> 상체 기울기 상대 편차
-# (shoulder_forward_lean_deg)로 교체 (2026-08-24 추가 — 실사용자가 보낸 정상 스쿼트 사진이
-# 절대각도 방식에서 오탐된 것을 mediapipe 직접 분석으로 확인 후 재설계, 자세한 배경은
-# app/pose/angles.py의 get_shoulder_forward_lean_deg()와 app/pose/rules.py의
-# SHOULDER_FORWARD_LEAN_THRESHOLD_DEG 주석 참고) ----
-from app.pose.angles import get_shoulder_forward_lean_deg  # noqa: E402
-from app.pose.rules import SHOULDER_FORWARD_LEAN_THRESHOLD_DEG  # noqa: E402
-
-
-def test_get_shoulder_forward_lean_deg_level_head_during_forward_lean_is_negative():
-    # 실사용자가 보낸 정상 스쿼트 사진을 mediapipe로 직접 분석해 얻은 실측 좌표(상체는 수직
-    # 대비 약 42도 앞으로 기울었지만 목은 약 12도만 기울어 시선을 세운 좋은 자세) — 이
-    # 사례가 바로 절대각도(shoulder_angle=150.3, 정상범위 하한 155 미달) 방식의 오탐
-    # 원인이었다. 새 지표는 음수(목이 상체보다 덜 기울었음)가 나와야 한다.
-    lms = [_lm_obj() for _ in range(33)]
-    lms[7] = _lm_obj(0.4184, 0.1209)  # LEFT_EAR
-    lms[11] = _lm_obj(0.4527, 0.2782)  # LEFT_SHOULDER
-    lms[23] = _lm_obj(0.6415, 0.4883)  # LEFT_HIP
-    lms[27] = _lm_obj(0.5708, 0.8772)  # LEFT_ANKLE
-    lms[31] = _lm_obj(0.4955, 0.9372)  # LEFT_FOOT_INDEX
-    lean_deg = get_shoulder_forward_lean_deg(lms, "left")
-    print("shoulder_forward_lean_deg(level head, forward lean):", lean_deg)
-    assert lean_deg < 0
-    assert lean_deg <= -SHOULDER_FORWARD_LEAN_THRESHOLD_DEG  # 확실히 임계값과 구분되는 정도로 음수여야 함
-
-
-def test_get_shoulder_forward_lean_deg_forward_head_while_upright_is_positive():
-    # 상체(엉덩이-어깨)는 수직으로 곧게 선 채, 목만 앞으로 많이 뺀 경우 -> 큰 양수(진짜 어깨
-    # 말림)가 나와야 한다.
-    lms = [_lm_obj() for _ in range(33)]
-    lms[11] = _lm_obj(0.5, 0.2)  # LEFT_SHOULDER
-    lms[23] = _lm_obj(0.5, 0.5)  # LEFT_HIP (어깨 바로 아래 -> torso_tilt ≈ 0)
-    lms[7] = _lm_obj(0.65, 0.1)  # LEFT_EAR (어깨보다 앞으로 많이 뺌)
-    lms[27] = _lm_obj(0.5, 1.0)  # LEFT_ANKLE
-    lms[31] = _lm_obj(0.7, 1.0)  # LEFT_FOOT_INDEX (발목보다 오른쪽 -> facing_direction=+1)
-    lean_deg = get_shoulder_forward_lean_deg(lms, "left")
-    print("shoulder_forward_lean_deg(forward head, upright torso):", lean_deg)
-    assert lean_deg > SHOULDER_FORWARD_LEAN_THRESHOLD_DEG
-
-
-def test_get_shoulder_forward_lean_deg_tiny_foot_length_returns_safe_zero():
-    # foot_length가 MIN_RELIABLE_FOOT_LENGTH보다 작으면 facing_direction을 신뢰할 수 없어
-    # 판정을 포기한다 — "값이 클수록 이상"인 지표라 get_knee_over_toe_ratio()와 동일하게
-    # 0.0(안전한 정상 쪽)을 반환해야 한다.
-    lms = [_lm_obj() for _ in range(33)]
-    lms[11] = _lm_obj(0.5, 0.2)
-    lms[23] = _lm_obj(0.5, 0.5)
-    lms[7] = _lm_obj(0.65, 0.1)  # 목을 크게 뺀 상태로 둬도(원래라면 큰 양수가 나와야 함)
-    lms[27] = _lm_obj(0.5, 1.0)
-    lms[31] = _lm_obj(0.51, 1.0)  # 발목과 거의 겹침 -> foot_length ≈ 0.01
-    lean_deg = get_shoulder_forward_lean_deg(lms, "left")
-    print("shoulder_forward_lean_deg(tiny foot_length):", lean_deg)
-    assert lean_deg == 0.0
+# (2026-08-24) 어깨 말림 판정 지표(get_shoulder_forward_lean_deg) 단위 테스트가 이 자리에
+# 있었다 — AI-03 삭제(위 주석 참고)와 함께 이 함수 자체가 angles.py에서 제거되며 같이
+# 삭제했다. 같은 판정(SHOULDER_FORWARD_LEAN_THRESHOLD_DEG 임계값 비교)은 실시간 코칭
+# (AI-06) 경로로 이미 test_coaching_frame_holding_shoulder_rounded_flagged()와
+# test_coaching_frame_negative_shoulder_lean_not_flagged()가 검증하고 있다.
 
 
 if __name__ == "__main__":
     test_health()
-    test_pose_analyze_standing_is_abnormal_for_squat_bottom()
-    test_pose_analyze_deep_squat_is_normal()
-    test_pose_analyze_rounded_shoulder_flagged()
-    test_pose_analyze_forward_lean_with_level_head_not_flagged_as_shoulder()
     test_coaching_frame_descending()
     test_coaching_frame_holding_at_bottom_normal()
     test_coaching_frame_holding_shoulder_rounded_flagged()
@@ -1411,42 +993,16 @@ if __name__ == "__main__":
     test_generate_session_report_fallback()
     test_generate_session_report_llm_path()
     test_session_report_endpoint_returns_valid_response()
-    test_get_heel_lift_ratio_flat_heel_is_near_zero()
-    test_get_heel_lift_ratio_raised_heel_is_positive_and_large()
-    test_pose_analyze_heel_flat_not_flagged()
-    test_pose_analyze_heel_raised_flagged()
     test_coaching_frame_heel_lift_flagged_when_deep_hold()
     test_coaching_frame_without_heel_lift_field_still_works()
     test_coaching_frame_heel_lift_ignored_while_standing()
-    test_get_knee_valgus_ratio_normal_is_at_or_above_one()
-    test_get_knee_valgus_ratio_valgus_is_low()
-    test_get_knee_lr_asymmetry_deg_symmetric_is_near_zero()
-    test_get_knee_lr_asymmetry_deg_asymmetric_is_large()
-    test_pose_analyze_front_landmarks_valgus_flagged()
-    test_pose_analyze_front_landmarks_asymmetric_flagged()
-    test_pose_analyze_without_front_landmarks_skips_frontal_checks()
     test_coaching_frame_knee_valgus_flagged_when_deep_hold()
     test_coaching_frame_knee_asymmetry_flagged_when_deep_hold()
     test_coaching_frame_without_frontal_fields_still_works()
-    test_get_knee_over_toe_ratio_tiny_foot_length_returns_safe_zero()
-    test_get_knee_over_toe_ratio_knee_behind_toe_is_not_positive()
-    test_get_knee_over_toe_ratio_knee_past_toe_is_positive_and_large()
-    test_get_knee_over_toe_ratio_facing_left_direction_still_correct()
-    test_pose_analyze_knee_over_toe_normal_not_flagged()
-    test_pose_analyze_knee_over_toe_flagged()
-    test_pose_analyze_ignores_legacy_exercise_type_field()
     test_coaching_frame_knee_over_toe_flagged_when_deep_hold()
     test_coaching_frame_without_knee_over_toe_field_still_works()
-    test_get_torso_length_ratio_rounded_back_is_smaller_than_straight()
-    test_get_torso_length_ratio_tiny_foot_length_returns_safe_large_sentinel()
-    test_pose_analyze_back_rounded_flagged_with_calibration()
-    test_pose_analyze_back_straight_not_flagged_with_calibration()
-    test_pose_analyze_back_rounded_not_flagged_without_baseline()
     test_coaching_frame_back_rounded_flagged_when_deep_hold()
     test_coaching_frame_back_rounded_ignored_while_standing()
     test_coaching_frame_back_rounded_ignored_without_baseline()
     test_coaching_frame_without_torso_length_ratio_field_still_works()
-    test_get_shoulder_forward_lean_deg_level_head_during_forward_lean_is_negative()
-    test_get_shoulder_forward_lean_deg_forward_head_while_upright_is_positive()
-    test_get_shoulder_forward_lean_deg_tiny_foot_length_returns_safe_zero()
     print("\nALL MANUAL CHECKS PASSED")

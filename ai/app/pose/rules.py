@@ -1,5 +1,16 @@
 """
-정지 자세 1차 판정 로직 (AI-03).
+스쿼트 자세 판정에 쓰는 공통 규칙(정상범위 · 임계값 · 개인화 계산).
+
+원래 이 파일은 정지 자세 1차 판정(AI-03)의 전체 로직(judge_static_pose())을 담고
+있었다. 2026-08-24, 사용자가 업로드한 서비스 흐름도(캘리브레이션→코칭 모드 선택→세션
+종료) 기준으로 "정지자세 촬영 관련 부분은 다른 팀원이 맡기로 했다"며 AI-03 로직 삭제를
+요청해(동년배 비교 인사이트 AI-15는 예외로 유지), judge_static_pose()와 그 함수 전용
+각도 계산 함수들(pose/angles.py의 get_knee_angle 등)을 제거했다.
+
+다만 아래 NORMAL_RANGES/각종 임계값(threshold)/personalized_hip_range()는 실시간
+코칭(AI-06, coaching/realtime.py의 judge_realtime_coaching())이 그대로 가져다 쓰고
+있어 이 파일에 남겨뒀다 — "정지 판정과 실시간 판정이 같은 기준으로 정상/이상을
+가른다"는 원래 설계를 유지하기 위함이다(원래 로직은 git 히스토리 참고).
 
 "파인튜닝 금지, 규칙기반 우선"이라는 기술 원칙에 따라, 각도 계산 결과를
 사전에 정의한 정상 범위(NORMAL_RANGES)와 비교하는 방식으로 구현했다.
@@ -11,26 +22,7 @@
    판정했는지"를 코칭 문구·RAG 검색 쿼리에 그대로 재사용하기 좋다.
 """
 
-from app.pose.angles import (
-    get_heel_lift_ratio,
-    get_hip_angle,
-    get_knee_angle,
-    get_knee_lr_asymmetry_deg,
-    get_knee_over_toe_ratio,
-    get_knee_valgus_ratio,
-    get_shoulder_alignment_angle,
-    get_shoulder_forward_lean_deg,
-    get_torso_length_ratio,
-)
-from app.pose.coaching_messages import (
-    ASYMMETRY_MESSAGE,
-    BACK_ROUNDED_MESSAGE,
-    HEEL_LIFT_MESSAGE,
-    KNEE_OVER_TOE_MESSAGE,
-    KNEE_VALGUS_MESSAGE,
-    SHOULDER_FORWARD_LEAN_MESSAGE,
-)
-from app.schemas import HipFlexibilityCalibration, Landmark
+from app.schemas import HipFlexibilityCalibration
 
 # 스포츠의학/트레이너 자격 기준 자료를 근거로 한 값 (2026-08-18 업데이트).
 #
@@ -138,11 +130,6 @@ NORMAL_RANGES = {
     "knee_angle": (30, 120),  # (2026-08-21) 상하한 20도씩 확대(50~100→30~120), 위 주석 참고
     "hip_angle": (25, 120),  # (2026-08-21) 위와 같은 이유로 상하한 확대(45~100→25~120), 위 주석 참고
 }
-
-# 정상범위를 살짝 벗어나도 confidence가 완만하게 낮아지도록, "이만큼 벗어나면 신뢰도 0"으로
-# 보는 여유 각도(도). 값이 클수록 관대하게(천천히) 신뢰도가 떨어진다.
-# TODO: 팀 확정 필요 — 사용자 테스트 후 조정.
-CONFIDENCE_TOLERANCE_DEG = 20
 
 # 개인별 고관절 유연성 캘리브레이션(HipFlexibilityCalibration)이 있을 때, "그 사람이 낼 수
 # 있는 최대 가동범위" 중 몇 %~몇 % 구간을 정상으로 볼지 정하는 값.
@@ -255,185 +242,7 @@ def personalized_hip_range(calibration: HipFlexibilityCalibration) -> tuple[floa
     return low, high
 
 
-def _range_confidence(value: float, low: float, high: float) -> float:
-    """
-    값이 [low, high] 범위 안이면 1.0에 가깝게, 범위를 벗어날수록 0.0에 가깝게
-    선형으로 신뢰도를 계산한다.
-
-    왜 이진(정상/이상) 판정 말고 신뢰도까지 계산하는가?
-    - 하네스(AI-07)가 "confidence < 0.7이면 재분석 도구 호출"처럼 신뢰도를 기준으로
-      다음 행동을 스스로 결정해야 하므로, True/False만으로는 정보가 부족하다.
-    """
-    if low <= value <= high:
-        # 범위 중앙에 가까울수록 1.0, 경계에 가까울수록 0.8까지 완만하게 낮춘다
-        # (경계값도 "정상"이므로 confidence가 너무 낮아지지 않도록 하한을 둠).
-        mid = (low + high) / 2
-        half_width = (high - low) / 2 or 1
-        distance_ratio = abs(value - mid) / half_width
-        return max(0.8, 1.0 - 0.2 * distance_ratio)
-
-    # 범위를 벗어난 정도에 비례해 신뢰도를 낮추고, CONFIDENCE_TOLERANCE_DEG 이상 벗어나면 0으로 수렴.
-    over = (low - value) if value < low else (value - high)
-    return max(0.0, 1.0 - over / CONFIDENCE_TOLERANCE_DEG)
-
-
-def judge_static_pose(
-    landmarks: list[Landmark],
-    side: str = "auto",
-    hip_calibration: HipFlexibilityCalibration | None = None,
-    front_landmarks: list[Landmark] | None = None,
-) -> dict:
-    """
-    정지 자세 1장을 규칙기반으로 판정한다(스쿼트 전용 — 2026-08-24 런지 지원 제거와 함께
-    exercise_type 파라미터도 없앴다. 값이 항상 "squat" 하나뿐이라 실질적인 정보가 없었고,
-    NORMAL_RANGES도 종목별 중첩 딕셔너리에서 평범한 상수로 단순화됐다).
-
-    front_landmarks(정면 촬영, 2026-08-21 추가)는 선택 입력이다 — 없으면 무릎 모임/좌우
-    비대칭 검사를 건너뛰고 기존(측면 전용)과 동일하게 동작한다(하위 호환). 있으면 두 검사를
-    추가로 수행한다. 자세한 배경은 위쪽 "[발뒤꿈치 뜸/무릎 모임/좌우 비대칭]" 주석 참고.
-
-    반환값을 Pydantic 모델이 아닌 dict로 두는 이유: main.py가 API 응답으로 감싸기 전에,
-    하네스(AI-07)나 세션 리포트(AI-12) 같은 다른 모듈에서도 가볍게 재사용할 수 있도록
-    순수 값 형태를 유지하기 위함 (불필요하게 스키마 모듈에 의존하지 않게 함).
-    """
-    knee_angle = get_knee_angle(landmarks, side)
-    hip_angle = get_hip_angle(landmarks, side)
-    # shoulder_angle(절대각도)은 더 이상 판정에는 안 쓰이고 참고용으로만 응답에 노출한다 —
-    # 실제 어깨 말림 판정은 shoulder_forward_lean_deg로 한다(위 [어깨 정렬] 주석 참고).
-    shoulder_angle = get_shoulder_alignment_angle(landmarks, side)
-    shoulder_forward_lean_deg = get_shoulder_forward_lean_deg(landmarks, side)
-    heel_lift_ratio = get_heel_lift_ratio(landmarks, side)
-    knee_over_toe_ratio = get_knee_over_toe_ratio(landmarks, side)
-    torso_length_ratio = get_torso_length_ratio(landmarks, side)
-
-    knee_low, knee_high = NORMAL_RANGES["knee_angle"]
-    # hip_angle만 개인별로 바꿔치기하는 이유: knee_angle은 문헌상 인구 전체에 어느 정도
-    # 보편적인 기준(IJSPT 논문)이 있지만, hip_angle은 그 문헌이 스스로 "개인차가 커서 고정값
-    # 부적절"이라고 밝힌 값이기 때문 — 캘리브레이션이 있으면 그걸로, 없으면 기존 고정값으로.
-    if hip_calibration is not None:
-        hip_low, hip_high = personalized_hip_range(hip_calibration)
-    else:
-        hip_low, hip_high = NORMAL_RANGES["hip_angle"]
-
-    issues = []
-    if not (knee_low <= knee_angle <= knee_high):
-        issues.append(
-            {
-                "part": "knee",
-                "message": f"무릎 각도가 {knee_angle:.1f}도로 정상 범위({knee_low}~{knee_high}도)를 벗어났습니다.",
-            }
-        )
-    if not (hip_low <= hip_angle <= hip_high):
-        issues.append(
-            {
-                "part": "hip",
-                "message": f"엉덩이(고관절) 각도가 {hip_angle:.1f}도로 정상 범위({hip_low}~{hip_high}도)를 벗어났습니다.",
-            }
-        )
-    if shoulder_forward_lean_deg > SHOULDER_FORWARD_LEAN_THRESHOLD_DEG:
-        issues.append(
-            {
-                "part": "shoulder",
-                "message": SHOULDER_FORWARD_LEAN_MESSAGE,
-            }
-        )
-    if heel_lift_ratio > HEEL_LIFT_RATIO_THRESHOLD:
-        issues.append({"part": "heel", "message": HEEL_LIFT_MESSAGE})
-    if knee_over_toe_ratio > KNEE_OVER_TOE_RATIO_THRESHOLD:
-        issues.append({"part": "knee_over_toe", "message": KNEE_OVER_TOE_MESSAGE})
-
-    # 등 굽음은 hip_calibration.standing_shoulder_hip_ratio(기준값)가 있을 때만 판정할 수
-    # 있다 — 위 BACK_ROUNDING_RATIO_THRESHOLD 주석 참고. 없으면(하위 호환) 검사를 건너뛴다.
-    back_rounding_baseline = (
-        hip_calibration.standing_shoulder_hip_ratio if hip_calibration is not None else None
-    )
-    if back_rounding_baseline is not None:
-        if torso_length_ratio < back_rounding_baseline * BACK_ROUNDING_RATIO_THRESHOLD:
-            issues.append({"part": "back_rounded", "message": BACK_ROUNDED_MESSAGE})
-
-    knee_conf = _range_confidence(knee_angle, knee_low, knee_high)
-    hip_conf = _range_confidence(hip_angle, hip_low, hip_high)
-    # 어깨도 이제 범위가 아니라 단일 임계값 비교라(위 SHOULDER_FORWARD_LEAN_THRESHOLD_DEG
-    # 참고) heel_conf와 같은 방식(클수록 이상)을 쓴다 — _range_confidence는 더 이상 안 씀.
-    shoulder_conf = max(
-        0.0,
-        1.0
-        - max(0.0, shoulder_forward_lean_deg - SHOULDER_FORWARD_LEAN_THRESHOLD_DEG)
-        / SHOULDER_FORWARD_LEAN_THRESHOLD_DEG,
-    )
-    # 발뒤꿈치는 범위가 아니라 단일 임계값 비교라 _range_confidence를 그대로 쓸 수 없다 —
-    # 임계값을 얼마나 넘었는지에 비례해 완만하게 신뢰도를 낮추고, 임계값의 2배 이상
-    # 벗어나면 0으로 수렴시킨다(다른 부위의 "여유값 벗어나면 0" 패턴과 동일한 취지).
-    heel_conf = max(0.0, 1.0 - max(0.0, heel_lift_ratio - HEEL_LIFT_RATIO_THRESHOLD) / HEEL_LIFT_RATIO_THRESHOLD)
-    # 무릎-발끝도 heel_conf와 같은 방식(단일 임계값, 클수록 이상)의 신뢰도 계산을 재사용한다.
-    knee_over_toe_conf = max(
-        0.0,
-        1.0 - max(0.0, knee_over_toe_ratio - KNEE_OVER_TOE_RATIO_THRESHOLD) / KNEE_OVER_TOE_RATIO_THRESHOLD,
-    )
-    confidences = [knee_conf, hip_conf, shoulder_conf, heel_conf, knee_over_toe_conf]
-
-    # 등 굽음은 기준값(back_rounding_baseline)이 있을 때만 신뢰도 계산에도 반영한다 —
-    # 기준값이 없으면 애초에 판정을 안 하므로(위 참고) confidences에도 넣지 않는다.
-    # 무릎 모임(valgus)과 같은 방향(작을수록 이상)이라 같은 형태의 공식을 쓴다: 기준값의
-    # BACK_ROUNDING_RATIO_THRESHOLD 배 미만으로 줄어든 정도에 비례해 완만하게 낮추고,
-    # 그 절반까지 더 줄어들면(즉 기준값의 약 42%까지) 0으로 수렴시킨다.
-    if back_rounding_baseline is not None:
-        back_rounding_threshold_value = back_rounding_baseline * BACK_ROUNDING_RATIO_THRESHOLD
-        back_rounding_conf = (
-            1.0
-            if torso_length_ratio >= back_rounding_threshold_value
-            else max(0.0, torso_length_ratio / back_rounding_threshold_value)
-        )
-        confidences.append(back_rounding_conf)
-
-    # 응답에 그대로 실어 보낼 원시 값 — 처음엔 정면 랜드마크가 없을 때의 기본값(None)으로
-    # 시작하고, 아래에서 front_landmarks가 있으면 실제 값으로 채운다. torso_length_ratio는
-    # front_landmarks와 무관하게(측면 랜드마크만으로) 항상 계산되므로 바로 채운다.
-    angle_values = {
-        "knee_angle": round(knee_angle, 1),
-        "hip_angle": round(hip_angle, 1),
-        "shoulder_angle": round(shoulder_angle, 1),
-        "shoulder_forward_lean_deg": round(shoulder_forward_lean_deg, 1),
-        "heel_lift_ratio": round(heel_lift_ratio, 3),
-        "knee_over_toe_ratio": round(knee_over_toe_ratio, 3),
-        "torso_length_ratio": round(torso_length_ratio, 3),
-        "knee_valgus_ratio": None,
-        "knee_asymmetry_deg": None,
-    }
-
-    # 정면 랜드마크가 있을 때만 무릎 모임/좌우 비대칭을 검사한다 — 없으면(하위 호환) 이 두
-    # 항목은 판정에서 완전히 빠진다(신뢰도 계산에도 관여하지 않음).
-    if front_landmarks is not None:
-        knee_valgus_ratio = get_knee_valgus_ratio(front_landmarks)
-        knee_asymmetry_deg = get_knee_lr_asymmetry_deg(front_landmarks)
-        angle_values["knee_valgus_ratio"] = round(knee_valgus_ratio, 3)
-        angle_values["knee_asymmetry_deg"] = round(knee_asymmetry_deg, 1)
-
-        if knee_valgus_ratio < KNEE_VALGUS_RATIO_THRESHOLD:
-            issues.append({"part": "knee_valgus", "message": KNEE_VALGUS_MESSAGE})
-        if knee_asymmetry_deg > KNEE_ASYMMETRY_THRESHOLD_DEG:
-            issues.append({"part": "asymmetry", "message": ASYMMETRY_MESSAGE})
-
-        # 무릎 모임은 "1.0 이상이 정상, 낮을수록 이상"이라 heel과 방향이 반대다 — 임계값
-        # 미만으로 떨어진 정도에 비례해 완만하게 낮추고, 임계값의 절반(즉 0에 근접)까지
-        # 벌어지면 0으로 수렴시킨다.
-        valgus_conf = (
-            1.0
-            if knee_valgus_ratio >= KNEE_VALGUS_RATIO_THRESHOLD
-            else max(0.0, knee_valgus_ratio / KNEE_VALGUS_RATIO_THRESHOLD)
-        )
-        # 좌우 비대칭은 heel_conf와 같은 방향(클수록 이상)이라 같은 공식을 재사용한다.
-        asymmetry_conf = max(
-            0.0, 1.0 - max(0.0, knee_asymmetry_deg - KNEE_ASYMMETRY_THRESHOLD_DEG) / KNEE_ASYMMETRY_THRESHOLD_DEG
-        )
-        confidences.extend([valgus_conf, asymmetry_conf])
-
-    # 검사한 부위 중 가장 낮은 신뢰도를 최종 신뢰도로 사용한다 (가장 취약한 부위가 전체 판정을 좌우하게 함).
-    confidence = min(confidences)
-
-    return {
-        "is_normal": len(issues) == 0,
-        "confidence": round(confidence, 2),
-        "issues": issues,
-        "angles": angle_values,
-    }
+# (2026-08-24) 정지 자세 1차 판정(judge_static_pose(), 위 NORMAL_RANGES/임계값들을
+# 범위 비교해 issues/confidence를 만들던 함수)과 그 전용 신뢰도 계산 헬퍼(_range_confidence())는
+# AI-03 기능 자체가 제거되며 함께 삭제됐다 — 위 파일 docstring 참고. 실시간 코칭
+# (coaching/realtime.py)은 이 함수들에 의존하지 않고 자체적으로 신뢰도를 계산하므로 영향 없다.

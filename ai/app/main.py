@@ -8,14 +8,13 @@ from datetime import date
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.schemas import PoseAnalyzeRequest, PoseAnalyzeResponse, PoseAngleValues, PoseIssue
+from app.schemas import PoseIssue
 from app.schemas import CoachingFrameRequest, CoachingFrameResponse
 from app.schemas import SessionEndCheckRequest, SessionEndCheckResponse
 from app.schemas import PostureInsightRequest, PostureInsightResponse
 from app.schemas import OrchestrateRequest, OrchestrateResponse
 from app.schemas import RagGuideRequest, RagGuideResponse, RagQnaRequest, RagQnaResponse
 from app.schemas import SessionReportRequest, SessionReportResponse
-from app.pose.rules import judge_static_pose
 from app.pose.angles import get_shoulder_tilt_angle, get_pelvis_tilt_angle
 from app.coaching.realtime import judge_realtime_coaching
 from app.session.termination import judge_session_end
@@ -50,30 +49,12 @@ def health_check():
     return {"status": "ok"}
 
 
-@app.post("/ai/pose/analyze", response_model=PoseAnalyzeResponse)
-def analyze_pose(request: PoseAnalyzeRequest):
-    """
-    정지 자세 1차 판정 API (AI-03)
-    프론트가 MediaPipe로 뽑은 33개 관절 좌표를 보내면,
-    이 서버가 각도 계산 + 정상범위 비교를 해서 결과를 돌려준다.
-
-    front_landmarks(정면 촬영, 2026-08-21 추가)를 함께 보내면 무릎 모임/좌우 비대칭 검사도
-    같이 수행한다 — 이 두 항목은 측면 촬영만으로는 관측할 수 없는 관상면(좌우) 판단이라
-    정면 촬영이 있어야만 검사할 수 있다(app/pose/rules.py 주석 참고). 안 보내면(기존
-    클라이언트) 이 두 검사만 건너뛰고 나머지는 그대로 동작한다.
-    """
-    result = judge_static_pose(
-        request.landmarks,
-        hip_calibration=request.hip_calibration,
-        front_landmarks=request.front_landmarks,
-    )
-
-    return PoseAnalyzeResponse(
-        is_normal=result["is_normal"],
-        confidence=result["confidence"],
-        issues=[PoseIssue(**issue) for issue in result["issues"]],
-        angles=PoseAngleValues(**result["angles"]),
-    )
+# (2026-08-24) 정지 자세 1차 판정 API(AI-03, POST /ai/pose/analyze)가 이 자리에 있었다.
+# 사용자가 업로드한 서비스 흐름도를 기준으로 "정지자세 촬영 관련 부분은 다른 팀원이
+# 맡기로 했다"며 삭제를 요청해(동년배 비교 인사이트 AI-15는 예외로 유지) 제거했다 —
+# pose/rules.py의 judge_static_pose(), schemas.py의 PoseAnalyzeRequest/Response 등과
+# 함께 삭제됨. 실시간 코칭(AI-06, 바로 아래)과 자세 비교 인사이트(AI-15, /ai/onboarding/
+# posture-insight)는 이 삭제와 무관하게 그대로 동작한다. 원래 구현은 git 히스토리 참고.
 
 
 @app.post("/ai/coaching/frame", response_model=CoachingFrameResponse)
@@ -86,9 +67,9 @@ def coaching_frame(request: CoachingFrameRequest):
     비교하는 가벼운 연산이라, 실시간 호출에도 서버 부하 없이 응답할 수 있다.
 
     각 프레임(AngleFrame)의 knee_valgus_ratio/knee_asymmetry_deg(2026-08-21 추가, 선택
-    필드)는 정면 카메라 랜드마크로 프론트가 직접 계산해서 보낸다 — 정지 자세 판정과 달리
-    이 엔드포인트는 원본 좌표를 받지 않으므로, 정면 촬영을 지원하려면 이 두 값을 프레임마다
-    함께 보내야 한다(app/schemas.py의 AngleFrame 참고).
+    필드)는 정면 카메라 랜드마크로 프론트가 직접 계산해서 보낸다 — 이 엔드포인트는 원본
+    좌표를 받지 않고 프론트가 이미 계산한 각도 값만 받으므로, 정면 촬영을 지원하려면 이
+    두 값을 프레임마다 함께 보내야 한다(app/schemas.py의 AngleFrame 참고).
     """
     result = judge_realtime_coaching(request.angle_history, hip_calibration=request.hip_calibration)
 
@@ -129,8 +110,8 @@ def posture_insight(request: PostureInsightRequest):
     "비슷한 연령대에서는 몇 %에 해당하는지" 백분위 인사이트를 돌려준다.
     자세한 배경·부호 규칙·백분위 정의는 app/insight/posture_percentile.py 주석 참고.
 
-    다른 정지 자세 판정(/ai/pose/analyze)과 달리 "정상/이상"을 가르지 않는다 — 이 기능은
-    참고용 비교 정보만 제공하고, 판정은 기존 규칙기반 로직이 그대로 담당한다.
+    다른 정상/이상 판정 로직(AI-06 실시간 코칭 등)과 달리 이 기능은 "정상/이상"을 가르지
+    않는다 — 참고용 비교 정보만 제공하고, 판정은 기존 규칙기반 로직이 그대로 담당한다.
     """
     shoulder_tilt_deg = get_shoulder_tilt_angle(request.front_landmarks)
     pelvis_tilt_deg = get_pelvis_tilt_angle(request.front_landmarks)

@@ -18,11 +18,6 @@ from pydantic import BaseModel, Field
 # 운동 종목을 여러 개 지원하게 되면(예: 런지 재도입), 그때 이 필드를 되살리고 rules.py의
 # NORMAL_RANGES도 다시 종목별로 나누면 된다 — 관련 이력은 git에 그대로 남아있다.
 
-# 측면 촬영이 전제이므로 좌/우 중 어느 쪽 옆모습인지가 필요하다.
-# "auto"는 서버가 visibility(카메라에 보이는 정도)를 보고 알아서 더 신뢰도 높은 쪽을 선택하게 한다.
-Side = Literal["left", "right", "auto"]
-
-
 class Landmark(BaseModel):
     """MediaPipe Pose가 반환하는 관절 좌표 1개.
     x, y는 이미지 기준 0~1 정규화 좌표, z는 카메라 기준 상대 깊이(현재 각도 계산에는 미사용)."""
@@ -64,27 +59,6 @@ class HipFlexibilityCalibration(BaseModel):
     )
 
 
-class PoseAnalyzeRequest(BaseModel):
-    """정지 자세 1차 판정(/ai/pose/analyze) 요청."""
-
-    landmarks: List[Landmark] = Field(
-        ..., min_length=33, max_length=33, description="MediaPipe Pose 33개 관절 좌표 (인덱스 순서 고정, 측면 촬영)"
-    )
-    side: Side = "auto"
-    hip_calibration: Optional[HipFlexibilityCalibration] = Field(
-        None, description="개인별 고관절 유연성 캘리브레이션 결과. 없으면 고정 NORMAL_RANGES로 판정."
-    )
-    front_landmarks: Optional[List[Landmark]] = Field(
-        None,
-        min_length=33,
-        max_length=33,
-        description="정면 촬영 기준 MediaPipe Pose 33개 관절 좌표 (선택, 2026-08-21 추가). 있으면 "
-        "무릎 모임/좌우 비대칭 검사도 함께 수행한다 — 이 두 항목은 관상면(좌우) 판단이라 측면 "
-        "촬영만으로는 관측할 수 없어 정면 촬영이 있어야만 검사할 수 있다(app/pose/rules.py 주석 "
-        "참고). 없으면 기존(측면 전용)과 동일하게 이 두 검사만 건너뛴다 — 하위 호환.",
-    )
-
-
 class PoseIssue(BaseModel):
     """판정에서 발견된 이상 소견 1건. RAG 검색 쿼리, 코칭 문구 생성에 그대로 재사용할 수 있도록
     "부위(part)"를 구조화된 값으로 분리해두었다 (자연어 message만 있으면 이후 단계에서 다시 파싱해야 함)."""
@@ -93,51 +67,15 @@ class PoseIssue(BaseModel):
     message: str
 
 
-class PoseAngleValues(BaseModel):
-    """
-    judge_static_pose()가 실제로 계산한 원시 각도/비율 값 (2026-08-21 추가).
-
-    왜 추가했는가?
-    - 기존에는 is_normal/confidence/issues만 반환해서, "정상"으로 판정되면(issues가 비어
-      있으면) 실제 knee_angle/hip_angle/shoulder_angle이 몇 도였는지 응답 어디에도 남지
-      않았다. 사용자가 "왜 이 사진이 정상으로 뜨는지 숫자로 확인하고 싶다"고 요청했는데,
-      막상 /ml-test 페이지에도 그 숫자를 보여줄 데이터 자체가 없다는 게 이번에 드러남.
-    - 프로덕션 코칭 UX(실제 앱 화면)에는 굳이 필요 없는 디버깅용 정보지만, 개발/QA 단계에서
-      오탐 원인을 눈으로 바로 확인하려면 필수적이라 판단해 응답에 추가했다.
-
-    knee_valgus_ratio/knee_asymmetry_deg는 front_landmarks를 보냈을 때만 값이 채워진다
-    (안 보내면 None — front_landmarks 선택 필드와 동일한 하위 호환 패턴).
-    """
-
-    knee_angle: float
-    hip_angle: float
-    shoulder_angle: float = Field(
-        ..., description="귀-어깨-엉덩이 절대각도(app/pose/angles.py의 get_shoulder_alignment_angle "
-        "참고). 2026-08-24부터 어깨 판정에는 더 이상 쓰이지 않고(상체가 앞으로 기울면 목이 "
-        "정상적으로 세워져도 이 값이 자연히 줄어드는 실측 오탐이 확인됨) 참고용으로만 노출된다 "
-        "— 실제 판정은 shoulder_forward_lean_deg가 담당한다."
-    )
-    shoulder_forward_lean_deg: float = Field(
-        ..., description="목이 상체 기울기보다 얼마나 더 앞으로 기울었는지(app/pose/angles.py의 "
-        "get_shoulder_forward_lean_deg 참고, 2026-08-24 추가). 어깨 말림(forward head/shoulder "
-        "rounding) 판정에 실제로 쓰이는 값 — 0 이하면 정상, rules.py의 "
-        "SHOULDER_FORWARD_LEAN_THRESHOLD_DEG보다 크면 이상으로 판정한다."
-    )
-    heel_lift_ratio: float
-    knee_over_toe_ratio: float
-    torso_length_ratio: float = Field(
-        ..., description="get_torso_length_ratio 참고. hip_calibration에 standing_shoulder_hip_ratio가 "
-        "없으면 이 숫자는 응답에 노출만 되고 판정에는 쓰이지 않는다."
-    )
-    knee_valgus_ratio: Optional[float] = None
-    knee_asymmetry_deg: Optional[float] = None
-
-
-class PoseAnalyzeResponse(BaseModel):
-    is_normal: bool
-    confidence: float
-    issues: List[PoseIssue]
-    angles: PoseAngleValues
+# (2026-08-24) 정지 자세 1차 판정(AI-03, /ai/pose/analyze)의 요청/응답 모델
+# (PoseAnalyzeRequest/PoseAngleValues/PoseAnalyzeResponse, 그리고 PoseAnalyzeRequest 전용
+# 이었던 Side 타입)이 이 자리에 있었다. 사용자가 업로드한 서비스 흐름도를 기준으로
+# "정지자세 촬영 관련 부분은 다른 팀원이 맡기로 했다"며 삭제를 요청해(동년배 비교
+# 인사이트 AI-15는 예외로 유지) 제거했다 — main.py의 /ai/pose/analyze 엔드포인트,
+# pose/rules.py의 judge_static_pose()와 함께 삭제됨. 이 파일에 남은 Landmark/
+# HipFlexibilityCalibration/PoseIssue는 실시간 코칭(AI-06)의 CoachingFrameRequest/
+# CoachingFrameResponse와 자세 비교 인사이트(AI-15)의 PostureInsightRequest가 계속
+# 사용하므로 그대로 남겨뒀다. 원래 모델 정의는 git 히스토리 참고.
 
 
 # ---- 실시간 코칭 판정 (AI-06) ----
@@ -147,10 +85,18 @@ MotionPhase = Literal["descending", "ascending", "holding"]
 
 class AngleFrame(BaseModel):
     """실시간 코칭용 각도 1프레임.
-    정지 자세 판정과 달리 좌표(landmarks) 전체를 다시 보내지 않고, 프론트가 이미 계산한
-    무릎/엉덩이 각도 값만 받는다 — "무거운 연산은 클라이언트, 서버는 경량 수치만"이라는
-    기술 원칙을 실시간 경로에서도 그대로 지키기 위함. (프레임마다 좌표를 보내면 페이로드가
-    커지고, 서버가 매번 각도 계산까지 반복할 이유도 없다.)"""
+    좌표(landmarks) 전체를 보내지 않고, 프론트가 이미 계산한 무릎/엉덩이 각도 값만
+    받는다 — "무거운 연산은 클라이언트, 서버는 경량 수치만"이라는 기술 원칙을 실시간
+    경로에서도 그대로 지키기 위함. (프레임마다 좌표를 보내면 페이로드가 커지고, 서버가
+    매번 각도 계산까지 반복할 이유도 없다.)
+
+    (2026-08-24 주의) 아래 필드 설명 중 일부는 "app/pose/angles.py의 get_X 참고"라고
+    적혀 있는데, 그 함수들은 정지 자세 판정(AI-03) 삭제와 함께 이 서버 코드에서 제거됐다
+    (git 히스토리 참고). 값 자체는 여전히 필요하다 — 프론트가 이 함수들과 동일한 계산
+    로직을 JS로 미러링해서 매 프레임 계산해 보내주는 구조이기 때문이다(서버는 그 값을
+    받아 비교만 한다). 즉 아래 설명은 "이 숫자가 어떻게 계산되는지"에 대한 정의로는
+    여전히 유효하지만, 그 정의를 담은 Python 원본 구현은 더 이상 이 저장소에 없다.
+    """
 
     timestamp: float = Field(..., description="세션(또는 반복 동작) 시작 기준 경과 시간(초)")
     knee_angle: float
