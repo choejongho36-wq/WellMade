@@ -20,7 +20,7 @@ function drawLandmarks(canvas, image, landmarks) {
   canvas.height = boxH
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, boxW, boxH)
-  ctx.fillStyle = '#e6432b'
+  ctx.fillStyle = '#da291c'
   landmarks.forEach(({ x, y }) => {
     ctx.beginPath()
     ctx.arc(offsetX + x * renderedW, offsetY + y * renderedH, 4, 0, Math.PI * 2)
@@ -130,7 +130,7 @@ function PosturePage() {
             <PoseCaptureCard label="측면 사진" onDetected={(landmarks) => console.log('side', landmarks)} />
           </div>
 
-          {insightError && <p style={{ color: '#e6432b' }}>{insightError}</p>}
+          {insightError && <p style={{ color: '#da291c' }}>{insightError}</p>}
           {insight && <p className="pcard-desc">{insight.message}</p>}
         </div>
       </main>

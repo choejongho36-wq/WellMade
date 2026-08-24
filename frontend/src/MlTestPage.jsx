@@ -116,7 +116,7 @@ function MlTestPage() {
                   padding: '8px 16px',
                   borderRadius: 6,
                   border: '1px solid #444',
-                  background: exercise === key ? '#e6432b' : 'transparent',
+                  background: exercise === key ? '#da291c' : 'transparent',
                   color: '#fff',
                   cursor: 'pointer',
                 }}
