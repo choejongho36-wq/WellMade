@@ -23,6 +23,9 @@ public class UserProfileService {
     @Transactional
     public void updateProfile(User user, String name, String profileImageUrl, Goal goal) {
         UserProfile profile = getProfile(user);
+        if (!name.equals(profile.getName()) && userProfileRepository.existsByName(name)) {
+            throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
+        }
         profile.update(name, profileImageUrl, goal);
     }
 

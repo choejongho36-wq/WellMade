@@ -74,6 +74,8 @@ public class UserProfile {
     public void update(String name, String profileImageUrl, Goal goal) {
         this.name = name;
         this.profileImageUrl = profileImageUrl;
-        this.goal = goal;
+        if (goal != null) {
+            this.goal = goal;
+        }
     }
 }

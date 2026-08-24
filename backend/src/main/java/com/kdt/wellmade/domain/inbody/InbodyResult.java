@@ -15,15 +15,18 @@ public class InbodyResult {
     private final Double skeletalMuscleMassKg;
     private final Double bodyFatPercentage;
     private final Integer basalMetabolicRateKcal;
+    private final Double bmi;
     private final String rawText;
- 
+
     public InbodyResult(Double weightKg, Double skeletalMuscleMassKg,
                                    Double bodyFatPercentage, Integer basalMetabolicRateKcal,
+                                   Double bmi,
                                    String rawText) {
         this.weightKg = weightKg;
         this.skeletalMuscleMassKg = skeletalMuscleMassKg;
         this.bodyFatPercentage = bodyFatPercentage;
         this.basalMetabolicRateKcal = basalMetabolicRateKcal;
+        this.bmi = bmi;
         this.rawText = rawText;
     }
  
@@ -47,7 +50,11 @@ public class InbodyResult {
     public Integer getBasalMetabolicRateKcal() {
         return basalMetabolicRateKcal;
     }
- 
+
+    public Double getBmi() {
+        return bmi;
+    }
+
     public String getRawText() {
         return rawText;
     }
@@ -59,6 +66,7 @@ public class InbodyResult {
                 ", skeletalMuscleMassKg=" + skeletalMuscleMassKg +
                 ", bodyFatPercentage=" + bodyFatPercentage +
                 ", basalMetabolicRateKcal=" + basalMetabolicRateKcal +
+                ", bmi=" + bmi +
                 '}';
     }
 }
