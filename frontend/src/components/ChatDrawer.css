@@ -1,0 +1,167 @@
+/* 챗봇 (오른쪽에서 밀려나오는 드로어, 메인 화이트/레드 스타일) */
+.chat-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.chat-drawer-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.chat-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 440px;
+  max-width: 90vw;
+  background: #fff;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 24px;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+.chat-drawer-backdrop.open .chat-drawer {
+  transform: translateX(0);
+}
+.chat-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 2px solid #111;
+}
+.chat-drawer-title {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 17px;
+  letter-spacing: -0.5px;
+  color: #111;
+}
+.chat-drawer-title span {
+  color: #da291c;
+}
+.chat-drawer-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  color: #111;
+  cursor: pointer;
+}
+.chat-drawer-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px;
+}
+.chat-drawer-hint {
+  font-size: 12.5px;
+  color: #77766f;
+  line-height: 1.6;
+}
+.chat-starter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+.chat-starter-btn {
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  background: #f9f8f5;
+  color: #111;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.chat-starter-btn:hover {
+  border-color: #da291c;
+  background: #fff5f4;
+}
+.chat-drawer-error {
+  color: #da291c;
+  font-size: 12.5px;
+  padding: 8px 0 0;
+}
+.chat-bubble-row {
+  display: flex;
+}
+.chat-bubble-row.user {
+  justify-content: flex-end;
+}
+.chat-bubble-row.assistant {
+  justify-content: flex-start;
+}
+.chat-bubble {
+  max-width: 82%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.chat-bubble-row.user .chat-bubble {
+  background: #da291c;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.chat-bubble-row.assistant .chat-bubble {
+  background: #f2f1ec;
+  color: #111;
+  border-bottom-left-radius: 4px;
+}
+.chat-bubble-loading {
+  color: #8f8d85;
+  font-style: italic;
+}
+
+/* 채팅형 입력창 (식단 관리 페이지의 식사 기록 입력에도 재사용됨) */
+.chat-input-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e3dd;
+}
+.chat-input {
+  flex: 1;
+  resize: none;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  color: #111;
+  font-size: 13.5px;
+  font-family: inherit;
+  padding: 12px 14px;
+  line-height: 1.5;
+}
+.chat-input:focus {
+  outline: none;
+  border-color: #da291c;
+}
+.chat-send-btn {
+  padding: 0 22px;
+  border: none;
+  border-radius: 10px;
+  background: #da291c;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chat-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

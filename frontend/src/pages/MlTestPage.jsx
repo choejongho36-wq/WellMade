@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import './MainPage.css'
-import { usePoseLandmarker } from './components/usePoseLandmarker.js'
+import './MlTestPage.css'
+import { usePoseLandmarker } from '../hooks/usePoseLandmarker.js'
 
 const AI_BASE = 'http://localhost:8000'
 

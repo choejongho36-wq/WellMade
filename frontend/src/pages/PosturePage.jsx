@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import './MainPage.css'
-import Sidebar from './Sidebar.jsx'
-import { usePoseLandmarker } from './components/usePoseLandmarker.js'
+import './PosturePage.css'
+import PageShell from '../components/PageShell.jsx'
+import { usePoseLandmarker } from '../hooks/usePoseLandmarker.js'
 
 const PREVIEW_WIDTH = 480
 const PREVIEW_HEIGHT = 680
@@ -56,9 +56,9 @@ function PoseCaptureCard({ label, onDetected }) {
   }
 
   return (
-    <div className="pcard">
-      <div className="pcard-body">
-        <div className="pcard-title">{label}</div>
+    <div className="pose-card">
+      <div className="pose-card-body">
+        <div className="pose-card-title">{label}</div>
         <input type="file" accept="image/*" onChange={handleFile} />
         {imageUrl && (
           <div
@@ -67,7 +67,7 @@ function PoseCaptureCard({ label, onDetected }) {
               marginTop: 12,
               width: PREVIEW_WIDTH,
               height: PREVIEW_HEIGHT,
-              background: '#1a1a1c',
+              background: '#f0efe9',
               borderRadius: 8,
               overflow: 'hidden',
             }}
@@ -112,29 +112,20 @@ function PosturePage() {
   }
 
   return (
-    <div className="app revealed">
-      <Sidebar />
+    <PageShell>
+      <div className="mp-eyebrow-row">
+        <div className="mp-index-tag">자세 측정</div>
+      </div>
 
-      <main className="main">
-        <div className="content">
-          <div className="section-head">
-            <div>
-              <div className="section-eyebrow">POSTURE CHECK</div>
-              <div className="section-title">자세 측정</div>
-            </div>
-          </div>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 20 }}>
+        <PoseCaptureCard label="정면 사진" onDetected={handleFrontDetected} />
+        {/* ponytail: 측면 사진은 아직 어떤 엔드포인트로 보낼지 미정 — 콘솔 확인만 유지 */}
+        <PoseCaptureCard label="측면 사진" onDetected={(landmarks) => console.log('side', landmarks)} />
+      </div>
 
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <PoseCaptureCard label="정면 사진" onDetected={handleFrontDetected} />
-            {/* ponytail: 측면 사진은 아직 어떤 엔드포인트로 보낼지 미정 — 콘솔 확인만 유지 */}
-            <PoseCaptureCard label="측면 사진" onDetected={(landmarks) => console.log('side', landmarks)} />
-          </div>
-
-          {insightError && <p style={{ color: '#da291c' }}>{insightError}</p>}
-          {insight && <p className="pcard-desc">{insight.message}</p>}
-        </div>
-      </main>
-    </div>
+      {insightError && <p style={{ color: '#da291c' }}>{insightError}</p>}
+      {insight && <p className="pcard-desc">{insight.message}</p>}
+    </PageShell>
   )
 }
 

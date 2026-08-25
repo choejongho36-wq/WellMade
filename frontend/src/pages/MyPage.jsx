@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import './MainPage.css'
-import Sidebar, { useAuth } from './Sidebar.jsx'
+import './MyPage.css'
+import { useAuth } from '../lib/auth.js'
+import PageShell from '../components/PageShell.jsx'
 
 const GOAL_LABEL = {
   LOSE: '체중 감량',
@@ -175,114 +176,103 @@ function MyPage() {
   }
 
   return (
-    <div className="app revealed">
-      <Sidebar />
-
-      <main className="main">
-        <div className="content">
-          <div className="mp-header">
+    <PageShell>
+      <div className="mp-eyebrow-row">
+        <div className="mp-index-tag">MY PAGE</div>
+      </div>
+      
+      {user ? (
+        <>
+          <div className="mp-profile-row">
+            <div className="mp-avatar-lg"></div>
             <div>
-              <div className="mp-eyebrow">MY PAGE</div>
-              <div className="mp-greeting">
-                {profile?.name ?? '회원'}님, 반가워요
+              <div className="mp-profile-name-row">
+                {editingName ? (
+                  <input
+                    className="mp-name-input"
+                    value={nameDraft}
+                    autoFocus
+                    maxLength={50}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onBlur={submitName}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') submitName()
+                      if (e.key === 'Escape') setEditingName(false)
+                    }}
+                  />
+                ) : (
+                  <>
+                    <span className="mp-profile-name">{profile?.name ?? '이름 미설정'}</span>
+                    <button className="mp-edit-btn" onClick={startEditName} aria-label="닉네임 변경">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                    </button>
+                  </>
+                )}
+                <span className="mp-goal-bib">
+                  <select
+                    className="mp-goal-select"
+                    value={profile?.goal ?? ''}
+                    onChange={(e) => updateGoal(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      목표 설정
+                    </option>
+                    {Object.entries(GOAL_LABEL).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </span>
+              </div>
+              {nameError && <div className="mp-name-error">{nameError}</div>}
+              <div className="mp-profile-sub">
+                {user.email} · {PROVIDER_LABEL[user.provider] ?? user.provider} 로그인
               </div>
             </div>
           </div>
 
-          {user ? (
-            <>
-              <div className="mp-panel mp-profile-row">
-                <div className="mp-avatar-lg"></div>
-                <div>
-                  <div className="mp-profile-name-row">
-                    {editingName ? (
-                      <input
-                        className="mp-name-input"
-                        value={nameDraft}
-                        autoFocus
-                        maxLength={50}
-                        onChange={(e) => setNameDraft(e.target.value)}
-                        onBlur={submitName}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') submitName()
-                          if (e.key === 'Escape') setEditingName(false)
-                        }}
-                      />
-                    ) : (
-                      <>
-                        <span className="mp-profile-name">{profile?.name ?? '이름 미설정'}</span>
-                        <button className="mp-edit-btn" onClick={startEditName} aria-label="닉네임 변경">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                          </svg>
-                        </button>
-                      </>
-                    )}
-                    <select
-                      className="mp-goal-badge"
-                      value={profile?.goal ?? ''}
-                      onChange={(e) => updateGoal(e.target.value)}
-                    >
-                      <option value="" disabled>
-                        목표 설정
-                      </option>
-                      {Object.entries(GOAL_LABEL).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {nameError && <div className="mp-name-error">{nameError}</div>}
-                  <div className="mp-profile-sub">{user.email}</div>
-                </div>
-                <div className="mp-stat-list">
-                  <div>
-                    <div className="mp-stat-label">로그인 방식</div>
-                    <div className="mp-stat-value">{PROVIDER_LABEL[user.provider] ?? user.provider}</div>
-                  </div>
-                </div>
-              </div>
+          <div className="mp-section-head">
+            <div className="mp-section-title">인바디</div>
+            {inbody && (
+              <button className="mp-link-btn" onClick={() => setModalOpen(true)}>
+                다시 입력
+              </button>
+            )}
+          </div>
 
-              <div className="mp-panel" style={{ marginTop: 20 }}>
-                {inbody ? (
-                  <>
-                    <div className="mp-inbody-head">
-                      <div className="mp-goal-title">인바디</div>
-                      <button className="mp-link-btn" onClick={() => setModalOpen(true)}>
-                        다시 입력
-                      </button>
-                    </div>
-                    <div className="mp-inbody-row">
-                      {INBODY_FIELDS.map(({ key, label, unit }) => (
-                        <div key={key}>
-                          <div className="mp-stat-label">{label}</div>
-                          <div className="mp-stat-value">
-                            {inbody[key] != null ? `${inbody[key]}${unit}` : '-'}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <div className="mp-inbody-cta">
-                    <div className="mp-goal-title">인바디 정보가 없어요</div>
-                    <p className="mp-profile-sub">
-                      인바디 측정지 사진을 등록하면 체중·골격근량·체지방률을 자동으로 불러와요.
-                    </p>
-                    <button className="mp-inbody-btn" onClick={() => setModalOpen(true)}>
-                      인바디 등록하기
-                    </button>
+          {inbody ? (
+            <div className="mp-stat-strip">
+              {INBODY_FIELDS.map(({ key, label, unit }) => (
+                <div className="mp-tag" key={key}>
+                  <div className="mp-tag-inner">
+                    <div className="mp-tag-label">{label}</div>
+                    <div className="mp-tag-value">{inbody[key] != null ? inbody[key] : '-'}</div>
+                    {unit && <div className="mp-tag-unit">{unit}</div>}
                   </div>
-                )}
-              </div>
-            </>
+                </div>
+              ))}
+            </div>
           ) : (
-            <p className="pcard-desc">로그인 후 프로필을 확인할 수 있습니다.</p>
+            <div className="mp-inbody-empty">
+              <div className="mp-inbody-empty-inner">
+                <div className="mp-goal-title">인바디 정보가 없어요</div>
+                <p className="mp-profile-sub">
+                  인바디 측정지 사진을 등록하면 체중·골격근량·체지방률을 자동으로 불러와요.
+                </p>
+                <button className="mp-inbody-btn" onClick={() => setModalOpen(true)}>
+                  인바디 등록하기
+                </button>
+              </div>
+            </div>
           )}
-        </div>
-      </main>
+        </>
+      ) : (
+        <p className="pcard-desc">로그인 후 프로필을 확인할 수 있습니다.</p>
+      )}
 
       {modalOpen && (
         <InbodyUploadModal
@@ -291,7 +281,7 @@ function MyPage() {
           onConfirm={confirmInbody}
         />
       )}
-    </div>
+    </PageShell>
   )
 }
 

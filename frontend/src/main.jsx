@@ -2,11 +2,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
-import MainPage from './MainPage.jsx'
-import MyPage from './MyPage.jsx'
-import PosturePage from './PosturePage.jsx'
-import MlTestPage from './MlTestPage.jsx'
-import DietPage from './DietPage.jsx'
+import MainPage from './pages/MainPage.jsx'
+import MyPage from './pages/MyPage.jsx'
+import PosturePage from './pages/PosturePage.jsx'
+import MlTestPage from './pages/MlTestPage.jsx'
+import DietPage from './pages/DietPage.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
