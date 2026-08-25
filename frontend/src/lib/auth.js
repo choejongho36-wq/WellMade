@@ -25,8 +25,7 @@ export const SOCIAL_PROVIDERS = [
 export const NAV_ITEMS = [
   { label: '마이페이지', path: '/mypage' },
   { label: '자세 측정', path: '/posture' },
-  { label: '식단 관리', path: '/diet' },
-  { label: '챗봇', action: 'chat' },
+  { label: '식단 관리', path: '/mealplan' },
   { label: '운동 추천' },
 ]
 
@@ -195,7 +194,20 @@ export function useAuth() {
     }).then((data) => data.content)
   }
 
-  const logMeal = (message) => {
+  const getNutrientAdvice = () => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/users/me/chat/nutrient-advice`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('분석을 받지 못했어요')
+      return res.json()
+    }).then((data) => data.content)
+  }
+
+  const logMeal = (message, mealType) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
 
@@ -205,18 +217,19 @@ export function useAuth() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, mealType: mealType || null }),
     }).then((res) => {
       if (!res.ok) throw new Error('식단 기록에 실패했어요')
       return res.json()
     })
   }
 
-  const getTodayMeals = () => {
+  const getTodayMeals = (date) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
 
-    return fetch(`${API_BASE}/api/diet/meals/today`, {
+    const query = date ? `?date=${date}` : ''
+    return fetch(`${API_BASE}/api/diet/meals/today${query}`, {
       headers: { Authorization: `Bearer ${token}` },
     }).then((res) => {
       if (!res.ok) throw new Error('식단 기록을 불러오지 못했어요')
@@ -224,20 +237,49 @@ export function useAuth() {
     })
   }
 
-  const getTodayTotal = () => {
+  const getTodayTotal = (date) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
 
-    return fetch(`${API_BASE}/api/diet/meals/today/total`, {
+    const query = date ? `?date=${date}` : ''
+    return fetch(`${API_BASE}/api/diet/meals/today/total${query}`, {
       headers: { Authorization: `Bearer ${token}` },
     }).then((res) => {
-      if (!res.ok) throw new Error('오늘 합계를 불러오지 못했어요')
+      if (!res.ok) throw new Error('합계를 불러오지 못했어요')
       return res.json()
     })
   }
 
+  const updateMeal = (id, { mealType, menuName, kcal }) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ mealType, menuName, kcal }),
+    }).then((res) => {
+      if (!res.ok) throw new Error('수정에 실패했어요')
+    })
+  }
+
+  const deleteMeal = (id) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('삭제에 실패했어요')
+    })
+  }
+
   return {
-    user, profile, inbody, handleLogout, updateGoal, updateName, extractInbody, confirmInbody, sendChat,
-    logMeal, getTodayMeals, getTodayTotal,
+    user, profile, inbody, handleLogout, updateGoal, updateName, extractInbody, confirmInbody, sendChat, getNutrientAdvice,
+    logMeal, getTodayMeals, getTodayTotal, updateMeal, deleteMeal,
   }
 }

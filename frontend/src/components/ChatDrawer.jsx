@@ -1,23 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import RobotIcon from './RobotIcon.jsx'
 import './ChatDrawer.css'
 
-const CHAT_STARTERS = [
-  {
-    id: 'diet',
-    label: '식단에 대해 조언을 받고싶어',
-    followUp: '어떤 메뉴를 드실 예정이신가요?',
-  },
-  {
-    id: 'workout',
-    label: '오늘 할 운동을 추천받고싶어',
-  },
-  {
-    id: 'goal-check',
-    label: '지금 페이스가 목표에 맞는지 궁금해',
-  },
+// 나머지 메뉴는 관련 기능이 추가되는 대로 여기에 이어서 추가
+const CHAT_MENU_ITEMS = [
+  { id: 'diet-manage', label: '나의 식단 관리', path: '/mealplan' },
+  { id: 'nutrient-advice', label: '오늘 영양소 분석', action: 'nutrient-advice' },
 ]
 
-function ChatDrawer({ open, onClose, sendChat }) {
+function ChatDrawer({ open, onClose, sendChat, getNutrientAdvice, userName }) {
+  const greeting = `안녕하세요, ${userName ?? '회원'}님 반갑습니다.\n궁금하신 내용을 선택해주세요.`
+  const navigate = useNavigate()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -55,20 +49,39 @@ function ChatDrawer({ open, onClose, sendChat }) {
       .finally(() => setLoading(false))
   }
 
-  const handleStarterClick = (starter) => {
+  const handleMenuClick = (item) => {
     if (loading) return
 
-    if (starter.followUp) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'user', content: starter.label },
-        { role: 'assistant', content: starter.followUp },
-      ])
-      setPendingFollowUp(starter)
+    if (item.path) {
+      onClose()
+      navigate(item.path)
       return
     }
 
-    sendMessage(starter.label)
+    if (item.action === 'nutrient-advice') {
+      setMessages((prev) => [...prev, { role: 'user', content: item.label }])
+      setLoading(true)
+      setError('')
+      getNutrientAdvice()
+        .then((reply) => {
+          setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+        })
+        .catch((e) => setError(e.message || '분석을 받지 못했어요. 잠시 후 다시 시도해주세요.'))
+        .finally(() => setLoading(false))
+      return
+    }
+
+    if (item.followUp) {
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content: item.label },
+        { role: 'assistant', content: item.followUp },
+      ])
+      setPendingFollowUp(item)
+      return
+    }
+
+    sendMessage(item.label)
   }
 
   const handleSend = () => {
@@ -104,11 +117,16 @@ function ChatDrawer({ open, onClose, sendChat }) {
         <div className="chat-drawer-messages">
           {messages.length === 0 && (
             <>
-              <p className="chat-drawer-hint">인바디 기록을 바탕으로 조언해드려요. 아래에서 골라보거나 편하게 물어보세요.</p>
+              <div className="chat-greeting-row">
+                <div className="chat-greeting-avatar">
+                  <RobotIcon size={36} />
+                </div>
+                <p className="chat-drawer-hint">{greeting}</p>
+              </div>
               <div className="chat-starter-list">
-                {CHAT_STARTERS.map((s) => (
-                  <button key={s.id} className="chat-starter-btn" onClick={() => handleStarterClick(s)}>
-                    {s.label}
+                {CHAT_MENU_ITEMS.map((item) => (
+                  <button key={item.id} className="chat-starter-btn" onClick={() => handleMenuClick(item)}>
+                    {item.label}
                   </button>
                 ))}
               </div>

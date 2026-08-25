@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import './MyPage.css'
 import { useAuth } from '../lib/auth.js'
 import PageShell from '../components/PageShell.jsx'
+import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
 
 const GOAL_LABEL = {
   LOSE: '체중 감량',
@@ -22,6 +24,13 @@ const INBODY_FIELDS = [
   { key: 'basalMetabolicRateKcal', label: '기초대사량', unit: 'kcal', step: '1' },
   { key: 'bmi', label: 'BMI', unit: '', step: '0.1' },
 ]
+
+const DIET_HEADLINE_FIELD = { key: 'totalCalories', label: '칼로리', unit: 'kcal' }
+
+function todayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 function InbodyUploadModal({ onClose, onExtract, onConfirm }) {
   const [file, setFile] = useState(null)
@@ -152,11 +161,17 @@ function InbodyUploadModal({ onClose, onExtract, onConfirm }) {
 }
 
 function MyPage() {
-  const { user, profile, inbody, updateGoal, updateName, extractInbody, confirmInbody } = useAuth()
+  const { user, profile, inbody, updateGoal, updateName, extractInbody, confirmInbody, getTodayTotal } = useAuth()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
   const [nameError, setNameError] = useState('')
+  const [todaySummary, setTodaySummary] = useState(null)
+  const [nutrientModalOpen, setNutrientModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (user) getTodayTotal(todayStr()).then(setTodaySummary).catch(() => {})
+  }, [user])
 
   const startEditName = () => {
     setNameDraft(profile?.name ?? '')
@@ -230,7 +245,7 @@ function MyPage() {
               </div>
               {nameError && <div className="mp-name-error">{nameError}</div>}
               <div className="mp-profile-sub">
-                {user.email} · {PROVIDER_LABEL[user.provider] ?? user.provider} 로그인
+                {user.email} 
               </div>
             </div>
           </div>
@@ -248,8 +263,8 @@ function MyPage() {
             <div className="mp-stat-strip">
               {INBODY_FIELDS.map(({ key, label, unit }) => (
                 <div className="mp-tag" key={key}>
+                  <div className="mp-tag-label"><span>{label}</span></div>
                   <div className="mp-tag-inner">
-                    <div className="mp-tag-label">{label}</div>
                     <div className="mp-tag-value">{inbody[key] != null ? inbody[key] : '-'}</div>
                     {unit && <div className="mp-tag-unit">{unit}</div>}
                   </div>
@@ -269,6 +284,22 @@ function MyPage() {
               </div>
             </div>
           )}
+
+          <div className="mp-section-head">
+            <div className="mp-section-title">오늘 식단</div>
+            <Link className="mp-link-btn" to="/diet">식단 관리로 이동</Link>
+          </div>
+          {todaySummary && (
+            <div className="mp-stat-strip">
+              <button className="mp-tag mp-tag-clickable" onClick={() => setNutrientModalOpen(true)}>
+                <div className="mp-tag-label"><span>{DIET_HEADLINE_FIELD.label}</span></div>
+                <div className="mp-tag-inner">
+                  <div className="mp-tag-value">{Math.round(todaySummary[DIET_HEADLINE_FIELD.key])}</div>
+                  <div className="mp-tag-unit">{DIET_HEADLINE_FIELD.unit}</div>
+                </div>
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <p className="pcard-desc">로그인 후 프로필을 확인할 수 있습니다.</p>
@@ -280,6 +311,9 @@ function MyPage() {
           onExtract={extractInbody}
           onConfirm={confirmInbody}
         />
+      )}
+      {nutrientModalOpen && (
+        <NutrientDetailModal summary={todaySummary} onClose={() => setNutrientModalOpen(false)} />
       )}
     </PageShell>
   )

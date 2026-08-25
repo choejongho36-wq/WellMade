@@ -55,6 +55,10 @@ public class MealLoggingService {
         List<Map<String, Object>> foodItemsForJson = new ArrayList<>();
         List<String> notFound = new ArrayList<>();
 
+        if (parsedItems.isEmpty()) {
+            notFound.add(rawMessage);
+        }
+
         for (FoodParsingService.FoodItem item : parsedItems) {
             if (item.amountG() <= 0) {
                 notFound.add(item.foodName());
@@ -62,7 +66,7 @@ public class MealLoggingService {
             }
 
             FoodNutritionLookupService.NutritionInfo info =
-                    nutritionLookupService.lookup(item.foodName(), item.amountG());
+                    nutritionLookupService.lookup(item.searchName(), item.amountG());
 
             if (info == null) {
                 notFound.add(item.foodName());
@@ -80,11 +84,16 @@ public class MealLoggingService {
                     "calories", Math.round(info.calories() * 10) / 10.0
             ));
         }
- 
+
+        if (!notFound.isEmpty()) {
+            // 하나라도 인식/DB조회에 실패하면 전체를 기록하지 않고 못 찾음으로 응답
+            return new MealLogResult(null, null, 0, 0, 0, 0, notFound);
+        }
+
         String resolvedMealType = (mealType != null) ? mealType : inferMealTypeByTime();
         String foodItemsJson = toJson(foodItemsForJson);
-        String menuNameSummary = summarizeMenuNames(parsedItems);
- 
+        String menuNameSummary = summarizeMenuNames(foodItemsForJson);
+
         jdbcTemplate.update("""
                 INSERT INTO diet_meals
                 (user_id, logged_date, meal_type, menu_name, raw_message,
@@ -102,18 +111,18 @@ public class MealLoggingService {
         );
     }
  
-    /** 오늘 기록된 끼니 목록 (시간순) */
-    public List<Map<String, Object>> getTodayMeals(Long userId) {
+    /** 특정 날짜에 기록된 끼니 목록 (시간순) */
+    public List<Map<String, Object>> getMealsForDate(Long userId, LocalDate date) {
         return jdbcTemplate.queryForList("""
                 SELECT id, meal_type, menu_name, raw_message, kcal, protein_g, carbs_g, fat_g, created_at
                 FROM diet_meals
                 WHERE user_id = ? AND logged_date = ?
                 ORDER BY created_at ASC
-                """, userId, LocalDate.now());
+                """, userId, date);
     }
- 
-    /** 오늘 하루 총 칼로리/영양소 합계 */
-    public DailyTotal getTodayTotal(Long userId) {
+
+    /** 특정 날짜의 총 칼로리/영양소 합계 */
+    public DailyTotal getTotalForDate(Long userId, LocalDate date) {
         Map<String, Object> row = jdbcTemplate.queryForMap("""
                 SELECT
                     COALESCE(SUM(kcal), 0) AS total_kcal,
@@ -123,7 +132,7 @@ public class MealLoggingService {
                     COUNT(*) AS meal_count
                 FROM diet_meals
                 WHERE user_id = ? AND logged_date = ?
-                """, userId, LocalDate.now());
+                """, userId, date);
  
         return new DailyTotal(
                 ((Number) row.get("total_kcal")).doubleValue(),
@@ -134,6 +143,29 @@ public class MealLoggingService {
         );
     }
  
+    /** 기록 수정 (본인 소유 레코드만) */
+    public void updateMeal(Long userId, Long mealId, String mealType, String menuName, double kcal) {
+        int updated = jdbcTemplate.update("""
+                UPDATE diet_meals
+                SET meal_type = ?, menu_name = ?, kcal = ?
+                WHERE id = ? AND user_id = ?
+                """, mealType, menuName, Math.round(kcal), mealId, userId);
+
+        if (updated == 0) {
+            throw new IllegalArgumentException("수정할 기록을 찾을 수 없습니다.");
+        }
+    }
+
+    /** 기록 삭제 (본인 소유 레코드만) */
+    public void deleteMeal(Long userId, Long mealId) {
+        int deleted = jdbcTemplate.update(
+                "DELETE FROM diet_meals WHERE id = ? AND user_id = ?", mealId, userId);
+
+        if (deleted == 0) {
+            throw new IllegalArgumentException("삭제할 기록을 찾을 수 없습니다.");
+        }
+    }
+
     private String inferMealTypeByTime() {
         int hour = LocalTime.now().getHour();
         if (hour < 11) return "BREAKFAST";
@@ -142,9 +174,10 @@ public class MealLoggingService {
         return "SNACK";
     }
  
-    private String summarizeMenuNames(List<FoodParsingService.FoodItem> items) {
-        return items.stream()
-                .map(FoodParsingService.FoodItem::foodName)
+    /** DB 매칭까지 성공한 항목만으로 메뉴명을 요약 (못 찾은 항목은 notFound로 따로 안내) */
+    private String summarizeMenuNames(List<Map<String, Object>> foodItemsForJson) {
+        return foodItemsForJson.stream()
+                .map(m -> (String) m.get("foodName"))
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("(인식된 음식 없음)");
     }

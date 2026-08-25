@@ -12,11 +12,16 @@ import java.util.Map;
  * MockFoodNutritionLookupService를 대체함 - FoodNutritionLookupService 인터페이스는 동일하므로
  * 이 코드를 쓰는 다른 클래스(MealParsingTestController 등)는 수정할 필요 없음.
  *
- * 매칭 전략:
- *   1. representative_food_name 정확히 일치하는 항목 우선 검색
- *   2. 여러 건이면 data_generation_method = '분석'(측정값, 가장 신뢰도 높음) 우선 채택
- *   3. 정확히 일치하는 게 없으면 food_name에 LIKE 검색으로 폴백
- *   4. nutrition_basis_unit이 "100ml"인 경우 국물류로 보고 100g과 동일하게 근사 처리
+ * 매칭 전략 (위에서부터 순서대로 시도, 먼저 맞는 게 있으면 그걸 채택):
+ *   1. food_name(구체적 제품명, 예: "포카칩 오리지널")이 정확히 일치 + 분석값 우선
+ *      -> "포카칩"처럼 특정 브랜드/제품명을 검색할 때 대표식품명(카테고리)보다 먼저 확인해야
+ *         엉뚱한 카테고리의 다른 제품으로 잘못 매칭되는 걸 막을 수 있음
+ *   2. food_name 정확히 일치, 분석값 없으면 아무거나
+ *   3. representative_food_name(카테고리 통칭, 예: "김치찌개")이 정확히 일치 + 분석값 우선
+ *   4. representative_food_name 정확히 일치, 분석값 없으면 아무거나
+ *   5. 그래도 없으면 food_name에 LIKE 검색으로 폴백 - 분석값 우선, 이름 길이가 짧아
+ *      검색어에 더 가까운(덜 구체적인 다른 옵션이 섞여 들어갈 여지가 적은) 항목 우선
+ *   6. nutrition_basis_unit이 "100ml"인 경우 국물류로 보고 100g과 동일하게 근사 처리
  */
 @Service
 public class FoodNutritionDbLookupService implements FoodNutritionLookupService {
@@ -47,37 +52,63 @@ public class FoodNutritionDbLookupService implements FoodNutritionLookupService 
     }
  
     private Map<String, Object> findBestMatch(String foodName) {
-        // 1) 대표식품명 정확 일치 + 분석값 우선
-        String exactAnalyzedSql = """
+        // 1) 식품명(구체적 제품명) 정확 일치 + 분석값 우선
+        String exactFoodNameAnalyzedSql = """
+                SELECT * FROM food_nutrition_reference
+                WHERE food_name = ?
+                  AND data_generation_method = '분석'
+                  AND calories IS NOT NULL
+                LIMIT 1
+                """;
+        List<Map<String, Object>> exactFoodNameAnalyzed = jdbcTemplate.queryForList(exactFoodNameAnalyzedSql, foodName);
+        if (!exactFoodNameAnalyzed.isEmpty()) {
+            return exactFoodNameAnalyzed.get(0);
+        }
+
+        // 2) 식품명 정확 일치, 분석값 없으면 아무거나
+        String exactFoodNameAnySql = """
+                SELECT * FROM food_nutrition_reference
+                WHERE food_name = ?
+                  AND calories IS NOT NULL
+                LIMIT 1
+                """;
+        List<Map<String, Object>> exactFoodNameAny = jdbcTemplate.queryForList(exactFoodNameAnySql, foodName);
+        if (!exactFoodNameAny.isEmpty()) {
+            return exactFoodNameAny.get(0);
+        }
+
+        // 3) 대표식품명(카테고리) 정확 일치 + 분석값 우선
+        String exactRepAnalyzedSql = """
                 SELECT * FROM food_nutrition_reference
                 WHERE representative_food_name = ?
                   AND data_generation_method = '분석'
                   AND calories IS NOT NULL
                 LIMIT 1
                 """;
-        List<Map<String, Object>> exactAnalyzed = jdbcTemplate.queryForList(exactAnalyzedSql, foodName);
-        if (!exactAnalyzed.isEmpty()) {
-            return exactAnalyzed.get(0);
+        List<Map<String, Object>> exactRepAnalyzed = jdbcTemplate.queryForList(exactRepAnalyzedSql, foodName);
+        if (!exactRepAnalyzed.isEmpty()) {
+            return exactRepAnalyzed.get(0);
         }
- 
-        // 2) 대표식품명 정확 일치, 분석값 없으면 아무거나
-        String exactAnySql = """
+
+        // 4) 대표식품명 정확 일치, 분석값 없으면 아무거나
+        String exactRepAnySql = """
                 SELECT * FROM food_nutrition_reference
                 WHERE representative_food_name = ?
                   AND calories IS NOT NULL
                 LIMIT 1
                 """;
-        List<Map<String, Object>> exactAny = jdbcTemplate.queryForList(exactAnySql, foodName);
-        if (!exactAny.isEmpty()) {
-            return exactAny.get(0);
+        List<Map<String, Object>> exactRepAny = jdbcTemplate.queryForList(exactRepAnySql, foodName);
+        if (!exactRepAny.isEmpty()) {
+            return exactRepAny.get(0);
         }
- 
-        // 3) 폴백: food_name에 LIKE 검색
+
+        // 5) 폴백: food_name에 LIKE 검색 - 분석값 우선, 그다음 이름이 짧아 검색어에 더 가까운 것 우선
         String likeSql = """
                 SELECT * FROM food_nutrition_reference
                 WHERE food_name LIKE ?
                   AND calories IS NOT NULL
-                ORDER BY CASE WHEN data_generation_method = '분석' THEN 0 ELSE 1 END
+                ORDER BY CASE WHEN data_generation_method = '분석' THEN 0 ELSE 1 END,
+                         LENGTH(food_name) ASC
                 LIMIT 1
                 """;
         String escapedFoodName = foodName.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
@@ -85,7 +116,7 @@ public class FoodNutritionDbLookupService implements FoodNutritionLookupService 
         if (!likeMatch.isEmpty()) {
             return likeMatch.get(0);
         }
- 
+
         return null; // 못 찾음 - 호출부에서 "이 음식은 DB에 없어요" 처리 필요
     }
  

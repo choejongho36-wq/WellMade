@@ -1,0 +1,21 @@
+.chat-fab {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: #da291c;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(218, 41, 28, 0.35);
+  z-index: 150;
+  transition: transform 0.15s ease;
+}
+.chat-fab:hover {
+  transform: scale(1.05);
+}

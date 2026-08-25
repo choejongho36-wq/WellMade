@@ -1,0 +1,19 @@
+import { useState } from 'react'
+import ChatDrawer from './ChatDrawer.jsx'
+import RobotIcon from './RobotIcon.jsx'
+import './ChatWidget.css'
+
+function ChatWidget({ sendChat, getNutrientAdvice, userName }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <button className="chat-fab" onClick={() => setOpen((o) => !o)} aria-label={open ? '챗봇 닫기' : '챗봇 열기'}>
+        <RobotIcon size={44} />
+      </button>
+      <ChatDrawer open={open} onClose={() => setOpen(false)} sendChat={sendChat} getNutrientAdvice={getNutrientAdvice} userName={userName} />
+    </>
+  )
+}
+
+export default ChatWidget
