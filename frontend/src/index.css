@@ -7,3 +7,26 @@
 body {
   font-family: 'Noto Sans CJK KR', -apple-system, sans-serif;
 }
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* shared across every page */
+.app {
+  display: flex;
+  min-height: 100vh;
+  background: #0a0a0a;
+  color: #f2f1ee;
+}
+.main {
+  flex: 1;
+  min-width: 0;
+}
+.pcard-desc {
+  font-size: 12.5px;
+  color: #9b9a96;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}

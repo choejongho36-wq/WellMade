@@ -1,18 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import './MainPage.css'
-import ChatDrawer from './ChatDrawer.jsx'
-import wellmadeLogo from './assets/Wellmade.png'
-import googleLoginImg from './assets/Google_login.png'
-import kakaoLoginImg from './assets/kakao_login_large_narrow.png'
-import naverLoginImg from './assets/NAVER_login_H48.png'
+import { useNavigate } from 'react-router-dom'
+import iconGoogle from '../assets/icon-google.png'
+import iconKakao from '../assets/icon-kakao.png'
+import iconNaver from '../assets/icon-naver.png'
 
-const API_BASE = 'http://localhost:8080'
+export const API_BASE = 'http://localhost:8080'
 export const TOKEN_KEY = 'accessToken'
-const SOCIAL_PROVIDERS = [
-  { id: 'google', label: '구글로 시작하기', icon: googleLoginImg },
-  { id: 'kakao', label: '카카오로 시작하기', icon: kakaoLoginImg },
-  { id: 'naver', label: '네이버로 시작하기', icon: naverLoginImg },
+const USER_CACHE_KEY = 'cachedUser'
+
+function readCachedUser() {
+  try {
+    const cached = sessionStorage.getItem(USER_CACHE_KEY)
+    return cached ? JSON.parse(cached) : null
+  } catch {
+    return null
+  }
+}
+export const SOCIAL_PROVIDERS = [
+  { id: 'google', label: '구글 로그인', icon: iconGoogle, bg: '#f2f2f2', color: '#111' },
+  { id: 'kakao', label: '카카오 로그인', icon: iconKakao, bg: '#fee500', color: '#191919' },
+  { id: 'naver', label: '네이버 로그인', icon: iconNaver, bg: '#05ac4f', color: '#fff' },
 ]
 
 export const NAV_ITEMS = [
@@ -23,35 +30,8 @@ export const NAV_ITEMS = [
   { label: '운동 추천' },
 ]
 
-export function LoginModal({ onClose }) {
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
-        <div className="modal-title">WELLMADE 로그인</div>
-        <div className="modal-sub">소셜 계정으로 간편하게 시작하세요</div>
-        <div className="social-buttons">
-          {SOCIAL_PROVIDERS.map((p) => (
-            <a key={p.id} className="social-btn" href={`${API_BASE}/oauth2/authorization/${p.id}`}>
-              <img src={p.icon} alt={p.label} />
-            </a>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export function useAuth() {
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(readCachedUser)
   const [profile, setProfile] = useState(null)
   const [inbody, setInbody] = useState(null)
   const codeExchanged = useRef(false)
@@ -65,9 +45,13 @@ export function useAuth() {
           if (!res.ok) throw new Error('unauthorized')
           return res.json()
         })
-        .then(setUser)
+        .then((data) => {
+          setUser(data)
+          sessionStorage.setItem(USER_CACHE_KEY, JSON.stringify(data))
+        })
         .catch(() => {
           localStorage.removeItem(TOKEN_KEY)
+          sessionStorage.removeItem(USER_CACHE_KEY)
           setUser(null)
         })
 
@@ -106,6 +90,7 @@ export function useAuth() {
 
   const handleLogout = () => {
     localStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(USER_CACHE_KEY)
     setUser(null)
     setProfile(null)
     setInbody(null)
@@ -210,74 +195,49 @@ export function useAuth() {
     }).then((data) => data.content)
   }
 
-  return { user, profile, inbody, handleLogout, updateGoal, updateName, extractInbody, confirmInbody, sendChat }
+  const logMeal = (message) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ message }),
+    }).then((res) => {
+      if (!res.ok) throw new Error('식단 기록에 실패했어요')
+      return res.json()
+    })
+  }
+
+  const getTodayMeals = () => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals/today`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('식단 기록을 불러오지 못했어요')
+      return res.json()
+    })
+  }
+
+  const getTodayTotal = () => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals/today/total`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('오늘 합계를 불러오지 못했어요')
+      return res.json()
+    })
+  }
+
+  return {
+    user, profile, inbody, handleLogout, updateGoal, updateName, extractInbody, confirmInbody, sendChat,
+    logMeal, getTodayMeals, getTodayTotal,
+  }
 }
-
-function Sidebar() {
-  const [loginOpen, setLoginOpen] = useState(false)
-  const [chatOpen, setChatOpen] = useState(false)
-  const { user, profile, handleLogout, sendChat } = useAuth()
-  const location = useLocation()
-
-  return (
-    <>
-      <div className="sidebar-hotzone"></div>
-      <div className="sidebar-indicator"></div>
-      <aside className="sidebar">
-        <Link to="/" className="logo">
-          <img src={wellmadeLogo} alt="" className="logo-mark" />
-          <div className="logo-text">WELL<span style={{ color: '#da291c' }}>MADE</span></div>
-        </Link>
-        {user ? (
-          <button className="login-btn" onClick={handleLogout}>로그아웃</button>
-        ) : (
-          <button className="login-btn" onClick={() => setLoginOpen(true)}>로그인</button>
-        )}
-        <nav className="nav">
-          {NAV_ITEMS.map((item) =>
-            item.action === 'chat' ? (
-              <a
-                key={item.label}
-                className="nav-item"
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault()
-                  setChatOpen(true)
-                }}
-              >
-                <span className="dot"></span>
-                {item.label}
-              </a>
-            ) : item.path ? (
-              <Link
-                key={item.label}
-                to={item.path}
-                className={`nav-item${location.pathname === item.path ? ' active' : ''}`}
-              >
-                <span className="dot"></span>
-                {item.label}
-              </Link>
-            ) : (
-              <a key={item.label} className="nav-item" href="#">
-                <span className="dot"></span>
-                {item.label}
-              </a>
-            )
-          )}
-        </nav>
-        <div className="profile">
-          <div className="avatar"></div>
-          <div>
-            <div className="profile-name">{user ? profile?.name ?? user.email : '게스트'}</div>
-            <div className="profile-sub">{user ? '오늘도 운동하자' : '로그인이 필요합니다'}</div>
-          </div>
-        </div>
-      </aside>
-
-      {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
-      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} sendChat={sendChat} />
-    </>
-  )
-}
-
-export default Sidebar

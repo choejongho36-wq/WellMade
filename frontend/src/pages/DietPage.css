@@ -1,0 +1,71 @@
+/* diet timeline (식단 관리, 다이나믹 테마) */
+.diet-timeline {
+  display: flex;
+  flex-direction: column;
+}
+.diet-row {
+  display: flex;
+  gap: 20px;
+}
+.diet-time {
+  width: 56px;
+  flex: none;
+  text-align: right;
+  font: 500 11.5px ui-monospace, monospace;
+  color: #77767c;
+  padding-top: 16px;
+}
+.diet-line {
+  flex: none;
+  width: 1px;
+  background: #e5e3dd;
+  position: relative;
+}
+.diet-dot {
+  position: absolute;
+  top: 19px;
+  left: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #da291c;
+}
+.diet-body {
+  flex: 1;
+  padding: 12px 0 24px;
+}
+.diet-meal {
+  transform: skewX(-6deg);
+  background: #fff;
+  border: 1px solid #da291c;
+  border-radius: 8px;
+}
+.diet-meal-inner {
+  transform: skewX(6deg);
+  padding: 18px 20px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.diet-meal-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 9px;
+  flex: none;
+  background: #111;
+}
+.diet-meal-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+}
+.diet-meal-sub {
+  font-size: 12px;
+  color: #77767c;
+  margin-top: 3px;
+}
+.diet-meal-status {
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: #da291c;
+}

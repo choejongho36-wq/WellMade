@@ -1,0 +1,356 @@
+/* 마이페이지 (다이나믹 테마: 메인 히어로의 대각선/레드 포인트 DNA를 가져온 스타일) */
+.mp-greeting {
+  margin-top: 10px;
+  font: 400 34px 'Archivo Black', sans-serif;
+  letter-spacing: -0.01em;
+  color: #111;
+}
+
+.mp-profile-row {
+  margin-top: 32px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.mp-avatar-lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  flex: none;
+  background: #111;
+}
+.mp-profile-name-row {
+  display: flex;
+  align-items: center;
+}
+.mp-profile-name {
+  font: 800 20px Archivo, sans-serif;
+  color: #111;
+}
+.mp-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #8c8b88;
+  cursor: pointer;
+}
+.mp-edit-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #111;
+}
+.mp-name-input {
+  font: 700 20px Archivo, sans-serif;
+  color: #111;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 6px;
+  padding: 2px 8px;
+  outline: none;
+  max-width: 200px;
+}
+.mp-name-input:focus {
+  border-color: #da291c;
+}
+.mp-name-error {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #da291c;
+}
+.mp-goal-bib {
+  display: inline-block;
+  margin-left: 10px;
+  transform: skewX(-10deg);
+  background: #da291c;
+  border-radius: 4px;
+}
+.mp-goal-select {
+  display: block;
+  transform: skewX(10deg);
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font: 800 11px Archivo, sans-serif;
+  letter-spacing: 0.06em;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.mp-profile-sub {
+  margin-top: 5px;
+  font: 400 13px Archivo, sans-serif;
+  color: #77767c;
+  letter-spacing: 0.02em;
+}
+
+.mp-section-head {
+  margin-top: 44px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.mp-section-title {
+  font: 800 14px Archivo, sans-serif;
+  color: #111;
+}
+.mp-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #da291c;
+}
+
+.mp-stat-strip {
+  margin-top: 14px;
+  display: flex;
+  gap: 14px;
+}
+.mp-tag {
+  flex: 1;
+  transform: skewX(-8deg);
+  background: #fff;
+  border: 1px solid #da291c;
+  border-radius: 6px;
+}
+.mp-tag-inner {
+  transform: skewX(8deg);
+  padding: 20px 4px;
+  text-align: center;
+}
+.mp-tag-label {
+  font: 800 10.5px Archivo, sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #111;
+}
+.mp-tag-value {
+  margin-top: 10px;
+  font: 400 30px 'Archivo Black', sans-serif;
+  color: #da291c;
+}
+.mp-tag-unit {
+  font: 700 11px Archivo, sans-serif;
+  color: #9b9a96;
+  margin-top: 2px;
+}
+
+.mp-inbody-empty {
+  margin-top: 14px;
+  transform: skewX(-4deg);
+  background: #fff;
+  border: 1px dashed #da291c;
+  border-radius: 10px;
+  padding: 30px;
+}
+.mp-inbody-empty-inner {
+  transform: skewX(4deg);
+  text-align: center;
+}
+.mp-goal-title {
+  font: 800 16px Archivo, sans-serif;
+  color: #111;
+}
+.mp-inbody-btn {
+  margin-top: 16px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #da291c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 인바디 등록 모달 */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal {
+  position: relative;
+  width: 320px;
+  background: #131315;
+  border: 1px solid #232325;
+  border-radius: 16px;
+  padding: 32px 28px;
+  text-align: center;
+}
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: #8c8b88;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.modal-sub {
+  font-size: 12.5px;
+  color: #9b9a96;
+  margin-bottom: 24px;
+}
+.modal-btn {
+  margin-top: 16px;
+  width: 100%;
+  padding: 11px 0;
+  border: none;
+  border-radius: 8px;
+  background: #da291c;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.modal-btn-secondary {
+  margin-top: 16px;
+  width: 100%;
+  padding: 11px 0;
+  border: 1px solid #3a3a3c;
+  border-radius: 8px;
+  background: transparent;
+  color: #f2f1ee;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.modal-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.modal-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.modal-btn-row .modal-btn,
+.modal-btn-row .modal-btn-secondary {
+  flex: 1;
+  margin-top: 0;
+}
+.modal-review-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.modal-review-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #232325;
+}
+.modal-review-item > span:first-child {
+  color: #9b9a96;
+}
+.modal-review-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.modal-review-input {
+  width: 72px;
+  text-align: right;
+  background: #1a1a1c;
+  border: 1px solid #3a3a3c;
+  border-radius: 6px;
+  color: #f2f1ee;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 7px;
+}
+.modal-review-input:focus {
+  border-color: #da291c;
+  outline: none;
+}
+.modal-review-unit {
+  color: #9b9a96;
+  font-size: 12px;
+  min-width: 32px;
+}
+.modal-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+.modal-upload {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 96px;
+  padding: 20px 16px;
+  border: 1px dashed #3a3a3c;
+  border-radius: 10px;
+  background: #1a1a1c;
+  color: #9b9a96;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+  overflow: hidden;
+}
+.modal-upload:hover {
+  border-color: #da291c;
+  color: #f2f1ee;
+}
+.modal-upload-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #2a2a2c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #f2f1ee;
+}
+.modal-upload-text {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.modal-upload-preview {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+.modal-file-name {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: #77767c;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

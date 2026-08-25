@@ -1,0 +1,38 @@
+/* light page shell: same nav look as the hero panel, for normal scrolling content pages */
+.page-shell {
+  display: flex;
+  align-items: stretch;
+  gap: 56px;
+  min-height: 100vh;
+  padding: 56px 64px;
+  background: #fff;
+  color: #111;
+}
+.page-shell-nav {
+  position: relative;
+  flex: none;
+  width: 180px;
+  padding-top: 8px;
+}
+.page-shell-content {
+  flex: 1;
+  min-width: 0;
+  padding-left: 56px;
+  padding-bottom: 56px;
+  border-left: 1px solid #da291c;
+}
+
+/* shared page header (마이페이지/식단관리/자세측정) */
+.mp-eyebrow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mp-index-tag {
+  font: 800 12px Archivo, sans-serif;
+  letter-spacing: 0.08em;
+  color: #da291c;
+  border: 1px solid #da291c;
+  border-radius: 999px;
+  padding: 4px 12px;
+}

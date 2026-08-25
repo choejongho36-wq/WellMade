@@ -1,0 +1,106 @@
+.hero-nav-logo {
+  display: inline-block;
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 22px;
+  letter-spacing: -1px;
+  color: #111;
+  margin-bottom: 28px;
+  user-select: none;
+  cursor: pointer;
+}
+.hero-nav-logo span {
+  color: #da291c;
+}
+.hero-nav-menu {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  margin-left: -64px;
+  border-top: 1px solid #da291c;
+}
+.hero-social-login {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid #da291c;
+}
+.hero-nav-btn {
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  display: block;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111;
+  padding: 14px 2px 14px 66px;
+  border-bottom: 1px solid #da291c;
+  transition: color 0.3s ease;
+}
+.hero-nav-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -20%;
+  right: -20%;
+  background: #da291c;
+  transform: scaleX(0) skewX(-18deg);
+  transform-origin: left center;
+  z-index: -1;
+  transition: transform 0.4s cubic-bezier(.16, 1, .3, 1);
+}
+.hero-nav-btn:hover {
+  color: #fff;
+}
+.hero-nav-btn:hover::before {
+  transform: scaleX(1) skewX(-18deg);
+}
+.hero-nav-btn.disabled {
+  color: #b4b3b0;
+  cursor: default;
+}
+.hero-nav-btn.disabled::before {
+  content: none;
+}
+.hero-nav-login {
+  position: absolute;
+  top: 480px;
+  left: 0;
+  right: 0;
+  padding: 10px 0;
+  width: 100%;
+  border: 1px solid #111;
+  border-radius: 8px;
+  background: transparent;
+  color: #111;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.hero-nav-login:hover {
+  background: #111;
+  color: #fff;
+}
+.social-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  transition: filter 0.15s ease;
+}
+.social-btn:hover {
+  filter: brightness(0.96);
+}
+.social-btn img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex: none;
+}

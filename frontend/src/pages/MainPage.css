@@ -1,0 +1,140 @@
+.hero {
+  position: relative;
+  height: 100vh;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+}
+.hero-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  transition: opacity 1.4s ease, transform 1.4s ease;
+  user-select: none;
+}
+.hero.revealed .hero-content {
+  opacity: 0;
+  transform: translateY(-60vh);
+}
+.hero-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 56px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 1s ease 0.4s, transform 1s ease 0.4s;
+  pointer-events: none;
+}
+.hero.revealed .hero-panel {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.hero-nav {
+  position: relative;
+  flex: none;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(-12vh);
+}
+.hero-visual {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  border-left: 1px solid #da291c;
+}
+.hero-red-band {
+  position: absolute;
+  left: 0;
+  right: -64px;
+  top: 38%;
+  transform: translateY(-50%);
+  height: 34vh;
+  background: #da291c;
+  clip-path: polygon(0% 0%, 12% 0%, 40% 95%, 50% 0%, 100% 0%, 100% 100%, 0% 100%);
+}
+.hero-photo-wrap {
+  position: absolute;
+  right: 40px;
+  top: 50%;
+  margin-top: -42vh;
+  height: 155vh;
+}
+.hero-photo-tint {
+  display: block;
+  height: 100%;
+  width: auto;
+  transform: rotate(8deg);
+  filter: grayscale(1) contrast(1.1) drop-shadow(0 24px 30px rgba(0, 0, 0, 0.25));
+  mix-blend-mode: multiply;
+}
+.hero-photo-base {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+  transform: rotate(8deg);
+  filter: grayscale(1) contrast(1.1);
+  opacity: 0.45;
+}
+.hero-photo-index {
+  position: absolute;
+  top: calc(50% - 42vh + 14px);
+  right: 24px;
+  writing-mode: vertical-rl;
+  font: 600 11px ui-monospace, monospace;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.1em;
+}
+.hero-title {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: clamp(48px, 16vw, 240px);
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: -2px;
+  text-align: center;
+  white-space: nowrap;
+  background-image:
+    linear-gradient(rgba(218, 41, 28, 0.5), rgba(218, 41, 28, 0.5)),
+    var(--panorama-1);
+  background-position: center, center 30%;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
+  background-blend-mode: normal, luminosity;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: grayscale(0.3) contrast(1.05);
+}
+.hero-reveal-hint {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: rgba(10, 10, 10, 0.5);
+  animation: hero-hint-pulse 2s ease-in-out infinite;
+}
+.hero.revealed .hero-reveal-hint {
+  animation: none;
+}
+@keyframes hero-hint-pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
