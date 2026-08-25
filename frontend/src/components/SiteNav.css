@@ -63,24 +63,20 @@
 .hero-nav-btn.disabled::before {
   content: none;
 }
-.hero-nav-login {
-  position: absolute;
-  top: 480px;
-  left: 0;
-  right: 0;
-  padding: 10px 0;
-  width: 100%;
-  border: 1px solid #111;
-  border-radius: 8px;
-  background: transparent;
-  color: #111;
-  font-size: 13px;
-  font-weight: 700;
+.hero-nav-logout {
+  width: 300px;
+  margin-left: -64px;
+  margin-top: auto;
+  border: none;
+  border-top: 1px solid #da291c;
+  border-bottom: 1px solid #da291c;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  color: #b4b3b0;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
 }
-.hero-nav-login:hover {
-  background: #111;
+.hero-nav-logout:hover {
   color: #fff;
 }
 .social-btn {

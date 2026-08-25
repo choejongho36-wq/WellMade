@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import './SiteNav.css'
 import { NAV_ITEMS, SOCIAL_PROVIDERS, API_BASE } from '../lib/auth.js'
 
-function SiteNav({ user, onLogout, onChatClick }) {
+function SiteNav({ user, onLogout }) {
   return (
     <>
       <Link to="/" className="hero-nav-logo">WELL<span>MADE</span></Link>
@@ -10,19 +10,7 @@ function SiteNav({ user, onLogout, onChatClick }) {
         <>
           <nav className="hero-nav-menu">
             {NAV_ITEMS.map((item) =>
-              item.action === 'chat' ? (
-                <a
-                  key={item.label}
-                  className="hero-nav-btn"
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    onChatClick()
-                  }}
-                >
-                  {item.label}
-                </a>
-              ) : item.path ? (
+              item.path ? (
                 <Link key={item.label} to={item.path} className="hero-nav-btn">
                   {item.label}
                 </Link>
@@ -33,7 +21,7 @@ function SiteNav({ user, onLogout, onChatClick }) {
               )
             )}
           </nav>
-          <button className="hero-nav-login" onClick={onLogout}>로그아웃</button>
+          <button className="hero-nav-btn hero-nav-logout" onClick={onLogout}>로그아웃</button>
         </>
       ) : (
         <div className="hero-social-login">

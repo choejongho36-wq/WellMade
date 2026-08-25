@@ -44,16 +44,19 @@
 .hero-nav {
   position: relative;
   flex: none;
+  align-self: stretch;
   width: 180px;
   display: flex;
   flex-direction: column;
-  transform: translateY(-12vh);
+  padding: 6vh 0;
 }
 .hero-visual {
   position: relative;
   flex: 1;
   height: 100%;
   border-left: 1px solid #da291c;
+  --band-bottom: calc(38% + 17vh);
+  --tomorrow-fs: clamp(34px, 3.8vw, 56px);
 }
 .hero-red-band {
   position: absolute;
@@ -64,6 +67,35 @@
   height: 34vh;
   background: #da291c;
   clip-path: polygon(0% 0%, 12% 0%, 40% 95%, 50% 0%, 100% 0%, 100% 100%, 0% 100%);
+}
+.hero-tagline-lines {
+  position: absolute;
+  left: 14px;
+  bottom: calc(100% - var(--band-bottom));
+  z-index: 2;
+  font-family: 'Archivo Black', sans-serif;
+  font-size: clamp(20px, 2.2vw, 32px);
+  line-height: 1.05;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+.hero-tagline-small {
+  display: block;
+  font-size: 0.6em;
+  margin-bottom: -6px;
+}
+.hero-tagline-big {
+  position: absolute;
+  left: 10px;
+  top: calc(var(--band-bottom) - 10px);
+  z-index: 2;
+  font-family: 'Archivo Black', sans-serif;
+  font-size: var(--tomorrow-fs);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  color: #da291c;
 }
 .hero-photo-wrap {
   position: absolute;

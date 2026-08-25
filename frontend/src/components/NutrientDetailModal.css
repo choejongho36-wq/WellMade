@@ -1,0 +1,42 @@
+.nutrient-modal {
+  width: 380px;
+  text-align: left;
+}
+.nutrient-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.nutrient-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.nutrient-row-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #f2f1ee;
+}
+.nutrient-row-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+}
+.nutrient-bar {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 999px;
+  background: #232325;
+  overflow: hidden;
+}
+.nutrient-bar-fill {
+  height: 100%;
+  background: #da291c;
+  border-radius: 999px;
+}
+.nutrient-row-percent {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #9b9a96;
+}

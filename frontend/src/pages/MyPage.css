@@ -89,60 +89,6 @@
   letter-spacing: 0.02em;
 }
 
-.mp-section-head {
-  margin-top: 44px;
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-.mp-section-title {
-  font: 800 14px Archivo, sans-serif;
-  color: #111;
-}
-.mp-link-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #da291c;
-}
-
-.mp-stat-strip {
-  margin-top: 14px;
-  display: flex;
-  gap: 14px;
-}
-.mp-tag {
-  flex: 1;
-  transform: skewX(-8deg);
-  background: #fff;
-  border: 1px solid #da291c;
-  border-radius: 6px;
-}
-.mp-tag-inner {
-  transform: skewX(8deg);
-  padding: 20px 4px;
-  text-align: center;
-}
-.mp-tag-label {
-  font: 800 10.5px Archivo, sans-serif;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #111;
-}
-.mp-tag-value {
-  margin-top: 10px;
-  font: 400 30px 'Archivo Black', sans-serif;
-  color: #da291c;
-}
-.mp-tag-unit {
-  font: 700 11px Archivo, sans-serif;
-  color: #9b9a96;
-  margin-top: 2px;
-}
-
 .mp-inbody-empty {
   margin-top: 14px;
   transform: skewX(-4deg);
@@ -172,45 +118,6 @@
 }
 
 /* 인바디 등록 모달 */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-.modal {
-  position: relative;
-  width: 320px;
-  background: #131315;
-  border: 1px solid #232325;
-  border-radius: 16px;
-  padding: 32px 28px;
-  text-align: center;
-}
-.modal-close {
-  position: absolute;
-  top: 12px;
-  right: 14px;
-  background: none;
-  border: none;
-  color: #8c8b88;
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-}
-.modal-title {
-  font-size: 18px;
-  font-weight: 800;
-  margin-bottom: 6px;
-}
-.modal-sub {
-  font-size: 12.5px;
-  color: #9b9a96;
-  margin-bottom: 24px;
-}
 .modal-btn {
   margin-top: 16px;
   width: 100%;

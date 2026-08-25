@@ -7,6 +7,7 @@ AI 서버의 시작점.
 from datetime import date
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.schemas import PoseAnalyzeRequest, PoseAnalyzeResponse, PoseIssue
 from app.schemas import CoachingFrameRequest, CoachingFrameResponse
 from app.schemas import SessionEndCheckRequest, SessionEndCheckResponse
@@ -24,6 +25,14 @@ from app.rag.generation import generate_guide, generate_qna
 from app.session.report import generate_session_report
 
 app = FastAPI(title="WellMade AI Server")
+
+# ponytail: 프론트 로컬 개발 서버(vite 기본 포트)만 허용 — 배포 도메인 확정되면 origin 목록 갱신
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")

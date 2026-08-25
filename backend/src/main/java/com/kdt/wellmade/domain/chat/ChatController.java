@@ -25,4 +25,11 @@ public class ChatController {
         String reply = chatService.reply(user, request.messages());
         return new ChatResponse(reply);
     }
+
+    @PostMapping("/nutrient-advice")
+    public ChatResponse nutrientAdvice(@AuthenticationPrincipal Long userId) {
+        User user = userService.getUser(userId);
+        String reply = chatService.nutrientAdvice(user, userId);
+        return new ChatResponse(reply);
+    }
 }

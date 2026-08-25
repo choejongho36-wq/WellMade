@@ -4,7 +4,6 @@ import heroPhoto from '../assets/pngwing.com.png'
 import heroBg from '../assets/hero-bg.png'
 import { useAuth } from '../lib/auth.js'
 import SiteNav from '../components/SiteNav.jsx'
-import ChatDrawer from '../components/ChatDrawer.jsx'
 
 const HERO_REVEAL_KEY = 'heroRevealedAt'
 const HERO_REVEAL_TTL_MS = 30 * 60 * 1000
@@ -16,8 +15,7 @@ function wasRecentlyRevealed() {
 
 function MainPage() {
   const [revealed, setRevealed] = useState(wasRecentlyRevealed)
-  const [chatOpen, setChatOpen] = useState(false)
-  const { user, handleLogout, sendChat } = useAuth()
+  const { user, handleLogout } = useAuth()
 
   const handleReveal = () => {
     setRevealed(true)
@@ -43,11 +41,15 @@ function MainPage() {
 
           <div className="hero-panel">
             <div className="hero-nav">
-              <SiteNav user={user} onLogout={handleLogout} onChatClick={() => setChatOpen(true)} />
+              <SiteNav user={user} onLogout={handleLogout} />
             </div>
 
             <div className="hero-visual">
               <div className="hero-red-band"></div>
+              <p className="hero-tagline-lines">
+                <span className="hero-tagline-small">For a</span>Better
+              </p>
+              <p className="hero-tagline-big">Tomorrow</p>
               <div className="hero-photo-wrap">
                 <img src={heroPhoto} alt="" className="hero-photo-tint" />
                 <img src={heroPhoto} alt="" className="hero-photo-base" />
@@ -57,8 +59,6 @@ function MainPage() {
           </div>
         </section>
       </main>
-
-      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} sendChat={sendChat} />
     </div>
   )
 }
