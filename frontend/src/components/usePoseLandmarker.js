@@ -45,13 +45,8 @@ export function usePoseLandmarker() {
         const raw = landmarks[0]
         if (!raw) return null
 
-        return Object.entries(POSTURE_LANDMARKS).map(([name, index]) => ({
-          name,
-          x: raw[index].x,
-          y: raw[index].y,
-          z: raw[index].z,
-          visibility: raw[index].visibility,
-        }))
+        // AI 서버 스키마(app/schemas.py Landmark)가 33개 전체를 인덱스 순서 그대로 요구함
+        return raw.map(({ x, y, z, visibility }) => ({ x, y, z, visibility }))
       } catch (err) {
         setError(err)
         return null

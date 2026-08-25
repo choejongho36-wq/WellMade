@@ -1,7 +1,10 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import './MainPage.css'
+import heroPhoto from './assets/pngwing.com.png'
 import heroBg from './assets/hero-bg.png'
-import Sidebar, { TOKEN_KEY } from './Sidebar.jsx'
+import { NAV_ITEMS, useAuth, LoginModal } from './Sidebar.jsx'
+import ChatDrawer from './ChatDrawer.jsx'
 
 const PROGRAMS = [
   {
@@ -38,37 +41,77 @@ function ThumbIcon() {
 }
 
 function MainPage() {
-  const [revealed, setRevealed] = useState(() => !!localStorage.getItem(TOKEN_KEY))
+  const [revealed, setRevealed] = useState(false)
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const { user, handleLogout, sendChat } = useAuth()
 
   return (
     <div className={`app${revealed ? ' revealed' : ''}`}>
-      <Sidebar />
-
       <main className="main">
         <section
           className={`hero${revealed ? ' revealed' : ''}`}
-          style={{ '--hero-bg': `url(${heroBg})` }}
           onClick={() => setRevealed(true)}
         >
           <div className="hero-content">
-            <h1 className="hero-title">
+            <h1
+              className="hero-title"
+              style={{ '--panorama-1': `url(${heroBg})` }}
+            >
               WELLMADE<br />YOURSELF
             </h1>
             <p className="hero-reveal-hint">아무 곳이나 클릭하세요</p>
           </div>
 
-          <div className="hero-info">
-            <div className="hero-info-eyebrow">AI 운동 코칭 · WELLMADE</div>
-            <p className="hero-info-desc">
-              상세 측정부터 인사이트 비교, 맞춤 운동 추천, 실시간 코칭까지 — 당신의 몸을 데이터로 읽고
-              다음 단계를 제시합니다.
-            </p>
-            <a className="hero-info-cta" href="#">코칭 프로그램 둘러보기 →</a>
+          <div className="hero-panel">
+            <div className="hero-nav">
+              <div className="hero-nav-logo">WELL<span>MADE</span></div>
+              <nav className="hero-nav-menu">
+                {NAV_ITEMS.map((item) =>
+                  item.action === 'chat' ? (
+                    <a
+                      key={item.label}
+                      className="hero-nav-btn"
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        setChatOpen(true)
+                      }}
+                    >
+                      {item.label}
+                    </a>
+                  ) : item.path ? (
+                    <Link key={item.label} to={item.path} className="hero-nav-btn">
+                      {item.label}
+                    </Link>
+                  ) : (
+                    <span key={item.label} className="hero-nav-btn disabled">
+                      {item.label}
+                    </span>
+                  )
+                )}
+              </nav>
+              {user ? (
+                <button className="hero-nav-login" onClick={handleLogout}>로그아웃</button>
+              ) : (
+                <button className="hero-nav-login" onClick={() => setLoginOpen(true)}>로그인</button>
+              )}
+            </div>
+
+            <div className="hero-visual">
+              <div className="hero-red-band"></div>
+              <div className="hero-photo-wrap">
+                <img src={heroPhoto} alt="" className="hero-photo-tint" />
+                <img src={heroPhoto} alt="" className="hero-photo-base" />
+              </div>
+              <span className="hero-photo-index">01</span>
+            </div>
           </div>
         </section>
-
-       
       </main>
+
+      {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
+      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} sendChat={sendChat} />
     </div>
   )
 }

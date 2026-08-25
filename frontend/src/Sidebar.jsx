@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import './MainPage.css'
+import ChatDrawer from './ChatDrawer.jsx'
 import wellmadeLogo from './assets/Wellmade.png'
 import googleLoginImg from './assets/Google_login.png'
 import kakaoLoginImg from './assets/kakao_login_large_narrow.png'
@@ -14,13 +15,15 @@ const SOCIAL_PROVIDERS = [
   { id: 'naver', label: '네이버로 시작하기', icon: naverLoginImg },
 ]
 
-const NAV_ITEMS = [
+export const NAV_ITEMS = [
   { label: '마이페이지', path: '/mypage' },
   { label: '자세 측정', path: '/posture' },
+  { label: '식단 관리', path: '/diet' },
+  { label: '챗봇', action: 'chat' },
   { label: '운동 추천' },
 ]
 
-function LoginModal({ onClose }) {
+export function LoginModal({ onClose }) {
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key === 'Escape') onClose()
@@ -50,6 +53,7 @@ function LoginModal({ onClose }) {
 export function useAuth() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [inbody, setInbody] = useState(null)
   const codeExchanged = useRef(false)
   const navigate = useNavigate()
 
@@ -70,6 +74,10 @@ export function useAuth() {
       fetch(`${API_BASE}/api/users/me/profile`, { headers: authHeader })
         .then((res) => (res.ok ? res.json() : null))
         .then(setProfile)
+
+      fetch(`${API_BASE}/api/users/me/inbody/latest`, { headers: authHeader })
+        .then((res) => (res.status === 200 ? res.json() : null))
+        .then(setInbody)
     }
 
     const code = new URLSearchParams(window.location.search).get('code')
@@ -100,14 +108,115 @@ export function useAuth() {
     localStorage.removeItem(TOKEN_KEY)
     setUser(null)
     setProfile(null)
+    setInbody(null)
   }
 
-  return { user, profile, handleLogout }
+  const extractInbody = (file) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    const formData = new FormData()
+    formData.append('image', file)
+
+    return fetch(`${API_BASE}/api/users/me/inbody/extract`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    }).then((res) => {
+      if (!res.ok) throw new Error('인바디 인식 실패')
+      return res.json()
+    })
+  }
+
+  const confirmInbody = (values) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/users/me/inbody`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(values),
+    }).then((res) => {
+      if (!res.ok) throw new Error('인바디 등록 실패')
+      return res.json()
+    }).then((data) => {
+      setInbody(data)
+      return data
+    })
+  }
+
+  const updateGoal = (goal) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return
+
+    fetch(`${API_BASE}/api/users/me/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        name: profile?.name,
+        profileImageUrl: profile?.profileImageUrl,
+        goal,
+      }),
+    }).then((res) => {
+      if (res.ok) setProfile((prev) => ({ ...prev, goal }))
+    })
+  }
+
+  const updateName = (name) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/users/me/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        name,
+        profileImageUrl: profile?.profileImageUrl,
+        goal: profile?.goal,
+      }),
+    }).then((res) => {
+      if (!res.ok) {
+        return res.text().then((message) => {
+          throw new Error(message || '닉네임 변경에 실패했어요')
+        })
+      }
+      setProfile((prev) => ({ ...prev, name }))
+    })
+  }
+
+  const sendChat = (messages) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/users/me/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ messages }),
+    }).then((res) => {
+      if (!res.ok) throw new Error('답변을 받지 못했어요')
+      return res.json()
+    }).then((data) => data.content)
+  }
+
+  return { user, profile, inbody, handleLogout, updateGoal, updateName, extractInbody, confirmInbody, sendChat }
 }
 
 function Sidebar() {
   const [loginOpen, setLoginOpen] = useState(false)
-  const { user, profile, handleLogout } = useAuth()
+  const [chatOpen, setChatOpen] = useState(false)
+  const { user, profile, handleLogout, sendChat } = useAuth()
   const location = useLocation()
 
   return (
@@ -117,7 +226,7 @@ function Sidebar() {
       <aside className="sidebar">
         <Link to="/" className="logo">
           <img src={wellmadeLogo} alt="" className="logo-mark" />
-          <div className="logo-text">WELLMADE</div>
+          <div className="logo-text">WELL<span style={{ color: '#da291c' }}>MADE</span></div>
         </Link>
         {user ? (
           <button className="login-btn" onClick={handleLogout}>로그아웃</button>
@@ -126,7 +235,20 @@ function Sidebar() {
         )}
         <nav className="nav">
           {NAV_ITEMS.map((item) =>
-            item.path ? (
+            item.action === 'chat' ? (
+              <a
+                key={item.label}
+                className="nav-item"
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault()
+                  setChatOpen(true)
+                }}
+              >
+                <span className="dot"></span>
+                {item.label}
+              </a>
+            ) : item.path ? (
               <Link
                 key={item.label}
                 to={item.path}
@@ -153,6 +275,7 @@ function Sidebar() {
       </aside>
 
       {loginOpen && <LoginModal onClose={() => setLoginOpen(false)} />}
+      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} sendChat={sendChat} />
     </>
   )
 }
