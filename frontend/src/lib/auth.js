@@ -4,7 +4,7 @@ import iconGoogle from '../assets/icon-google.png'
 import iconKakao from '../assets/icon-kakao.png'
 import iconNaver from '../assets/icon-naver.png'
 
-export const API_BASE = 'http://localhost:8080'
+export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080'
 export const TOKEN_KEY = 'accessToken'
 const USER_CACHE_KEY = 'cachedUser'
 
@@ -95,6 +95,19 @@ export function useAuth() {
     setInbody(null)
   }
 
+  const deleteAccount = () => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/users/me`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('탈퇴에 실패했어요')
+      handleLogout()
+    })
+  }
+
   const extractInbody = (file) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
@@ -134,9 +147,9 @@ export function useAuth() {
 
   const updateGoal = (goal) => {
     const token = localStorage.getItem(TOKEN_KEY)
-    if (!token) return
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
 
-    fetch(`${API_BASE}/api/users/me/profile`, {
+    return fetch(`${API_BASE}/api/users/me/profile`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -149,6 +162,7 @@ export function useAuth() {
       }),
     }).then((res) => {
       if (res.ok) setProfile((prev) => ({ ...prev, goal }))
+      return res.ok
     })
   }
 
@@ -363,7 +377,7 @@ export function useAuth() {
   }
 
   return {
-    user, profile, inbody, handleLogout, updateGoal, updateName, extractInbody, confirmInbody,
+    user, profile, inbody, handleLogout, deleteAccount, updateGoal, updateName, extractInbody, confirmInbody,
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
     updateMeal, updateMealItemAmount, deleteMeal,
     sendChat, getChatHistory, getNutrientAdvice,

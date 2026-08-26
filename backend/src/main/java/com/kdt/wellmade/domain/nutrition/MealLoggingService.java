@@ -75,22 +75,23 @@ public class MealLoggingService {
                 continue;
             }
 
+            String searchName = normalizeSearchName(item.foodName(), item.searchName());
             FoodNutritionLookupService.NutritionInfo info =
-                    nutritionLookupService.lookup(item.searchName(), item.amountG());
+                    nutritionLookupService.lookup(searchName, item.amountG());
 
             if (info == null) {
                 notFound.add(item.foodName());
                 continue;
             }
- 
+
             totalCalories += info.calories();
             totalProtein += info.proteinG();
             totalCarbs += info.carbsG();
             totalFat += info.fatG();
- 
+
             // searchName도 같이 저장해둠 - 나중에 그램 수를 수정할 때 같은 이름으로 다시 조회해야 하는데
             // foodName(사용자가 말한 그대로, 예: "포카칩 큰 봉지")으로는 DB 재검색이 안 될 수 있어서
-            foodItemsForJson.add(item(item.foodName(), item.searchName(), item.amountG(), info));
+            foodItemsForJson.add(item(item.foodName(), searchName, item.amountG(), info));
         }
 
         if (foodItemsForJson.isEmpty()) {
@@ -221,7 +222,8 @@ public class MealLoggingService {
         Map<String, Object> target = items.get(itemIndex);
         String foodName = (String) target.get("foodName");
         // 이 패치 이전에 저장된 기록은 searchName이 없을 수 있어서, 없으면 foodName으로 재조회 시도
-        String searchName = target.get("searchName") != null ? (String) target.get("searchName") : foodName;
+        String rawSearchName = target.get("searchName") != null ? (String) target.get("searchName") : foodName;
+        String searchName = normalizeSearchName(foodName, rawSearchName);
 
         FoodNutritionLookupService.NutritionInfo info = nutritionLookupService.lookup(searchName, newAmountG);
         if (info == null) {
@@ -260,6 +262,11 @@ public class MealLoggingService {
         }
     }
 
+    /** 회원 탈퇴 시 diet_meals는 JPA 엔티티가 아니라 CASCADE가 안 걸려있어서 직접 지워야 함 */
+    public void deleteAllForUser(Long userId) {
+        jdbcTemplate.update("DELETE FROM diet_meals WHERE user_id = ?", userId);
+    }
+
     private String inferMealTypeByTime() {
         int hour = LocalTime.now().getHour();
         if (hour < 11) return "BREAKFAST";
@@ -268,6 +275,26 @@ public class MealLoggingService {
         return "SNACK";
     }
  
+    /**
+     * "밥"/"흰쌀밥"/"쌀밥"류는 searchName을 Qwen에게 직접 쓰게 하면 안 됨 - Ollama format:"json" 모드에서
+     * 이 정확한 문자열("멥쌀밥")을 생성할 때 종종 깨진 문자열("miesamul" 등)을 뱉는 모델 버그가 있어서
+     * 실제로 재현됨(온도 조절로도 해결 안 됨). foodName은 이 문제없이 항상 정상적으로 나오길래,
+     * foodName을 기준으로 알려진 케이스만 코드에서 확정적으로 보정함.
+     */
+    private String normalizeSearchName(String foodName, String modelSearchName) {
+        if (foodName == null) {
+            return modelSearchName;
+        }
+        if (foodName.contains("찹쌀") && foodName.contains("밥")) {
+            return "찹쌀밥";
+        }
+        if (foodName.equals("밥") || foodName.equals("흰쌀밥") || foodName.equals("쌀밥")
+                || foodName.equals("백미밥") || foodName.equals("공깃밥")) {
+            return "멥쌀밥";
+        }
+        return modelSearchName;
+    }
+
     /** DB 매칭까지 성공한 항목만으로 메뉴명을 요약 (못 찾은 항목은 notFound로 따로 안내) */
     private String summarizeMenuNames(List<Map<String, Object>> foodItemsForJson) {
         return foodItemsForJson.stream()

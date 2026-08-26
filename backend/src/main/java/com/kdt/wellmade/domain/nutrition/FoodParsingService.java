@@ -81,10 +81,25 @@ public class FoodParsingService {
             예시 출력: {"items": [{"foodName": "파리바게트 초코소라빵", "searchName": "초코소라빵", "amountG": 90}]}
             """;
  
+    /**
+     * 인터넷 신조어/줄임말 -> 정식 명칭 치환 사전.
+     *
+     * "두쫀쿠"(두바이 쫀득 쿠키) 같은 최신 줄임말은 Qwen이 통째로 모르는 토큰이라, format:"json" 모드에서
+     * foodName까지 깨진 문자열("두 komment" 등)로 뱉어버림 - "멥쌀밥" 문제와 달리 foodName 자체가
+     * 깨져서 나중에 코드로 보정할 실마리도 없음. 그래서 모델한테 보내기 "전에" 원문 문자열을 정식 명칭으로
+     * 미리 바꿔치기함 (모델은 "두바이 쫀득 쿠키"라는 표현은 정상적으로 잘 처리함).
+     *
+     * ponytail: 새 줄임말이 뜰 때마다 여기 한 줄씩 추가해야 함 - 끝없이 늘어나는 목록이라 규모가 커지면
+     * DB 테이블로 옮기는 게 나을 수 있음.
+     */
+    private static final Map<String, String> SLANG_ALIASES = Map.of(
+            "두쫀쿠", "두바이 쫀득 쿠키"
+    );
+
     private final RestClient ollamaRestClient;
     private final String ollamaModel;
     private final ObjectMapper objectMapper = new ObjectMapper();
- 
+
     public FoodParsingService(
             RestClient ollamaRestClient,
             @Value("${ollama.model:qwen2.5:7b-instruct}") String ollamaModel
@@ -92,11 +107,12 @@ public class FoodParsingService {
         this.ollamaRestClient = ollamaRestClient;
         this.ollamaModel = ollamaModel;
     }
- 
-    public List<FoodItem> parse(String userMessage) {
-        if (userMessage == null || userMessage.isBlank()) {
+
+    public List<FoodItem> parse(String rawUserMessage) {
+        if (rawUserMessage == null || rawUserMessage.isBlank()) {
             throw new IllegalArgumentException("메시지를 입력해주세요.");
         }
+        String userMessage = expandSlang(rawUserMessage);
 
         Map<String, Object> requestBody = Map.of(
                 "model", ollamaModel,
@@ -126,6 +142,14 @@ public class FoodParsingService {
         return parseResponse(responseJson);
     }
  
+    private String expandSlang(String rawMessage) {
+        String result = rawMessage;
+        for (Map.Entry<String, String> alias : SLANG_ALIASES.entrySet()) {
+            result = result.replace(alias.getKey(), alias.getValue());
+        }
+        return result;
+    }
+
     private List<FoodItem> parseResponse(String responseJson) {
         String modelText = null;
         try {
