@@ -5,7 +5,7 @@ import './ChatDrawer.css'
 
 // 나머지 메뉴는 관련 기능이 추가되는 대로 여기에 이어서 추가
 const CHAT_MENU_ITEMS = [
-  { id: 'diet-manage', label: '나의 식단 관리', path: '/mealplan' },
+  { id: 'diet-manage', label: '나의 식단 기록', path: '/mealplan' },
   { id: 'nutrient-advice', label: '오늘 영양소 분석', action: 'nutrient-advice' },
 ]
 

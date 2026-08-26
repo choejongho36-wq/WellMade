@@ -18,7 +18,8 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const SUMMARY_HEADLINE_FIELD = { key: 'totalCalories', label: '칼로리', unit: 'kcal' }
+const SUMMARY_HEADLINE_FIELD = { key: 'totalCalories', unit: 'kcal' }
+const DIET_DISCLAIMER_KEY = 'dietDisclaimerSeen'
 
 /** food_items 컬럼은 DB에 저장된 JSON 문자열 그대로 내려오므로 파싱해서 씀. 형식이 깨져 있으면 빈 배열로 처리 */
 function parseFoodItems(meal) {
@@ -32,12 +33,12 @@ function parseFoodItems(meal) {
 }
 
 function DietPage() {
-  const { user, logMeal, getTodayMeals, getTodayTotal, updateMeal, updateMealItemAmount, deleteMeal } = useAuth()
+  const { user, logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getNutrientTarget, updateMeal, updateMealItemAmount, deleteMeal } = useAuth()
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [mealType, setMealType] = useState('')
   const [meals, setMeals] = useState([])
   const [total, setTotal] = useState(null)
-  const [todaySummary, setTodaySummary] = useState(null)
+  const [nutrientTarget, setNutrientTarget] = useState(null)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState('')
@@ -52,16 +53,18 @@ function DietPage() {
   const [itemAmountDraft, setItemAmountDraft] = useState('')
   const [savingItem, setSavingItem] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [showDisclaimer, setShowDisclaimer] = useState(() => !localStorage.getItem(DIET_DISCLAIMER_KEY))
+
+  const dismissDisclaimer = () => {
+    localStorage.setItem(DIET_DISCLAIMER_KEY, '1')
+    setShowDisclaimer(false)
+  }
 
   const isToday = selectedDate === todayStr()
 
   const refresh = (date) => {
     getTodayMeals(date).then(setMeals).catch(() => {})
     getTodayTotal(date).then(setTotal).catch(() => {})
-  }
-
-  const refreshTodaySummary = () => {
-    getTodayTotal(todayStr()).then(setTodaySummary).catch(() => {})
   }
 
   useEffect(() => {
@@ -73,7 +76,7 @@ function DietPage() {
   }, [user, selectedDate])
 
   useEffect(() => {
-    if (user) refreshTodaySummary()
+    if (user) getNutrientTarget().then(setNutrientTarget).catch(() => {})
   }, [user])
 
   const handleLog = () => {
@@ -88,7 +91,6 @@ function DietPage() {
         const saved = Boolean(result.menuNameSummary)
         if (saved) {
           refresh(selectedDate)
-          refreshTodaySummary()
           setInput('')
         }
         if (result.notFoundFoods?.length) {
@@ -119,7 +121,6 @@ function DietPage() {
       .then(() => {
         setEditingId(null)
         refresh(selectedDate)
-        refreshTodaySummary()
       })
       .catch((e) => setNotice(e.message || '수정에 실패했어요'))
       .finally(() => setSavingEdit(false))
@@ -150,7 +151,6 @@ function DietPage() {
       .then(() => {
         setEditingItem(null)
         refresh(selectedDate)
-        refreshTodaySummary()
       })
       .catch((e) => setNotice(e.message || '그램 수 수정에 실패했어요'))
       .finally(() => setSavingItem(false))
@@ -162,7 +162,6 @@ function DietPage() {
     deleteMeal(id)
       .then(() => {
         refresh(selectedDate)
-        refreshTodaySummary()
       })
       .catch((e) => setNotice(e.message || '삭제에 실패했어요'))
       .finally(() => setDeletingId(null))
@@ -178,7 +177,12 @@ function DietPage() {
         <>
           <div className="diet-split">
             <div className="diet-col-left">
-              <Calendar selected={selectedDate} onSelect={setSelectedDate} maxDateStr={todayStr()} />
+              <Calendar
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                maxDateStr={todayStr()}
+                getMonthCalories={getMonthCalories}
+              />
 
               {isToday ? (
                 <div className="diet-log-form">
@@ -215,10 +219,24 @@ function DietPage() {
             </div>
 
             <div className="diet-col-right">
+              {total && (
+                <div className="summary-row">
+                  <span className="summary-row-label">총 섭취</span>
+                  <div className="tag-strip">
+                    <button className="tag tag-clickable" onClick={() => setNutrientModalOpen(true)}>
+                      <div className="tag-inner">
+                        <div className="tag-value">{Math.round(total[SUMMARY_HEADLINE_FIELD.key])}</div>
+                        <div className="tag-unit">{SUMMARY_HEADLINE_FIELD.unit}</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="section-head">
                 <div className="section-title">기록한 메뉴</div>
               </div>
-              
+
 
               <div className="diet-timeline" style={{ marginTop: 14 }}>
                 {meals.length === 0 && (
@@ -357,28 +375,33 @@ function DietPage() {
               </div>
             </div>
           </div>
-
-          <div className="section-head">
-            <div className="section-title">오늘 하루 요약</div>
-          </div>
-          {todaySummary && (
-            <div className="tag-strip">
-              <button className="tag tag-clickable" onClick={() => setNutrientModalOpen(true)}>
-                <div className="tag-label"><span>{SUMMARY_HEADLINE_FIELD.label}</span></div>
-                <div className="tag-inner">
-                  <div className="tag-value">{Math.round(todaySummary[SUMMARY_HEADLINE_FIELD.key])}</div>
-                  <div className="tag-unit">{SUMMARY_HEADLINE_FIELD.unit}</div>
-                </div>
-              </button>
-            </div>
-          )}
         </>
       ) : (
         <p className="pcard-desc" style={{ marginTop: 20 }}>로그인 후 식단을 기록할 수 있습니다.</p>
       )}
 
+      {user && showDisclaimer && (
+        <div className="modal-backdrop" onClick={dismissDisclaimer}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={dismissDisclaimer} aria-label="닫기">×</button>
+            <div className="modal-title">기록 전에 알아두세요</div>
+            <div className="modal-sub">
+              여기 나오는 칼로리·영양성분은 식약처 표준 식품 데이터를 바탕으로 계산한 추정치예요.
+              조리법이나 재료, 실제 먹은 양에 따라 실제 섭취량과는 차이가 있을 수 있으니 참고용으로 봐주세요.
+            </div>
+            <button className="modal-btn" onClick={dismissDisclaimer}>확인했어요</button>
+          </div>
+        </div>
+      )}
+
       {nutrientModalOpen && (
-        <NutrientDetailModal summary={todaySummary} onClose={() => setNutrientModalOpen(false)} />
+        <NutrientDetailModal
+          summary={total}
+          target={nutrientTarget}
+          onTargetChange={setNutrientTarget}
+          title="총 섭취 영양소"
+          onClose={() => setNutrientModalOpen(false)}
+        />
       )}
 
       {confirmDeleteId != null && (

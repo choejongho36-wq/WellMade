@@ -25,7 +25,7 @@ const INBODY_FIELDS = [
   { key: 'bmi', label: 'BMI', unit: '', step: '0.1' },
 ]
 
-const DIET_HEADLINE_FIELD = { key: 'totalCalories', label: '칼로리', unit: 'kcal' }
+const DIET_HEADLINE_FIELD = { key: 'totalCalories', unit: 'kcal' }
 
 function todayStr() {
   const d = new Date()
@@ -161,16 +161,21 @@ function InbodyUploadModal({ onClose, onExtract, onConfirm }) {
 }
 
 function MyPage() {
-  const { user, profile, inbody, updateGoal, updateName, extractInbody, confirmInbody, getTodayTotal } = useAuth()
+  const { user, profile, inbody, updateGoal, updateName, extractInbody, confirmInbody, getTodayTotal, getNutrientTarget } = useAuth()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
   const [nameError, setNameError] = useState('')
   const [todaySummary, setTodaySummary] = useState(null)
+  const [nutrientTarget, setNutrientTarget] = useState(null)
   const [nutrientModalOpen, setNutrientModalOpen] = useState(false)
 
   useEffect(() => {
     if (user) getTodayTotal(todayStr()).then(setTodaySummary).catch(() => {})
+  }, [user])
+
+  useEffect(() => {
+    if (user) getNutrientTarget().then(setNutrientTarget).catch(() => {})
   }, [user])
 
   const startEditName = () => {
@@ -287,17 +292,19 @@ function MyPage() {
 
           <div className="section-head">
             <div className="section-title">오늘 식단</div>
-            <Link className="link-btn" to="/mealplan">식단 관리로 이동</Link>
+            <Link className="link-btn" to="/mealplan">식단 기록으로 이동</Link>
           </div>
           {todaySummary && (
-            <div className="tag-strip">
-              <button className="tag tag-clickable" onClick={() => setNutrientModalOpen(true)}>
-                <div className="tag-label"><span>{DIET_HEADLINE_FIELD.label}</span></div>
-                <div className="tag-inner">
-                  <div className="tag-value">{Math.round(todaySummary[DIET_HEADLINE_FIELD.key])}</div>
-                  <div className="tag-unit">{DIET_HEADLINE_FIELD.unit}</div>
-                </div>
-              </button>
+            <div className="summary-row">
+              <span className="summary-row-label">총 섭취</span>
+              <div className="tag-strip">
+                <button className="tag tag-clickable" onClick={() => setNutrientModalOpen(true)}>
+                  <div className="tag-inner">
+                    <div className="tag-value">{Math.round(todaySummary[DIET_HEADLINE_FIELD.key])}</div>
+                    <div className="tag-unit">{DIET_HEADLINE_FIELD.unit}</div>
+                  </div>
+                </button>
+              </div>
             </div>
           )}
         </>
@@ -313,7 +320,12 @@ function MyPage() {
         />
       )}
       {nutrientModalOpen && (
-        <NutrientDetailModal summary={todaySummary} onClose={() => setNutrientModalOpen(false)} />
+        <NutrientDetailModal
+          summary={todaySummary}
+          target={nutrientTarget}
+          onTargetChange={setNutrientTarget}
+          onClose={() => setNutrientModalOpen(false)}
+        />
       )}
     </PageShell>
   )

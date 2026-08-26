@@ -119,15 +119,44 @@ public class MealLoggingService {
         );
     }
  
-    /** 특정 날짜에 기록된 끼니 목록 (시간순). food_items에 항목별 이름/그램/칼로리가 JSON 배열로 들어있음 */
+    /**
+     * 특정 날짜에 기록된 끼니 목록. 입력한 순서가 아니라 아침 -> 점심 -> 저녁 순으로 정렬하고,
+     * 간식은 위치가 중요하지 않아 맨 뒤로 보냄 (같은 끼니 종류끼리는 기록한 시간순).
+     * food_items에 항목별 이름/그램/칼로리가 JSON 배열로 들어있음
+     */
     public List<Map<String, Object>> getMealsForDate(Long userId, LocalDate date) {
         return jdbcTemplate.queryForList("""
                 SELECT id, meal_type, menu_name, raw_message, kcal, protein_g, carbs_g, fat_g,
                        food_items, created_at
                 FROM diet_meals
                 WHERE user_id = ? AND logged_date = ?
-                ORDER BY created_at ASC
+                ORDER BY CASE meal_type
+                             WHEN 'BREAKFAST' THEN 0
+                             WHEN 'LUNCH' THEN 1
+                             WHEN 'DINNER' THEN 2
+                             ELSE 3
+                         END,
+                         created_at ASC
                 """, userId, date);
+    }
+
+    /** 특정 연/월의 날짜별 칼로리 합계 (달력 칸에 표시할 용도). 기록 없는 날짜는 포함하지 않음 */
+    public Map<String, Double> getDailyCaloriesForMonth(Long userId, int year, int month) {
+        LocalDate start = LocalDate.of(year, month, 1);
+        LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT logged_date, SUM(kcal) AS total_kcal
+                FROM diet_meals
+                WHERE user_id = ? AND logged_date BETWEEN ? AND ?
+                GROUP BY logged_date
+                """, userId, start, end);
+
+        Map<String, Double> result = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            result.put(row.get("logged_date").toString(), ((Number) row.get("total_kcal")).doubleValue());
+        }
+        return result;
     }
 
     /** 특정 날짜의 총 칼로리/영양소 합계 */

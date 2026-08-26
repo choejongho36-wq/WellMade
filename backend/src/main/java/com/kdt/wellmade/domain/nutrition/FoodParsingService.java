@@ -34,13 +34,19 @@ public class FoodParsingService {
  
     private static final String SYSTEM_PROMPT = """
             당신은 사용자가 말한 식사 메시지에서 음식 항목과 추정 섭취량(그램)을 추출하는 도구입니다.
-            반드시 JSON 배열로만 답하세요. 다른 설명이나 마크다운 코드블록 없이 순수 JSON만 출력하세요.
- 
+            반드시 {"items": [...]} 형태의 JSON 객체로만 답하세요. 다른 설명이나 마크다운 코드블록 없이 순수 JSON만 출력하세요.
+            (Ollama의 JSON 모드는 최상위가 객체여야만 하므로, 배열을 바로 반환하지 말고 반드시 items 키로 감쌀 것)
+
             규칙:
-            - 각 항목은 {"foodName": "기록에 남길 이름", "searchName": "DB 검색용 기본 제품명", "amountG": 숫자} 형태
+            - items 배열의 각 항목은 {"foodName": "기록에 남길 이름", "searchName": "DB 검색용 기본 제품명", "amountG": 숫자} 형태
             - 집밥/조리음식처럼 통칭이 있는 음식은 foodName/searchName 둘 다 검색하기 쉬운 일반적인 명칭으로 정규화하세요 (예: "김치찌개", "흰쌀밥")
-            - 과자, 음료, 라면 등 브랜드/제품명이 있는 가공식품은 그 이름을 그대로 유지하세요.
+            - 과자, 음료, 라면 등 마트/편의점에서 그대로 사서 먹는 포장 가공식품은 브랜드/제품명을 그대로 유지하세요.
               절대 더 넓은 카테고리 명칭으로 뭉뚱그리지 마세요 (정답: "포카칩", 오답: "감자칩")
+            - 엽기떡볶이, 파리바게트, 샐러디, 스타벅스, 교촌치킨처럼 매장에서 조리/제공하는 외식 프랜차이즈
+              메뉴는 위와 다릅니다 - DB에는 프랜차이즈별 메뉴가 없고 일반적인 음식 통칭만 있으므로,
+              foodName에는 사용자가 말한 브랜드+메뉴명을 그대로 남기되(기록에는 어디서 먹었는지 남아야 하니까),
+              searchName에는 브랜드명을 떼고 그 요리가 속하는 일반적인 통칭만 넣으세요
+              (예: "엽기떡볶이" -> searchName "떡볶이", "샐러디 탄단지 샐러드" -> searchName "닭가슴살 샐러드").
             - "큰 봉지", "패밀리사이즈", "라지" 등 용량을 나타내는 표현이 붙으면:
               foodName에는 그 표현까지 그대로 포함하고(예: "포카칩 큰 봉지"),
               searchName에는 DB 검색에 쓸 기본 제품명만 넣으세요(예: "포카칩").
@@ -49,18 +55,30 @@ public class FoodParsingService {
               "큰 봉지"처럼 더 큰 용량이면 그에 맞게 amountG도 늘려서 추정하세요.
             - "한공기", "한그릇" 같은 표현은 일반적인 그램수로 환산하세요 (밥 한공기 ≈ 210g)
             - 가공식품은 실제 판매 포장 단위를 기준으로 추정하세요 (과자 한봉지 ≈ 60~70g, 큰 봉지 ≈ 130~140g)
+            - "밥", "흰쌀밥", "쌀밥"처럼 찰기 없는 일반 쌀밥을 가리키면 foodName은 그대로 두되
+              searchName은 "멥쌀밥"으로 쓰세요 (DB에는 "흰쌀밥"이 아니라 "멥쌀밥"이라는 명칭으로 들어있음).
+              찹쌀로 지은 밥이면 searchName을 "찹쌀밥"으로 쓰세요.
 
             예시 입력: "점심에 김치찌개랑 밥 한공기 먹었어요"
-            예시 출력: [{"foodName": "김치찌개", "searchName": "김치찌개", "amountG": 400}, {"foodName": "흰쌀밥", "searchName": "흰쌀밥", "amountG": 210}]
+            예시 출력: {"items": [{"foodName": "김치찌개", "searchName": "김치찌개", "amountG": 400}, {"foodName": "흰쌀밥", "searchName": "멥쌀밥", "amountG": 210}]}
 
             예시 입력: "아침에 계란후라이 2개랑 식빵 두쪽 먹음"
-            예시 출력: [{"foodName": "계란후라이", "searchName": "계란후라이", "amountG": 100}, {"foodName": "식빵", "searchName": "식빵", "amountG": 70}]
+            예시 출력: {"items": [{"foodName": "계란후라이", "searchName": "계란후라이", "amountG": 100}, {"foodName": "식빵", "searchName": "식빵", "amountG": 70}]}
 
             예시 입력: "간식으로 포카칩 한봉지 먹었어요"
-            예시 출력: [{"foodName": "포카칩", "searchName": "포카칩", "amountG": 66}]
+            예시 출력: {"items": [{"foodName": "포카칩", "searchName": "포카칩", "amountG": 66}]}
 
             예시 입력: "포카칩 큰 봉지 하나 다 먹었어요"
-            예시 출력: [{"foodName": "포카칩 큰 봉지", "searchName": "포카칩", "amountG": 135}]
+            예시 출력: {"items": [{"foodName": "포카칩 큰 봉지", "searchName": "포카칩", "amountG": 135}]}
+
+            예시 입력: "엽기떡볶이 2인분 먹었어"
+            예시 출력: {"items": [{"foodName": "엽기떡볶이", "searchName": "떡볶이", "amountG": 400}]}
+
+            예시 입력: "샐러디 탄단지 샐러드 먹었어"
+            예시 출력: {"items": [{"foodName": "샐러디 탄단지 샐러드", "searchName": "닭가슴살 샐러드", "amountG": 350}]}
+
+            예시 입력: "파리바게트 초코소라빵 먹었어"
+            예시 출력: {"items": [{"foodName": "파리바게트 초코소라빵", "searchName": "초코소라빵", "amountG": 90}]}
             """;
  
     private final RestClient ollamaRestClient;
@@ -120,8 +138,11 @@ public class FoodParsingService {
                     .replaceAll("^```\\s*", "")
                     .replaceAll("```\\s*$", "")
                     .trim();
- 
-            JsonNode itemsArray = objectMapper.readTree(cleaned);
+
+            // Ollama의 format:"json"은 최상위를 객체로만 허용해서(배열을 바로 못 줌) items 키로 감싸서 받음.
+            // 이걸 놓치면 모델이 배열 대신 객체 하나만 반환하고, 그 객체를 배열처럼 순회하면서
+            // foodName이 전부 비어 조회 실패(못 찾음) 처리되는 문제로 이어짐.
+            JsonNode itemsArray = objectMapper.readTree(cleaned).path("items");
             List<FoodItem> items = new ArrayList<>();
             for (JsonNode item : itemsArray) {
                 String name = item.path("foodName").asText();

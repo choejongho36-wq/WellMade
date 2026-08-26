@@ -25,7 +25,7 @@ export const SOCIAL_PROVIDERS = [
 export const NAV_ITEMS = [
   { label: '마이페이지', path: '/mypage' },
   { label: '자세 측정', path: '/posture' },
-  { label: '식단 관리', path: '/mealplan' },
+  { label: '식단 기록', path: '/mealplan' },
   { label: '운동 추천' },
 ]
 
@@ -263,6 +263,56 @@ export function useAuth() {
     })
   }
 
+  // 달력 칸에 날짜별 칼로리를 표시하기 위한 월 단위 합계. { "2026-08-05": 1850, ... } 형태
+  const getMonthCalories = (year, month) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals/month?year=${year}&month=${month}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('월별 기록을 불러오지 못했어요')
+      return res.json()
+    })
+  }
+
+  // 목표+인바디가 아직 없으면 서버가 204(본문 없음)를 주므로 null로 처리
+  const getNutrientTarget = () => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals/target`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => (res.status === 200 ? res.json() : null))
+  }
+
+  const updateNutrientTarget = ({ kcal, proteinG, carbsG, fatG }) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals/target`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kcal, proteinG, carbsG, fatG }),
+    }).then((res) => {
+      if (!res.ok) throw new Error('목표 저장에 실패했어요')
+      return getNutrientTarget()
+    })
+  }
+
+  const resetNutrientTarget = () => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals/target`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('초기화에 실패했어요')
+      return getNutrientTarget()
+    })
+  }
+
   const updateMeal = (id, { mealType, menuName, kcal }) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
@@ -314,7 +364,8 @@ export function useAuth() {
 
   return {
     user, profile, inbody, handleLogout, updateGoal, updateName, extractInbody, confirmInbody,
-    logMeal, getTodayMeals, getTodayTotal, updateMeal, updateMealItemAmount, deleteMeal,
+    logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
+    updateMeal, updateMealItemAmount, deleteMeal,
     sendChat, getChatHistory, getNutrientAdvice,
   }
 }
