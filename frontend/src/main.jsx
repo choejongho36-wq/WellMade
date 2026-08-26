@@ -1,28 +1,16 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import { useAuth } from './lib/auth.js'
 import ChatWidget from './components/ChatWidget.jsx'
-import PageShell from './components/PageShell.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import MainPage from './pages/MainPage.jsx'
 import MyPage from './pages/MyPage.jsx'
 import PosturePage from './pages/PosturePage.jsx'
 import MlTestPage from './pages/MlTestPage.jsx'
 import DietPage from './pages/DietPage.jsx'
-
-function NotFoundPage() {
-  return (
-    <PageShell>
-      <div className="page-eyebrow-row">
-        <div className="page-index-tag">404</div>
-      </div>
-      <p className="pcard-desc" style={{ marginTop: 20 }}>
-        페이지를 찾을 수 없어요. <Link to="/" className="link-btn">홈으로 돌아가기</Link>
-      </p>
-    </PageShell>
-  )
-}
+import NotFoundPage from './pages/NotFoundPage.jsx'
 
 function AppRoutes() {
   const { profile, sendChat, getChatHistory, getNutrientAdvice } = useAuth()
@@ -47,7 +35,9 @@ function AppRoutes() {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <AppRoutes />
+      <ErrorBoundary>
+        <AppRoutes />
+      </ErrorBoundary>
     </BrowserRouter>
   </StrictMode>,
 )
