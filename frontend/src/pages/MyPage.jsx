@@ -192,8 +192,8 @@ function MyPage() {
 
   return (
     <PageShell>
-      <div className="mp-eyebrow-row">
-        <div className="mp-index-tag">MY PAGE</div>
+      <div className="page-eyebrow-row">
+        <div className="page-index-tag">MY PAGE</div>
       </div>
       
       {user ? (
@@ -250,23 +250,23 @@ function MyPage() {
             </div>
           </div>
 
-          <div className="mp-section-head">
-            <div className="mp-section-title">인바디</div>
+          <div className="section-head">
+            <div className="section-title">인바디</div>
             {inbody && (
-              <button className="mp-link-btn" onClick={() => setModalOpen(true)}>
+              <button className="link-btn" onClick={() => setModalOpen(true)}>
                 다시 입력
               </button>
             )}
           </div>
 
           {inbody ? (
-            <div className="mp-stat-strip">
+            <div className="tag-strip">
               {INBODY_FIELDS.map(({ key, label, unit }) => (
-                <div className="mp-tag" key={key}>
-                  <div className="mp-tag-label"><span>{label}</span></div>
-                  <div className="mp-tag-inner">
-                    <div className="mp-tag-value">{inbody[key] != null ? inbody[key] : '-'}</div>
-                    {unit && <div className="mp-tag-unit">{unit}</div>}
+                <div className="tag" key={key}>
+                  <div className="tag-label"><span>{label}</span></div>
+                  <div className="tag-inner">
+                    <div className="tag-value">{inbody[key] != null ? inbody[key] : '-'}</div>
+                    {unit && <div className="tag-unit">{unit}</div>}
                   </div>
                 </div>
               ))}
@@ -285,17 +285,17 @@ function MyPage() {
             </div>
           )}
 
-          <div className="mp-section-head">
-            <div className="mp-section-title">오늘 식단</div>
-            <Link className="mp-link-btn" to="/diet">식단 관리로 이동</Link>
+          <div className="section-head">
+            <div className="section-title">오늘 식단</div>
+            <Link className="link-btn" to="/mealplan">식단 관리로 이동</Link>
           </div>
           {todaySummary && (
-            <div className="mp-stat-strip">
-              <button className="mp-tag mp-tag-clickable" onClick={() => setNutrientModalOpen(true)}>
-                <div className="mp-tag-label"><span>{DIET_HEADLINE_FIELD.label}</span></div>
-                <div className="mp-tag-inner">
-                  <div className="mp-tag-value">{Math.round(todaySummary[DIET_HEADLINE_FIELD.key])}</div>
-                  <div className="mp-tag-unit">{DIET_HEADLINE_FIELD.unit}</div>
+            <div className="tag-strip">
+              <button className="tag tag-clickable" onClick={() => setNutrientModalOpen(true)}>
+                <div className="tag-label"><span>{DIET_HEADLINE_FIELD.label}</span></div>
+                <div className="tag-inner">
+                  <div className="tag-value">{Math.round(todaySummary[DIET_HEADLINE_FIELD.key])}</div>
+                  <div className="tag-unit">{DIET_HEADLINE_FIELD.unit}</div>
                 </div>
               </button>
             </div>

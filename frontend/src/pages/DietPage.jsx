@@ -51,6 +51,7 @@ function DietPage() {
   const [editingItem, setEditingItem] = useState(null)
   const [itemAmountDraft, setItemAmountDraft] = useState('')
   const [savingItem, setSavingItem] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   const isToday = selectedDate === todayStr()
 
@@ -156,8 +157,7 @@ function DietPage() {
   }
 
   const handleDelete = (id) => {
-    if (!window.confirm('이 기록을 삭제할까요?')) return
-
+    setConfirmDeleteId(null)
     setDeletingId(id)
     deleteMeal(id)
       .then(() => {
@@ -170,8 +170,8 @@ function DietPage() {
 
   return (
     <PageShell>
-      <div className="mp-eyebrow-row">
-        <div className="mp-index-tag">Meal plan</div>
+      <div className="page-eyebrow-row">
+        <div className="page-index-tag">Meal plan</div>
       </div>
 
       {user ? (
@@ -215,8 +215,8 @@ function DietPage() {
             </div>
 
             <div className="diet-col-right">
-              <div className="mp-section-head">
-                <div className="mp-section-title">기록한 메뉴</div>
+              <div className="section-head">
+                <div className="section-title">기록한 메뉴</div>
               </div>
               
 
@@ -236,7 +236,7 @@ function DietPage() {
                       <div className="diet-dot"></div>
                     </div>
                     <div className="diet-body">
-                      <div className="diet-meal">
+                      <div className={`diet-meal${editingId === meal.id ? ' diet-meal-editing' : ''}`}>
                         {editingId === meal.id ? (
                           <div className="diet-meal-edit">
                             <select
@@ -264,7 +264,7 @@ function DietPage() {
                               disabled={savingEdit}
                             />
                             <div className="diet-meal-edit-actions">
-                              <button className="mp-link-btn" onClick={() => saveEdit(meal.id)} disabled={savingEdit}>
+                              <button className="link-btn" onClick={() => saveEdit(meal.id)} disabled={savingEdit}>
                                 {savingEdit ? '저장 중...' : '저장'}
                               </button>
                               <button className="diet-meal-cancel-btn" onClick={cancelEdit} disabled={savingEdit}>
@@ -282,7 +282,7 @@ function DietPage() {
                               <button className="diet-meal-status" onClick={() => startEdit(meal)}>수정</button>
                               <button
                                 className="diet-meal-delete"
-                                onClick={() => handleDelete(meal.id)}
+                                onClick={() => setConfirmDeleteId(meal.id)}
                                 disabled={deletingId === meal.id}
                               >
                                 {deletingId === meal.id ? '삭제 중...' : '삭제'}
@@ -317,7 +317,7 @@ function DietPage() {
                                         />
                                         <span className="diet-item-unit">g</span>
                                         <button
-                                          className="mp-link-btn"
+                                          className="link-btn"
                                           onClick={() => saveEditItem(meal.id, idx)}
                                           disabled={savingItem}
                                         >
@@ -358,16 +358,16 @@ function DietPage() {
             </div>
           </div>
 
-          <div className="mp-section-head">
-            <div className="mp-section-title">오늘 하루 요약</div>
+          <div className="section-head">
+            <div className="section-title">오늘 하루 요약</div>
           </div>
           {todaySummary && (
-            <div className="mp-stat-strip">
-              <button className="mp-tag mp-tag-clickable" onClick={() => setNutrientModalOpen(true)}>
-                <div className="mp-tag-label"><span>{SUMMARY_HEADLINE_FIELD.label}</span></div>
-                <div className="mp-tag-inner">
-                  <div className="mp-tag-value">{Math.round(todaySummary[SUMMARY_HEADLINE_FIELD.key])}</div>
-                  <div className="mp-tag-unit">{SUMMARY_HEADLINE_FIELD.unit}</div>
+            <div className="tag-strip">
+              <button className="tag tag-clickable" onClick={() => setNutrientModalOpen(true)}>
+                <div className="tag-label"><span>{SUMMARY_HEADLINE_FIELD.label}</span></div>
+                <div className="tag-inner">
+                  <div className="tag-value">{Math.round(todaySummary[SUMMARY_HEADLINE_FIELD.key])}</div>
+                  <div className="tag-unit">{SUMMARY_HEADLINE_FIELD.unit}</div>
                 </div>
               </button>
             </div>
@@ -379,6 +379,19 @@ function DietPage() {
 
       {nutrientModalOpen && (
         <NutrientDetailModal summary={todaySummary} onClose={() => setNutrientModalOpen(false)} />
+      )}
+
+      {confirmDeleteId != null && (
+        <div className="modal-backdrop" onClick={() => setConfirmDeleteId(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setConfirmDeleteId(null)} aria-label="닫기">×</button>
+            <div className="modal-title">이 기록을 삭제할까요?</div>
+            <div className="modal-btn-row">
+              <button className="modal-btn-secondary" onClick={() => setConfirmDeleteId(null)}>취소</button>
+              <button className="modal-btn" onClick={() => handleDelete(confirmDeleteId)}>삭제</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {notFoundInfo && (

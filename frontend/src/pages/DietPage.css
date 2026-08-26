@@ -53,7 +53,7 @@
   width: 56px;
   flex: none;
   text-align: right;
-  font: 800 13px Archivo, sans-serif;
+  font: 800 13px Archivo, 'Noto Sans KR', sans-serif;
   color: #da291c;
   padding-top: 16px;
 }
@@ -83,6 +83,10 @@
   border-radius: 8px;
   overflow: hidden;
   display: flex;
+}
+/* 수정 모드에선 드롭다운/포커스 링이 기울어진 부모 안에서 어긋나므로 skew를 뺌 */
+.diet-meal.diet-meal-editing {
+  transform: none;
 }
 .diet-meal-inner {
   flex: 1;
@@ -117,7 +121,7 @@
   cursor: pointer;
   font-size: 11.5px;
   font-weight: 700;
-  font-family: Archivo, sans-serif;
+  font-family: Archivo, 'Noto Sans KR', sans-serif;
   color: #da291c;
 }
 .diet-meal-delete {
@@ -128,7 +132,7 @@
   cursor: pointer;
   font-size: 11.5px;
   font-weight: 700;
-  font-family: Archivo, sans-serif;
+  font-family: Archivo, 'Noto Sans KR', sans-serif;
   color: #9b9a96;
 }
 .diet-meal-delete:hover {
@@ -142,7 +146,6 @@
 .diet-meal-edit {
   flex: 1;
   min-width: 0;
-  transform: skewX(6deg);
   padding: 14px 20px;
   display: flex;
   gap: 8px;
@@ -247,7 +250,7 @@
   cursor: pointer;
   font-size: 11.5px;
   font-weight: 700;
-  font-family: Archivo, sans-serif;
+  font-family: Archivo, 'Noto Sans KR', sans-serif;
   color: #da291c;
 }
 .diet-item-edit {

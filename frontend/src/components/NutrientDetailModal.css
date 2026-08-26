@@ -16,18 +16,18 @@
 .nutrient-row-label {
   font-size: 13.5px;
   font-weight: 700;
-  color: #f2f1ee;
+  color: #111;
 }
 .nutrient-row-value {
   font-size: 15px;
   font-weight: 800;
-  color: #fff;
+  color: #111;
 }
 .nutrient-bar {
   margin-top: 8px;
   height: 6px;
   border-radius: 999px;
-  background: #232325;
+  background: #e5e3dd;
   overflow: hidden;
 }
 .nutrient-bar-fill {

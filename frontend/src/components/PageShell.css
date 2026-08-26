@@ -37,8 +37,8 @@
 .modal {
   position: relative;
   width: 320px;
-  background: #131315;
-  border: 1px solid #232325;
+  background: #fff;
+  border: 1px solid #e5e3dd;
   border-radius: 16px;
   padding: 32px 28px;
   text-align: center;
@@ -57,7 +57,7 @@
 .modal-title {
   font-size: 18px;
   font-weight: 800;
-  color: #f2f1ee;
+  color: #111;
   margin-bottom: 6px;
 }
 .modal-sub {
@@ -67,13 +67,13 @@
 }
 
 /* shared page header (마이페이지/식단관리/자세측정) */
-.mp-eyebrow-row {
+.page-eyebrow-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.mp-index-tag {
-  font: 800 12px Archivo, sans-serif;
+.page-index-tag {
+  font: 800 12px Archivo, 'Noto Sans KR', sans-serif;
   letter-spacing: 0.08em;
   color: #da291c;
   border: 1px solid #da291c;
@@ -82,17 +82,17 @@
 }
 
 /* shared section header + stat-tag strip (마이페이지 인바디 / 식단관리 오늘 요약) */
-.mp-section-head {
+.section-head {
   margin-top: 44px;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
 }
-.mp-section-title {
-  font: 800 14px Archivo, sans-serif;
+.section-title {
+  font: 800 14px Archivo, 'Noto Sans KR', sans-serif;
   color: #111;
 }
-.mp-link-btn {
+.link-btn {
   background: none;
   border: none;
   padding: 0;
@@ -102,12 +102,17 @@
   color: #da291c;
 }
 
-.mp-stat-strip {
+.tag-strip {
   margin-top: 14px;
   display: flex;
   gap: 14px;
 }
-.mp-tag {
+/* 항목이 하나뿐일 때(칼로리만 있는 요약 등)는 나머지 4개칸 폭까지 flex:1로 늘어나 버려서 폭을 제한함 */
+.tag-strip > .tag:only-child {
+  flex: none;
+  max-width: 220px;
+}
+.tag {
   flex: 1;
   transform: skewX(-6deg);
   background: #fff;
@@ -116,7 +121,7 @@
   overflow: hidden;
   display: flex;
 }
-.mp-tag-label {
+.tag-label {
   flex: none;
   width: 68px;
   background: #da291c;
@@ -124,14 +129,14 @@
   align-items: center;
   justify-content: center;
 }
-.mp-tag-label span {
+.tag-label span {
   display: inline-block;
   transform: skewX(6deg);
   color: #fff;
-  font: 800 14px Archivo, sans-serif;
+  font: 800 14px Archivo, 'Noto Sans KR', sans-serif;
   letter-spacing: 0.02em;
 }
-.mp-tag-inner {
+.tag-inner {
   flex: 1;
   min-width: 0;
   transform: skewX(6deg);
@@ -141,20 +146,20 @@
   justify-content: center;
   gap: 4px;
 }
-.mp-tag-value {
+.tag-value {
   font: 400 26px 'Archivo Black', sans-serif;
   color: #da291c;
 }
-.mp-tag-unit {
+.tag-unit {
   font: 800 13px Archivo, sans-serif;
   color: #da291c;
 }
-.mp-tag-clickable {
+.tag-clickable {
   padding: 0;
   cursor: pointer;
   font-family: inherit;
   transition: background-color 0.15s ease;
 }
-.mp-tag-clickable:hover {
+.tag-clickable:hover {
   background: #fff5f4;
 }
