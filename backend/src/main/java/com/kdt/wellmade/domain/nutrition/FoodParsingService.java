@@ -3,12 +3,14 @@ package com.kdt.wellmade.domain.nutrition;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+
+import com.kdt.wellmade.global.exception.ExternalServiceException;
  
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +29,8 @@ import java.util.Map;
  */
 @Service
 public class FoodParsingService {
+
+    private static final Logger log = LoggerFactory.getLogger(FoodParsingService.class);
  
     private static final String SYSTEM_PROMPT = """
             당신은 사용자가 말한 식사 메시지에서 음식 항목과 추정 섭취량(그램)을 추출하는 도구입니다.
@@ -59,16 +63,15 @@ public class FoodParsingService {
             예시 출력: [{"foodName": "포카칩 큰 봉지", "searchName": "포카칩", "amountG": 135}]
             """;
  
-    private final String ollamaBaseUrl;
+    private final RestClient ollamaRestClient;
     private final String ollamaModel;
-    private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
  
     public FoodParsingService(
-            @Value("${ollama.base-url:http://localhost:11434}") String ollamaBaseUrl,
+            RestClient ollamaRestClient,
             @Value("${ollama.model:qwen2.5:7b-instruct}") String ollamaModel
     ) {
-        this.ollamaBaseUrl = ollamaBaseUrl;
+        this.ollamaRestClient = ollamaRestClient;
         this.ollamaModel = ollamaModel;
     }
  
@@ -83,24 +86,35 @@ public class FoodParsingService {
                         Map.of("role", "system", "content", SYSTEM_PROMPT),
                         Map.of("role", "user", "content", userMessage)
                 ),
-                "stream", false
+                "stream", false,
+                // JSON 항목만 뽑아내는 작업인데 온도가 기본값(0.8)이라 형식이 흔들릴 여지가 컸음.
+                // format:"json"으로 출력 자체를 강제하고 temperature:0으로 결정적으로 만듦.
+                "format", "json",
+                "options", Map.of("temperature", 0, "num_ctx", 4096)
         );
  
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
- 
-        String responseJson = restTemplate.postForObject(
-                ollamaBaseUrl + "/api/chat", request, String.class);
+        String responseJson;
+        try {
+            responseJson = ollamaRestClient.post()
+                    .uri("/api/chat")
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
+        } catch (RestClientException e) {
+            log.error("Ollama 식단 파싱 호출 실패", e);
+            throw new ExternalServiceException("식단 인식 서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.", e);
+        }
  
         return parseResponse(responseJson);
     }
  
     private List<FoodItem> parseResponse(String responseJson) {
+        String modelText = null;
         try {
             JsonNode root = objectMapper.readTree(responseJson);
-            String modelText = root.path("message").path("content").asText();
+            modelText = root.path("message").path("content").asText();
  
+            // format:"json"을 요청하면 대부분 순수 JSON만 오지만, 혹시 모를 코드블록 래핑에 대비해 유지
             String cleaned = modelText.trim()
                     .replaceAll("^```json\\s*", "")
                     .replaceAll("^```\\s*", "")
@@ -117,7 +131,9 @@ public class FoodParsingService {
             }
             return items;
         } catch (Exception e) {
-            throw new RuntimeException("Qwen 응답 파싱 실패. 원문: " + responseJson, e);
+            // 모델 원문은 사용자에게 노출하지 않고 로그에만 남김 (내부 정보 유출 방지)
+            log.error("Qwen 식단 파싱 응답 처리 실패. 모델 원문: {}", modelText, e);
+            throw new ExternalServiceException("식사 내용을 이해하지 못했어요. 다른 표현으로 다시 시도해주세요.", e);
         }
     }
 
