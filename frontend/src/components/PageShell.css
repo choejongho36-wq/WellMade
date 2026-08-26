@@ -112,6 +112,28 @@
   flex: none;
   max-width: 220px;
 }
+
+/* 라벨 하나 + 칼로리 박스 하나짜리 요약 행 (마이페이지 오늘 식단 / 식단관리 총 섭취) */
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.summary-row-label {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #9b9a96;
+}
+.summary-row .tag-strip {
+  flex: 1;
+  margin-top: 0;
+}
+.summary-row .tag-strip > .tag:only-child {
+  flex: 1;
+  max-width: 130px;
+}
 .tag {
   flex: 1;
   transform: skewX(-6deg);

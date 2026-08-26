@@ -46,6 +46,19 @@ public class UserProfile {
     @Column(length = 20)
     private Goal goal;                  // LOSE, GAIN, MAINTAIN
 
+    // 전부 null이면 목표+인바디로 자동 계산한 추천값을 씀. 사용자가 직접 수정하면 4개 다 채워서 저장함.
+    @Column(name = "target_kcal")
+    private Double targetKcal;
+
+    @Column(name = "target_protein_g")
+    private Double targetProteinG;
+
+    @Column(name = "target_carbs_g")
+    private Double targetCarbsG;
+
+    @Column(name = "target_fat_g")
+    private Double targetFatG;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -77,5 +90,13 @@ public class UserProfile {
         if (goal != null) {
             this.goal = goal;
         }
+    }
+
+    /** 목표 섭취량 직접 수정. 전부 null로 넘기면 추천값 자동계산으로 되돌림 */
+    public void updateTarget(Double kcal, Double proteinG, Double carbsG, Double fatG) {
+        this.targetKcal = kcal;
+        this.targetProteinG = proteinG;
+        this.targetCarbsG = carbsG;
+        this.targetFatG = fatG;
     }
 }

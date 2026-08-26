@@ -148,7 +148,7 @@
   font-style: italic;
 }
 
-/* 채팅형 입력창 (식단 관리 페이지의 식사 기록 입력에도 재사용됨) */
+/* 채팅형 입력창 (식단 기록 페이지의 식사 기록 입력에도 재사용됨) */
 .chat-input-row {
   display: flex;
   gap: 10px;

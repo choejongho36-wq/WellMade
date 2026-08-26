@@ -23,6 +23,8 @@ import com.kdt.wellmade.domain.mapage.Goal;
 import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileService;
 import com.kdt.wellmade.domain.nutrition.MealLoggingService;
+import com.kdt.wellmade.domain.nutrition.NutrientTarget;
+import com.kdt.wellmade.domain.nutrition.NutrientTargetCalculator;
 import com.kdt.wellmade.domain.user.User;
 import com.kdt.wellmade.global.exception.ExternalServiceException;
 
@@ -115,6 +117,7 @@ public class ChatService {
     private final InbodyService inbodyService;
     private final MealLoggingService mealLoggingService;
     private final ChatMessageRepository chatMessageRepository;
+    private final NutrientTargetCalculator nutrientTargetCalculator;
     private final RestClient ollamaRestClient;
     private final String model;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -124,6 +127,7 @@ public class ChatService {
             InbodyService inbodyService,
             MealLoggingService mealLoggingService,
             ChatMessageRepository chatMessageRepository,
+            NutrientTargetCalculator nutrientTargetCalculator,
             RestClient ollamaRestClient,
             @Value("${ollama.model}") String model
     ) {
@@ -131,6 +135,7 @@ public class ChatService {
         this.inbodyService = inbodyService;
         this.mealLoggingService = mealLoggingService;
         this.chatMessageRepository = chatMessageRepository;
+        this.nutrientTargetCalculator = nutrientTargetCalculator;
         this.ollamaRestClient = ollamaRestClient;
         this.model = model;
     }
@@ -293,7 +298,7 @@ public class ChatService {
             return toJson(Map.of("error", "인바디 정보가 없어서 목표 섭취량을 계산할 수 없어요."));
         }
 
-        NutrientTarget target = calculateTarget(inbody, profile.getGoal());
+        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, profile.getGoal());
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("goal", GOAL_LABEL.get(profile.getGoal()));
@@ -359,7 +364,7 @@ public class ChatService {
         }
 
         Goal goal = profile.getGoal();
-        NutrientTarget target = calculateTarget(inbody, goal);
+        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, goal);
 
         List<OllamaMessage> messages = new ArrayList<>();
         messages.add(OllamaMessage.system(buildSystemPrompt(user) + "\n\n" + buildAdviceContext(goal, target, actual)));
@@ -411,29 +416,6 @@ public class ChatService {
         return response.message();
     }
 
-    /** ponytail: 활동계수 1.375(가벼운 활동) 고정값, 기초대사량 없으면 체중×24로 대략 추정 - 활동량 입력 받으면 그걸로 교체 */
-    private NutrientTarget calculateTarget(InbodyRecord inbody, Goal goal) {
-        double weight = inbody.getWeightKg();
-        double bmr = inbody.getBasalMetabolicRateKcal() != null ? inbody.getBasalMetabolicRateKcal() : weight * 24;
-        double tdee = bmr * 1.375;
-
-        double targetKcal = switch (goal) {
-            case LOSE -> tdee * 0.85;
-            case GAIN -> tdee * 1.15;
-            case MAINTAIN -> tdee;
-        };
-        double proteinPerKg = switch (goal) {
-            case LOSE -> 1.8;
-            case GAIN -> 2.0;
-            case MAINTAIN -> 1.4;
-        };
-        double targetProtein = weight * proteinPerKg;
-        double targetFat = targetKcal * 0.25 / 9;
-        double targetCarbs = Math.max(0, (targetKcal - targetProtein * 4 - targetFat * 9) / 4);
-
-        return new NutrientTarget(targetKcal, targetProtein, targetCarbs, targetFat);
-    }
-
     private String buildAdviceContext(Goal goal, NutrientTarget target, MealLoggingService.DailyTotal actual) {
         return """
                 [오늘 영양소 분석 요청 - 아래 수치는 이미 계산된 값이니 그대로 인용해서 설명할 것]
@@ -446,8 +428,6 @@ public class ChatService {
                 actual.totalCalories(), actual.totalProteinG(), actual.totalCarbsG(), actual.totalFatG()
         );
     }
-
-    private record NutrientTarget(double kcal, double proteinG, double carbsG, double fatG) {}
 
     private String buildSystemPrompt(User user) {
         UserProfile profile = getProfileOrNull(user);

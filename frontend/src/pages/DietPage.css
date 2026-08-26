@@ -40,7 +40,7 @@
   border-color: #da291c;
 }
 
-/* diet timeline (식단 관리, 다이나믹 테마) */
+/* diet timeline (식단 기록, 다이나믹 테마) */
 .diet-timeline {
   display: flex;
   flex-direction: column;
@@ -190,7 +190,7 @@
   color: #9b9a96;
 }
 
-/* 항목별 그램 펼쳐보기/수정 (식단 관리) */
+/* 항목별 그램 펼쳐보기/수정 (식단 기록) */
 .diet-item-toggle {
   margin-top: 8px;
   margin-left: 4px;

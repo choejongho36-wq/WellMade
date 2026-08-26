@@ -1,42 +1,214 @@
 .nutrient-modal {
-  width: 380px;
+  width: 390px;
+  padding: 0;
+  border-radius: 20px;
+  overflow: hidden;
   text-align: left;
 }
-.nutrient-list {
-  margin-top: 18px;
+.nutrient-modal-head {
   display: flex;
-  flex-direction: column;
-  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px 44px 0 24px;
 }
-.nutrient-row-head {
+.nutrient-modal-head .modal-title {
+  margin-bottom: 0;
+}
+
+/* 칼로리 히어로 밴드 - 히어로 배너의 대각선 레드 밴드 DNA를 그대로 확장 */
+.nutrient-hero {
+  margin-top: 18px;
+  background: #da291c;
+  padding: 26px 24px 44px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 88%);
+}
+.nutrient-hero-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .72);
+}
+.nutrient-hero-values {
+  margin-top: 8px;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
 }
-.nutrient-row-label {
-  font-size: 13.5px;
+.nutrient-hero-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.nutrient-hero-num {
+  font: 400 46px 'Archivo Black', 'Noto Sans KR', sans-serif;
+  color: #fff;
+}
+.nutrient-hero-unit {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, .85);
+}
+.nutrient-hero-target {
+  text-align: right;
+}
+.nutrient-hero-target-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: rgba(255, 255, 255, .6);
+}
+.nutrient-hero-target-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, .94);
+}
+
+/* 게이지 (히어로 밴드는 밝은 톤, 매크로는 어두운 톤) */
+.nutrient-gauge {
+  margin-top: 18px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 32px;
+}
+.nutrient-gauge-seg {
+  flex: 1;
+  height: 100%;
+  border-radius: 2px;
+}
+.nutrient-gauge-seg.light {
+  background: rgba(255, 255, 255, .28);
+}
+.nutrient-gauge-seg.light.filled {
+  background: rgba(255, 255, 255, .95);
+}
+.nutrient-gauge-seg.dark {
+  background: #e5e3dd;
+}
+.nutrient-gauge-seg.dark.filled {
+  background: #da291c;
+}
+
+/* 매크로 3분할 (단백질/탄수화물/지방) */
+.nutrient-macros {
+  padding: 22px 24px 26px;
+  display: flex;
+}
+.nutrient-macro-col {
+  flex: 1;
+  min-width: 0;
+  padding: 0 16px;
+}
+.nutrient-macro-col:first-child {
+  padding-left: 0;
+}
+.nutrient-macro-col:last-child {
+  padding-right: 0;
+}
+.nutrient-macro-col:not(:first-child) {
+  border-left: 1px solid #e5e3dd;
+}
+.nutrient-macro-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #77767c;
+}
+.nutrient-macro-values {
+  margin-top: 6px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+}
+.nutrient-macro-value {
+  font-size: 17px;
+  font-weight: 800;
+  color: #111;
+  white-space: nowrap;
+}
+.nutrient-macro-target {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9b9a96;
+  white-space: nowrap;
+}
+.nutrient-macro-col .nutrient-gauge {
+  margin-top: 12px;
+  height: 40px;
+}
+
+.nutrient-no-target {
+  margin: 0 24px 22px;
+  font-size: 11.5px;
+  color: #9b9a96;
+  line-height: 1.5;
+}
+
+/* 목표 섭취량 직접 수정 폼 */
+.nutrient-edit-wrap {
+  padding: 18px 24px 24px;
+}
+.nutrient-target-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.nutrient-target-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
   font-weight: 700;
   color: #111;
 }
-.nutrient-row-value {
-  font-size: 15px;
-  font-weight: 800;
+.nutrient-target-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nutrient-target-input-wrap input {
+  width: 80px;
+  text-align: right;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 6px;
   color: #111;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 8px;
 }
-.nutrient-bar {
-  margin-top: 8px;
-  height: 6px;
-  border-radius: 999px;
-  background: #e5e3dd;
-  overflow: hidden;
+.nutrient-target-input-wrap input:focus {
+  outline: none;
+  border-color: #da291c;
 }
-.nutrient-bar-fill {
-  height: 100%;
-  background: #da291c;
-  border-radius: 999px;
-}
-.nutrient-row-percent {
-  margin-top: 4px;
-  font-size: 11.5px;
+.nutrient-target-unit {
   color: #9b9a96;
+  font-size: 12px;
+  min-width: 28px;
+}
+.nutrient-target-error {
+  color: #da291c;
+  font-size: 12px;
+}
+.nutrient-target-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.nutrient-target-reset {
+  margin-top: 0;
+  white-space: nowrap;
+}
+.nutrient-target-actions-row {
+  display: flex;
+  gap: 8px;
+}
+.nutrient-target-actions-row .modal-btn,
+.nutrient-target-actions-row .modal-btn-secondary {
+  flex: 1;
+  margin-top: 0;
+  white-space: nowrap;
 }
