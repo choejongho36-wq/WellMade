@@ -242,13 +242,16 @@ function DietPage() {
                 {meals.length === 0 && (
                   <p className="pcard-desc">{isToday ? '오늘' : '이 날'} 기록된 식사가 없어요.</p>
                 )}
-                {meals.map((meal) => {
+                {meals.map((meal, index) => {
                   const foodItems = parseFoodItems(meal)
                   const expanded = expandedMealId === meal.id
+                  // 같은 끼니 종류가 연달아 있으면 라벨은 처음 한 번만 보여주고, 그 뒤로는
+                  // 라벨 없이 밑으로 이어붙는 느낌으로 표시 (백엔드가 끼니 종류별로 묶어서 정렬해줌)
+                  const showLabel = index === 0 || meals[index - 1].meal_type !== meal.meal_type
                   return (
                   <div className="diet-row" key={meal.id}>
                     <div className="diet-time">
-                      {MEAL_TYPE_LABEL[meal.meal_type] ?? meal.meal_type}
+                      {showLabel ? (MEAL_TYPE_LABEL[meal.meal_type] ?? meal.meal_type) : ''}
                     </div>
                     <div className="diet-line">
                       <div className="diet-dot"></div>

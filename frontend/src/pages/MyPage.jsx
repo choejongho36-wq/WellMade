@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import './MyPage.css'
 import { useAuth } from '../lib/auth.js'
 import PageShell from '../components/PageShell.jsx'
 import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
+import WorkoutIcon from '../components/WorkoutIcon.jsx'
 
 const GOAL_LABEL = {
   LOSE: '체중 감량',
@@ -160,8 +161,31 @@ function InbodyUploadModal({ onClose, onExtract, onConfirm }) {
   )
 }
 
+function GoalPickerModal({ current, onClose, onSelect }) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
+        <div className="modal-title">목표 설정</div>
+        <div className="goal-option-list">
+          {Object.entries(GOAL_LABEL).map(([value, label]) => (
+            <button
+              key={value}
+              className={`goal-option${value === current ? ' selected' : ''}`}
+              onClick={() => onSelect(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MyPage() {
-  const { user, profile, inbody, updateGoal, updateName, extractInbody, confirmInbody, getTodayTotal, getNutrientTarget } = useAuth()
+  const { user, profile, inbody, updateGoal, updateName, extractInbody, confirmInbody, getTodayTotal, getNutrientTarget, deleteAccount } = useAuth()
+  const navigate = useNavigate()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
@@ -169,6 +193,10 @@ function MyPage() {
   const [todaySummary, setTodaySummary] = useState(null)
   const [nutrientTarget, setNutrientTarget] = useState(null)
   const [nutrientModalOpen, setNutrientModalOpen] = useState(false)
+  const [goalModalOpen, setGoalModalOpen] = useState(false)
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawError, setWithdrawError] = useState('')
 
   useEffect(() => {
     if (user) getTodayTotal(todayStr()).then(setTodaySummary).catch(() => {})
@@ -195,6 +223,25 @@ function MyPage() {
       .catch((e) => setNameError(e.message || '변경에 실패했어요'))
   }
 
+  // 목표가 바뀌면 목표 칼로리도 그 목표 기준으로 다시 계산되므로, 프로필 갱신에 이어서
+  // 새로고침 없이 바로 반영되도록 여기서 같이 다시 불러옴
+  const selectGoal = (goal) => {
+    updateGoal(goal)
+      .then(() => getNutrientTarget())
+      .then(setNutrientTarget)
+      .catch(() => {})
+      .finally(() => setGoalModalOpen(false))
+  }
+
+  const handleWithdraw = () => {
+    setWithdrawing(true)
+    setWithdrawError('')
+    deleteAccount()
+      .then(() => navigate('/'))
+      .catch((e) => setWithdrawError(e.message || '탈퇴에 실패했어요'))
+      .finally(() => setWithdrawing(false))
+  }
+
   return (
     <PageShell>
       <div className="page-eyebrow-row">
@@ -204,7 +251,9 @@ function MyPage() {
       {user ? (
         <>
           <div className="mp-profile-row">
-            <div className="mp-avatar-lg"></div>
+            <div className="mp-avatar-lg">
+              <WorkoutIcon size={36} />
+            </div>
             <div>
               <div className="mp-profile-name-row">
                 {editingName ? (
@@ -232,27 +281,19 @@ function MyPage() {
                   </>
                 )}
                 <span className="mp-goal-bib">
-                  <select
-                    className="mp-goal-select"
-                    value={profile?.goal ?? ''}
-                    onChange={(e) => updateGoal(e.target.value)}
-                  >
-                    <option value="" disabled>
-                      목표 설정
-                    </option>
-                    {Object.entries(GOAL_LABEL).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                  <button className="mp-goal-select" onClick={() => setGoalModalOpen(true)}>
+                    {GOAL_LABEL[profile?.goal] ?? '목표 설정'}
+                  </button>
                 </span>
               </div>
               {nameError && <div className="mp-name-error">{nameError}</div>}
               <div className="mp-profile-sub">
-                {user.email} 
+                {user.email}
               </div>
             </div>
+            <button className="mp-withdraw-btn" onClick={() => setWithdrawModalOpen(true)}>
+              회원탈퇴
+            </button>
           </div>
 
           <div className="section-head">
@@ -326,6 +367,44 @@ function MyPage() {
           onTargetChange={setNutrientTarget}
           onClose={() => setNutrientModalOpen(false)}
         />
+      )}
+      {goalModalOpen && (
+        <GoalPickerModal
+          current={profile?.goal}
+          onClose={() => setGoalModalOpen(false)}
+          onSelect={selectGoal}
+        />
+      )}
+      {withdrawModalOpen && (
+        <div className="modal-backdrop" onClick={() => !withdrawing && setWithdrawModalOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="modal-close"
+              onClick={() => setWithdrawModalOpen(false)}
+              disabled={withdrawing}
+              aria-label="닫기"
+            >
+              ×
+            </button>
+            <div className="modal-title">정말 탈퇴하시겠어요?</div>
+            <div className="modal-sub">
+              인바디, 식단 기록, 챗봇 대화 이력이 전부 삭제되고 복구할 수 없어요.
+            </div>
+            {withdrawError && <p className="mp-name-error">{withdrawError}</p>}
+            <div className="modal-btn-row">
+              <button
+                className="modal-btn-secondary"
+                onClick={() => setWithdrawModalOpen(false)}
+                disabled={withdrawing}
+              >
+                취소
+              </button>
+              <button className="modal-btn" onClick={handleWithdraw} disabled={withdrawing}>
+                {withdrawing ? '탈퇴 중...' : '탈퇴하기'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </PageShell>
   )

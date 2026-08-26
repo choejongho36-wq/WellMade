@@ -1,21 +1,30 @@
+/* 사이트 오른쪽 끝에 붙는 세로 탭 형태 (피드백 탭 UI 참고) */
 .chat-fab {
   position: fixed;
-  right: 28px;
-  bottom: 28px;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: none;
-  background: #da291c;
-  color: #fff;
+  right: 0;
+  top: 75%;
+  transform: translateY(-50%);
+  width: 44px;
+  padding: 18px 10px;
+  border: 1px solid #111;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  background: #fff;
+  color: #111;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 12px;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(218, 41, 28, 0.35);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.12);
   z-index: 150;
-  transition: transform 0.15s ease;
+  transition: padding-right 0.15s ease;
 }
 .chat-fab:hover {
-  transform: scale(1.05);
+  padding-right: 16px;
+}
+.chat-fab-label {
+  writing-mode: vertical-rl;
+  font: 800 11px Archivo, sans-serif;
+  letter-spacing: 0.1em;
 }

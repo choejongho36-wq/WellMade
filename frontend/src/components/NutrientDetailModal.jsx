@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth.js'
 import './NutrientDetailModal.css'
 
@@ -24,10 +24,23 @@ function gaugeFilledCount(value, targetValue, segments) {
 }
 
 function Gauge({ filled, total, tone }) {
+  // 모달이 열릴 때 0에서 시작해서 실제 값까지 순서대로 차오르는 효과를 주기 위해,
+  // 마운트 직후 한 프레임 뒤에 실제 filled 값으로 올림 (CSS transition-delay가 나머지를 처리)
+  const [animatedFilled, setAnimatedFilled] = useState(0)
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setAnimatedFilled(filled))
+    return () => cancelAnimationFrame(raf)
+  }, [filled])
+
   return (
     <div className="nutrient-gauge">
       {Array.from({ length: total }, (_, i) => (
-        <div key={i} className={`nutrient-gauge-seg ${tone}${i < filled ? ' filled' : ''}`} />
+        <div
+          key={i}
+          className={`nutrient-gauge-seg ${tone}${i < animatedFilled ? ' filled' : ''}`}
+          style={{ transitionDelay: `${i * 25}ms` }}
+        />
       ))}
     </div>
   )
