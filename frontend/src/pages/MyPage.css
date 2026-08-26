@@ -24,7 +24,7 @@
   align-items: center;
 }
 .mp-profile-name {
-  font: 800 20px Archivo, sans-serif;
+  font: 800 20px Archivo, 'Noto Sans KR', sans-serif;
   color: #111;
 }
 .mp-edit-btn {
@@ -45,7 +45,7 @@
   color: #111;
 }
 .mp-name-input {
-  font: 700 20px Archivo, sans-serif;
+  font: 700 20px Archivo, 'Noto Sans KR', sans-serif;
   color: #111;
   background: #fff;
   border: 1px solid #e5e3dd;
@@ -77,14 +77,14 @@
   border: none;
   background: transparent;
   color: #fff;
-  font: 800 11px Archivo, sans-serif;
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
   letter-spacing: 0.06em;
   padding: 4px 12px;
   cursor: pointer;
 }
 .mp-profile-sub {
   margin-top: 5px;
-  font: 400 13px Archivo, sans-serif;
+  font: 400 13px Archivo, 'Noto Sans KR', sans-serif;
   color: #77767c;
   letter-spacing: 0.02em;
 }
@@ -102,7 +102,7 @@
   text-align: center;
 }
 .mp-goal-title {
-  font: 800 16px Archivo, sans-serif;
+  font: 800 16px Archivo, 'Noto Sans KR', sans-serif;
   color: #111;
 }
 .mp-inbody-btn {
@@ -138,10 +138,10 @@
   margin-top: 16px;
   width: 100%;
   padding: 11px 0;
-  border: 1px solid #3a3a3c;
+  border: 1px solid #e5e3dd;
   border-radius: 8px;
   background: transparent;
-  color: #f2f1ee;
+  color: #111;
   font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
@@ -173,10 +173,10 @@
   align-items: center;
   font-size: 13px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #232325;
+  border-bottom: 1px solid #e5e3dd;
 }
 .modal-review-item > span:first-child {
-  color: #9b9a96;
+  color: #77767c;
 }
 .modal-review-input-wrap {
   display: flex;
@@ -186,10 +186,10 @@
 .modal-review-input {
   width: 72px;
   text-align: right;
-  background: #1a1a1c;
-  border: 1px solid #3a3a3c;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
   border-radius: 6px;
-  color: #f2f1ee;
+  color: #111;
   font-size: 13px;
   font-weight: 700;
   padding: 5px 7px;
@@ -219,9 +219,9 @@
   gap: 8px;
   min-height: 96px;
   padding: 20px 16px;
-  border: 1px dashed #3a3a3c;
+  border: 1px dashed #e5e3dd;
   border-radius: 10px;
-  background: #1a1a1c;
+  background: #f9f8f5;
   color: #9b9a96;
   cursor: pointer;
   transition: border-color 0.15s ease, color 0.15s ease;
@@ -229,18 +229,18 @@
 }
 .modal-upload:hover {
   border-color: #da291c;
-  color: #f2f1ee;
+  color: #111;
 }
 .modal-upload-icon {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: #2a2a2c;
+  background: #f0efe9;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  color: #f2f1ee;
+  color: #111;
 }
 .modal-upload-text {
   font-size: 12.5px;

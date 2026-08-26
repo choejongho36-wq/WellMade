@@ -5,7 +5,7 @@
 }
 
 body {
-  font-family: 'Noto Sans CJK KR', -apple-system, sans-serif;
+  font-family: 'Noto Sans KR', -apple-system, sans-serif;
 }
 
 a {
@@ -17,8 +17,8 @@ a {
 .app {
   display: flex;
   min-height: 100vh;
-  background: #0a0a0a;
-  color: #f2f1ee;
+  background: #fff;
+  color: #111;
 }
 .main {
   flex: 1;

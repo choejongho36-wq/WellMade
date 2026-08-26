@@ -113,8 +113,8 @@ function PosturePage() {
 
   return (
     <PageShell>
-      <div className="mp-eyebrow-row">
-        <div className="mp-index-tag">자세 측정</div>
+      <div className="page-eyebrow-row">
+        <div className="page-index-tag">자세 측정</div>
       </div>
 
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 20 }}>
