@@ -754,7 +754,11 @@ def test_coaching_frame_heel_lift_ignored_while_standing():
 # 삭제했다. 아래 test_coaching_frame_knee_valgus_*/knee_asymmetry_* 테스트들이 실시간
 # 코칭(AI-06) 경로로 같은 임계값(KNEE_VALGUS_RATIO_THRESHOLD/KNEE_ASYMMETRY_THRESHOLD_DEG)
 # 판정을 계속 검증한다.
-from app.pose.rules import KNEE_ASYMMETRY_THRESHOLD_DEG, KNEE_VALGUS_RATIO_THRESHOLD  # noqa: E402
+from app.pose.rules import (  # noqa: E402
+    HIP_HYPEREXTENSION_VALGUS_THRESHOLD,
+    KNEE_ASYMMETRY_THRESHOLD_DEG,
+    KNEE_VALGUS_RATIO_THRESHOLD,
+)
 
 
 def test_coaching_frame_knee_valgus_flagged_when_deep_hold():
@@ -774,6 +778,94 @@ def test_coaching_frame_knee_valgus_flagged_when_deep_hold():
     data = res.json()
     assert data["is_normal"] is False, data
     assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
+
+
+# (2026-08-25) 고관절 과신전 의심 판정(rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD) —
+# 위 knee_valgus와 같은 knee_valgus_ratio 필드를 재사용하되 더 완만한 구간(KNEE_VALGUS_
+# RATIO_THRESHOLD 이상 ~ HIP_HYPEREXTENSION_VALGUS_THRESHOLD 미만)에서만 별도 태깅된다.
+# 자세한 배경은 claude/wellmade-ai-progress.md 2026-08-25 절 참고.
+
+
+def test_coaching_frame_hip_hyperextension_flagged_when_deep_hold():
+    # KNEE_VALGUS_RATIO_THRESHOLD(0.8)와 HIP_HYPEREXTENSION_VALGUS_THRESHOLD(1.1) 사이 값 -> 감지돼야 함
+    midpoint = (KNEE_VALGUS_RATIO_THRESHOLD + HIP_HYPEREXTENSION_VALGUS_THRESHOLD) / 2
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "knee_valgus_ratio": midpoint,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(hip hyperextension, deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "hip_hyperextension" for issue in data["issues"]), data
+
+
+def test_coaching_frame_hip_hyperextension_not_flagged_when_clearly_valgus():
+    # 이미 무릎 모임(knee_valgus)으로 판정될 만큼 낮은 값이면, 중복 태깅하지 않고
+    # "knee_valgus"만 감지돼야 한다(hip_hyperextension은 아님).
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "knee_valgus_ratio": KNEE_VALGUS_RATIO_THRESHOLD - 0.3,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(clearly valgus, not hip hyperextension):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
+    assert not any(issue["part"] == "hip_hyperextension" for issue in data["issues"]), data
+
+
+def test_coaching_frame_hip_hyperextension_not_flagged_when_normal():
+    # HIP_HYPEREXTENSION_VALGUS_THRESHOLD 이상(정상 범위)이면 감지되지 않아야 한다.
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "knee_valgus_ratio": HIP_HYPEREXTENSION_VALGUS_THRESHOLD + 0.3,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(normal valgus ratio):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "hip_hyperextension" for issue in data["issues"]), data
+
+
+def test_coaching_frame_hip_hyperextension_ignored_while_standing():
+    # 서 있는 상태(is_deep_hold=False)에서는 다른 깊게-앉은-상태 전용 검사들과 마찬가지로
+    # knee_valgus_ratio가 낮아도 검사 대상이 아니다.
+    midpoint = (KNEE_VALGUS_RATIO_THRESHOLD + HIP_HYPEREXTENSION_VALGUS_THRESHOLD) / 2
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 175 + (i % 2),
+            "hip_angle": 170 + (i % 2),
+            "knee_valgus_ratio": midpoint,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(hip hyperextension while standing):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "hip_hyperextension" for issue in data["issues"]), data
 
 
 def test_coaching_frame_knee_asymmetry_flagged_when_deep_hold():
@@ -805,7 +897,7 @@ def test_coaching_frame_without_frontal_fields_still_works():
     print("coaching_frame(no frontal fields):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
-    assert not any(issue["part"] in ("knee_valgus", "asymmetry") for issue in data["issues"]), data
+    assert not any(issue["part"] in ("knee_valgus", "hip_hyperextension", "asymmetry") for issue in data["issues"]), data
 
 
 # (2026-08-24) 무릎-발끝 규칙기반 검사의 단위 테스트(get_knee_over_toe_ratio 직접 호출),
@@ -997,6 +1089,10 @@ if __name__ == "__main__":
     test_coaching_frame_without_heel_lift_field_still_works()
     test_coaching_frame_heel_lift_ignored_while_standing()
     test_coaching_frame_knee_valgus_flagged_when_deep_hold()
+    test_coaching_frame_hip_hyperextension_flagged_when_deep_hold()
+    test_coaching_frame_hip_hyperextension_not_flagged_when_clearly_valgus()
+    test_coaching_frame_hip_hyperextension_not_flagged_when_normal()
+    test_coaching_frame_hip_hyperextension_ignored_while_standing()
     test_coaching_frame_knee_asymmetry_flagged_when_deep_hold()
     test_coaching_frame_without_frontal_fields_still_works()
     test_coaching_frame_knee_over_toe_flagged_when_deep_hold()

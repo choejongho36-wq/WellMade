@@ -6,17 +6,14 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
   형식이 어긋난 요청은 FastAPI가 422 에러로 즉시 알려준다.
   런타임 중간에 잘못된 값(예: 좌표 누락)으로 조용히 엉뚱한 각도가 계산되는 것보다,
   입구에서 바로 막는 편이 디버깅이 훨씬 쉽다.
+
+스쿼트만 지원한다(런지 등 다른 종목 없음) — 그래서 요청/응답 어디에도 종목을 구분하는
+필드가 없다.
 """
 
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
-# 2026-08-24: 런지 지원을 제거하며(스쿼트만 지원) exercise_type 필드 자체를 없앴다 —
-# "값이 사실상 항상 squat 하나뿐인 필드를 굳이 요청마다 받을 필요가 있냐"는 사용자 지적에
-# 따른 결정. 종목이 스쿼트 하나뿐인 지금은 이 필드가 정보를 전혀 담지 못했고(항상 같은 값),
-# 오히려 "확장 가능해 보이지만 실제로는 squat 외 값이 전부 422로 막히는" 혼란만 줬다. 다시
-# 운동 종목을 여러 개 지원하게 되면(예: 런지 재도입), 그때 이 필드를 되살리고 rules.py의
-# NORMAL_RANGES도 다시 종목별로 나누면 된다 — 관련 이력은 git에 그대로 남아있다.
 
 class Landmark(BaseModel):
     """MediaPipe Pose가 반환하는 관절 좌표 1개.
@@ -33,7 +30,7 @@ class Landmark(BaseModel):
 class HipFlexibilityCalibration(BaseModel):
     """사용자 개인별 고관절 유연성 캘리브레이션 결과 (선택 입력).
 
-    왜 필요한가?: rules.py에 있는 hip_angle 고정 정상범위(60~100도)는 스포츠의학 문헌 기준
+    왜 필요한가?: rules.py에 있는 hip_angle 고정 정상범위는 스포츠의학 문헌 기준
     "개인 고관절 가동범위 차이가 커서 고정값으로는 정확한 판정이 어렵다"고 확인된 값이다.
     그래서 프론트가 세션 시작 전에 "편하게 서 있기"와 "무리하지 않는 선에서 최대한 숙이기"
     두 동작을 한 번 측정해서 보내주면, AI 서버는 그 사람의 실제 가동범위를 기준으로
@@ -50,8 +47,8 @@ class HipFlexibilityCalibration(BaseModel):
     standing_shoulder_hip_ratio: Optional[float] = Field(
         None,
         description="편하게 서 있을 때(standing_hip_angle과 같은 순간) 측정한 어깨-엉덩이 "
-        "직선거리/발 길이 비율(app/pose/angles.py의 get_torso_length_ratio 참고, 2026-08-21 "
-        "추가). 등이 곧게 펴진 상태의 기준값으로 써서, 실제 자세에서 이 비율이 얼마나 "
+        "직선거리/발 길이 비율(app/pose/angles.py의 get_torso_length_ratio 참고). "
+        "등이 곧게 펴진 상태의 기준값으로 써서, 실제 자세에서 이 비율이 얼마나 "
         "줄었는지로 '등이 둥글게 말렸는지'(척추 굴곡)를 판정한다. hip_angle 캘리브레이션과 "
         "같은 '편하게 서 있기' 측정 한 번으로 같이 얻을 수 있는 값이라 이 모델에 함께 둔다. "
         "선택 필드 — 없으면(하위 호환) 등 굽음 검사만 건너뛰고 나머지 캘리브레이션은 그대로 "
@@ -67,17 +64,6 @@ class PoseIssue(BaseModel):
     message: str
 
 
-# (2026-08-24) 정지 자세 1차 판정(AI-03, /ai/pose/analyze)의 요청/응답 모델
-# (PoseAnalyzeRequest/PoseAngleValues/PoseAnalyzeResponse, 그리고 PoseAnalyzeRequest 전용
-# 이었던 Side 타입)이 이 자리에 있었다. 사용자가 업로드한 서비스 흐름도를 기준으로
-# "정지자세 촬영 관련 부분은 다른 팀원이 맡기로 했다"며 삭제를 요청해(동년배 비교
-# 인사이트 AI-15는 예외로 유지) 제거했다 — main.py의 /ai/pose/analyze 엔드포인트,
-# pose/rules.py의 judge_static_pose()와 함께 삭제됨. 이 파일에 남은 Landmark/
-# HipFlexibilityCalibration/PoseIssue는 실시간 코칭(AI-06)의 CoachingFrameRequest/
-# CoachingFrameResponse와 자세 비교 인사이트(AI-15)의 PostureInsightRequest가 계속
-# 사용하므로 그대로 남겨뒀다. 원래 모델 정의는 git 히스토리 참고.
-
-
 # ---- 실시간 코칭 판정 (AI-06) ----
 # 동작 단계: 무릎을 굽히는 중(descending) / 펴는 중(ascending) / 거의 멈춰있음(holding)
 MotionPhase = Literal["descending", "ascending", "holding"]
@@ -90,12 +76,9 @@ class AngleFrame(BaseModel):
     경로에서도 그대로 지키기 위함. (프레임마다 좌표를 보내면 페이로드가 커지고, 서버가
     매번 각도 계산까지 반복할 이유도 없다.)
 
-    (2026-08-24 주의) 아래 필드 설명 중 일부는 "app/pose/angles.py의 get_X 참고"라고
-    적혀 있는데, 그 함수들은 정지 자세 판정(AI-03) 삭제와 함께 이 서버 코드에서 제거됐다
-    (git 히스토리 참고). 값 자체는 여전히 필요하다 — 프론트가 이 함수들과 동일한 계산
-    로직을 JS로 미러링해서 매 프레임 계산해 보내주는 구조이기 때문이다(서버는 그 값을
-    받아 비교만 한다). 즉 아래 설명은 "이 숫자가 어떻게 계산되는지"에 대한 정의로는
-    여전히 유효하지만, 그 정의를 담은 Python 원본 구현은 더 이상 이 저장소에 없다.
+    아래 필드 설명 중 "app/pose/angles.py의 get_X 참고"는 그 각도가 어떻게 계산되는지에
+    대한 정의를 가리킨다 — 실제 계산은 프론트가 동일한 로직을 JS로 미러링해 매 프레임
+    수행해서 이 값들을 보내주고, 서버는 받은 값을 비교만 한다.
     """
 
     timestamp: float = Field(..., description="세션(또는 반복 동작) 시작 기준 경과 시간(초)")
@@ -103,55 +86,52 @@ class AngleFrame(BaseModel):
     hip_angle: float
     shoulder_angle: Optional[float] = Field(
         None,
-        description="귀-어깨-엉덩이 절대각도(어깨 정렬). 2026-08-24부터 어깨 판정에는 더 이상 "
-        "쓰이지 않는다(shoulder_forward_lean_deg로 대체됨, 아래 참고) — 이 필드는 참고용으로만 "
+        description="귀-어깨-엉덩이 절대각도(어깨 정렬). 어깨 판정에는 쓰이지 않는다"
+        "(shoulder_forward_lean_deg로 대체됨, 아래 참고) — 이 필드는 참고용으로만 "
         "남아있고, 안 보내도 아무 영향 없다.",
     )
     shoulder_forward_lean_deg: Optional[float] = Field(
         None,
         description="목이 상체 기울기보다 얼마나 더 앞으로 기울었는지(app/pose/angles.py의 "
-        "get_shoulder_forward_lean_deg 참고, 2026-08-24 추가 — 기존 shoulder_angle 절대각도 "
-        "방식의 실측 오탐을 고쳐서 대체함: 상체가 앞으로 기울면 목이 정상적으로 세워져도 "
-        "절대각도가 자연히 줄어드는 문제가 있었다). heel_lift_ratio/knee_over_toe_ratio와 "
-        "동일하게 측면 랜드마크만으로 계산 가능한 값이라, 프론트가 매 프레임 직접 계산해서 "
-        "보낸다. 선택 필드 — 없으면(하위 호환) 어깨 검사를 건너뛴다.",
+        "get_shoulder_forward_lean_deg 참고) — 상체가 앞으로 기울어도 목이 정상적으로 "
+        "세워져 있으면 오탐하지 않도록, 절대각도가 아니라 상체 대비 상대각도로 계산한다. "
+        "heel_lift_ratio/knee_over_toe_ratio와 동일하게 측면 랜드마크만으로 계산 가능한 값이라, "
+        "프론트가 매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면(하위 호환) 어깨 검사를 "
+        "건너뛴다.",
     )
     heel_lift_ratio: Optional[float] = Field(
         None,
-        description="발뒤꿈치 들림 비율(app/pose/angles.py의 get_heel_lift_ratio 참고, 2026-08-21 "
-        "추가 — ML 분류기의 '발뒤꿈치 뜸' 오탐을 대체하는 규칙기반 지표). 선택 필드 — 없으면 "
-        "발뒤꿈치 검사를 건너뛴다(하위 호환, shoulder_angle과 동일한 이유).",
+        description="발뒤꿈치 들림 비율(app/pose/angles.py의 get_heel_lift_ratio 참고). "
+        "선택 필드 — 없으면 발뒤꿈치 검사를 건너뛴다(하위 호환, shoulder_angle과 동일한 이유).",
     )
     knee_valgus_ratio: Optional[float] = Field(
         None,
-        description="정면 촬영 기준 무릎 모임 비율(app/pose/angles.py의 get_knee_valgus_ratio 참고, "
-        "2026-08-21 추가). 프론트가 정면 카메라 랜드마크로 매 프레임 직접 계산해서 보낸다 — "
+        description="정면 촬영 기준 무릎 모임 비율(app/pose/angles.py의 get_knee_valgus_ratio 참고). "
+        "프론트가 정면 카메라 랜드마크로 매 프레임 직접 계산해서 보낸다 — "
         "무거운 연산(좌표 계산)은 클라이언트가 담당한다는 원칙을 이 필드에도 그대로 적용. "
         "선택 필드 — 없으면(정면 카메라 미지원 클라이언트) 무릎 모임 검사를 건너뛴다(하위 호환).",
     )
     knee_asymmetry_deg: Optional[float] = Field(
         None,
         description="정면 촬영 기준 좌우 무릎 굽힘 각도 차이(app/pose/angles.py의 "
-        "get_knee_lr_asymmetry_deg 참고, 2026-08-21 추가). knee_valgus_ratio와 동일한 이유로 "
+        "get_knee_lr_asymmetry_deg 참고). knee_valgus_ratio와 동일한 이유로 "
         "프론트가 직접 계산해서 보낸다. 선택 필드 — 없으면 좌우 비대칭 검사를 건너뛴다(하위 호환).",
     )
     knee_over_toe_ratio: Optional[float] = Field(
         None,
         description="무릎이 발끝보다 앞으로 나간 정도(app/pose/angles.py의 "
-        "get_knee_over_toe_ratio 참고, 2026-08-21 추가 — ML 런지 분류기가 담당하던 항목을 "
-        "뒤늦게 규칙기반으로 대체). 필드명은 '_ratio'지만 2026-08-21 재변경 이후로는 발 길이로 "
-        "정규화한 비율이 아니라 원시 좌표 거리(facing_direction 방향 보정만 반영)다 — 필드명은 "
-        "기존 API 호환을 위해 유지, 자세한 배경은 angles.py 주석 참고. heel_lift_ratio와 동일하게 "
-        "측면 랜드마크 기준이라 프론트가 매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면 이 "
-        "검사를 건너뛴다(하위 호환).",
+        "get_knee_over_toe_ratio 참고). 필드명은 '_ratio'지만 발 길이로 정규화한 비율이 아니라 "
+        "원시 좌표 거리(facing_direction 방향 보정만 반영)다 — 필드명은 기존 API 호환을 위해 "
+        "유지, 자세한 배경은 angles.py 주석 참고. heel_lift_ratio와 동일하게 측면 랜드마크 "
+        "기준이라 프론트가 매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면 이 검사를 "
+        "건너뛴다(하위 호환).",
     )
     torso_length_ratio: Optional[float] = Field(
         None,
         description="어깨-엉덩이 직선거리/발 길이 비율(app/pose/angles.py의 "
-        "get_torso_length_ratio 참고, 2026-08-21 추가). hip_calibration에 "
-        "standing_shoulder_hip_ratio가 함께 있을 때만 '등이 둥글게 말렸는지' 판정에 쓰인다 "
-        "(기준값 없이는 이 숫자 하나만으로는 판단 불가). 선택 필드 — 없으면 등 굽음 검사를 "
-        "건너뛴다(하위 호환).",
+        "get_torso_length_ratio 참고). hip_calibration에 standing_shoulder_hip_ratio가 함께 "
+        "있을 때만 '등이 둥글게 말렸는지' 판정에 쓰인다(기준값 없이는 이 숫자 하나만으로는 "
+        "판단 불가). 선택 필드 — 없으면 등 굽음 검사를 건너뛴다(하위 호환).",
     )
 
 
@@ -206,12 +186,6 @@ class SessionEndCheckResponse(BaseModel):
     reason: Literal["user_requested", "target_sustained", "in_progress", "no_data"]
     normal_ratio: float = Field(..., description="판단에 사용한 구간의 정상판정 비율(0~1)")
     window_duration_sec: float = Field(..., description="판단에 사용한 구간의 실제 길이(초)")
-
-
-# 런지/스쿼트 ML 보조 판정(전통 ML, 포트폴리오/비교실험 목적)용 요청/응답 모델이 이 자리에
-# 있었다. 2026-08-21, 실제 사진 테스트에서 신뢰도 문제가 확인된 뒤(app/pose/rules.py 주석
-# 참고) 정면+측면 듀얼 카메라 규칙기반 판정으로 완전히 대체하며 삭제했다 — 자세한 배경은
-# claude/wellmade-ai-progress.md 참고.
 
 
 # ---- 자세 비교 인사이트 (AI-15, 신규 — API 명세 표에 없는 온보딩 캘리브레이션 확장) ----
@@ -368,9 +342,8 @@ class RagQnaResponse(BaseModel):
 
 
 # ---- 세션 리포트 생성 (AI-12) ----
-# TODO: 팀 확정 필요 — app/session/report.py 상단 주석 참고: 이 기능의 ID가 시트마다
-# 다르게 쓰여 있다(1.AI모듈상세=AI-12, 8.요구사항정의서=AI-08). 여기서는 "1.AI모듈상세"
-# 기준(AI-12)으로 구현했다.
+# TODO: 팀 확정 필요 — 이 기능의 ID가 시트마다 다르게 쓰여 있다(1.AI모듈상세=AI-12,
+# 8.요구사항정의서=AI-08). 여기서는 "1.AI모듈상세" 기준(AI-12)으로 구현했다.
 
 
 class SessionIssueRecord(BaseModel):

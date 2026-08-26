@@ -6,17 +6,10 @@ AI 서버는 결과 좌표(33개 관절)만 받아 "각도 계산 → 규칙 판
 이 파일은 그중 "각도 계산" 담당이며, insight/posture_percentile.py(AI-15)가 이 함수들을
 가져다 쓴다.
 
-(2026-08-24) 원래 이 파일은 정지 자세 판정(AI-03, pose/rules.py의 judge_static_pose())
-전용 각도 함수(get_knee_angle/get_hip_angle/get_shoulder_alignment_angle/
-get_shoulder_forward_lean_deg/get_heel_lift_ratio/get_knee_over_toe_ratio/
-get_torso_length_ratio/get_knee_valgus_ratio/get_knee_lr_asymmetry_deg)가 대부분을
-차지했다. 사용자가 "정지자세 촬영 관련 부분은 다른 팀원이 맡기로 했다"며 AI-03 삭제를
-요청해(동년배 비교 인사이트 AI-15는 예외), 이 함수들을 호출부(judge_static_pose())와
-함께 제거했다. 실시간 코칭(AI-06)은 프론트가 이미 계산한 각도 값을 받으므로(각도
-계산을 서버가 하지 않음) 애초에 이 함수들을 쓰지 않았고, 남은 get_shoulder_tilt_angle/
-get_pelvis_tilt_angle(정면 좌우 기울기, AI-15 전용)만 이 파일에 남았다 — 이 두 함수는
-위 목록의 함수들과는 계산 방식(관절 3점 각도가 아니라 좌우 두 점의 수평 기울기)도
-쓰임(관상면 좌우 비교 vs 시상면 굽힘 판정)도 완전히 달라 서로 의존 관계가 없었다.
+이 파일에는 get_shoulder_tilt_angle/get_pelvis_tilt_angle(정면 좌우 기울기, AI-15 전용)만
+있다 — 관절 3점 각도가 아니라 좌우 두 점의 수평 기울기를 계산하는 함수들이다. 실시간
+코칭(AI-06)은 프론트가 이미 계산한 각도 값을 받으므로(각도 계산을 서버가 하지 않음) 이
+파일의 함수를 쓰지 않는다.
 """
 
 import math
@@ -52,11 +45,8 @@ def _horizontal_tilt_angle(left_point: Landmark, right_point: Landmark) -> float
 def get_shoulder_tilt_angle(landmarks: list[Landmark]) -> float:
     """
     정면 촬영 기준, 좌우 어깨의 높이 차이로 "어깨가 좌우로 얼마나 기울었는지"를 계산한다.
-
-    측면 촬영 전제로 만든 get_shoulder_alignment_angle()(귀-어깨-엉덩이, 어깨가 앞으로
-    말렸는지 = 시상면 문제)과는 완전히 다른 축의 측정값이다 — 이건 좌우 높이 차이(관상면
-    문제)라 정면 카메라가 있어야만 계산할 수 있다. 자세 비교 인사이트(AI-15) 기능을 위해
-    2026-08-18 추가했다. 이름도 다르게 지은 이유는 두 값을 절대 헷갈리지 않게 하기 위함.
+    자세 비교 인사이트(AI-15)용 — 어깨가 앞으로 말렸는지(시상면) 판정과는 완전히 다른
+    축(관상면, 좌우 높이 차이)의 측정값이라 정면 카메라가 있어야만 계산할 수 있다.
 
     반환값 부호: 양수 = 왼쪽 어깨가 올라감, 음수 = 오른쪽 어깨가 올라감(세종시 공공데이터의
     "왼쪽 어깨가 N도 올라간 상태입니다" 표현과 부호를 맞춰, 참조 분포와 직접 비교 가능하게 함).

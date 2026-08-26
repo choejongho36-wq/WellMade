@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './MainPage.css'
 import { usePoseLandmarker } from './components/usePoseLandmarker.js'
 
@@ -242,6 +242,19 @@ function getPelvisTiltAngle(landmarks) {
   return horizontalTiltAngle(landmarks[LEFT_HIP], landmarks[RIGHT_HIP])
 }
 
+// 측면 랜드마크 1세트에서 AI-06(/ai/coaching/frame)의 AngleFrame에 필요한 필드만 뽑아낸다.
+// 사진 판정(requestJudgment)과 영상 판정(아래 handleVideoLoadedMetadata) 양쪽에서 같은
+// 함수를 공유해서 쓴다 — 계산 공식이 두 곳에서 따로 어긋나는 걸 막기 위함.
+function buildSideMetrics(landmarks) {
+  return {
+    knee_angle: getKneeAngle(landmarks),
+    hip_angle: getHipAngle(landmarks),
+    shoulder_forward_lean_deg: getShoulderForwardLeanDeg(landmarks),
+    heel_lift_ratio: getHeelLiftRatio(landmarks),
+    knee_over_toe_ratio: getKneeOverToeRatio(landmarks),
+  }
+}
+
 // 33개 랜드마크를 사진 위에 그려서, 각도 계산에 실제로 쓰이는 지점이 어디인지 눈으로
 // 바로 확인할 수 있게 한다. 왼쪽=시안/오른쪽=마젠타로 구분.
 function drawLandmarks(imgEl, canvasEl, landmarks) {
@@ -386,6 +399,7 @@ const PART_LABELS = {
   shoulder: '어깨',
   heel: '발뒤꿈치',
   knee_valgus: '무릎 모임',
+  hip_hyperextension: '고관절 과신전 의심',
   asymmetry: '좌우 비대칭',
   knee_over_toe: '무릎-발끝',
   back_rounded: '등 굽음',
@@ -429,6 +443,178 @@ function JudgmentPanel({ result, error, loading }) {
   )
 }
 
+// 자동 감지된 렙(스쿼트 저점) 하나의 판독 결과를 보여준다. 클릭하면 그 프레임으로 이동한다
+// (videoSliderIndex를 공유하는 또 다른 입력 수단 — 그래프/슬라이더와 동일한 패턴).
+function RepResultCard({ rep, repIndex, active, onClick }) {
+  const { timestamp, kneeAngle, result, error, loading } = rep
+  return (
+    <div
+      className="pcard"
+      onClick={onClick}
+      style={{
+        maxWidth: 220,
+        flex: '1 1 200px',
+        cursor: 'pointer',
+        outline: active ? `2px solid ${LEFT_COLOR}` : 'none',
+      }}
+    >
+      <div className="pcard-body" style={{ fontSize: 13, lineHeight: 1.6 }}>
+        <div className="pcard-title">
+          렙 {repIndex + 1} · {timestamp.toFixed(2)}초
+        </div>
+        <div>무릎각도 {kneeAngle.toFixed(1)}도</div>
+        {loading && <div style={{ marginTop: 4 }}>AI 판독 중...</div>}
+        {error && (
+          <div style={{ marginTop: 4, color: '#e6432b' }}>
+            {error}
+          </div>
+        )}
+        {result && (
+          <div style={{ marginTop: 4 }}>
+            <span style={{ color: result.is_normal ? '#2eb872' : '#e6432b', fontWeight: 600 }}>
+              {result.is_normal ? '정상' : '이상'}
+            </span>{' '}
+            · 동작 단계: {result.phase} · 신뢰도 {(result.confidence * 100).toFixed(0)}%
+            {result.issues.length > 0 && (
+              <div style={{ marginTop: 4 }}>
+                {result.issues.map((issue, i) => (
+                  <div key={i}>
+                    · [{PART_LABELS[issue.part] ?? issue.part}] {issue.message}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---- 영상 모드 ----
+// (2026-08-25 추가) 사진 모드는 "값이 동일한 프레임 3개"를 만들어 서버가 항상 정지(holding)
+// 상태로 인식하게 우회하는데, 이러면 AI-06이 원래 설계된 목적(실제 시간 흐름에 따른
+// 내려감/올라옴/정지 판정)을 테스트해볼 수가 없다. 영상 모드는 실제 타임스탬프가 있는
+// 프레임 시계열을 그대로 만들어 보내서, 이 판정 로직 자체가 실제 동작에 얼마나 잘 맞는지
+// (특히 최근 논의한 "자연스럽게 앉았다 일어나기 vs 몇 초 유지하기" 질문)를 검증하기 위한
+// 용도다.
+const VIDEO_SAMPLE_INTERVAL_SEC = 0.15 // 기본 샘플링 간격(초) — 대략 6~7fps
+const VIDEO_MAX_FRAMES = 60 // 긴 영상을 올려도 이 개수를 넘지 않도록 간격을 늘려서 맞춘다
+const VIDEO_MIN_USABLE_FRAMES = 3 // 서버(judge_realtime_coaching)의 MIN_FRAMES와 동일한 기준
+// 영상 전체를 한 번에 서버로 보내면 "내려갔다 올라오는 전체 구간"의 기울기가 서로
+// 상쇄되어 판정이 무의미해진다. 실제 서비스가 매 호출마다 "최근 N프레임"만 보내는 것과
+// 같은 형태(롤링 윈도우)로 재현해야, 슬라이더로 고른 시점의 국소적인 변화 방향(내려가는
+// 중/올라오는 중/정지)이 그 순간 기준으로 제대로 판정된다.
+const VIDEO_JUDGE_WINDOW = 6
+
+// (2026-08-25 추가) "가장 무릎각도가 작을 때 = 스쿼트 저점"을 사람이 슬라이더로 찾지 않고
+// AI가 직접 찾아서 그 순간을 판독하게 해달라는 요청에 따라 추가한 자동 렙(rep) 감지 기준.
+// STANDING_KNEE_ANGLE_MIN은 서버(ai/app/coaching/realtime.py)의 같은 이름 상수와 값을
+// 맞췄다 — 이 값보다 무릎각도가 작아야만 "실제로 앉은 상태"로 보고, 서 있는 채로 무릎이
+// 살짝 흔들리는 것까지 저점으로 잡지 않는다.
+const STANDING_KNEE_ANGLE_MIN = 150
+// 한 번 저점을 인정한 뒤, 이 프레임 수 안에서 나오는 다른 국소최소값은 같은 렙의 노이즈로
+// 보고 새 렙으로 세지 않는다(단, 그 안에서 더 낮은 지점이 나오면 그쪽으로 갱신한다).
+// TODO: 팀 확정 필요 — 실제 사용자 템포(렙 사이 간격)로 튜닝이 필요한 값의 초안이다.
+const REP_BOTTOM_MIN_GAP_FRAMES = 8
+
+// 무릎각도 시계열에서 "저점(가장 깊이 앉은 순간)"들을 자동으로 찾는다. 이웃 프레임보다
+// 낮거나 같은 국소최소값을 후보로 두고, 위 두 기준(STANDING_KNEE_ANGLE_MIN, MIN_GAP)으로
+// 노이즈를 거른다. 반환값은 videoFrames 배열의 인덱스 목록(오름차순, 렙 등장 순서).
+function detectRepBottoms(frames) {
+  const bottoms = []
+  for (let i = 0; i < frames.length; i++) {
+    const angle = frames[i].metrics.knee_angle
+    if (angle >= STANDING_KNEE_ANGLE_MIN) continue
+    const prev = frames[i - 1]?.metrics.knee_angle
+    const next = frames[i + 1]?.metrics.knee_angle
+    const isLocalMin = (prev === undefined || angle <= prev) && (next === undefined || angle <= next)
+    if (!isLocalMin) continue
+
+    const lastIdx = bottoms.length - 1
+    if (lastIdx >= 0 && i - bottoms[lastIdx] < REP_BOTTOM_MIN_GAP_FRAMES) {
+      if (angle < frames[bottoms[lastIdx]].metrics.knee_angle) bottoms[lastIdx] = i
+      continue
+    }
+    bottoms.push(i)
+  }
+  return bottoms
+}
+
+// ---- 실시간 영상(웹캠) 모드 ----
+// (2026-08-25 추가) "나중에 진짜로 영상을 찍어보기 전에 실시간 모드도 미리 확인해보고
+// 싶다"는 요청으로 추가했다. 파일 업로드 영상 모드와 달리 끝이 없는 스트림이라 프레임을
+// 전부 모아두지 않고, 최근 LIVE_BUFFER_MAX개만 롤링 버퍼로 들고 있다가 새 프레임이 들어올
+// 때마다 그 순간까지의 최근 윈도우(judgeWindow — 영상 모드와 동일 함수 재사용)를 AI-06에
+// 보낸다. 이게 바로 실제 서비스가 웹캠으로 하려는 것과 동일한 흐름이다.
+const LIVE_SAMPLE_INTERVAL_MS = 200 // 실시간 판독 주기(ms) — 영상 모드 샘플링(~0.15초)과 비슷한 수준
+const LIVE_BUFFER_MAX = 30 // 이 개수를 넘는 오래된 프레임은 버린다(약 6초 분량)
+
+// <video>의 currentTime을 원하는 시점으로 옮기고, 실제로 그 프레임까지 디코딩이 끝나는
+// 'seeked' 이벤트를 기다린다. 일부 브라우저/코덱 조합에서는 이미 같은 시점에 있을 때
+// (특히 0초) 'seeked'가 아예 안 오는 경우가 있어, 무한 대기를 막는 타임아웃 안전장치를 둔다.
+function seekVideo(video, t) {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      video.removeEventListener('seeked', finish)
+      resolve()
+    }
+    video.addEventListener('seeked', finish)
+    video.currentTime = t
+    setTimeout(finish, 1500)
+  })
+}
+
+const REP_MARKER_COLOR = '#ffb020'
+
+// 무릎각도 시계열을 아주 단순한 꺾은선 그래프로 보여준다. 프레임마다 다시 관절 인식을
+// 돌리지 않고(추출 단계에서 이미 계산해둔 값을 재사용), 클릭한 지점의 프레임으로 바로
+// 이동할 수 있게 슬라이더와 같은 상태(videoSliderIndex)를 공유한다. repMarkers는
+// detectRepBottoms가 자동으로 찾아낸 저점들을 주황 점으로 표시한다.
+function KneeAngleSparkline({ frames, currentIndex, repMarkers = [], onSelect = () => {} }) {
+  if (frames.length < 2) return null
+  const width = 480
+  const height = 72
+  const padding = 6
+  const angles = frames.map((f) => f.metrics.knee_angle)
+  const min = Math.min(...angles)
+  const max = Math.max(...angles)
+  const range = max - min || 1
+  const xStep = (width - padding * 2) / (frames.length - 1)
+  const toXY = (i) => [padding + i * xStep, padding + (1 - (angles[i] - min) / range) * (height - padding * 2)]
+  const points = frames.map((_, i) => toXY(i).join(',')).join(' ')
+  const [curX, curY] = toXY(currentIndex)
+
+  const handleClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const relX = ((e.clientX - rect.left) / rect.width) * width
+    const idx = Math.round((relX - padding) / xStep)
+    onSelect(Math.max(0, Math.min(frames.length - 1, idx)))
+  }
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      style={{ width: '100%', maxWidth: width, cursor: 'pointer', marginTop: 8 }}
+      onClick={handleClick}
+    >
+      <polyline points={points} fill="none" stroke={LEFT_COLOR} strokeWidth="1.5" opacity="0.8" />
+      {repMarkers.map((idx) => {
+        const [mx, my] = toXY(idx)
+        return <circle key={idx} cx={mx} cy={my} r="4" fill={REP_MARKER_COLOR} stroke="#000" strokeWidth="1" />
+      })}
+      <line x1={curX} y1={padding} x2={curX} y2={height - padding} stroke="#fff" strokeWidth="1" opacity="0.5" />
+      <circle cx={curX} cy={curY} r="3.5" fill={LEFT_COLOR} stroke="#000" strokeWidth="1" />
+      <text x={padding} y={height - 2} fontSize="9" fill="#888">
+        무릎각도 {min.toFixed(0)}~{max.toFixed(0)}도 · 주황 점=자동 감지된 렙 저점 · 클릭하면 이동
+      </text>
+    </svg>
+  )
+}
+
 function PhotoCard({
   label,
   imageUrl,
@@ -437,17 +623,19 @@ function PhotoCard({
   onImageLoad,
   imgRef,
   canvasRef,
+  fileInputRef,
   notReadyMessage,
   onPointerDown,
   onPointerMove,
   onPointerUp,
   onReset,
+  onDelete,
 }) {
   return (
     <div className="pcard" style={{ maxWidth: 320, flex: '1 1 280px' }}>
       <div className="pcard-body">
         <div className="pcard-title">{label}</div>
-        <input type="file" accept="image/*" onChange={onFile} />
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={onFile} />
         {imageUrl && (
           <div style={{ position: 'relative', marginTop: 12 }}>
             <img
@@ -484,10 +672,15 @@ function PhotoCard({
             ? '관절 인식 완료 ✓ — 위치가 이상한 점은 사진 위에서 직접 드래그해 옮길 수 있어요.'
             : notReadyMessage}
         </p>
-        {landmarks && onReset && (
-          <button onClick={onReset} style={{ marginTop: 6 }}>
-            관절 위치 원래대로 되돌리기
-          </button>
+        {imageUrl && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+            {landmarks && onReset && <button onClick={onReset}>관절 위치 원래대로 되돌리기</button>}
+            {onDelete && (
+              <button onClick={onDelete} style={{ color: '#e6432b' }}>
+                사진 삭제
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -512,10 +705,54 @@ function MlTestPage() {
   const frontImgRef = useRef(null)
   const sideCanvasRef = useRef(null)
   const frontCanvasRef = useRef(null)
+  // 삭제 후 같은 파일을 곧바로 다시 선택해도 onChange가 발생하도록, 삭제 시 이 input의
+  // value를 직접 비워준다(리액트가 <input type="file">의 value를 제어할 수 없어서 필요).
+  const sideFileInputRef = useRef(null)
+  const frontFileInputRef = useRef(null)
   // 지금 드래그 중인 관절 정보({ which: 'side'|'front', index }) — 렌더마다 새로 만들 필요가
   // 없는 값이라 state가 아닌 ref로 관리해서 드래그 중 불필요한 리렌더를 만들지 않는다.
   const draggingRef = useRef(null)
   const { detectPose, loading } = usePoseLandmarker()
+
+  // ---- 영상 모드 상태 ----
+  // videoFrames: 추출된 프레임들의 { timestamp, landmarks, metrics } 배열. landmarks는
+  // 슬라이더로 이동할 때마다 다시 인식하지 않고 그대로 재사용한다(추출 단계에서 1회만 계산).
+  const [videoUrl, setVideoUrl] = useState(null)
+  const [videoFrames, setVideoFrames] = useState([])
+  const [videoSliderIndex, setVideoSliderIndex] = useState(0)
+  const [extracting, setExtracting] = useState(false)
+  const [extractProgress, setExtractProgress] = useState({ done: 0, total: 0 })
+  const [videoStatus, setVideoStatus] = useState('')
+  const [videoJudgeResult, setVideoJudgeResult] = useState(null)
+  const [videoJudgeError, setVideoJudgeError] = useState('')
+  const [videoJudging, setVideoJudging] = useState(false)
+  // repBottoms: detectRepBottoms가 찾아낸 videoFrames 인덱스 목록. repResults는 렙마다
+  // { index, timestamp, kneeAngle, result, error, loading } — 추출이 끝나면 사람이 슬라이더를
+  // 움직이지 않아도 AI가 각 렙 저점을 알아서 판독해 여기 채워 넣는다.
+  const [repBottoms, setRepBottoms] = useState([])
+  const [repResults, setRepResults] = useState([])
+  const videoElRef = useRef(null)
+  const videoCanvasRef = useRef(null)
+
+  // ---- 실시간 영상(웹캠) 상태 ----
+  // liveFrames는 화면 표시(그래프 등)용 state. 판정 루프(liveTick)는 렌더 사이 stale
+  // closure를 피하려고 liveFramesRef라는 별도 ref에 항상 최신 버퍼를 같이 들고 있다가
+  // 그걸 기준으로 판단한다 — state만 쓰면 setInterval 콜백이 매번 최신값을 보장받지 못한다.
+  const [liveActive, setLiveActive] = useState(false)
+  const [liveStatus, setLiveStatus] = useState('')
+  const [liveFrames, setLiveFrames] = useState([])
+  const [liveJudgeResult, setLiveJudgeResult] = useState(null)
+  const [liveJudgeError, setLiveJudgeError] = useState('')
+  const liveVideoRef = useRef(null)
+  const liveCanvasRef = useRef(null)
+  const liveFramesRef = useRef([])
+  const liveStreamRef = useRef(null)
+  const liveIntervalRef = useRef(null)
+  const liveOffscreenRef = useRef(null)
+  const liveStartTimeRef = useRef(0)
+  // 이전 틱(비동기: seek 없이 detectPose + fetch)이 아직 안 끝났는데 다음 인터벌이 도는 걸
+  // 막는 가드 — 안 막으면 느린 기기에서 요청이 계속 밀려 쌓인다.
+  const liveTickRunningRef = useRef(false)
 
   const handleFile = (which) => (e) => {
     const file = e.target.files[0]
@@ -527,6 +764,29 @@ function MlTestPage() {
     } else {
       setFrontImageUrl(url)
       setFrontLandmarks(null)
+    }
+    setStatus('')
+  }
+
+  // 사진을 지우고 처음 상태로 되돌린다 — createObjectURL로 만든 URL은 브라우저가 자동으로
+  // 회수하지 않으므로 명시적으로 해제한다(안 하면 사진을 여러 번 갈아 끼울 때마다 메모리에
+  // 계속 쌓임). side를 지우면 그 사진 기준으로 받았던 판정 결과(judgeResult)도 더 이상
+  // 유효하지 않으므로 함께 지운다.
+  const handleDeletePhoto = (which) => () => {
+    const url = which === 'side' ? sideImageUrl : frontImageUrl
+    if (url) URL.revokeObjectURL(url)
+    const inputEl = which === 'side' ? sideFileInputRef.current : frontFileInputRef.current
+    if (inputEl) inputEl.value = ''
+    if (which === 'side') {
+      setSideImageUrl(null)
+      setSideLandmarks(null)
+      setSideOriginalLandmarks(null)
+      setJudgeResult(null)
+      setJudgeError('')
+    } else {
+      setFrontImageUrl(null)
+      setFrontLandmarks(null)
+      setFrontOriginalLandmarks(null)
     }
     setStatus('')
   }
@@ -614,6 +874,264 @@ function MlTestPage() {
     }
   }
 
+  const handleVideoFile = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    setVideoUrl(url)
+    setVideoFrames([])
+    setVideoSliderIndex(0)
+    setVideoJudgeResult(null)
+    setVideoJudgeError('')
+    setVideoStatus('')
+    setRepBottoms([])
+    setRepResults([])
+  }
+
+  // AI-06(/ai/coaching/frame)에 보낼 "그 시점까지의 최근 프레임 구간"을 잘라낸다(파일 상단
+  // VIDEO_JUDGE_WINDOW 주석 참고) — 실제 서비스가 매 호출마다 최근 윈도우만 보내는 것과
+  // 같은 형태로 재현한다. 수동 판정(requestVideoJudgment)과 자동 렙 판독(autoJudgeReps)
+  // 양쪽에서 같은 로직을 공유한다.
+  const judgeWindow = (idx, frames) => {
+    const start = Math.max(0, idx - VIDEO_JUDGE_WINDOW + 1)
+    return frames.slice(start, idx + 1).map((f) => ({ timestamp: f.timestamp, ...f.metrics }))
+  }
+
+  const callCoachingFrame = async (angle_history) => {
+    const res = await fetch(`${AI_BASE}/ai/coaching/frame`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ angle_history }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.json()
+  }
+
+  // detectRepBottoms가 찾아낸 저점들을 순서대로(직렬로) 서버에 판독 요청한다. 사람이
+  // 슬라이더를 움직이거나 버튼을 누르지 않아도, 추출이 끝나면 이 함수가 자동으로 호출돼
+  // "가장 무릎각도가 작을 때"를 AI가 알아서 찾아 판독하는 흐름을 만든다. 병렬로 한꺼번에
+  // 쏘지 않고 순차 처리하는 이유는 handleVideoLoadedMetadata와 동일(안정성 우선).
+  const autoJudgeReps = async (bottoms, frames) => {
+    setRepResults(
+      bottoms.map((idx) => ({
+        index: idx,
+        timestamp: frames[idx].timestamp,
+        kneeAngle: frames[idx].metrics.knee_angle,
+        result: null,
+        error: '',
+        loading: true,
+      })),
+    )
+    for (let r = 0; r < bottoms.length; r++) {
+      try {
+        const result = await callCoachingFrame(judgeWindow(bottoms[r], frames))
+        setRepResults((prev) => prev.map((rep, i) => (i === r ? { ...rep, result, loading: false } : rep)))
+      } catch (err) {
+        setRepResults((prev) =>
+          prev.map((rep, i) => (i === r ? { ...rep, error: `AI 서버 연결 실패: ${err.message}`, loading: false } : rep)),
+        )
+      }
+    }
+  }
+
+  // 저장된 landmarks를 재사용해 해당 프레임으로 영상을 이동시키고 스켈레톤을 다시 그린다.
+  // drawLandmarks는 첫 인자에서 clientWidth/clientHeight만 읽으므로 <img> 대신 <video>를
+  // 그대로 넘겨도 동작한다 — 이미지 모드와 별도 그리기 함수를 만들 필요가 없었다.
+  const goToVideoFrame = async (idx, frames = videoFrames) => {
+    const video = videoElRef.current
+    const frame = frames[idx]
+    if (!video || !frame) return
+    await seekVideo(video, frame.timestamp)
+    requestAnimationFrame(() => drawLandmarks(video, videoCanvasRef.current, frame.landmarks))
+  }
+
+  const handleVideoSliderChange = (e) => {
+    const idx = Number(e.target.value)
+    setVideoSliderIndex(idx)
+    goToVideoFrame(idx)
+  }
+
+  const handleSparklineSelect = (idx) => {
+    setVideoSliderIndex(idx)
+    goToVideoFrame(idx)
+  }
+
+  // 영상 메타데이터(길이 등)를 읽는 즉시 프레임 추출을 시작한다. 매 샘플 시점마다
+  // (1) 영상을 그 시점으로 seek → (2) 축소된 오프스크린 캔버스에 그 프레임을 그림
+  // (원본 해상도 그대로 MediaPipe에 넣으면 프레임마다 느려짐) → (3) 관절 인식 →
+  // (4) 인식 성공한 프레임만 기록, 순서로 처리한다. 순차 처리(await를 루프 안에서)라
+  // 느리긴 하지만, 같은 usePoseLandmarker 인스턴스를 병렬로 호출하는 게 안전하다는
+  // 보장이 없어 안정성을 택했다 — 이 페이지는 연습/검증용이라 속도보다 정확성이 우선이다.
+  const handleVideoLoadedMetadata = async () => {
+    const video = videoElRef.current
+    if (!video) return
+    const duration = video.duration
+    if (!duration || !isFinite(duration)) {
+      setVideoStatus('영상 길이를 읽지 못했어요. 다른 파일로 시도해주세요.')
+      return
+    }
+
+    let interval = VIDEO_SAMPLE_INTERVAL_SEC
+    if (Math.ceil(duration / interval) > VIDEO_MAX_FRAMES) {
+      interval = duration / VIDEO_MAX_FRAMES
+    }
+    const timestamps = []
+    for (let t = 0; t < duration; t += interval) timestamps.push(t)
+    if (timestamps.length === 0) timestamps.push(0)
+
+    setExtracting(true)
+    setVideoStatus('')
+    setExtractProgress({ done: 0, total: timestamps.length })
+
+    const offscreen = document.createElement('canvas')
+    const scale = video.videoWidth > 480 ? 480 / video.videoWidth : 1
+    offscreen.width = Math.round(video.videoWidth * scale)
+    offscreen.height = Math.round(video.videoHeight * scale)
+    const ctx = offscreen.getContext('2d')
+
+    const frames = []
+    for (let i = 0; i < timestamps.length; i++) {
+      await seekVideo(video, timestamps[i])
+      ctx.drawImage(video, 0, 0, offscreen.width, offscreen.height)
+      const landmarks = await detectPose(offscreen)
+      if (landmarks) {
+        frames.push({ timestamp: timestamps[i], landmarks, metrics: buildSideMetrics(landmarks) })
+      }
+      setExtractProgress({ done: i + 1, total: timestamps.length })
+    }
+
+    setExtracting(false)
+    if (frames.length < VIDEO_MIN_USABLE_FRAMES) {
+      setVideoStatus(`관절 인식에 성공한 프레임이 너무 적어요 (${frames.length}개). 다른 영상으로 시도해주세요.`)
+      setVideoFrames([])
+      return
+    }
+
+    setVideoFrames(frames)
+
+    // "가장 무릎각도가 작을 때"를 AI가 직접 찾아서 판독한다 — detectRepBottoms로 렙(들)의
+    // 저점을 자동 감지하고, 곧바로 autoJudgeReps로 서버 판정까지 사람 개입 없이 진행한다.
+    const bottoms = detectRepBottoms(frames)
+    setRepBottoms(bottoms)
+    if (bottoms.length > 0) {
+      setVideoSliderIndex(bottoms[0])
+      goToVideoFrame(bottoms[0], frames)
+      autoJudgeReps(bottoms, frames)
+    } else {
+      // 저점을 하나도 못 찾았으면(예: 서 있는 자세만 찍힌 영상) 폴백으로 전체 최저점 하나만
+      // 보여준다 — 자동 판독은 하지 않고, 사람이 슬라이더로 직접 확인하도록 남겨둔다.
+      let deepestIdx = 0
+      frames.forEach((f, idx) => {
+        if (f.metrics.knee_angle < frames[deepestIdx].metrics.knee_angle) deepestIdx = idx
+      })
+      setVideoSliderIndex(deepestIdx)
+      goToVideoFrame(deepestIdx, frames)
+      setVideoStatus('무릎이 충분히 굽혀진 저점을 찾지 못했어요 — 슬라이더로 직접 시점을 골라 판정해주세요.')
+    }
+  }
+
+  // 슬라이더/그래프로 고른 임의 시점을 수동으로 판정할 때 쓴다(자동 렙 판독과 별개로,
+  // 특정 순간을 따로 확인하고 싶을 때를 위해 남겨둔다).
+  const requestVideoJudgment = async () => {
+    const frame = videoFrames[videoSliderIndex]
+    if (!frame) return
+    setVideoJudging(true)
+    setVideoJudgeError('')
+    setVideoJudgeResult(null)
+    try {
+      setVideoJudgeResult(await callCoachingFrame(judgeWindow(videoSliderIndex, videoFrames)))
+    } catch (err) {
+      setVideoJudgeError(`AI 서버 연결 실패: ${err.message} (AI 서버가 localhost:8000에서 실행 중인지 확인해주세요)`)
+    } finally {
+      setVideoJudging(false)
+    }
+  }
+
+  // 웹캠 스트림에서 한 프레임을 뽑아 관절을 인식하고, 롤링 버퍼에 추가한 뒤 그 순간까지의
+  // 최근 윈도우로 AI-06 판정을 요청한다. LIVE_SAMPLE_INTERVAL_MS마다 반복 호출된다.
+  const liveTick = async () => {
+    if (liveTickRunningRef.current) return // 이전 틱이 아직 처리 중이면 이번 틱은 건너뛴다
+    liveTickRunningRef.current = true
+    try {
+      const video = liveVideoRef.current
+      if (!video || video.readyState < 2) return // 아직 첫 프레임이 디코딩되기 전
+
+      if (!liveOffscreenRef.current) liveOffscreenRef.current = document.createElement('canvas')
+      const offscreen = liveOffscreenRef.current
+      const scale = video.videoWidth > 480 ? 480 / video.videoWidth : 1
+      const w = Math.round(video.videoWidth * scale)
+      const h = Math.round(video.videoHeight * scale)
+      if (offscreen.width !== w || offscreen.height !== h) {
+        offscreen.width = w
+        offscreen.height = h
+      }
+      offscreen.getContext('2d').drawImage(video, 0, 0, w, h)
+
+      const landmarks = await detectPose(offscreen)
+      if (!landmarks) return
+
+      const timestamp = (performance.now() - liveStartTimeRef.current) / 1000
+      const frame = { timestamp, landmarks, metrics: buildSideMetrics(landmarks) }
+      const next = [...liveFramesRef.current, frame].slice(-LIVE_BUFFER_MAX)
+      liveFramesRef.current = next
+      setLiveFrames(next)
+      drawLandmarks(video, liveCanvasRef.current, landmarks)
+
+      if (next.length >= VIDEO_MIN_USABLE_FRAMES) {
+        try {
+          const result = await callCoachingFrame(judgeWindow(next.length - 1, next))
+          setLiveJudgeResult(result)
+          setLiveJudgeError('')
+        } catch (err) {
+          setLiveJudgeError(`AI 서버 연결 실패: ${err.message} (AI 서버가 localhost:8000에서 실행 중인지 확인해주세요)`)
+        }
+      }
+    } finally {
+      liveTickRunningRef.current = false
+    }
+  }
+
+  const startLive = async () => {
+    setLiveStatus('')
+    setLiveJudgeError('')
+    setLiveJudgeResult(null)
+    liveFramesRef.current = []
+    setLiveFrames([])
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+      liveStreamRef.current = stream
+      const video = liveVideoRef.current
+      video.srcObject = stream
+      await video.play()
+      liveStartTimeRef.current = performance.now()
+      liveIntervalRef.current = setInterval(liveTick, LIVE_SAMPLE_INTERVAL_MS)
+      setLiveActive(true)
+    } catch (err) {
+      setLiveStatus(`카메라를 열지 못했어요: ${err.message} (브라우저의 카메라 권한을 확인해주세요)`)
+    }
+  }
+
+  const stopLive = () => {
+    if (liveIntervalRef.current) {
+      clearInterval(liveIntervalRef.current)
+      liveIntervalRef.current = null
+    }
+    if (liveStreamRef.current) {
+      liveStreamRef.current.getTracks().forEach((track) => track.stop())
+      liveStreamRef.current = null
+    }
+    if (liveVideoRef.current) liveVideoRef.current.srcObject = null
+    setLiveActive(false)
+  }
+
+  // 페이지를 떠날 때 카메라가 계속 켜진 채로 남지 않도록 정리한다.
+  useEffect(() => {
+    return () => {
+      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current)
+      if (liveStreamRef.current) liveStreamRef.current.getTracks().forEach((track) => track.stop())
+    }
+  }, [])
+
   // 측면(필수) 랜드마크로 계산한 값 + 정면(있으면) 랜드마크로 계산한 무릎모임/비대칭 값을
   // AngleFrame 3개(타임스탬프만 다름)로 복제해 /ai/coaching/frame(AI-06)에 보낸다 — 값이
   // 동일하니 서버가 "정지" 상태로 인식해 실제 임계값 비교가 적용된다(파일 상단 주석 참고).
@@ -622,13 +1140,7 @@ function MlTestPage() {
     setJudging(true)
     setJudgeError('')
     setJudgeResult(null)
-    const baseFrame = {
-      knee_angle: getKneeAngle(sideLandmarks),
-      hip_angle: getHipAngle(sideLandmarks),
-      shoulder_forward_lean_deg: getShoulderForwardLeanDeg(sideLandmarks),
-      heel_lift_ratio: getHeelLiftRatio(sideLandmarks),
-      knee_over_toe_ratio: getKneeOverToeRatio(sideLandmarks),
-    }
+    const baseFrame = buildSideMetrics(sideLandmarks)
     if (frontLandmarks) {
       baseFrame.knee_valgus_ratio = getKneeValgusRatio(frontLandmarks)
       baseFrame.knee_asymmetry_deg = getKneeLrAsymmetryDeg(frontLandmarks)
@@ -681,11 +1193,13 @@ function MlTestPage() {
               onImageLoad={handleSideImageLoad}
               imgRef={sideImgRef}
               canvasRef={sideCanvasRef}
+              fileInputRef={sideFileInputRef}
               notReadyMessage="무릎/엉덩이/어깨/발뒤꿈치/무릎-발끝 측정에 쓰여요."
               onPointerDown={handlePointerDown('side')}
               onPointerMove={handlePointerMove('side')}
               onPointerUp={handlePointerUp('side')}
               onReset={sideOriginalLandmarks ? handleReset('side') : null}
+              onDelete={handleDeletePhoto('side')}
             />
             <PhotoCard
               label="정면 사진 (선택)"
@@ -695,11 +1209,13 @@ function MlTestPage() {
               onImageLoad={handleFrontImageLoad}
               imgRef={frontImgRef}
               canvasRef={frontCanvasRef}
+              fileInputRef={frontFileInputRef}
               notReadyMessage="무릎 모임/좌우 비대칭/어깨·골반 좌우 기울기 측정에 쓰여요."
               onPointerDown={handlePointerDown('front')}
               onPointerMove={handlePointerMove('front')}
               onPointerUp={handlePointerUp('front')}
               onReset={frontOriginalLandmarks ? handleReset('front') : null}
+              onDelete={handleDeletePhoto('front')}
             />
           </div>
 
@@ -723,6 +1239,176 @@ function MlTestPage() {
 
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <JudgmentPanel result={judgeResult} error={judgeError} loading={judging} />
+          </div>
+
+          <div className="section-head" style={{ marginTop: 32 }}>
+            <div>
+              <div className="section-eyebrow">POSE TEST — VIDEO</div>
+              <div className="section-title">영상 측정 연습 페이지 (실험)</div>
+            </div>
+          </div>
+
+          <p className="pcard-desc" style={{ marginBottom: 12 }}>
+            스쿼트 영상(측면)을 올리면 일정 간격으로 프레임을 뽑아 각 프레임의 관절/각도를
+            계산하고, 무릎각도가 가장 작은(가장 깊이 앉은) 저점을 AI가 직접 찾아 자동으로
+            판독해요 — 사람이 슬라이더를 움직이지 않아도 돼요. 영상에 렙이 여러 번 있으면
+            저점마다 각각 판독합니다.
+            <br />
+            사진 모드는 값이 같은 프레임 3개를 복제해 "정지" 상태로 우회하지만, 영상 모드는
+            실제 타임스탬프가 있는 시계열을 그대로 보내기 때문에 AI 서버가 내려가는 중/올라오는
+            중/정지 단계를 실제로 어떻게 판정하는지도 확인할 수 있어요(그래프/슬라이더로 임의
+            시점을 골라 수동으로 다시 확인할 수도 있어요).
+            <br />
+            아직 정면 영상(무릎 모임/좌우 비대칭)은 지원하지 않고 측면 영상만 지원해요.
+          </p>
+
+          <div style={{ maxWidth: 520 }}>
+            <input type="file" accept="video/*" onChange={handleVideoFile} />
+
+            {videoUrl && (
+              <div style={{ position: 'relative', marginTop: 12 }}>
+                <video
+                  ref={videoElRef}
+                  src={videoUrl}
+                  onLoadedMetadata={handleVideoLoadedMetadata}
+                  muted
+                  playsInline
+                  style={{ width: '100%', display: 'block', borderRadius: 8, background: '#000' }}
+                />
+                <canvas
+                  ref={videoCanvasRef}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </div>
+            )}
+
+            {extracting && (
+              <p className="pcard-desc" style={{ marginTop: 8 }}>
+                프레임 추출 및 관절 인식 중... ({extractProgress.done}/{extractProgress.total})
+              </p>
+            )}
+            {videoStatus && <p className="pcard-desc" style={{ marginTop: 8 }}>{videoStatus}</p>}
+
+            {repResults.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div className="pcard-desc" style={{ marginBottom: 6 }}>
+                  AI가 자동으로 찾은 스쿼트 저점 {repResults.length}개 — 카드를 클릭하면 그 프레임으로 이동해요.
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  {repResults.map((rep, i) => (
+                    <RepResultCard
+                      key={rep.index}
+                      rep={rep}
+                      repIndex={i}
+                      active={videoSliderIndex === rep.index}
+                      onClick={() => {
+                        setVideoSliderIndex(rep.index)
+                        goToVideoFrame(rep.index)
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {videoFrames.length > 1 && (
+              <>
+                <KneeAngleSparkline
+                  frames={videoFrames}
+                  currentIndex={videoSliderIndex}
+                  repMarkers={repBottoms}
+                  onSelect={handleSparklineSelect}
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={videoFrames.length - 1}
+                  value={videoSliderIndex}
+                  onChange={handleVideoSliderChange}
+                  style={{ width: '100%', marginTop: 4 }}
+                />
+                <div className="pcard-desc" style={{ marginTop: 4 }}>
+                  프레임 {videoSliderIndex + 1}/{videoFrames.length} ·{' '}
+                  {videoFrames[videoSliderIndex].timestamp.toFixed(2)}초 · 무릎각도{' '}
+                  {videoFrames[videoSliderIndex].metrics.knee_angle.toFixed(1)}도 · 엉덩이각도{' '}
+                  {videoFrames[videoSliderIndex].metrics.hip_angle.toFixed(1)}도
+                </div>
+
+                <button onClick={requestVideoJudgment} disabled={videoJudging} style={{ marginTop: 12 }}>
+                  {videoJudging ? '판정 요청 중...' : '이 시점까지 최근 프레임으로 AI 서버 판정 요청'}
+                </button>
+
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  <JudgmentPanel result={videoJudgeResult} error={videoJudgeError} loading={videoJudging} />
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="section-head" style={{ marginTop: 32 }}>
+            <div>
+              <div className="section-eyebrow">POSE TEST — LIVE</div>
+              <div className="section-title">실시간 영상 측정 연습 페이지 (웹캠, 실험)</div>
+            </div>
+          </div>
+
+          <p className="pcard-desc" style={{ marginBottom: 12 }}>
+            나중에 실제 영상을 찍기 전에, 지금 이 컴퓨터의 웹캠으로 미리 실시간 판정을
+            확인해볼 수 있어요. "실시간 시작"을 누르면 카메라 권한을 요청하고, 약{' '}
+            {(LIVE_SAMPLE_INTERVAL_MS / 1000).toFixed(2)}초마다 관절을 인식해서 최근{' '}
+            {VIDEO_JUDGE_WINDOW}프레임 구간을 AI 서버(AI-06)에 계속 보내요. 실제 서비스가
+            웹캠으로 실시간 코칭할 때와 같은 흐름이라, 지금 판정이 얼마나 잘/빠르게 나오는지
+            그대로 미리 확인하는 용도예요. 측면이 보이게 카메라를 세워두고 서 있는 상태에서
+            시작해주세요.
+          </p>
+
+          <div style={{ maxWidth: 520 }}>
+            <button onClick={liveActive ? stopLive : startLive}>
+              {liveActive ? '실시간 중지' : '실시간 시작'}
+            </button>
+            {liveStatus && <p className="pcard-desc" style={{ marginTop: 8 }}>{liveStatus}</p>}
+
+            <div style={{ position: 'relative', marginTop: 12, display: liveActive ? 'block' : 'none' }}>
+              <video
+                ref={liveVideoRef}
+                muted
+                playsInline
+                style={{ width: '100%', display: 'block', borderRadius: 8, background: '#000', transform: 'scaleX(-1)' }}
+              />
+              <canvas
+                ref={liveCanvasRef}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  pointerEvents: 'none',
+                  transform: 'scaleX(-1)',
+                }}
+              />
+            </div>
+
+            {liveActive && liveFrames.length > 0 && (
+              <>
+                <KneeAngleSparkline frames={liveFrames} currentIndex={liveFrames.length - 1} />
+                <div className="pcard-desc" style={{ marginTop: 4 }}>
+                  버퍼 {liveFrames.length}/{LIVE_BUFFER_MAX}프레임 · 무릎각도{' '}
+                  {liveFrames[liveFrames.length - 1].metrics.knee_angle.toFixed(1)}도 · 엉덩이각도{' '}
+                  {liveFrames[liveFrames.length - 1].metrics.hip_angle.toFixed(1)}도
+                </div>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  <JudgmentPanel result={liveJudgeResult} error={liveJudgeError} loading={false} />
+                </div>
+              </>
+            )}
           </div>
         </div>
       </main>

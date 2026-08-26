@@ -27,8 +27,7 @@ app = FastAPI(title="WellMade AI Server")
 
 # 프론트(Vite 개발 서버, localhost:5173)가 브라우저에서 이 서버를 직접 호출하려면 CORS
 # 설정이 필요하다 — 이게 없으면 브라우저가 실제 요청 전에 보내는 사전요청(OPTIONS)이
-# 405 Method Not Allowed로 거부되어, POST 요청 자체가 서버에 도달하지 못한다(2026-08-21,
-# /ml-test 페이지에서 프론트→AI 서버 직접 호출을 테스트하며 실제로 겪은 문제).
+# 405 Method Not Allowed로 거부되어, POST 요청 자체가 서버에 도달하지 못한다.
 # 로컬 개발용 오리진만 허용해뒀다.
 # TODO: 팀 확정 필요 — 실제 배포 도메인이 정해지면 allow_origins를 그 도메인으로 좁혀야
 # 한다(지금처럼 로컬 포트만 있는 상태를 운영에도 그대로 쓰면 안 됨).
@@ -49,14 +48,6 @@ def health_check():
     return {"status": "ok"}
 
 
-# (2026-08-24) 정지 자세 1차 판정 API(AI-03, POST /ai/pose/analyze)가 이 자리에 있었다.
-# 사용자가 업로드한 서비스 흐름도를 기준으로 "정지자세 촬영 관련 부분은 다른 팀원이
-# 맡기로 했다"며 삭제를 요청해(동년배 비교 인사이트 AI-15는 예외로 유지) 제거했다 —
-# pose/rules.py의 judge_static_pose(), schemas.py의 PoseAnalyzeRequest/Response 등과
-# 함께 삭제됨. 실시간 코칭(AI-06, 바로 아래)과 자세 비교 인사이트(AI-15, /ai/onboarding/
-# posture-insight)는 이 삭제와 무관하게 그대로 동작한다. 원래 구현은 git 히스토리 참고.
-
-
 @app.post("/ai/coaching/frame", response_model=CoachingFrameResponse)
 def coaching_frame(request: CoachingFrameRequest):
     """
@@ -66,8 +57,8 @@ def coaching_frame(request: CoachingFrameRequest):
     프레임마다 새 딥러닝 추론을 돌리는 대신 이미 계산된 각도 값을 규칙기반으로
     비교하는 가벼운 연산이라, 실시간 호출에도 서버 부하 없이 응답할 수 있다.
 
-    각 프레임(AngleFrame)의 knee_valgus_ratio/knee_asymmetry_deg(2026-08-21 추가, 선택
-    필드)는 정면 카메라 랜드마크로 프론트가 직접 계산해서 보낸다 — 이 엔드포인트는 원본
+    각 프레임(AngleFrame)의 knee_valgus_ratio/knee_asymmetry_deg(선택 필드)는 정면
+    카메라 랜드마크로 프론트가 직접 계산해서 보낸다 — 이 엔드포인트는 원본
     좌표를 받지 않고 프론트가 이미 계산한 각도 값만 받으므로, 정면 촬영을 지원하려면 이
     두 값을 프레임마다 함께 보내야 한다(app/schemas.py의 AngleFrame 참고).
     """

@@ -15,6 +15,7 @@ from app.pose.coaching_messages import (
     ASYMMETRY_MESSAGE,
     BACK_ROUNDED_MESSAGE,
     HEEL_LIFT_MESSAGE,
+    HIP_HYPEREXTENSION_MESSAGE,
     KNEE_OVER_TOE_MESSAGE,
     KNEE_VALGUS_MESSAGE,
     SHOULDER_FORWARD_LEAN_MESSAGE,
@@ -22,6 +23,7 @@ from app.pose.coaching_messages import (
 from app.pose.rules import (
     BACK_ROUNDING_RATIO_THRESHOLD,
     HEEL_LIFT_RATIO_THRESHOLD,
+    HIP_HYPEREXTENSION_VALGUS_THRESHOLD,
     KNEE_ASYMMETRY_THRESHOLD_DEG,
     KNEE_OVER_TOE_RATIO_THRESHOLD,
     KNEE_VALGUS_RATIO_THRESHOLD,
@@ -87,12 +89,10 @@ def judge_realtime_coaching(
 ) -> dict:
     """
     최근 N프레임의 무릎/엉덩이 각도 시계열을 보고
-    (1) 현재 동작 단계, (2) 정상/이상 여부, (3) 신뢰도를 판정한다(스쿼트 전용 — 2026-08-24
-    런지 지원 제거와 함께 exercise_type 파라미터도 없앴다. rules.py의 NORMAL_RANGES가
-    종목별 중첩 딕셔너리에서 평범한 상수로 단순화된 것과 같은 이유).
+    (1) 현재 동작 단계, (2) 정상/이상 여부, (3) 신뢰도를 판정한다(스쿼트 전용).
 
-    반환값을 dict로 두는 이유는 rules.judge_static_pose와 동일 — main.py가 API 응답으로
-    감싸기 전, 하네스(AI-07)에서도 그대로 재사용할 수 있는 순수 값 형태를 유지하기 위함.
+    반환값을 dict로 두는 이유는 main.py가 API 응답으로 감싸기 전, 하네스(AI-07)에서도
+    그대로 재사용할 수 있는 순수 값 형태를 유지하기 위함이다.
     """
     issues: list[dict] = []
 
@@ -115,16 +115,16 @@ def judge_realtime_coaching(
     timestamps = [f.timestamp for f in angle_history]
     knee_series = [f.knee_angle for f in angle_history]
     hip_series = [f.hip_angle for f in angle_history]
-    # shoulder_angle(절대각도)은 2026-08-24부터 판정에 안 쓰인다 — 아래 shoulder_forward_lean_deg가
+    # shoulder_angle(절대각도)은 판정에 안 쓰인다 — 아래 shoulder_forward_lean_deg가
     # 대신 담당한다(schemas.py/rules.py 주석 참고).
     latest_shoulder_forward_lean = angle_history[-1].shoulder_forward_lean_deg  # 선택 필드라 None일 수 있음
     latest_heel_lift = angle_history[-1].heel_lift_ratio  # 선택 필드라 None일 수 있음
-    # 정면 랜드마크 기반 지표(2026-08-21 추가) — 프론트가 정면 카메라도 붙였을 때만 채워진다.
+    # 정면 랜드마크 기반 지표 — 프론트가 정면 카메라도 붙였을 때만 채워진다.
     latest_knee_valgus = angle_history[-1].knee_valgus_ratio  # 선택 필드라 None일 수 있음
     latest_knee_asymmetry = angle_history[-1].knee_asymmetry_deg  # 선택 필드라 None일 수 있음
-    # 무릎-발끝(2026-08-21 추가) — 측면 랜드마크 기준이라 정면 카메라 여부와 무관하게 선택 필드다.
+    # 무릎-발끝 — 측면 랜드마크 기준이라 정면 카메라 여부와 무관하게 선택 필드다.
     latest_knee_over_toe = angle_history[-1].knee_over_toe_ratio  # 선택 필드라 None일 수 있음
-    # 등 굽음(2026-08-21 추가) — 측면 랜드마크 기준. hip_calibration.standing_shoulder_hip_ratio라는
+    # 등 굽음 — 측면 랜드마크 기준. hip_calibration.standing_shoulder_hip_ratio라는
     # 기준값이 함께 있어야만 실제 판정에 쓰인다(rules.py의 BACK_ROUNDING_RATIO_THRESHOLD 주석 참고).
     latest_torso_length_ratio = angle_history[-1].torso_length_ratio  # 선택 필드라 None일 수 있음
 
@@ -145,8 +145,8 @@ def judge_realtime_coaching(
     latest_knee = knee_series[-1]
     latest_hip = hip_series[-1]
     knee_low, knee_high = NORMAL_RANGES["knee_angle"]
-    # rules.judge_static_pose와 동일한 이유로 hip_angle만 개인별 캘리브레이션으로 바꿔치기한다
-    # (knee_angle은 문헌 기준 보편성이 있지만 hip_angle은 개인차가 커서 고정값이 부적절함).
+    # hip_angle만 개인별 캘리브레이션으로 바꿔치기한다(knee_angle은 문헌 기준 보편성이 있지만
+    # hip_angle은 개인차가 커서 고정값이 부적절함).
     if hip_calibration is not None:
         hip_low, hip_high = personalized_hip_range(hip_calibration)
     else:
@@ -164,7 +164,7 @@ def judge_realtime_coaching(
         )
 
     if phase == "holding":
-        # "정지" 상태일 때만 judge_static_pose와 같은 정적 자세 기준(NORMAL_RANGES)을 그대로 적용한다.
+        # "정지" 상태일 때만 정적 자세 기준(NORMAL_RANGES)을 그대로 적용한다.
         # 동작 중(내려감/올라옴)에는 각도가 정상범위 밖을 지나가는 것이 당연하므로 이 기준을 적용하면
         # 오탐(false positive)이 계속 발생한다.
         # 다만 "선 자세로 멈춰 있는 것"까지 하단 자세 기준으로 검사하면 안 되므로,
@@ -187,8 +187,8 @@ def judge_realtime_coaching(
         # 어깨 정렬은 무릎/엉덩이와 달리 "깊게 앉았을 때"만이 아니라 정지한 어느 시점에서든
         # 확인할 문제라(어깨가 말리는 건 자세 전반의 문제), is_deep_hold 조건 없이 검사한다.
         # shoulder_forward_lean_deg가 없으면(하위 호환 — 프론트가 아직 안 보내는 경우) 검사를
-        # 건너뛴다. (2026-08-24: 절대각도 기준 shoulder_angle 판정은 실측 오탐이 확인돼
-        # shoulder_forward_lean_deg로 교체됐다 — rules.py 주석 참고.)
+        # 건너뛴다. (절대각도 기준 shoulder_angle 판정은 실측 오탐이 확인돼
+        # shoulder_forward_lean_deg로 교체했다 — rules.py 주석 참고.)
         if latest_shoulder_forward_lean is not None and latest_shoulder_forward_lean > SHOULDER_FORWARD_LEAN_THRESHOLD_DEG:
             issues.append(
                 {
@@ -198,14 +198,26 @@ def judge_realtime_coaching(
             )
         # 발뒤꿈치 뜸도 knee/hip과 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 서 있는
         # 상태에서는 애초에 발뒤꿈치가 뜰 이유가 없어 검사 대상이 아니고, 동작 중(내려감/올라옴)에
-        # 순간적으로 값이 흔들리는 걸 이상으로 잡으면 오탐이 늘어난다(rules.py 2026-08-21 주석 참고).
+        # 순간적으로 값이 흔들리는 걸 이상으로 잡으면 오탐이 늘어난다(rules.py 주석 참고).
         if is_deep_hold and latest_heel_lift is not None and latest_heel_lift > HEEL_LIFT_RATIO_THRESHOLD:
             issues.append({"part": "heel", "message": HEEL_LIFT_MESSAGE})
         # 무릎 모임/좌우 비대칭도 발뒤꿈치와 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다
-        # (rules.py 2026-08-21 주석 참고). 정면 카메라를 아직 안 붙인 프론트는 이 필드를
+        # (rules.py 주석 참고). 정면 카메라를 아직 안 붙인 프론트는 이 필드를
         # 안 보내므로(None) 자동으로 검사가 건너뛰어진다 — 하위 호환.
         if is_deep_hold and latest_knee_valgus is not None and latest_knee_valgus < KNEE_VALGUS_RATIO_THRESHOLD:
             issues.append({"part": "knee_valgus", "message": KNEE_VALGUS_MESSAGE})
+        # 고관절 과신전 의심 — knee_valgus와 같은 latest_knee_valgus 값을
+        # 재사용하되 더 완만한 구간에서만 별도로 태깅한다. latest_knee_valgus가
+        # KNEE_VALGUS_RATIO_THRESHOLD보다 작으면 위에서 이미 "knee_valgus"로 판정되므로,
+        # 여기서는 그 값 이상이면서 HIP_HYPEREXTENSION_VALGUS_THRESHOLD 미만인 구간만 잡아
+        # 두 이슈가 중복 태깅되지 않게 한다(자세한 배경·근거는 rules.py의
+        # HIP_HYPEREXTENSION_VALGUS_THRESHOLD 주석 참고).
+        if (
+            is_deep_hold
+            and latest_knee_valgus is not None
+            and KNEE_VALGUS_RATIO_THRESHOLD <= latest_knee_valgus < HIP_HYPEREXTENSION_VALGUS_THRESHOLD
+        ):
+            issues.append({"part": "hip_hyperextension", "message": HIP_HYPEREXTENSION_MESSAGE})
         if (
             is_deep_hold
             and latest_knee_asymmetry is not None
@@ -220,9 +232,9 @@ def judge_realtime_coaching(
             and latest_knee_over_toe > KNEE_OVER_TOE_RATIO_THRESHOLD
         ):
             issues.append({"part": "knee_over_toe", "message": KNEE_OVER_TOE_MESSAGE})
-        # 등 굽음도 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — rules.judge_static_pose와
-        # 동일하게, 기준값(hip_calibration.standing_shoulder_hip_ratio)이 없으면(캘리브레이션을
-        # 안 한 기존 클라이언트) 검사 자체를 건너뛴다.
+        # 등 굽음도 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 기준값
+        # (hip_calibration.standing_shoulder_hip_ratio)이 없으면(캘리브레이션을 안 한 기존
+        # 클라이언트) 검사 자체를 건너뛴다.
         back_rounding_baseline = (
             hip_calibration.standing_shoulder_hip_ratio if hip_calibration is not None else None
         )

@@ -1,7 +1,7 @@
 """
 RAG 검색 (AI-08, 요구사항 정의서 "3.RAG파이프라인" 시트 ③④⑤ 단계: 임베딩·검색·재순위화).
 
-# 왜 스펙이 제안한 Chroma(벡터DB)+임베딩 대신 TF-IDF를 쓰는가? (2026-08-19, 팀 확정 필요)
+# 왜 스펙이 제안한 Chroma(벡터DB)+임베딩 대신 TF-IDF를 쓰는가? (팀 확정 필요)
 스펙 원문(requirements.txt에 주석 처리해 남겨둔 chromadb/sentence-transformers)은 벡터DB +
 임베딩 모델 조합을 전제로 하지만, 이 프로젝트 상황에서는 다음 이유로 적합하지 않다고
 판단해 scikit-learn TF-IDF(문자 n-gram) + 코사인 유사도로 대체했다:
