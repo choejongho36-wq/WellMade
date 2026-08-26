@@ -81,10 +81,11 @@ def test_coaching_frame_holding_at_bottom_normal():
     assert data["confidence"] > 0.7, data  # 떨림이 적은 안정적인 holding이므로 신뢰도가 높아야 함
 
 
-def test_coaching_frame_holding_shoulder_rounded_flagged():
-    # 무릎/엉덩이는 정상 범위인데 shoulder_forward_lean_deg만 임계값(20.0)을 넘게(어깨
-    # 말림) 들어온 경우 -> 이상 감지돼야 함. (2026-08-24: shoulder_angle 절대각도 대신
-    # shoulder_forward_lean_deg로 판정 방식이 바뀜 — rules.py 주석 참고.)
+def test_coaching_frame_holding_gaze_forward_flagged():
+    # 무릎/엉덩이는 정상 범위인데 shoulder_forward_lean_deg만 임계값(20.0)을 넘게(고개가
+    # 앞으로 떨어짐) 들어온 경우 -> 이상 감지돼야 함. (2026-08-26: 이 신호는 원래 "어깨
+    # 말림"도 같이 판정했으나, 어깨 말림/등 굽음은 back_rounded로 통합하고 여기는 목/시선
+    # 전용 신호(part="gaze")로 분리했다 — rules.py/realtime.py 주석 참고.)
     angle_history = [
         {
             "timestamp": i * 0.1,
@@ -96,11 +97,11 @@ def test_coaching_frame_holding_shoulder_rounded_flagged():
     ]
     body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(holding, rounded shoulder):", res.status_code, res.json())
+    print("coaching_frame(holding, gaze forward):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
     assert data["is_normal"] is False, data
-    assert any(issue["part"] == "shoulder" for issue in data["issues"]), data
+    assert any(issue["part"] == "gaze" for issue in data["issues"]), data
 
 
 def test_coaching_frame_negative_shoulder_lean_not_flagged():
@@ -120,7 +121,7 @@ def test_coaching_frame_negative_shoulder_lean_not_flagged():
     print("coaching_frame(negative shoulder lean):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
-    assert not any(issue["part"] == "shoulder" for issue in data["issues"]), data
+    assert not any(issue["part"] == "gaze" for issue in data["issues"]), data
 
 
 def test_coaching_frame_without_shoulder_fields_still_works():
@@ -134,7 +135,7 @@ def test_coaching_frame_without_shoulder_fields_still_works():
     print("coaching_frame(no shoulder fields):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
-    assert not any(issue["part"] == "shoulder" for issue in data["issues"]), data
+    assert not any(issue["part"] == "gaze" for issue in data["issues"]), data
 
 
 def test_coaching_frame_holding_halfway_abnormal():
@@ -615,13 +616,13 @@ def test_aggregate_session_stats_improvement_vs_previous():
 
 def test_generate_session_report_fallback():
     def run():
-        history = make_frame_history(normal_count=6, abnormal_count=4, part="shoulder", deviation_deg=20.0)
+        history = make_frame_history(normal_count=6, abnormal_count=4, part="gaze", deviation_deg=20.0)
         result = generate_session_report(history, session_duration_sec=300.0, previous_sessions=[])
         print("generate_session_report(fallback):", result)
         assert result["generation_source"] == "fallback"
         assert result["normal_ratio"] == 0.6
-        assert result["most_frequent_issue_part"] == "shoulder"
-        assert "어깨" in result["summary_message"]  # PART_LABELS 매핑이 폴백 문구에 반영됐는지
+        assert result["most_frequent_issue_part"] == "gaze"
+        assert "시선" in result["summary_message"]  # PART_LABELS 매핑이 폴백 문구에 반영됐는지
         assert isinstance(result["summary_message"], str) and len(result["summary_message"]) > 0
 
     _without_llm_env(run)
@@ -1048,7 +1049,7 @@ if __name__ == "__main__":
     test_health()
     test_coaching_frame_descending()
     test_coaching_frame_holding_at_bottom_normal()
-    test_coaching_frame_holding_shoulder_rounded_flagged()
+    test_coaching_frame_holding_gaze_forward_flagged()
     test_coaching_frame_negative_shoulder_lean_not_flagged()
     test_coaching_frame_without_shoulder_fields_still_works()
     test_coaching_frame_holding_halfway_abnormal()

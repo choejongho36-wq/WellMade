@@ -43,7 +43,8 @@ MAX_TOKENS = 400
 PART_LABELS = {
     "knee": "무릎",
     "hip": "엉덩이(고관절)",
-    "shoulder": "어깨",
+    "gaze": "시선/고개",
+    "back_rounded": "등(자세)",
     "movement": "움직임 안정성",
     "data": "판정 데이터",
 }

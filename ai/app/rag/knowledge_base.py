@@ -37,11 +37,12 @@ Cleveland Clinic, IJSPT)를 참고해 직접 작성한 문서다. 원문을 그�
 
 from app.pose.coaching_messages import (
     ASYMMETRY_MESSAGE,
+    BACK_ROUNDED_MESSAGE,
+    GAZE_FORWARD_MESSAGE,
     HEEL_LIFT_MESSAGE,
     KNEE_OVER_TOE_MESSAGE,
     KNEE_VALGUS_MESSAGE,
     SHALLOW_SQUAT_MESSAGE,
-    SHOULDER_FORWARD_LEAN_MESSAGE,
 )
 
 # 이슈 종류(issue_type)/part/ML 라벨명 등 이 프로젝트 여기저기서 쓰이는 여러 표현이
@@ -134,17 +135,19 @@ KNOWLEDGE_BASE = [
         "source_date": "2026-08",
     },
     {
-        "id": "shoulder_rounding",
-        "title": "어깨 말림(라운드 숄더) 교정",
-        "tags": ["shoulder_rounding", "어깨 말림", "라운드 숄더", "shoulder", "굽은 어깨"],
-        # single source of truth 원칙에 따라 하드코딩 대신 coaching_messages.py의
-        # 상수를 그대로 가져다 쓴다.
-        "short_message": SHOULDER_FORWARD_LEAN_MESSAGE,
+        "id": "back_rounded",
+        "title": "등 굽음/어깨 말림(라운드 숄더) 교정",
+        "tags": ["back_rounded", "등 굽음", "척추 굴곡", "어깨 말림", "라운드 숄더", "shoulder", "굽은 어깨"],
+        # 이 서비스는 어깨 말림을 등 굽음과 별개 원인으로 보지 않고 "등이 굽었다"로 하나로
+        # 판정한다(judge_realtime_coaching의 back_rounded 항목 참고) — single source of
+        # truth 원칙에 따라 하드코딩 대신 coaching_messages.py의 상수를 그대로 가져다 쓴다.
+        "short_message": BACK_ROUNDED_MESSAGE,
         "body": (
             "스쿼트 중 어깨가 앞으로 말리는 것은 흉추(등 윗부분)가 과도하게 굽거나, "
             "가슴 근육이 상대적으로 긴장돼 어깨가 앞으로 당겨지기 때문인 경우가 많다고 "
             "설명된다. NASM의 오버헤드 스쿼트 평가 항목에서도 '가슴을 펴고 흉추를 살짝 편 "
-            "상태 유지'를 정상 자세의 기준 중 하나로 본다.\n\n"
+            "상태 유지'를 정상 자세의 기준 중 하나로 본다 — 즉 어깨가 말리는 것과 등(흉추)이 "
+            "굽는 것은 같은 문제의 다른 표현이라고 볼 수 있다.\n\n"
             "교정 큐로는 '가슴을 펴고 어깨뼈를 뒤/아래로 가볍게 모은다'는 감각을 의식하도록 "
             "안내하는 것이 일반적이다. 준비 운동으로 가슴 스트레칭(도어웨이 스트레치 등)이나 "
             "등 상부를 강화하는 보조 운동(밴드 로우 등)을 함께 안내하는 경우가 많다."
@@ -157,10 +160,10 @@ KNOWLEDGE_BASE = [
         "id": "gaze_forward",
         "title": "시선/고개 위치가 중요한 이유",
         "tags": ["gaze_forward", "시선", "고개", "목", "head position", "forward head", "neck"],
-        # shoulder_rounding과 같은 이유(single source of truth)로 coaching_messages.py의
-        # 상수를 재사용한다 — get_shoulder_forward_lean_deg()가 목과 어깨 말림을 같은
-        # 지표로 감지해서, 판정 로직상 두 이슈가 같은 메시지를 쓴다.
-        "short_message": SHOULDER_FORWARD_LEAN_MESSAGE,
+        # single source of truth 원칙에 따라 coaching_messages.py의 상수를 그대로 가져다 쓴다
+        # — judge_realtime_coaching의 "gaze" 항목(get_shoulder_forward_lean_deg 기반, 어깨
+        # 말림과는 별개로 분리된 독립 지표)이 실제로 반환하는 메시지와 동일하다.
+        "short_message": GAZE_FORWARD_MESSAGE,
         "body": (
             "목과 고개는 척추 정렬에서 분리된 부위가 아니라 'neutral spine'의 일부로 다뤄진다. "
             "목이 과도하게 젖혀지거나(신전) 과도하게 숙여지면(굴곡), 이는 흉추(등 윗부분) "

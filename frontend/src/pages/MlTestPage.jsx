@@ -1163,7 +1163,7 @@ function MlTestPage() {
   }
 
   return (
-    <PageShell>
+    <PageShell showNav={false}>
       <div className="page-eyebrow-row">
         <div className="page-index-tag">POSE TEST</div>
       </div>

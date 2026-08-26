@@ -18,7 +18,7 @@ from app.pose.coaching_messages import (
     HIP_HYPEREXTENSION_MESSAGE,
     KNEE_OVER_TOE_MESSAGE,
     KNEE_VALGUS_MESSAGE,
-    SHOULDER_FORWARD_LEAN_MESSAGE,
+    GAZE_FORWARD_MESSAGE,
 )
 from app.pose.rules import (
     BACK_ROUNDING_RATIO_THRESHOLD,
@@ -184,16 +184,17 @@ def judge_realtime_coaching(
                     "message": f"엉덩이(고관절) 각도가 {latest_hip:.1f}도로 목표 구간({hip_low}~{hip_high}도)을 벗어났습니다.",
                 }
             )
-        # 어깨 정렬은 무릎/엉덩이와 달리 "깊게 앉았을 때"만이 아니라 정지한 어느 시점에서든
-        # 확인할 문제라(어깨가 말리는 건 자세 전반의 문제), is_deep_hold 조건 없이 검사한다.
+        # 목/시선(고개가 앞으로 떨어졌는지)은 무릎/엉덩이와 달리 "깊게 앉았을 때"만이 아니라
+        # 정지한 어느 시점에서든 확인할 문제라, is_deep_hold 조건 없이 검사한다(상시검사).
         # shoulder_forward_lean_deg가 없으면(하위 호환 — 프론트가 아직 안 보내는 경우) 검사를
-        # 건너뛴다. (절대각도 기준 shoulder_angle 판정은 실측 오탐이 확인돼
-        # shoulder_forward_lean_deg로 교체했다 — rules.py 주석 참고.)
+        # 건너뛴다. 원래 이 신호는 "어깨 말림"도 같이 판정했으나, 어깨 말림/등 굽음은 원인을
+        # "등이 굽었다"로 단정해 아래 back_rounded(등 굽음) 판정으로 통합했다 — 그쪽은
+        # is_deep_hold 조건이 있어 여기와 달리 상시검사가 아니다(트레이드오프로 수용).
         if latest_shoulder_forward_lean is not None and latest_shoulder_forward_lean > SHOULDER_FORWARD_LEAN_THRESHOLD_DEG:
             issues.append(
                 {
-                    "part": "shoulder",
-                    "message": SHOULDER_FORWARD_LEAN_MESSAGE,
+                    "part": "gaze",
+                    "message": GAZE_FORWARD_MESSAGE,
                 }
             )
         # 발뒤꿈치 뜸도 knee/hip과 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 서 있는
@@ -238,6 +239,8 @@ def judge_realtime_coaching(
         back_rounding_baseline = (
             hip_calibration.standing_shoulder_hip_ratio if hip_calibration is not None else None
         )
+        # 등 굽음 판정은 "등 굽음"과 "어깨 말림"을 하나의 원인("등이 굽었다")으로 묶어서
+        # 알려준다 — 원래 어깨 말림 전용이었던 shoulder_forward_lean_deg 상시검사를 대체한다.
         if (
             is_deep_hold
             and latest_torso_length_ratio is not None
