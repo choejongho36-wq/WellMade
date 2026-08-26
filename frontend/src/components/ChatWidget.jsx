@@ -3,7 +3,7 @@ import ChatDrawer from './ChatDrawer.jsx'
 import RobotIcon from './RobotIcon.jsx'
 import './ChatWidget.css'
 
-function ChatWidget({ sendChat, getNutrientAdvice, userName }) {
+function ChatWidget({ sendChat, getChatHistory, getNutrientAdvice, userName }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -11,7 +11,14 @@ function ChatWidget({ sendChat, getNutrientAdvice, userName }) {
       <button className="chat-fab" onClick={() => setOpen((o) => !o)} aria-label={open ? '챗봇 닫기' : '챗봇 열기'}>
         <RobotIcon size={44} />
       </button>
-      <ChatDrawer open={open} onClose={() => setOpen(false)} sendChat={sendChat} getNutrientAdvice={getNutrientAdvice} userName={userName} />
+      <ChatDrawer
+        open={open}
+        onClose={() => setOpen(false)}
+        sendChat={sendChat}
+        getChatHistory={getChatHistory}
+        getNutrientAdvice={getNutrientAdvice}
+        userName={userName}
+      />
     </>
   )
 }

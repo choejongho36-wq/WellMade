@@ -11,7 +11,7 @@ import MlTestPage from './pages/MlTestPage.jsx'
 import DietPage from './pages/DietPage.jsx'
 
 function AppRoutes() {
-  const { profile, sendChat, getNutrientAdvice } = useAuth()
+  const { profile, sendChat, getChatHistory, getNutrientAdvice } = useAuth()
 
   return (
     <>
@@ -24,7 +24,7 @@ function AppRoutes() {
         <Route path="/oauth/redirect" element={<MainPage />} />
       </Routes>
 
-      <ChatWidget sendChat={sendChat} getNutrientAdvice={getNutrientAdvice} userName={profile?.name} />
+      <ChatWidget sendChat={sendChat} getChatHistory={getChatHistory} getNutrientAdvice={getNutrientAdvice} userName={profile?.name} />
     </>
   )
 }

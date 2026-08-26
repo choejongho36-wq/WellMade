@@ -20,8 +20,19 @@ function todayStr() {
 
 const SUMMARY_HEADLINE_FIELD = { key: 'totalCalories', label: '칼로리', unit: 'kcal' }
 
+/** food_items 컬럼은 DB에 저장된 JSON 문자열 그대로 내려오므로 파싱해서 씀. 형식이 깨져 있으면 빈 배열로 처리 */
+function parseFoodItems(meal) {
+  if (!meal.food_items) return []
+  try {
+    const parsed = typeof meal.food_items === 'string' ? JSON.parse(meal.food_items) : meal.food_items
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 function DietPage() {
-  const { user, logMeal, getTodayMeals, getTodayTotal, updateMeal, deleteMeal } = useAuth()
+  const { user, logMeal, getTodayMeals, getTodayTotal, updateMeal, updateMealItemAmount, deleteMeal } = useAuth()
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [mealType, setMealType] = useState('')
   const [meals, setMeals] = useState([])
@@ -30,12 +41,16 @@ function DietPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState('')
-  const [notFoundFoods, setNotFoundFoods] = useState(null)
+  const [notFoundInfo, setNotFoundInfo] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editDraft, setEditDraft] = useState({ mealType: '', menuName: '', kcal: '' })
   const [savingEdit, setSavingEdit] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [nutrientModalOpen, setNutrientModalOpen] = useState(false)
+  const [expandedMealId, setExpandedMealId] = useState(null)
+  const [editingItem, setEditingItem] = useState(null)
+  const [itemAmountDraft, setItemAmountDraft] = useState('')
+  const [savingItem, setSavingItem] = useState(false)
 
   const isToday = selectedDate === todayStr()
 
@@ -50,6 +65,10 @@ function DietPage() {
 
   useEffect(() => {
     if (user) refresh(selectedDate)
+    // 날짜를 바꿔 다른 날 기록을 보러 갈 때만 펼쳐둔 항목/편집 상태를 접음.
+    // 그램 수 저장 직후의 refresh()에서는 패널이 접히지 않아야 하므로 여기서만 리셋.
+    setExpandedMealId(null)
+    setEditingItem(null)
   }, [user, selectedDate])
 
   useEffect(() => {
@@ -64,12 +83,15 @@ function DietPage() {
     setNotice('')
     logMeal(text, mealType)
       .then((result) => {
-        refresh(selectedDate)
-        refreshTodaySummary()
-        if (result.notFoundFoods?.length) {
-          setNotFoundFoods(result.notFoundFoods)
-        } else {
+        // 매칭된 항목만 저장되고, 실패한 항목은 notFoundFoods로 따로 안내됨 (부분 저장 가능)
+        const saved = Boolean(result.menuNameSummary)
+        if (saved) {
+          refresh(selectedDate)
+          refreshTodaySummary()
           setInput('')
+        }
+        if (result.notFoundFoods?.length) {
+          setNotFoundInfo({ foods: result.notFoundFoods, saved })
         }
       })
       .catch((e) => setNotice(e.message || '식단 기록에 실패했어요'))
@@ -100,6 +122,37 @@ function DietPage() {
       })
       .catch((e) => setNotice(e.message || '수정에 실패했어요'))
       .finally(() => setSavingEdit(false))
+  }
+
+  const toggleExpand = (mealId) => {
+    setEditingItem(null)
+    setExpandedMealId((prev) => (prev === mealId ? null : mealId))
+  }
+
+  const startEditItem = (mealId, index, currentAmountG) => {
+    setEditingItem({ mealId, index })
+    setItemAmountDraft(String(currentAmountG))
+  }
+
+  const cancelEditItem = () => setEditingItem(null)
+
+  const saveEditItem = (mealId, index) => {
+    const amount = Number(itemAmountDraft)
+    if (!amount || amount <= 0) {
+      setNotice('그램 수를 올바르게 입력해주세요')
+      return
+    }
+
+    setSavingItem(true)
+    setNotice('')
+    updateMealItemAmount(mealId, index, amount)
+      .then(() => {
+        setEditingItem(null)
+        refresh(selectedDate)
+        refreshTodaySummary()
+      })
+      .catch((e) => setNotice(e.message || '그램 수 수정에 실패했어요'))
+      .finally(() => setSavingItem(false))
   }
 
   const handleDelete = (id) => {
@@ -171,7 +224,10 @@ function DietPage() {
                 {meals.length === 0 && (
                   <p className="pcard-desc">{isToday ? '오늘' : '이 날'} 기록된 식사가 없어요.</p>
                 )}
-                {meals.map((meal) => (
+                {meals.map((meal) => {
+                  const foodItems = parseFoodItems(meal)
+                  const expanded = expandedMealId === meal.id
+                  return (
                   <div className="diet-row" key={meal.id}>
                     <div className="diet-time">
                       {MEAL_TYPE_LABEL[meal.meal_type] ?? meal.meal_type}
@@ -235,9 +291,69 @@ function DietPage() {
                           </div>
                         )}
                       </div>
+
+                      {foodItems.length > 0 && editingId !== meal.id && (
+                        <>
+                          <button className="diet-item-toggle" onClick={() => toggleExpand(meal.id)}>
+                            {expanded ? '항목 접기' : `항목별 그램 보기 (${foodItems.length})`}
+                          </button>
+
+                          {expanded && (
+                            <div className="diet-item-list">
+                              {foodItems.map((it, idx) => {
+                                const isEditingThis = editingItem?.mealId === meal.id && editingItem?.index === idx
+                                return (
+                                  <div className="diet-item-row" key={idx}>
+                                    <span className="diet-item-name">{it.foodName}</span>
+                                    {isEditingThis ? (
+                                      <div className="diet-item-edit">
+                                        <input
+                                          className="diet-item-amount-input"
+                                          type="number"
+                                          value={itemAmountDraft}
+                                          onChange={(e) => setItemAmountDraft(e.target.value)}
+                                          disabled={savingItem}
+                                          autoFocus
+                                        />
+                                        <span className="diet-item-unit">g</span>
+                                        <button
+                                          className="mp-link-btn"
+                                          onClick={() => saveEditItem(meal.id, idx)}
+                                          disabled={savingItem}
+                                        >
+                                          {savingItem ? '저장 중...' : '저장'}
+                                        </button>
+                                        <button
+                                          className="diet-meal-cancel-btn"
+                                          onClick={cancelEditItem}
+                                          disabled={savingItem}
+                                        >
+                                          취소
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <span className="diet-item-amount">{it.amountG}g</span>
+                                        <span className="diet-item-kcal">{Math.round(it.calories)}kcal</span>
+                                        <button
+                                          className="diet-item-edit-btn"
+                                          onClick={() => startEditItem(meal.id, idx, it.amountG)}
+                                        >
+                                          수정
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -265,16 +381,20 @@ function DietPage() {
         <NutrientDetailModal summary={todaySummary} onClose={() => setNutrientModalOpen(false)} />
       )}
 
-      {notFoundFoods && (
-        <div className="modal-backdrop" onClick={() => setNotFoundFoods(null)}>
+      {notFoundInfo && (
+        <div className="modal-backdrop" onClick={() => setNotFoundInfo(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setNotFoundFoods(null)} aria-label="닫기">×</button>
-            <div className="modal-title">일부 음식을 찾지 못했어요</div>
-            <div className="modal-sub">{notFoundFoods.join(', ')}</div>
+            <button className="modal-close" onClick={() => setNotFoundInfo(null)} aria-label="닫기">×</button>
+            <div className="modal-title">
+              {notFoundInfo.saved ? '나머지 일부 음식은 찾지 못했어요' : '음식을 찾지 못했어요'}
+            </div>
+            <div className="modal-sub">{notFoundInfo.foods.join(', ')}</div>
             <p className="pcard-desc">
-              표준 식품 DB에 없는 이름이에요. 다른 표현으로 다시 입력해주세요.
+              {notFoundInfo.saved
+                ? '나머지 음식은 정상적으로 기록됐어요. 위 항목만 표준 식품 DB에 없어서 빠졌어요. 다른 표현으로 다시 입력해주세요.'
+                : '표준 식품 DB에 없는 이름이에요. 다른 표현으로 다시 입력해주세요.'}
             </p>
-            <button className="modal-btn" onClick={() => setNotFoundFoods(null)}>확인</button>
+            <button className="modal-btn" onClick={() => setNotFoundInfo(null)}>확인</button>
           </div>
         </div>
       )}

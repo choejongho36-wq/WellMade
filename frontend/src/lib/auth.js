@@ -177,7 +177,8 @@ export function useAuth() {
     })
   }
 
-  const sendChat = (messages) => {
+  // 대화 이력을 이제 서버가 갖고 있어서(9번 패치), 매번 전체 배열이 아니라 새 메시지 하나만 보내면 됨
+  const sendChat = (message) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
 
@@ -187,11 +188,23 @@ export function useAuth() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ message }),
     }).then((res) => {
       if (!res.ok) throw new Error('답변을 받지 못했어요')
       return res.json()
     }).then((data) => data.content)
+  }
+
+  const getChatHistory = () => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/users/me/chat/history`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('대화 이력을 불러오지 못했어요')
+      return res.json()
+    })
   }
 
   const getNutrientAdvice = () => {
@@ -266,6 +279,27 @@ export function useAuth() {
     })
   }
 
+  const updateMealItemAmount = (mealId, itemIndex, amountG) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals/${mealId}/items/${itemIndex}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ amountG }),
+    }).then((res) => {
+      if (!res.ok) {
+        return res.text().then((message) => {
+          throw new Error(message || '그램 수 수정에 실패했어요')
+        })
+      }
+      return res.json()
+    })
+  }
+
   const deleteMeal = (id) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
@@ -279,7 +313,8 @@ export function useAuth() {
   }
 
   return {
-    user, profile, inbody, handleLogout, updateGoal, updateName, extractInbody, confirmInbody, sendChat, getNutrientAdvice,
-    logMeal, getTodayMeals, getTodayTotal, updateMeal, deleteMeal,
+    user, profile, inbody, handleLogout, updateGoal, updateName, extractInbody, confirmInbody,
+    logMeal, getTodayMeals, getTodayTotal, updateMeal, updateMealItemAmount, deleteMeal,
+    sendChat, getChatHistory, getNutrientAdvice,
   }
 }

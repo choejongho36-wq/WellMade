@@ -9,7 +9,7 @@ const CHAT_MENU_ITEMS = [
   { id: 'nutrient-advice', label: '오늘 영양소 분석', action: 'nutrient-advice' },
 ]
 
-function ChatDrawer({ open, onClose, sendChat, getNutrientAdvice, userName }) {
+function ChatDrawer({ open, onClose, sendChat, getChatHistory, getNutrientAdvice, userName }) {
   const greeting = `안녕하세요, ${userName ?? '회원'}님 반갑습니다.\n궁금하신 내용을 선택해주세요.`
   const navigate = useNavigate()
   const [messages, setMessages] = useState([])
@@ -17,6 +17,7 @@ function ChatDrawer({ open, onClose, sendChat, getNutrientAdvice, userName }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [pendingFollowUp, setPendingFollowUp] = useState(null)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -31,17 +32,31 @@ function ChatDrawer({ open, onClose, sendChat, getNutrientAdvice, userName }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
+  // 드로어를 처음 열 때 서버에 저장된 이전 대화를 한 번 불러옴 - 새로고침/재접속해도 이어서 보임
+  useEffect(() => {
+    if (open && !historyLoaded) {
+      setHistoryLoaded(true)
+      getChatHistory()
+        .then((history) => {
+          if (history.length) {
+            setMessages(history.map((h) => ({ role: h.role, content: h.content })))
+          }
+        })
+        .catch(() => {}) // 이력 로드 실패는 조용히 무시 - 새 대화 시작하듯 진행하면 됨
+    }
+  }, [open, historyLoaded, getChatHistory])
+
   const sendMessage = (content, display) => {
     if (loading) return
 
-    const nextMessages = [...messages, { role: 'user', content, display }]
-    setMessages(nextMessages)
+    setMessages((prev) => [...prev, { role: 'user', content, display }])
     setInput('')
     setPendingFollowUp(null)
     setLoading(true)
     setError('')
 
-    sendChat(nextMessages.map(({ role, content }) => ({ role, content })))
+    // 대화 이력은 서버(DB)가 갖고 있으므로 새 메시지 하나만 보내면 됨
+    sendChat(content)
       .then((reply) => {
         setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
       })
