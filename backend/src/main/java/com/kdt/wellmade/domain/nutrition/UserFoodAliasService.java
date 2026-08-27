@@ -53,4 +53,9 @@ public class UserFoodAliasService {
                 ON DUPLICATE KEY UPDATE resolved_food_name = VALUES(resolved_food_name)
                 """, userId, searchTerm, resolvedFoodName);
     }
+
+    /** 회원 탈퇴 시 diet_meals와 마찬가지로 CASCADE가 안 걸려있어서 직접 지워야 함 */
+    public void deleteAllForUser(Long userId) {
+        jdbcTemplate.update("DELETE FROM user_food_alias WHERE user_id = ?", userId);
+    }
 }

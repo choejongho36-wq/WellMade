@@ -322,9 +322,10 @@ public class MealLoggingService {
         }
     }
 
-    /** 회원 탈퇴 시 diet_meals는 JPA 엔티티가 아니라 CASCADE가 안 걸려있어서 직접 지워야 함 */
+    /** 회원 탈퇴 시 diet_meals/user_food_alias는 JPA 엔티티가 아니라 CASCADE가 안 걸려있어서 직접 지워야 함 */
     public void deleteAllForUser(Long userId) {
         jdbcTemplate.update("DELETE FROM diet_meals WHERE user_id = ?", userId);
+        foodAliasService.deleteAllForUser(userId);
     }
 
     private String inferMealTypeByTime() {
