@@ -408,6 +408,23 @@ function DietPage() {
                                         1인분 기준중량 정보가 없어 100g 기준으로 추정했어요
                                       </div>
                                     )}
+                                    {!isFuzzy && it.candidates?.length > 0 && (
+                                      <details className="diet-item-confidence diet-item-confidence-mid">
+                                        <summary>다른 음식인가요? 후보 다시 보기</summary>
+                                        <div className="diet-item-candidates">
+                                          {it.candidates.map((candidate) => (
+                                            <button
+                                              key={candidate}
+                                              className="diet-item-candidate-btn"
+                                              onClick={() => pickCandidate(meal.id, idx, candidate)}
+                                              disabled={isResolving}
+                                            >
+                                              {isResolving ? '변경 중...' : candidate}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </details>
+                                    )}
                                   </div>
                                 )
                               })}

@@ -283,7 +283,8 @@ public class MealLoggingService {
             throw new IllegalArgumentException("선택한 음식을 찾지 못했어요.");
         }
 
-        items.set(itemIndex, item(foodName, resolvedFoodName, info, List.of()));
+        // 후보 목록은 그대로 들고가서, 이번 선택이 잘못됐어도 사용자가 다른 후보로 다시 바꿀 수 있게 함
+        items.set(itemIndex, item(foodName, resolvedFoodName, info, existingCandidates(target)));
 
         // 이 사용자가 이 검색어를 다시 쓰면 다음부턴 후보 제시 없이 바로 이 매칭이 적용되도록 기억해둠
         foodAliasService.save(userId, previousSearchName, resolvedFoodName);
@@ -351,6 +352,13 @@ public class MealLoggingService {
             return List.of();
         }
         return nutritionLookupService.suggestCandidates(searchName, 5);
+    }
+
+    /** 기존에 저장돼 있던 항목의 candidates 배열을 그대로 꺼내옴 (없으면 빈 리스트) */
+    @SuppressWarnings("unchecked")
+    private List<String> existingCandidates(Map<String, Object> target) {
+        Object raw = target.get("candidates");
+        return raw instanceof List<?> list ? (List<String>) list : List.of();
     }
 
     /**
