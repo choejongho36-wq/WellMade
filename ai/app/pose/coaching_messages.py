@@ -48,3 +48,13 @@ HIP_HYPEREXTENSION_MESSAGE = (
 # 목/시선(고개가 앞으로 떨어졌는지) 전용 신호로만 쓴다 — 어깨 말림/등 굽음은 별도 지표
 # (BACK_ROUNDED_MESSAGE, get_torso_length_ratio 기반)로 통합해서 판정한다.
 GAZE_FORWARD_MESSAGE = "시선을 편안하게 정면에 두고, 목은 자연스럽게 유지해주세요."
+
+# get_torso_shin_lean_gap_deg()가 반환하는 값(상체가 정강이보다 얼마나 더 기울었는지)이
+# 임계값을 넘을 때 쓰는 문구. 원인을 "무게중심이 무너졌다"고 단정하기보다, 실제 교정
+# 동작(무릎을 발끝 쪽으로 더 내밀어 정강이도 함께 기울이기)을 제안하는 톤을 유지한다 —
+# 표본이 2건뿐인 잠정 신호라(rules.py의 TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG 참고) 확신이
+# 낮은 만큼 HIP_HYPEREXTENSION_MESSAGE와 비슷하게 조심스러운 표현을 썼다.
+CENTER_OF_MASS_SHIFT_MESSAGE = (
+    "무게중심이 뒤로 쏠려 있는 것처럼 보여요. "
+    "무릎을 발끝 쪽으로 조금 더 내밀어서 정강이도 상체와 함께 앞으로 기울여주세요."
+)

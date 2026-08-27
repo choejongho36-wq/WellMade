@@ -15,6 +15,7 @@ from app.pose.coaching_messages import (
     ASYMMETRY_MESSAGE,
     BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE,
     BACK_ROUNDED_MESSAGE,
+    CENTER_OF_MASS_SHIFT_MESSAGE,
     HEEL_LIFT_MESSAGE,
     HIP_HYPEREXTENSION_MESSAGE,
     KNEE_OVER_TOE_MESSAGE,
@@ -30,6 +31,7 @@ from app.pose.rules import (
     KNEE_VALGUS_RATIO_THRESHOLD,
     NORMAL_RANGES,
     SHOULDER_FORWARD_LEAN_THRESHOLD_DEG,
+    TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG,
     personalized_hip_range,
 )
 from app.schemas import AngleFrame, HipFlexibilityCalibration
@@ -125,6 +127,10 @@ def judge_realtime_coaching(
     # 등 굽음 — 측면 랜드마크 기준. hip_calibration.standing_shoulder_hip_ratio라는
     # 기준값이 함께 있어야만 실제 판정에 쓰인다(rules.py의 BACK_ROUNDING_RATIO_THRESHOLD 주석 참고).
     latest_torso_length_ratio = angle_history[-1].torso_length_ratio  # 선택 필드라 None일 수 있음
+    # 무게중심(상체가 정강이보다 얼마나 더 기울었는지) — 측면 랜드마크 기준, knee_over_toe와
+    # 동일하게 정면 카메라 여부와 무관한 선택 필드다(rules.py의
+    # TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG 주석 참고 — 나쁜 사례 표본이 2건뿐인 잠정 신호).
+    latest_torso_shin_lean_gap = angle_history[-1].torso_shin_lean_gap_deg  # 선택 필드라 None일 수 있음
 
     knee_slope, knee_r2 = _linear_fit(timestamps, knee_series)
     knee_deltas = [b - a for a, b in zip(knee_series, knee_series[1:])]
@@ -231,6 +237,14 @@ def judge_realtime_coaching(
             and latest_knee_over_toe > KNEE_OVER_TOE_RATIO_THRESHOLD
         ):
             issues.append({"part": "knee_over_toe", "message": KNEE_OVER_TOE_MESSAGE})
+        # 무게중심도 무릎-발끝과 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 동작
+        # 중(내려가는/올라오는 도중)에는 상체-정강이 기울기 차이가 과도기적으로 커질 수 있다.
+        if (
+            is_deep_hold
+            and latest_torso_shin_lean_gap is not None
+            and latest_torso_shin_lean_gap > TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG
+        ):
+            issues.append({"part": "center_of_mass", "message": CENTER_OF_MASS_SHIFT_MESSAGE})
         # 등 굽음도 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 기준값
         # (hip_calibration.standing_shoulder_hip_ratio)이 없으면(캘리브레이션을 안 한 기존
         # 클라이언트) 검사 자체를 건너뛴다.

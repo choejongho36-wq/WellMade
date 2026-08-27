@@ -235,6 +235,50 @@ function getTorsoLengthRatio(landmarks, side = 'auto') {
   return torsoLength / footLength
 }
 
+// 상체(어깨-엉덩이)와 정강이(무릎-발목)가 각각 수직선 대비 얼마나 앞으로 기울었는지를 구해서
+// 그 차이를 본다. 정강이는 거의 안 기울었는데(발목 가동범위가 부족해 무릎이 발끝 쪽으로
+// 못 나감) 상체만 훨씬 더 기울어 있다면, 발목 대신 상체가 그 부족분을 보상하고 있다는
+// 뜻이고, 무게중심이 지지기반(발) 뒤쪽에 가깝게 남는다 — "앞에 반대 방향 무게(바/플레이트)가
+// 없으면 뒤로 넘어갈 것 같다"는 인상으로 이어지는 자세다.
+// (2026-08-27 추가) 팀에서 "무게중심이 무너진 것 같다"고 지적한 실제 사진 2장(다른 사람·
+// 다른 기구·다른 출처, checklist 2026-08-27 addendum 8번 참고)에서 이 값이 각각 27.2도·
+// 28.9도로 나왔고, 확인된 정상 사진 10장은 전부 -2.0~23.3도 사이였다. 상체·정강이 각각의
+// 절대 기울기는 체형(다리 길이 등)에 따라 편차가 컸지만(정상 사진만 봐도 상체 기울기가
+// 15.6~48.9도로 넓게 퍼짐 — 절대각도 단독으로는 정상/이상이 안 갈렸다), 두 값의 "차이"는
+// 체형과 무관하게 정상군과 나쁜 사례가 갈리는 것을 확인했다.
+// 먼저 시도했던 "엉덩이가 지지기반(발뒤꿈치)보다 얼마나 뒤로 벗어났는지"(발 길이/허벅지
+// 길이로 각각 정규화) 지표는 실측에서 정상 사진들과 구분이 안 됐고(정상 사진 안에서도
+// 편차가 너무 컸음), 예전에 비슷한 접근(어깨-무릎 직선 기준 엉덩이 이탈)을 실제 적용했을 때
+// 모든 사진에서 이상이 뜨는 문제로 폐기했던 것과 같은 실패 패턴이라 이번엔 채택하지 않았다.
+// TODO: 팀 확정 필요(중요) — 나쁜 사례가 아직 2건뿐이라 임계값(rules.py의
+// TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG) 검증 표본이 매우 작다. 실사용자 테스트로 반드시
+// 재검증할 것.
+function getTorsoShinLeanGapDeg(landmarks, side = 'auto') {
+  const chosen = selectSide(landmarks, side)
+  const [shoulderIdx, hipIdx, kneeIdx, ankleIdx, toeIdx] =
+    chosen === 'left'
+      ? [LEFT_SHOULDER, LEFT_HIP, LEFT_KNEE, LEFT_ANKLE, LEFT_FOOT_INDEX]
+      : [RIGHT_SHOULDER, RIGHT_HIP, RIGHT_KNEE, RIGHT_ANKLE, RIGHT_FOOT_INDEX]
+  const shoulder = landmarks[shoulderIdx]
+  const hip = landmarks[hipIdx]
+  const knee = landmarks[kneeIdx]
+  const ankle = landmarks[ankleIdx]
+  const toe = landmarks[toeIdx]
+  const footLength = Math.abs(ankle.x - toe.x)
+  if (footLength < MIN_RELIABLE_FOOT_LENGTH) return 0
+  const facingDirection = toe.x - ankle.x >= 0 ? 1 : -1
+
+  const torsoDx = (shoulder.x - hip.x) * facingDirection
+  const torsoDy = -(shoulder.y - hip.y)
+  const torsoLeanDeg = (Math.atan2(torsoDx, torsoDy) * 180) / Math.PI
+
+  const shinDx = (knee.x - ankle.x) * facingDirection
+  const shinDy = -(knee.y - ankle.y)
+  const shinLeanDeg = (Math.atan2(shinDx, shinDy) * 180) / Math.PI
+
+  return torsoLeanDeg - shinLeanDeg
+}
+
 // ---- 정면 촬영 전용(무릎 모임/좌우 비대칭) ----
 
 // 무릎 사이 너비 / 발목 사이 너비. 1.0 이상이면 정상, 작을수록 무릎이 안쪽으로 모인(valgus) 상태.
@@ -280,6 +324,7 @@ function buildSideMetrics(landmarks) {
     shoulder_forward_lean_deg: getShoulderForwardLeanDeg(landmarks),
     heel_lift_ratio: getHeelLiftRatio(landmarks),
     knee_over_toe_ratio: getKneeOverToeRatio(landmarks),
+    torso_shin_lean_gap_deg: getTorsoShinLeanGapDeg(landmarks),
   }
 }
 
@@ -400,6 +445,7 @@ function MeasurementPanel({ title, landmarks }) {
         <div>발뒤꿈치 뜸 비율: {fmt(getHeelLiftRatio(landmarks), 3)}</div>
         <div>무릎-발끝/허벅지 길이 비율: {fmt(getKneeOverToeRatio(landmarks), 3)}</div>
         <div>어깨-엉덩이/발 길이 비율: {fmt(getTorsoLengthRatio(landmarks), 3)}</div>
+        <div>상체-정강이 기울기 차이(무게중심): {fmt(getTorsoShinLeanGapDeg(landmarks))}도</div>
       </div>
     </div>
   )
