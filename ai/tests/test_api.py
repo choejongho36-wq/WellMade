@@ -81,26 +81,29 @@ def test_coaching_frame_holding_at_bottom_normal():
     assert data["confidence"] > 0.7, data  # 떨림이 적은 안정적인 holding이므로 신뢰도가 높아야 함
 
 
-def test_coaching_frame_holding_shoulder_rounded_flagged():
-    # 무릎/엉덩이는 정상 범위인데 shoulder_forward_lean_deg만 임계값(20.0)을 넘게(어깨
-    # 말림) 들어온 경우 -> 이상 감지돼야 함. (2026-08-24: shoulder_angle 절대각도 대신
-    # shoulder_forward_lean_deg로 판정 방식이 바뀜 — rules.py 주석 참고.)
+def test_coaching_frame_holding_gaze_forward_flagged():
+    # 무릎/엉덩이는 정상 범위인데 shoulder_forward_lean_deg만 임계값(40.0)을 넘게(고개가
+    # 앞으로 떨어짐) 들어온 경우 -> 이상 감지돼야 함. (2026-08-26: 이 신호는 원래 "어깨
+    # 말림"도 같이 판정했으나, 어깨 말림/등 굽음은 back_rounded로 통합하고 여기는 목/시선
+    # 전용 신호(part="gaze")로 분리했다 — rules.py/realtime.py 주석 참고. 2026-08-27:
+    # 임곗값이 20.0 -> 40.0으로 올라가(실측 정상 사례 확장 + 귀 랜드마크 노이즈 감안,
+    # rules.py 주석 참고) 테스트 입력값도 그에 맞춰 올림.)
     angle_history = [
         {
             "timestamp": i * 0.1,
             "knee_angle": 85 + (i % 2),
             "hip_angle": 80 + (i % 2),
-            "shoulder_forward_lean_deg": 30,
+            "shoulder_forward_lean_deg": 50,
         }
         for i in range(10)
     ]
     body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(holding, rounded shoulder):", res.status_code, res.json())
+    print("coaching_frame(holding, gaze forward):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
     assert data["is_normal"] is False, data
-    assert any(issue["part"] == "shoulder" for issue in data["issues"]), data
+    assert any(issue["part"] == "gaze" for issue in data["issues"]), data
 
 
 def test_coaching_frame_negative_shoulder_lean_not_flagged():
@@ -120,7 +123,7 @@ def test_coaching_frame_negative_shoulder_lean_not_flagged():
     print("coaching_frame(negative shoulder lean):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
-    assert not any(issue["part"] == "shoulder" for issue in data["issues"]), data
+    assert not any(issue["part"] == "gaze" for issue in data["issues"]), data
 
 
 def test_coaching_frame_without_shoulder_fields_still_works():
@@ -134,7 +137,7 @@ def test_coaching_frame_without_shoulder_fields_still_works():
     print("coaching_frame(no shoulder fields):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
-    assert not any(issue["part"] == "shoulder" for issue in data["issues"]), data
+    assert not any(issue["part"] == "gaze" for issue in data["issues"]), data
 
 
 def test_coaching_frame_holding_halfway_abnormal():
@@ -506,7 +509,10 @@ def test_rag_guide_fallback_matched():
         assert result["matched"] is True
         assert result["generation_source"] == "fallback"
         assert result["guidance_message"] == SQUAT_COACHING_MESSAGES_KNEE_VALGUS
-        assert result["sources"][0]["source"] == "NASM (National Academy of Sports Medicine)"
+        # (2026-08-27) knee_valgus 문서의 source가 NASM 인용에 Lorenzetti et al.
+        # (2018) 인용이 추가되며 길어졌다 — 정확 일치 대신 두 출처가 모두 포함됐는지만 확인.
+        assert "NASM" in result["sources"][0]["source"]
+        assert "Lorenzetti" in result["sources"][0]["source"]
 
     _without_llm_env(run)
 
@@ -615,13 +621,13 @@ def test_aggregate_session_stats_improvement_vs_previous():
 
 def test_generate_session_report_fallback():
     def run():
-        history = make_frame_history(normal_count=6, abnormal_count=4, part="shoulder", deviation_deg=20.0)
+        history = make_frame_history(normal_count=6, abnormal_count=4, part="gaze", deviation_deg=20.0)
         result = generate_session_report(history, session_duration_sec=300.0, previous_sessions=[])
         print("generate_session_report(fallback):", result)
         assert result["generation_source"] == "fallback"
         assert result["normal_ratio"] == 0.6
-        assert result["most_frequent_issue_part"] == "shoulder"
-        assert "어깨" in result["summary_message"]  # PART_LABELS 매핑이 폴백 문구에 반영됐는지
+        assert result["most_frequent_issue_part"] == "gaze"
+        assert "시선" in result["summary_message"]  # PART_LABELS 매핑이 폴백 문구에 반영됐는지
         assert isinstance(result["summary_message"], str) and len(result["summary_message"]) > 0
 
     _without_llm_env(run)
@@ -748,6 +754,116 @@ def test_coaching_frame_heel_lift_ignored_while_standing():
     assert not any(issue["part"] == "heel" for issue in data["issues"]), data
 
 
+# (2026-08-27 추가, 같은 날 재정정) 웨지·역도화처럼 원래 발뒤꿈치를 들고 서는 사용자를
+# 위한 차이값 기준 판정 테스트 — 처음에는 온보딩 캘리브레이션(hip_calibration)에 기준값을
+# 두려 했으나, 온보딩은 "힐업 안 한" 평상시 자세로 재는 게 보통이라 그날그날 웨지 사용
+# 여부를 반영하지 못한다는 문제가 있어, angle_history 안에서 "이번 렙 직전 서 있던
+# 프레임"을 실시간으로 찾아 기준값으로 쓰는 방식(_find_standing_baseline_before_dip)으로
+# 바꿨다 — 아래 테스트는 hip_calibration이 아니라 angle_history 자체에 "서 있는 구간 +
+# 깊게 앉은 구간"을 함께 넣어 이 동적 기준값 동작을 검증한다.
+def _build_rep_history_with_standing_baseline(standing_heel_lift, hold_heel_lift, n_hold=120):
+    """서 있는 구간(5프레임) -> 점진적 하강(20프레임) -> 깊게 앉아 멈춘 구간(n_hold프레임)을
+    이어붙인 angle_history를 만든다. _find_standing_baseline_before_dip()이 찾을 "직전 서
+    있던 프레임"을 실제로 포함시키면서도, phase 판정(knee_slope 전체 회귀)이 "holding"으로
+    읽히도록 홀딩 구간을 충분히 길게 잡는다 — 하강을 3~4프레임 만에 뚝 끊어버리면(비현실적인
+    순간이동) 전체 구간 회귀 기울기가 지나치게 가팔라져 phase가 "descending"으로 읽히고
+    is_deep_hold 검사 블록 전체가 스킵돼버린다(judge_realtime_coaching은 "최근 N프레임"이
+    아니라 angle_history 전체로 기울기를 계산한다 — DTW 렙 추출과 마찬가지로 실제 서비스는
+    렙 시작부터의 전체 히스토리를 그대로 보내는 걸 전제하므로, 테스트도 실제 30fps 근처
+    간격 + 충분한 홀딩 프레임 수로 맞춰야 phase 판정이 실제 상황과 같아진다).
+    """
+    frames = []
+    for i in range(5):
+        frames.append(
+            {
+                "timestamp": i * 0.033,
+                "knee_angle": 175 + (i % 2),
+                "hip_angle": 170 + (i % 2),
+                "heel_lift_ratio": standing_heel_lift,
+            }
+        )
+    descent_frames = 20
+    for i in range(descent_frames):
+        progress = (i + 1) / descent_frames
+        frames.append(
+            {
+                "timestamp": (5 + i) * 0.033,
+                "knee_angle": 175 - (175 - 85) * progress,
+                "hip_angle": 170 - (170 - 80) * progress,
+                # heel_lift_ratio는 하강 중에는 그대로 서 있을 때 값을 유지한다(발뒤꿈치는
+                # 보통 하강 내내 바닥에 붙어있다가 깊게 앉은 뒤에야 변화가 생기는 게 자연스러운
+                # 시나리오라서) — _find_standing_baseline_before_dip()이 찾는 "150도 문턱을
+                # 넘기 직전 프레임"이 하강 중간의 임의 보간값이 아니라 정확히 standing_heel_lift
+                # 값이 되도록 하기 위함이기도 하다.
+                "heel_lift_ratio": standing_heel_lift,
+            }
+        )
+    base_index = 5 + descent_frames
+    for i in range(n_hold):
+        frames.append(
+            {
+                "timestamp": (base_index + i) * 0.033,
+                "knee_angle": 85 + (i % 2),
+                "hip_angle": 80 + (i % 2),
+                "heel_lift_ratio": hold_heel_lift,
+            }
+        )
+    return frames
+
+
+def test_coaching_frame_heel_lift_dynamic_baseline_prevents_false_positive_for_elevated_standing():
+    # 서 있을 때부터 heel_lift_ratio가 이미 임곗값을 넘는 사용자(웨지 사용) — 스쿼트 중에도
+    # 서 있을 때와 거의 같은 값이면(추가로 더 들리지 않았으면) 이상으로 잡으면 안 된다.
+    baseline = HEEL_LIFT_RATIO_THRESHOLD + 0.2  # 서 있을 때부터 이미 임곗값 초과
+    angle_history = _build_rep_history_with_standing_baseline(baseline, baseline + 0.05)
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(heel lift, dynamic elevated standing baseline):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["phase"] == "holding", data  # phase 판정 자체가 잘못돼 검사가 스킵된 게 아닌지 확인
+    assert not any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
+def test_coaching_frame_heel_lift_dynamic_baseline_still_flags_real_lift():
+    # 서 있을 때 기준값이 낮은 사용자가 스쿼트 중 실제로 기준보다 크게 더 들리면(차이값이
+    # 임곗값을 넘으면) 절대값이 임곗값 미만이어도 이상으로 잡아야 한다.
+    baseline = -0.3
+    latest = 0.5  # 절대값만 보면 HEEL_LIFT_RATIO_THRESHOLD(0.7) 미만이라 기존 방식이면 안 잡힘
+    assert latest < HEEL_LIFT_RATIO_THRESHOLD
+    assert latest - baseline > HEEL_LIFT_RATIO_THRESHOLD
+    angle_history = _build_rep_history_with_standing_baseline(baseline, latest)
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(heel lift, dynamic baseline catches real lift):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["phase"] == "holding", data
+    assert any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
+def test_coaching_frame_heel_lift_falls_back_to_absolute_without_standing_prefix():
+    # angle_history 안에 "서 있던 프레임"이 아예 없으면(예: 이미 깊게 앉은 채로 시작하는
+    # 히스토리) 동적 기준값을 못 찾아 기존처럼 절대값(HEEL_LIFT_RATIO_THRESHOLD)으로
+    # 판정해야 한다 — test_coaching_frame_heel_lift_flagged_when_deep_hold와 같은 상황이지만,
+    # 여기서는 "왜 절대값 경로를 타는지"를 명시적으로 검증한다.
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "heel_lift_ratio": HEEL_LIFT_RATIO_THRESHOLD + 0.3,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(heel lift, no standing prefix -> absolute fallback):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
 # (2026-08-24) 무릎 모임/좌우 비대칭 규칙기반 검사의 단위 테스트(get_knee_valgus_ratio/
 # get_knee_lr_asymmetry_deg 직접 호출)와 그 /ai/pose/analyze 통합 테스트가 이 자리에
 # 있었다 — AI-03 삭제(위 주석 참고)와 함께 이 두 함수 자체가 angles.py에서 제거되며 같이
@@ -755,7 +871,6 @@ def test_coaching_frame_heel_lift_ignored_while_standing():
 # 코칭(AI-06) 경로로 같은 임계값(KNEE_VALGUS_RATIO_THRESHOLD/KNEE_ASYMMETRY_THRESHOLD_DEG)
 # 판정을 계속 검증한다.
 from app.pose.rules import (  # noqa: E402
-    HIP_HYPEREXTENSION_VALGUS_THRESHOLD,
     KNEE_ASYMMETRY_THRESHOLD_DEG,
     KNEE_VALGUS_RATIO_THRESHOLD,
 )
@@ -780,92 +895,11 @@ def test_coaching_frame_knee_valgus_flagged_when_deep_hold():
     assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
 
 
-# (2026-08-25) 고관절 과신전 의심 판정(rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD) —
-# 위 knee_valgus와 같은 knee_valgus_ratio 필드를 재사용하되 더 완만한 구간(KNEE_VALGUS_
-# RATIO_THRESHOLD 이상 ~ HIP_HYPEREXTENSION_VALGUS_THRESHOLD 미만)에서만 별도 태깅된다.
-# 자세한 배경은 claude/wellmade-ai-progress.md 2026-08-25 절 참고.
-
-
-def test_coaching_frame_hip_hyperextension_flagged_when_deep_hold():
-    # KNEE_VALGUS_RATIO_THRESHOLD(0.8)와 HIP_HYPEREXTENSION_VALGUS_THRESHOLD(1.1) 사이 값 -> 감지돼야 함
-    midpoint = (KNEE_VALGUS_RATIO_THRESHOLD + HIP_HYPEREXTENSION_VALGUS_THRESHOLD) / 2
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "knee_valgus_ratio": midpoint,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(hip hyperextension, deep hold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert data["is_normal"] is False, data
-    assert any(issue["part"] == "hip_hyperextension" for issue in data["issues"]), data
-
-
-def test_coaching_frame_hip_hyperextension_not_flagged_when_clearly_valgus():
-    # 이미 무릎 모임(knee_valgus)으로 판정될 만큼 낮은 값이면, 중복 태깅하지 않고
-    # "knee_valgus"만 감지돼야 한다(hip_hyperextension은 아님).
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "knee_valgus_ratio": KNEE_VALGUS_RATIO_THRESHOLD - 0.3,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(clearly valgus, not hip hyperextension):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
-    assert not any(issue["part"] == "hip_hyperextension" for issue in data["issues"]), data
-
-
-def test_coaching_frame_hip_hyperextension_not_flagged_when_normal():
-    # HIP_HYPEREXTENSION_VALGUS_THRESHOLD 이상(정상 범위)이면 감지되지 않아야 한다.
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "knee_valgus_ratio": HIP_HYPEREXTENSION_VALGUS_THRESHOLD + 0.3,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(normal valgus ratio):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "hip_hyperextension" for issue in data["issues"]), data
-
-
-def test_coaching_frame_hip_hyperextension_ignored_while_standing():
-    # 서 있는 상태(is_deep_hold=False)에서는 다른 깊게-앉은-상태 전용 검사들과 마찬가지로
-    # knee_valgus_ratio가 낮아도 검사 대상이 아니다.
-    midpoint = (KNEE_VALGUS_RATIO_THRESHOLD + HIP_HYPEREXTENSION_VALGUS_THRESHOLD) / 2
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 175 + (i % 2),
-            "hip_angle": 170 + (i % 2),
-            "knee_valgus_ratio": midpoint,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(hip hyperextension while standing):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "hip_hyperextension" for issue in data["issues"]), data
+# (2026-08-25 도입 → 2026-08-27 폐기) 이 자리에 고관절 과신전 의심 판정
+# (rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD, knee_valgus_ratio가 0.8~1.1이면
+# 별도 태깅) 테스트 4건이 있었다. 그 판정 로직 자체가 근거 부족(N=1 잠정치)으로 폐기되며
+# 함께 삭제했다 — 자세한 배경은 rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD 자리에
+# 남은 주석과 checklist 2026-08-27 addendum 참고.
 
 
 def test_coaching_frame_knee_asymmetry_flagged_when_deep_hold():
@@ -887,6 +921,49 @@ def test_coaching_frame_knee_asymmetry_flagged_when_deep_hold():
     assert any(issue["part"] == "asymmetry" for issue in data["issues"]), data
 
 
+# (2026-08-27 추가) 오버헤드 스쿼트 보상작용 참고 사진(무릎각도 154~158도)을 실제
+# mediapipe로 검증하다가, 무릎 모임(valgus)이 교과서적으로 뚜렷한 사진조차
+# is_deep_hold(무릎각도<150도) 게이트에 막혀 통째로 안 잡히는 걸 확인했다. 무릎 모임/
+# 좌우비대칭을 목/시선과 동일하게 상시검사로 바꾼 변경(realtime.py)이 실제로 "깊게 안
+# 앉은(무릎각도>=150도) 상태"에서도 잡아내는지 회귀로 고정한다.
+def test_coaching_frame_knee_valgus_flagged_even_when_not_deep_hold():
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 155,  # STANDING_KNEE_ANGLE_MIN(150) 이상 — is_deep_hold=False
+            "hip_angle": 165,
+            "knee_valgus_ratio": KNEE_VALGUS_RATIO_THRESHOLD - 0.3,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(knee valgus, NOT deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
+
+
+def test_coaching_frame_knee_asymmetry_flagged_even_when_not_deep_hold():
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 155,  # STANDING_KNEE_ANGLE_MIN(150) 이상 — is_deep_hold=False
+            "hip_angle": 165,
+            "knee_asymmetry_deg": KNEE_ASYMMETRY_THRESHOLD_DEG + 10.0,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(knee asymmetry, NOT deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "asymmetry" for issue in data["issues"]), data
+
+
 def test_coaching_frame_without_frontal_fields_still_works():
     # knee_valgus_ratio/knee_asymmetry_deg 필드를 아예 안 보내도 에러 없이 동작해야 한다(하위 호환).
     angle_history = [
@@ -897,7 +974,7 @@ def test_coaching_frame_without_frontal_fields_still_works():
     print("coaching_frame(no frontal fields):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
-    assert not any(issue["part"] in ("knee_valgus", "hip_hyperextension", "asymmetry") for issue in data["issues"]), data
+    assert not any(issue["part"] in ("knee_valgus", "asymmetry") for issue in data["issues"]), data
 
 
 # (2026-08-24) 무릎-발끝 규칙기반 검사의 단위 테스트(get_knee_over_toe_ratio 직접 호출),
@@ -940,6 +1017,139 @@ def test_coaching_frame_without_knee_over_toe_field_still_works():
     assert res.status_code == 200
     data = res.json()
     assert not any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
+
+
+# (2026-08-27) 무게중심(get_torso_shin_lean_gap_deg 기반) 판정 테스트. knee_over_toe와
+# 동일하게 is_deep_hold(무릎이 충분히 굽혀진 상태)에서만 검사한다 — rules.py의
+# TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG 주석 참고. 나쁜 사례 표본이 2건뿐인 잠정 임계값이라,
+# 팀 확정 전까지 이 값(25.0)은 언제든 바뀔 수 있다.
+from app.pose.rules import TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG  # noqa: E402
+
+
+def test_coaching_frame_center_of_mass_flagged_when_deep_hold():
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG + 2.0,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(center of mass, deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
+
+
+def test_coaching_frame_without_center_of_mass_field_still_works():
+    # torso_shin_lean_gap_deg 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(no torso_shin_lean_gap_deg field):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
+
+
+# (2026-08-27) DTW(동적 시간 워핑) 렙 패턴 유사도 판정 테스트. 다른 검사들과 달리 이
+# 검사는 정적인 마지막 프레임 값이 아니라 "렙 1개 전체의 움직임 곡선"을 실제 정상 렙
+# 템플릿 20개(app/pose/dtw_templates/*.json)와 비교하므로, 손으로 대충 지어낸 몇 개
+# 숫자로는 의미 있는 테스트가 안 된다 — 실제 템플릿 하나(우혁_정상.mp4_rep0)를 정규화
+# 기준값(mean/std)으로 역정규화해 "진짜였던 원본 raw 값"을 복원한 뒤, 그걸 그대로 보내면
+# 정상 판정이, 지표를 크게 왜곡해서 보내면 이상 판정이 나오는지를 확인한다(임곗값
+# DTW_NEAREST_DISTANCE_THRESHOLD=20.0의 근거는 rules.py 주석 참고, 아래 왜곡 폭은
+# 2026-08-27 실측으로 실제 거리값이 20.0을 넘는 걸 미리 확인한 값이다 — 거리=41.9).
+from pathlib import Path as _Path  # noqa: E402
+
+from app.pose.dtw_matching import load_templates as _load_dtw_templates_for_test  # noqa: E402
+
+_DTW_TEST_TEMPLATE = next(
+    t
+    for t in _load_dtw_templates_for_test(_Path(__file__).parent.parent / "app" / "pose" / "dtw_templates")
+    if "우혁_정상.mp4_rep0" in t.source
+)
+
+
+def _real_dtw_rep_angle_history(hip_offset=0.0, shoulder_offset=0.0, torso_scale=1.0):
+    """실제 템플릿 하나를 역정규화해 angle_history(dict 리스트)를 만든다. 맨 앞에 "서 있는"
+    프레임 1개를 붙여 _extract_last_completed_rep이 렙 시작/끝 경계를 찾을 수 있게 한다."""
+    t = _DTW_TEMPLATE = _DTW_TEST_TEMPLATE
+    means, stds = t.normalization.means, t.normalization.stds
+    n = t.curve.shape[0]
+    raw = {
+        field: (t.curve[:, j] * stds[field] + means[field]).tolist()
+        for j, field in enumerate(t.metric_fields)
+    }
+    frames = [
+        {
+            "timestamp": -0.033,
+            "knee_angle": 172.0,
+            "hip_angle": 175.0 + hip_offset,
+            "torso_length_ratio": sum(raw["torso_length_ratio"]) / n * torso_scale,
+            "shoulder_forward_lean_deg": sum(raw["shoulder_forward_lean_deg"]) / n + shoulder_offset,
+        }
+    ]
+    for i in range(n):
+        frames.append(
+            {
+                "timestamp": i * 0.033,
+                "knee_angle": raw["knee_angle"][i],
+                "hip_angle": raw["hip_angle"][i] + hip_offset,
+                "torso_length_ratio": raw["torso_length_ratio"][i] * torso_scale,
+                "shoulder_forward_lean_deg": raw["shoulder_forward_lean_deg"][i] + shoulder_offset,
+            }
+        )
+    return frames
+
+
+def test_coaching_frame_dtw_form_pattern_not_flagged_for_real_normal_rep():
+    angle_history = _real_dtw_rep_angle_history()  # 왜곡 없음 — 템플릿 원본 그대로
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(dtw, 왜곡 없는 실제 렙):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "form_pattern" for issue in data["issues"]), data
+
+
+def test_coaching_frame_dtw_form_pattern_flagged_when_severely_distorted():
+    # hip_angle +60도, shoulder_forward_lean_deg +80도, torso_length_ratio 0.3배 —
+    # 2026-08-27 실측으로 nearest_normal_distance가 41.9(임곗값 20.0의 2배 이상)가
+    # 나오는 걸 미리 확인한 왜곡 폭이다.
+    angle_history = _real_dtw_rep_angle_history(hip_offset=60.0, shoulder_offset=80.0, torso_scale=0.3)
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(dtw, 심하게 왜곡된 렙):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "form_pattern" for issue in data["issues"]), data
+
+
+def test_coaching_frame_dtw_skipped_when_optional_fields_missing():
+    # 렙 모양(150도 아래로 내려갔다 올라옴)은 갖췄지만 torso_length_ratio/
+    # shoulder_forward_lean_deg를 안 보내는 기존 프론트 호출 — DTW 비교에 필요한
+    # 지표가 없으므로(extract_metric_matrix가 ValueError) 에러 없이 조용히
+    # 건너뛰어야 한다(하위 호환, 다른 선택 필드 검사들과 동일한 패턴).
+    knee_seq = [172, 160, 140, 110, 90, 85, 88, 95, 120, 150, 165, 172]
+    hip_seq = [175, 165, 150, 120, 100, 95, 98, 105, 130, 155, 168, 175]
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": k, "hip_angle": h}
+        for i, (k, h) in enumerate(zip(knee_seq, hip_seq))
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(dtw, 선택 필드 없음):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "form_pattern" for issue in data["issues"]), data
 
 
 # (2026-08-24) 등 굽음(척추 굴곡) 규칙기반 검사의 단위 테스트(get_torso_length_ratio
@@ -1003,7 +1213,9 @@ def test_coaching_frame_back_rounded_ignored_while_standing():
 
 def test_coaching_frame_back_rounded_ignored_without_baseline():
     # torso_length_ratio 필드는 보내더라도, hip_calibration.standing_shoulder_hip_ratio가
-    # 없으면(하위 호환) 기준값이 없어 판정 자체를 건너뛴다.
+    # 없으면(하위 호환) 기준값이 없어 등 굽음(이상 유무) 자체는 판정하지 않는다 — 다만
+    # 조용히 건너뛰지 않고, 캘리브레이션이 필요하다는 안내(data 항목)는 대신 나가야 한다
+    # (2026-08-26: 어깨 말림까지 이 검사로 흡수된 뒤로 추가된 동작).
     angle_history = [
         {
             "timestamp": i * 0.1,
@@ -1019,6 +1231,7 @@ def test_coaching_frame_back_rounded_ignored_without_baseline():
     assert res.status_code == 200
     data = res.json()
     assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
+    assert any(issue["part"] == "data" and "캘리브레이션" in issue["message"] for issue in data["issues"]), data
 
 
 def test_coaching_frame_without_torso_length_ratio_field_still_works():
@@ -1048,7 +1261,7 @@ if __name__ == "__main__":
     test_health()
     test_coaching_frame_descending()
     test_coaching_frame_holding_at_bottom_normal()
-    test_coaching_frame_holding_shoulder_rounded_flagged()
+    test_coaching_frame_holding_gaze_forward_flagged()
     test_coaching_frame_negative_shoulder_lean_not_flagged()
     test_coaching_frame_without_shoulder_fields_still_works()
     test_coaching_frame_holding_halfway_abnormal()
@@ -1088,11 +1301,10 @@ if __name__ == "__main__":
     test_coaching_frame_heel_lift_flagged_when_deep_hold()
     test_coaching_frame_without_heel_lift_field_still_works()
     test_coaching_frame_heel_lift_ignored_while_standing()
+    test_coaching_frame_heel_lift_dynamic_baseline_prevents_false_positive_for_elevated_standing()
+    test_coaching_frame_heel_lift_dynamic_baseline_still_flags_real_lift()
+    test_coaching_frame_heel_lift_falls_back_to_absolute_without_standing_prefix()
     test_coaching_frame_knee_valgus_flagged_when_deep_hold()
-    test_coaching_frame_hip_hyperextension_flagged_when_deep_hold()
-    test_coaching_frame_hip_hyperextension_not_flagged_when_clearly_valgus()
-    test_coaching_frame_hip_hyperextension_not_flagged_when_normal()
-    test_coaching_frame_hip_hyperextension_ignored_while_standing()
     test_coaching_frame_knee_asymmetry_flagged_when_deep_hold()
     test_coaching_frame_without_frontal_fields_still_works()
     test_coaching_frame_knee_over_toe_flagged_when_deep_hold()
@@ -1101,4 +1313,9 @@ if __name__ == "__main__":
     test_coaching_frame_back_rounded_ignored_while_standing()
     test_coaching_frame_back_rounded_ignored_without_baseline()
     test_coaching_frame_without_torso_length_ratio_field_still_works()
+    test_coaching_frame_center_of_mass_flagged_when_deep_hold()
+    test_coaching_frame_without_center_of_mass_field_still_works()
+    test_coaching_frame_dtw_form_pattern_not_flagged_for_real_normal_rep()
+    test_coaching_frame_dtw_form_pattern_flagged_when_severely_distorted()
+    test_coaching_frame_dtw_skipped_when_optional_fields_missing()
     print("\nALL MANUAL CHECKS PASSED")
