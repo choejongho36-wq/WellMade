@@ -29,7 +29,8 @@ function drawLandmarks(canvas, image, landmarks) {
   })
 }
 
-const AI_BASE = 'http://localhost:8000'
+// auth.js 의 API_BASE 와 같은 방식 - 빌드 시 VITE_AI_BASE 로 주입, 없으면 로컬 기본값
+const AI_BASE = import.meta.env.VITE_AI_BASE || 'http://localhost:8000'
 
 function PoseCaptureCard({ label, onDetected }) {
   const [imageUrl, setImageUrl] = useState(null)

@@ -20,6 +20,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.user.User;
 import com.kdt.wellmade.domain.user.UserService;
+import com.kdt.wellmade.global.exception.ExternalServiceException;
 
 import lombok.RequiredArgsConstructor;
 
@@ -53,12 +54,14 @@ public class ChatController {
         chatStreamExecutor.execute(() -> {
             try {
                 chatService.replyStream(user, request.message(), delta -> sendJson(emitter, Map.of("t", delta)));
-                emitter.complete();
+            } catch (ExternalServiceException e) {
+                // 원인은 ChatService 에서 이미 적절한 레벨로 로깅함. 안내 문구만 그대로 전달
+                sendJsonQuietly(emitter, Map.of("error", e.getMessage()));
             } catch (Exception e) {
                 log.warn("챗봇 스트리밍 실패 userId={}", userId, e);
-                sendJsonQuietly(emitter, Map.of("error", "답변을 받지 못했어요. 잠시 후 다시 시도해주세요."));
-                emitter.complete();
+                sendJsonQuietly(emitter, Map.of("error", "답변을 받지 못했어요. 잠시 후 다시 시도해 주세요."));
             }
+            emitter.complete();
         });
 
         return emitter;

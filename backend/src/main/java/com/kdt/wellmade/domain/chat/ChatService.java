@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -405,6 +406,22 @@ public class ChatService {
         return requestBody;
     }
 
+    private static final String AI_UNAVAILABLE_MSG = "AI 챗봇은 지금 준비 중이에요. 잠시 후 다시 시도해 주세요.";
+
+    /**
+     * Ollama 호출 실패를 사용자向 예외로 변환한다. Ollama(GPU 인스턴스)는 평소 꺼져 있는 게 정상이라,
+     * 연결 자체가 안 되는 경우({@link ResourceAccessException} - ConnectException/타임아웃)는
+     * 스택트레이스 없이 INFO로만 남긴다. 그 외(5xx 응답 등)만 ERROR.
+     */
+    private ExternalServiceException aiUnavailable(Exception e) {
+        if (e instanceof ResourceAccessException) {
+            log.info("Ollama에 연결할 수 없음 (GPU 인스턴스 중지 상태로 추정): {}", e.getMessage());
+        } else {
+            log.error("Ollama 호출 실패", e);
+        }
+        return new ExternalServiceException(AI_UNAVAILABLE_MSG, e);
+    }
+
     private OllamaMessage chatCompletion(List<OllamaMessage> messages, boolean includeTools) {
         OllamaChatResponse response;
         try {
@@ -414,14 +431,12 @@ public class ChatService {
                     .retrieve()
                     .body(OllamaChatResponse.class);
         } catch (RestClientException e) {
-            // 원인(연결 실패/타임아웃 등)은 로그에만 남기고, 사용자에게는 안전한 메시지만 노출
-            log.error("Ollama 채팅 호출 실패", e);
-            throw new ExternalServiceException("지금은 챗봇 응답을 받을 수 없어요. 잠시 후 다시 시도해주세요.", e);
+            throw aiUnavailable(e);
         }
 
         if (response == null || response.message() == null) {
             log.error("Ollama 채팅 응답이 비어있습니다.");
-            throw new ExternalServiceException("지금은 챗봇 응답을 받을 수 없어요. 잠시 후 다시 시도해주세요.");
+            throw new ExternalServiceException(AI_UNAVAILABLE_MSG);
         }
         return response.message();
     }
@@ -458,8 +473,7 @@ public class ChatService {
                         return null;
                     });
         } catch (RestClientException | UncheckedIOException e) {
-            log.error("Ollama 스트리밍 호출 실패", e);
-            throw new ExternalServiceException("지금은 챗봇 응답을 받을 수 없어요. 잠시 후 다시 시도해주세요.", e);
+            throw aiUnavailable(e);
         }
     }
 
