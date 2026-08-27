@@ -480,6 +480,7 @@ const PART_LABELS = {
   knee_over_toe: '무릎-발끝',
   back_rounded: '등 굽음',
   center_of_mass: '무게중심',
+  form_pattern: '전체 움직임 패턴',
   movement: '움직임',
   data: '데이터',
 }

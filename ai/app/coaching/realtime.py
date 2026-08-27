@@ -9,24 +9,43 @@
 2) 스쿼트처럼 "내려갔다 올라오는" 단순 반복 동작은 각도의 증가/감소 "방향"만으로도
    동작 단계를 충분히 구분할 수 있어, 별도 학습 데이터(Kaggle 관절각도 시계열 등은
    기준 프로파일을 잡을 때 참고자료로만 활용) 없이도 합리적인 판정이 가능하다.
+
+(2026-08-27 추가) 위 규칙기반 비교와 별개로, 렙 1개가 끝날 때마다 그 렙 전체를
+DTW(동적 시간 워핑)로 정상 렙 템플릿 20개(app/pose/dtw_templates/*.json)와 비교하는
+검사를 추가했다 — 자세한 배경·임곗값 근거는 rules.py의 DTW_NEAREST_DISTANCE_THRESHOLD
+주석 참고. 위의 "최근 N프레임" 규칙기반 검사들과 달리 이 검사는 angle_history 전체를
+훑어 "가장 최근에 완료된 렙"을 찾아내 그 구간에만 적용된다 — 렙이 아직 안 끝났으면
+건너뛴다.
 """
+
+from pathlib import Path
 
 from app.pose.coaching_messages import (
     ASYMMETRY_MESSAGE,
     BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE,
     BACK_ROUNDED_MESSAGE,
     CENTER_OF_MASS_SHIFT_MESSAGE,
+    DTW_FORM_MISMATCH_MESSAGE,
     HEEL_LIFT_MESSAGE,
     KNEE_OVER_TOE_MESSAGE,
     KNEE_VALGUS_MESSAGE,
     GAZE_FORWARD_MESSAGE,
 )
+from app.pose.dtw_matching import (
+    DEFAULT_METRIC_FIELDS,
+    DTWTemplate,
+    TemplateNotFoundError,
+    load_templates,
+    nearest_normal_distance,
+)
 from app.pose.rules import (
     BACK_ROUNDING_RATIO_THRESHOLD,
+    DTW_NEAREST_DISTANCE_THRESHOLD,
     HEEL_LIFT_RATIO_THRESHOLD,
     KNEE_ASYMMETRY_THRESHOLD_DEG,
     KNEE_OVER_TOE_RATIO_THRESHOLD,
     KNEE_VALGUS_RATIO_THRESHOLD,
+    MIN_DTW_REP_FRAMES,
     NORMAL_RANGES,
     SHOULDER_FORWARD_LEAN_THRESHOLD_DEG,
     TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG,
@@ -40,6 +59,71 @@ STATIC_SLOPE_THRESHOLD_DEG_PER_SEC = 15.0  # 이보다 느린 변화율은 "정�
 JITTER_STD_THRESHOLD_DEG = 10.0  # 프레임 간 각도 변화량의 표준편차가 이 값을 넘으면 "불안정한 움직임".
 DEEP_MARGIN_DEG = 15.0  # 동작 중 정상범위 하한보다 이 값 이상 더 굽혀지면 "과도한 굽힘(위험)"으로 판단.
 STANDING_KNEE_ANGLE_MIN = 150.0  # 이 이상이면 "선 자세(하단이 아님)"로 보고, 정지 상태의 하단 자세 검사를 건너뜀.
+
+# app/pose/dtw_templates/*.json이 있는 디렉토리. 이 파일(app/coaching/realtime.py) 기준
+# 상대경로로 잡아, 배포 환경에서 작업 디렉토리가 달라져도 항상 같은 위치를 가리키게 한다.
+DTW_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "pose" / "dtw_templates"
+
+# 템플릿 20개는 요청마다 새로 읽지 않고 프로세스당 한 번만 읽어 캐싱한다 — 파일 읽기
+# 자체는 가볍지만(JSON 20개), 실시간 엔드포인트는 프레임마다 호출되므로 굳이 매번
+# 디스크 I/O를 반복할 이유가 없다. None은 "아직 안 읽음"과 "읽어봤는데 비어있음"을
+# 구분할 수 있는 값이 필요해서가 아니라(load_templates는 없으면 빈 리스트를 반환),
+# 단순히 "최초 1회만 로드"를 표시하는 용도다.
+_dtw_templates_cache: list[DTWTemplate] | None = None
+
+
+def _get_dtw_templates() -> list[DTWTemplate]:
+    global _dtw_templates_cache
+    if _dtw_templates_cache is None:
+        _dtw_templates_cache = load_templates(DTW_TEMPLATES_DIR)
+    return _dtw_templates_cache
+
+
+def _extract_last_completed_rep(angle_history: list[AngleFrame]) -> list[AngleFrame] | None:
+    """angle_history 안에서 가장 최근에 "완료된" 렙(무릎각도가 STANDING_KNEE_ANGLE_MIN
+    아래로 내려갔다가 다시 그 이상으로 올라온 구간)을 찾아 그 프레임들만 잘라 반환한다.
+
+    ml_training/build_dtw_templates.py의 cut_reps()와 동일한 저점 기준
+    (STANDING_KNEE_ANGLE_MIN=150.0, cut_reps의 STANDING_KNEE_ANGLE_DEG와 같은 값)을
+    그대로 재사용한다 — 쿼리와 템플릿이 서로 다른 기준으로 잘리면 DTW 비교 자체가
+    일관성을 잃는다.
+
+    아직 렙이 안 끝났거나(히스토리가 깊게 앉은 채로 끝남), 애초에 깊게 앉은 적이 없으면
+    None을 반환해 호출하는 쪽이 DTW 비교를 건너뛰게 한다.
+    """
+    knee = [f.knee_angle for f in angle_history]
+    n = len(knee)
+
+    # 뒤에서부터 훑어 "선 자세로 다시 올라온" 경계(그 프레임 자체가 STANDING_KNEE_ANGLE_MIN
+    # 이상, 바로 앞 프레임은 미만)를 렙의 끝으로 본다.
+    end = None
+    for i in range(n - 1, 0, -1):
+        if knee[i] >= STANDING_KNEE_ANGLE_MIN and knee[i - 1] < STANDING_KNEE_ANGLE_MIN:
+            end = i
+            break
+    if end is None:
+        return None
+
+    # end 이전 구간에서 "150도 아래로 처음 내려간" 프레임(그 프레임 자체는 미만, 바로
+    # 앞 프레임은 이상)을 렙의 시작으로 본다 — ml_training/build_dtw_templates.py의
+    # cut_reps()가 렙을 [처음 미만이 된 프레임, ..., 다시 이상이 된 프레임]으로 자르는
+    # 것과 정확히 같은 경계를 잡아야 한다(예를 들어 그 직전의 "서 있는" 프레임까지
+    # 포함시키면 템플릿에는 없는 여분의 프레임이 쿼리에만 더해져 비교 기준이 어긋난다).
+    start = None
+    for i in range(end - 1, 0, -1):
+        if knee[i] < STANDING_KNEE_ANGLE_MIN and knee[i - 1] >= STANDING_KNEE_ANGLE_MIN:
+            start = i
+            break
+    if start is None:
+        # 히스토리 맨 앞부터 이미 깊게 앉아있던 경우 — 렙 시작점이 히스토리 범위 밖이라
+        # 정확한 시작점을 알 수 없다. 완전히 버리지 않고 히스토리 시작을 시작점으로 써서
+        # 잘린 렙이라도 비교는 시도한다(다소 부정확할 수 있음을 인지한 트레이드오프).
+        start = 0
+
+    rep = angle_history[start : end + 1]
+    if len(rep) < MIN_DTW_REP_FRAMES:
+        return None
+    return rep
 
 
 def _linear_fit(xs: list[float], ys: list[float]) -> tuple[float, float]:
@@ -266,6 +350,29 @@ def judge_realtime_coaching(
                     "message": f"무릎을 너무 깊게 굽혔습니다 ({latest_knee:.1f}도). 무릎 부담이 커질 수 있습니다.",
                 }
             )
+
+    # --- (1.5) DTW 렙 패턴 유사도 판정 ---
+    # 위 (1)/(2)는 "현재 순간"만 보는 규칙기반 판정이라 phase에 따라 갈라지지만, 이 검사는
+    # 그와 독립적으로 angle_history 전체를 훑어 "가장 최근에 완료된 렙"을 찾아 그 렙
+    # 하나를 정상 렙 템플릿 20개와 통째로 비교한다 — 그래서 phase 분기 밖, 이 함수
+    # 어디서 호출해도 상관없는 위치에 둔다. 자세한 배경은 이 파일 상단 docstring과
+    # rules.py의 DTW_NEAREST_DISTANCE_THRESHOLD 주석 참고.
+    rep_frames = _extract_last_completed_rep(angle_history)
+    if rep_frames is not None:
+        try:
+            templates = _get_dtw_templates()
+            nearest, _all_distances = nearest_normal_distance(
+                rep_frames, templates, metric_fields=DEFAULT_METRIC_FIELDS
+            )
+            if nearest.distance > DTW_NEAREST_DISTANCE_THRESHOLD:
+                issues.append({"part": "form_pattern", "message": DTW_FORM_MISMATCH_MESSAGE})
+        except (ValueError, TemplateNotFoundError):
+            # ValueError: 이 렙 프레임 중 하나라도 DEFAULT_METRIC_FIELDS(선택 필드인
+            # torso_length_ratio/shoulder_forward_lean_deg 포함)가 없는 경우 —
+            # 다른 선택 필드 검사들과 동일하게 조용히 건너뛴다(하위 호환).
+            # TemplateNotFoundError: 템플릿 디렉토리가 비어있는 개발/테스트 환경 —
+            # 이 경우도 검사를 건너뛴다(운영 배포본에는 템플릿 20개가 항상 커밋돼 있다).
+            pass
 
     # --- (3) 신뢰도 계산 ---
     # 하네스(AI-07)가 "confidence < 0.7이면 재분석"을 판단하는 근거가 되므로,

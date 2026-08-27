@@ -905,6 +905,100 @@ def test_coaching_frame_without_center_of_mass_field_still_works():
     assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
 
 
+# (2026-08-27) DTW(동적 시간 워핑) 렙 패턴 유사도 판정 테스트. 다른 검사들과 달리 이
+# 검사는 정적인 마지막 프레임 값이 아니라 "렙 1개 전체의 움직임 곡선"을 실제 정상 렙
+# 템플릿 20개(app/pose/dtw_templates/*.json)와 비교하므로, 손으로 대충 지어낸 몇 개
+# 숫자로는 의미 있는 테스트가 안 된다 — 실제 템플릿 하나(우혁_정상.mp4_rep0)를 정규화
+# 기준값(mean/std)으로 역정규화해 "진짜였던 원본 raw 값"을 복원한 뒤, 그걸 그대로 보내면
+# 정상 판정이, 지표를 크게 왜곡해서 보내면 이상 판정이 나오는지를 확인한다(임곗값
+# DTW_NEAREST_DISTANCE_THRESHOLD=20.0의 근거는 rules.py 주석 참고, 아래 왜곡 폭은
+# 2026-08-27 실측으로 실제 거리값이 20.0을 넘는 걸 미리 확인한 값이다 — 거리=41.9).
+from pathlib import Path as _Path  # noqa: E402
+
+from app.pose.dtw_matching import load_templates as _load_dtw_templates_for_test  # noqa: E402
+
+_DTW_TEST_TEMPLATE = next(
+    t
+    for t in _load_dtw_templates_for_test(_Path(__file__).parent.parent / "app" / "pose" / "dtw_templates")
+    if "우혁_정상.mp4_rep0" in t.source
+)
+
+
+def _real_dtw_rep_angle_history(hip_offset=0.0, shoulder_offset=0.0, torso_scale=1.0):
+    """실제 템플릿 하나를 역정규화해 angle_history(dict 리스트)를 만든다. 맨 앞에 "서 있는"
+    프레임 1개를 붙여 _extract_last_completed_rep이 렙 시작/끝 경계를 찾을 수 있게 한다."""
+    t = _DTW_TEMPLATE = _DTW_TEST_TEMPLATE
+    means, stds = t.normalization.means, t.normalization.stds
+    n = t.curve.shape[0]
+    raw = {
+        field: (t.curve[:, j] * stds[field] + means[field]).tolist()
+        for j, field in enumerate(t.metric_fields)
+    }
+    frames = [
+        {
+            "timestamp": -0.033,
+            "knee_angle": 172.0,
+            "hip_angle": 175.0 + hip_offset,
+            "torso_length_ratio": sum(raw["torso_length_ratio"]) / n * torso_scale,
+            "shoulder_forward_lean_deg": sum(raw["shoulder_forward_lean_deg"]) / n + shoulder_offset,
+        }
+    ]
+    for i in range(n):
+        frames.append(
+            {
+                "timestamp": i * 0.033,
+                "knee_angle": raw["knee_angle"][i],
+                "hip_angle": raw["hip_angle"][i] + hip_offset,
+                "torso_length_ratio": raw["torso_length_ratio"][i] * torso_scale,
+                "shoulder_forward_lean_deg": raw["shoulder_forward_lean_deg"][i] + shoulder_offset,
+            }
+        )
+    return frames
+
+
+def test_coaching_frame_dtw_form_pattern_not_flagged_for_real_normal_rep():
+    angle_history = _real_dtw_rep_angle_history()  # 왜곡 없음 — 템플릿 원본 그대로
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(dtw, 왜곡 없는 실제 렙):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "form_pattern" for issue in data["issues"]), data
+
+
+def test_coaching_frame_dtw_form_pattern_flagged_when_severely_distorted():
+    # hip_angle +60도, shoulder_forward_lean_deg +80도, torso_length_ratio 0.3배 —
+    # 2026-08-27 실측으로 nearest_normal_distance가 41.9(임곗값 20.0의 2배 이상)가
+    # 나오는 걸 미리 확인한 왜곡 폭이다.
+    angle_history = _real_dtw_rep_angle_history(hip_offset=60.0, shoulder_offset=80.0, torso_scale=0.3)
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(dtw, 심하게 왜곡된 렙):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "form_pattern" for issue in data["issues"]), data
+
+
+def test_coaching_frame_dtw_skipped_when_optional_fields_missing():
+    # 렙 모양(150도 아래로 내려갔다 올라옴)은 갖췄지만 torso_length_ratio/
+    # shoulder_forward_lean_deg를 안 보내는 기존 프론트 호출 — DTW 비교에 필요한
+    # 지표가 없으므로(extract_metric_matrix가 ValueError) 에러 없이 조용히
+    # 건너뛰어야 한다(하위 호환, 다른 선택 필드 검사들과 동일한 패턴).
+    knee_seq = [172, 160, 140, 110, 90, 85, 88, 95, 120, 150, 165, 172]
+    hip_seq = [175, 165, 150, 120, 100, 95, 98, 105, 130, 155, 168, 175]
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": k, "hip_angle": h}
+        for i, (k, h) in enumerate(zip(knee_seq, hip_seq))
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(dtw, 선택 필드 없음):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "form_pattern" for issue in data["issues"]), data
+
+
 # (2026-08-24) 등 굽음(척추 굴곡) 규칙기반 검사의 단위 테스트(get_torso_length_ratio
 # 직접 호출)와 그 /ai/pose/analyze 통합 테스트가 이 자리에 있었다 — AI-03 삭제(위 주석
 # 참고)와 함께 get_torso_length_ratio() 자체가 angles.py에서 제거되며 같이 삭제했다.
@@ -1063,4 +1157,9 @@ if __name__ == "__main__":
     test_coaching_frame_back_rounded_ignored_while_standing()
     test_coaching_frame_back_rounded_ignored_without_baseline()
     test_coaching_frame_without_torso_length_ratio_field_still_works()
+    test_coaching_frame_center_of_mass_flagged_when_deep_hold()
+    test_coaching_frame_without_center_of_mass_field_still_works()
+    test_coaching_frame_dtw_form_pattern_not_flagged_for_real_normal_rep()
+    test_coaching_frame_dtw_form_pattern_flagged_when_severely_distorted()
+    test_coaching_frame_dtw_skipped_when_optional_fields_missing()
     print("\nALL MANUAL CHECKS PASSED")
