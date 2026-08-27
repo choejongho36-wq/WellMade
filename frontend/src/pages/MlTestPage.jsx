@@ -467,16 +467,19 @@ function FrontalMeasurementPanel({ landmarks }) {
   )
 }
 
+// (2026-08-27) hip_hyperextension 라벨은 그 판정 로직 자체가 근거 부족으로 폐기되며
+// 함께 제거했다(rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD 자리 주석 참고).
+// center_of_mass는 그 판정 로직을 추가할 때 이 라벨 매핑에 넣는 걸 빠뜨렸던 걸 이번에 보강.
 const PART_LABELS = {
   knee: '무릎',
   hip: '엉덩이',
   shoulder: '어깨',
   heel: '발뒤꿈치',
   knee_valgus: '무릎 모임',
-  hip_hyperextension: '고관절 과신전 의심',
   asymmetry: '좌우 비대칭',
   knee_over_toe: '무릎-발끝',
   back_rounded: '등 굽음',
+  center_of_mass: '무게중심',
   movement: '움직임',
   data: '데이터',
 }

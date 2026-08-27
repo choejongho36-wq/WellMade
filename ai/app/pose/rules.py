@@ -58,14 +58,25 @@ HEEL_LIFT_RATIO_THRESHOLD = 0.5
 # TODO: 팀 확정 필요 — 실사용자 테스트로 조정.
 KNEE_VALGUS_RATIO_THRESHOLD = 0.8
 
-# 고관절 과신전(hip hyperextension) 의심 신호 임계값. get_knee_valgus_ratio()가 반환하는
-# 같은 지표를 재해석해 쓴다 — latest_knee_valgus < 0.8이면 이미 "무릎 모임"(knee_valgus)으로
-# 판정되므로, 그보다는 크지만 이 값(1.1) 미만인 구간만 "고관절 과신전 의심"으로 별도
-# 태깅한다(coaching/realtime.py 판정 로직 참고) — 두 이슈가 중복 태깅되지 않도록 하기 위함.
-# TODO: 팀 확정 필요 — N=1 실측 기반 잠정치라 근거가 약함. 무릎 모임과 물리적으로 같은
-# 지표를 재해석한 것이므로, 실제로 두 문제를 하나의 지표로 구분할 수 있는지 다른 사람
-# 데이터로 추가 검증 필요.
-HIP_HYPEREXTENSION_VALGUS_THRESHOLD = 1.1
+# (2026-08-27 폐기) 원래 여기 "고관절 과신전(hip hyperextension) 의심" 신호로
+# HIP_HYPEREXTENSION_VALGUS_THRESHOLD(1.1)를 두고, get_knee_valgus_ratio()가 0.8~1.1
+# 사이면 별도 태깅했었다. N=1 실측 사례 하나로 잡은 잠정치였는데, 이번 세션에서 두 가지
+# 근거로 폐기했다:
+# 1) 실제 정면 사진(무릎이 발목보다 넓게 벌어진, 누가 봐도 정상인 스쿼트) 검증에서
+#    knee_valgus_ratio=1.064가 이 구간에 걸려 "고관절 과신전 의심"으로 오탐하는 걸 확인.
+# 2) 생체역학 논문("How to squat? Effects of various stance widths, foot placement
+#    angles and level of experience on knee, hip and trunk motion and loading", BMC
+#    Sports Science 2018)의 ΔD*(무릎의 시상면 대비 정면 변위, 다리 길이로 정규화 —
+#    음수=valgus/안쪽 모임, 양수=varus/바깥쪽 벌어짐) 실측 그래프를 보면, 정상/권장
+#    스탠스 조건들도 스쿼트가 깊어질수록 varus 방향(양수)으로 다리 길이의 15~17%까지
+#    커진다 — 즉 무릎이 발목보다 넓게 벌어지는 것 자체는 딥스쿼트에서 흔하고 안전한
+#    패턴이며, 이 논문이 실제로 경계하는 건 오직 valgus(음수, 안쪽 모임) 방향뿐이다.
+#    "무릎-발목이 일직선이어야 최적"이라는 주장도 이 논문의 실제 결론이 아니었다(극단적인
+#    스탠스/발각도 조합만 피하라는 게 논문의 결론).
+# 결론: get_knee_valgus_ratio()가 KNEE_VALGUS_RATIO_THRESHOLD(0.8, valgus 방향) 미만일
+# 때만 위험 신호로 보고, 그 이상(varus 방향, 심지어 1.1을 넘는 값도)은 이 지표만으로는
+# 별도 위험 신호로 취급하지 않는다. "진짜 고관절 과신전"을 감지하려면 애초에 무릎 너비가
+# 아닌 다른 지표(예: 골반/요추 정렬)가 필요하다 — 아직 그런 지표는 없다.
 
 # 좌우 무릎 굽힘 각도 차이가 몇 도 이상이면 좌우 비대칭(체중 쏠림)으로 볼지의 잠정 임계값.
 # get_knee_lr_asymmetry_deg()가 반환하는 값과 비교한다.

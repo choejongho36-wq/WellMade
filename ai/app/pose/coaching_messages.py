@@ -32,14 +32,10 @@ BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE = (
     "등이 굽었는지 정확히 확인하려면 온보딩에서 자세 캘리브레이션을 먼저 진행해주세요."
 )
 
-# knee_valgus_ratio를 재해석한 잠정 신호(rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD 참고)라
-# KNEE_VALGUS_MESSAGE처럼 "무릎이 모이고 있다"고 단정하지 않고, 확신이 낮은 신호라는 점을
-# 감안해 더 조심스러운 표현을 썼다 — 원인을 "고관절 과신전"이라고 진단하듯 말하는 대신,
-# 관찰된 몸의 정렬(무릎이 살짝 안쪽으로 향함)만 전달하고 교정 동작을 제안하는 톤을 유지한다.
-HIP_HYPEREXTENSION_MESSAGE = (
-    "무릎이 살짝 안쪽을 향하며 골반이 과도하게 펴진 것처럼 보여요. "
-    "무릎을 발끝 방향으로 살짝 밀고, 무리하지 않는 범위에서 자세를 다시 잡아주세요."
-)
+# (2026-08-27 폐기) 여기 있던 HIP_HYPEREXTENSION_MESSAGE(knee_valgus_ratio를 "고관절
+# 과신전 의심"으로 재해석해 쓰던 문구)는 그 재해석 로직 자체가 근거 부족으로 폐기되며
+# 함께 삭제했다 — 자세한 배경은 rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD 자리에
+# 남은 주석 참고.
 
 # get_shoulder_forward_lean_deg()가 "목 기울기 − 상체 기울기"만 계산해서, 상체는 그대로인데
 # 고개(귀)만 앞으로 떨어뜨려도 값이 커진다 — MediaPipe 랜드마크에 견갑골/어깨관절 회전을

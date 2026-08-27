@@ -17,7 +17,6 @@ from app.pose.coaching_messages import (
     BACK_ROUNDED_MESSAGE,
     CENTER_OF_MASS_SHIFT_MESSAGE,
     HEEL_LIFT_MESSAGE,
-    HIP_HYPEREXTENSION_MESSAGE,
     KNEE_OVER_TOE_MESSAGE,
     KNEE_VALGUS_MESSAGE,
     GAZE_FORWARD_MESSAGE,
@@ -25,7 +24,6 @@ from app.pose.coaching_messages import (
 from app.pose.rules import (
     BACK_ROUNDING_RATIO_THRESHOLD,
     HEEL_LIFT_RATIO_THRESHOLD,
-    HIP_HYPEREXTENSION_VALGUS_THRESHOLD,
     KNEE_ASYMMETRY_THRESHOLD_DEG,
     KNEE_OVER_TOE_RATIO_THRESHOLD,
     KNEE_VALGUS_RATIO_THRESHOLD,
@@ -211,18 +209,11 @@ def judge_realtime_coaching(
         # 안 보내므로(None) 자동으로 검사가 건너뛰어진다 — 하위 호환.
         if is_deep_hold and latest_knee_valgus is not None and latest_knee_valgus < KNEE_VALGUS_RATIO_THRESHOLD:
             issues.append({"part": "knee_valgus", "message": KNEE_VALGUS_MESSAGE})
-        # 고관절 과신전 의심 — knee_valgus와 같은 latest_knee_valgus 값을
-        # 재사용하되 더 완만한 구간에서만 별도로 태깅한다. latest_knee_valgus가
-        # KNEE_VALGUS_RATIO_THRESHOLD보다 작으면 위에서 이미 "knee_valgus"로 판정되므로,
-        # 여기서는 그 값 이상이면서 HIP_HYPEREXTENSION_VALGUS_THRESHOLD 미만인 구간만 잡아
-        # 두 이슈가 중복 태깅되지 않게 한다(자세한 배경·근거는 rules.py의
-        # HIP_HYPEREXTENSION_VALGUS_THRESHOLD 주석 참고).
-        if (
-            is_deep_hold
-            and latest_knee_valgus is not None
-            and KNEE_VALGUS_RATIO_THRESHOLD <= latest_knee_valgus < HIP_HYPEREXTENSION_VALGUS_THRESHOLD
-        ):
-            issues.append({"part": "hip_hyperextension", "message": HIP_HYPEREXTENSION_MESSAGE})
+        # (2026-08-27 폐기) 여기 있던 "고관절 과신전 의심"(latest_knee_valgus가
+        # KNEE_VALGUS_RATIO_THRESHOLD 이상 ~ 1.1 미만이면 별도 태깅) 로직은 근거 부족으로
+        # 폐기했다 — 자세한 배경은 rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD 자리에
+        # 남은 주석 참고. knee_valgus_ratio가 KNEE_VALGUS_RATIO_THRESHOLD 이상(무릎이 발목
+        # 너비 이상으로 벌어진 상태, varus 방향)이면 이제 아무 이슈도 태깅하지 않는다.
         if (
             is_deep_hold
             and latest_knee_asymmetry is not None

@@ -70,9 +70,23 @@ KNOWLEDGE_BASE = [
             "다만 이 현상이 아주 가끔 한두 번 보이는 것과, 반복적으로 계속 나타나는 것은 "
             "구분해서 봐야 한다. 반복적으로 나타난다면 단순히 주의력 문제가 아니라 특정 근육의 "
             "약화나 좌우 불균형이 원인일 수 있으므로, 통증이 동반되면 트레이너나 물리치료사 "
-            "상담을 권장한다."
+            "상담을 권장한다.\n\n"
+            "(2026-08-27 추가) 여기서 주의할 점은, 무릎 모임은 무릎이 발목보다 '좁아지는' "
+            "방향(valgus)에서만 문제가 된다는 것이다. 반대로 무릎이 발목보다 '넓어지는' "
+            "방향(varus)은 다른 문제이며, 오히려 스쿼트가 깊어질수록 자연스럽게 나타나는 "
+            "정상적인 패턴이다. 스탠스 너비·발 각도가 무릎 정렬에 미치는 영향을 실측한 "
+            "연구(BMC Sports Science, 2018)는 무릎의 정면 변위(다리 길이 대비 정규화, "
+            "음수=valgus/양수=varus)를 측정했는데, 권장되는 스탠스 조건들도 스쿼트 하단부에서는 "
+            "varus 방향으로 다리 길이의 15~17%까지 커지는 것으로 나타났다 — 즉 '무릎이 발목보다 "
+            "넓게 벌어지는 것'은 결함이 아니라 딥스쿼트에서 흔히 관찰되는 안전한 범위다. 이 "
+            "연구가 실제로 경계하는 건 오직 valgus(무릎이 좁아지며 안쪽으로 쏠리는) 방향이고, "
+            "'무릎-발목이 완벽히 일직선이어야 한다'는 주장도 이 연구의 결론은 아니다(연구는 "
+            "극단적인 스탠스·발각도 조합만 피하라고 권고한다)."
         ),
-        "source": "NASM (National Academy of Sports Medicine)",
+        "source": "NASM (National Academy of Sports Medicine); Lorenzetti et al., "
+        "\"How to squat? Effects of various stance widths, foot placement angles and "
+        "level of experience on knee, hip and trunk motion and loading\", BMC Sports "
+        "Science, Medicine and Rehabilitation (2018)",
         "source_url": "https://blog.nasm.org/training-benefits/lunge-effective-lower-body-training-exercise",
         "source_date": "2026-08",
     },
