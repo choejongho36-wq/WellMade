@@ -33,7 +33,7 @@ function parseFoodItems(meal) {
 }
 
 function DietPage() {
-  const { user, logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getNutrientTarget, updateMeal, updateMealItemAmount, deleteMeal } = useAuth()
+  const { user, logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getNutrientTarget, updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal } = useAuth()
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [mealType, setMealType] = useState('')
   const [meals, setMeals] = useState([])
@@ -52,6 +52,7 @@ function DietPage() {
   const [editingItem, setEditingItem] = useState(null)
   const [itemAmountDraft, setItemAmountDraft] = useState('')
   const [savingItem, setSavingItem] = useState(false)
+  const [resolvingItem, setResolvingItem] = useState(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [showDisclaimer, setShowDisclaimer] = useState(() => !localStorage.getItem(DIET_DISCLAIMER_KEY))
 
@@ -167,6 +168,20 @@ function DietPage() {
       .finally(() => setDeletingId(null))
   }
 
+  // 매칭 불확실(FUZZY) 항목에서 사용자가 후보를 골랐을 때 - 서버가 이 선택을 기억해뒀다가
+  // 다음에 같은 표현이 나오면 자동으로 적용해줌
+  const pickCandidate = (mealId, index, candidate) => {
+    setResolvingItem({ mealId, index })
+    setNotice('')
+    resolveMealItemMatch(mealId, index, candidate)
+      .then(() => {
+        setResolvingItem(null)
+        refresh(selectedDate)
+      })
+      .catch((e) => setNotice(e.message || '매칭 변경에 실패했어요'))
+      .finally(() => setResolvingItem(null))
+  }
+
   return (
     <PageShell>
       <div className="page-eyebrow-row">
@@ -242,13 +257,16 @@ function DietPage() {
                 {meals.length === 0 && (
                   <p className="pcard-desc">{isToday ? '오늘' : '이 날'} 기록된 식사가 없어요.</p>
                 )}
-                {meals.map((meal) => {
+                {meals.map((meal, index) => {
                   const foodItems = parseFoodItems(meal)
                   const expanded = expandedMealId === meal.id
+                  // 같은 끼니 종류가 연달아 있으면 라벨은 처음 한 번만 보여주고, 그 뒤로는
+                  // 라벨 없이 밑으로 이어붙는 느낌으로 표시 (백엔드가 끼니 종류별로 묶어서 정렬해줌)
+                  const showLabel = index === 0 || meals[index - 1].meal_type !== meal.meal_type
                   return (
                   <div className="diet-row" key={meal.id}>
                     <div className="diet-time">
-                      {MEAL_TYPE_LABEL[meal.meal_type] ?? meal.meal_type}
+                      {showLabel ? (MEAL_TYPE_LABEL[meal.meal_type] ?? meal.meal_type) : ''}
                     </div>
                     <div className="diet-line">
                       <div className="diet-dot"></div>
@@ -320,46 +338,92 @@ function DietPage() {
                             <div className="diet-item-list">
                               {foodItems.map((it, idx) => {
                                 const isEditingThis = editingItem?.mealId === meal.id && editingItem?.index === idx
+                                const isFuzzy = it.matchTier === 'FUZZY'
+                                const isResolving = resolvingItem?.mealId === meal.id && resolvingItem?.index === idx
                                 return (
                                   <div className="diet-item-row" key={idx}>
-                                    <span className="diet-item-name">{it.foodName}</span>
-                                    {isEditingThis ? (
-                                      <div className="diet-item-edit">
-                                        <input
-                                          className="diet-item-amount-input"
-                                          type="number"
-                                          value={itemAmountDraft}
-                                          onChange={(e) => setItemAmountDraft(e.target.value)}
-                                          disabled={savingItem}
-                                          autoFocus
-                                        />
-                                        <span className="diet-item-unit">g</span>
-                                        <button
-                                          className="link-btn"
-                                          onClick={() => saveEditItem(meal.id, idx)}
-                                          disabled={savingItem}
-                                        >
-                                          {savingItem ? '저장 중...' : '저장'}
-                                        </button>
-                                        <button
-                                          className="diet-meal-cancel-btn"
-                                          onClick={cancelEditItem}
-                                          disabled={savingItem}
-                                        >
-                                          취소
-                                        </button>
+                                    <div className="diet-item-row-main">
+                                      <span className="diet-item-name">{it.foodName}</span>
+                                      {isEditingThis ? (
+                                        <div className="diet-item-edit">
+                                          <input
+                                            className="diet-item-amount-input"
+                                            type="number"
+                                            value={itemAmountDraft}
+                                            onChange={(e) => setItemAmountDraft(e.target.value)}
+                                            disabled={savingItem}
+                                            autoFocus
+                                          />
+                                          <span className="diet-item-unit">g</span>
+                                          <button
+                                            className="link-btn"
+                                            onClick={() => saveEditItem(meal.id, idx)}
+                                            disabled={savingItem}
+                                          >
+                                            {savingItem ? '저장 중...' : '저장'}
+                                          </button>
+                                          <button
+                                            className="diet-meal-cancel-btn"
+                                            onClick={cancelEditItem}
+                                            disabled={savingItem}
+                                          >
+                                            취소
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <span className="diet-item-amount">{it.amountG}g</span>
+                                          <span className="diet-item-kcal">{Math.round(it.calories)}kcal</span>
+                                          <button
+                                            className="diet-item-edit-btn"
+                                            onClick={() => startEditItem(meal.id, idx, it.amountG)}
+                                          >
+                                            수정
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+
+                                    {isFuzzy && (
+                                      <div className="diet-item-confidence diet-item-confidence-low">
+                                        ⚠️ 유사한 항목으로 추정했어요 - 확인해주세요
+                                        {it.candidates?.length > 0 && (
+                                          <div className="diet-item-candidates">
+                                            {it.candidates.map((candidate) => (
+                                              <button
+                                                key={candidate}
+                                                className="diet-item-candidate-btn"
+                                                onClick={() => pickCandidate(meal.id, idx, candidate)}
+                                                disabled={isResolving}
+                                              >
+                                                {isResolving ? '변경 중...' : candidate}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )}
                                       </div>
-                                    ) : (
-                                      <>
-                                        <span className="diet-item-amount">{it.amountG}g</span>
-                                        <span className="diet-item-kcal">{Math.round(it.calories)}kcal</span>
-                                        <button
-                                          className="diet-item-edit-btn"
-                                          onClick={() => startEditItem(meal.id, idx, it.amountG)}
-                                        >
-                                          수정
-                                        </button>
-                                      </>
+                                    )}
+                                    {!isFuzzy && it.weightEstimated && (
+                                      <div className="diet-item-confidence diet-item-confidence-mid">
+                                        1인분 기준중량 정보가 없어 100g 기준으로 추정했어요
+                                      </div>
+                                    )}
+                                    {!isFuzzy && it.candidates?.length > 0 && (
+                                      <details className="diet-item-confidence diet-item-confidence-mid">
+                                        <summary>다른 음식인가요? 후보 다시 보기</summary>
+                                        <div className="diet-item-candidates">
+                                          {it.candidates.map((candidate) => (
+                                            <button
+                                              key={candidate}
+                                              className="diet-item-candidate-btn"
+                                              onClick={() => pickCandidate(meal.id, idx, candidate)}
+                                              disabled={isResolving}
+                                            >
+                                              {isResolving ? '변경 중...' : candidate}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </details>
                                     )}
                                   </div>
                                 )
@@ -388,6 +452,7 @@ function DietPage() {
             <div className="modal-sub">
               여기 나오는 칼로리·영양성분은 식약처 표준 식품 데이터를 바탕으로 계산한 추정치예요.
               조리법이나 재료, 실제 먹은 양에 따라 실제 섭취량과는 차이가 있을 수 있으니 참고용으로 봐주세요.
+              매칭이 불확실한 항목은 "항목별 그램 보기"를 펼치면 ⚠️ 표시와 함께 다른 후보를 고를 수 있어요.
             </div>
             <button className="modal-btn" onClick={dismissDisclaimer}>확인했어요</button>
           </div>

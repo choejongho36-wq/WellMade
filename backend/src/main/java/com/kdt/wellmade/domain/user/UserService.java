@@ -5,8 +5,11 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kdt.wellmade.domain.chat.ChatMessageRepository;
+import com.kdt.wellmade.domain.inbody.InbodyRecordRepository;
 import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileRepository;
+import com.kdt.wellmade.domain.nutrition.MealLoggingService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -15,6 +18,9 @@ import lombok.RequiredArgsConstructor;
 public class UserService {
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
+    private final ChatMessageRepository chatMessageRepository;
+    private final InbodyRecordRepository inbodyRecordRepository;
+    private final MealLoggingService mealLoggingService;
 
     private static final String[] ADJECTIVES = {
         "행복한", "용감한", "귀여운", "든든한", "씩씩한", "차분한", "활발한", "느긋한"
@@ -60,9 +66,14 @@ public class UserService {
        return nickname;
     }
 
+    // diet_meals/chat_messages/inbody_records는 users FK가 CASCADE가 아니라 NO ACTION이라,
+    // 먼저 안 지우고 users만 지우면 외래키 제약 위반으로 그대로 실패함
     @Transactional
     public void withdraw(Long userId) {
         User user = getUser(userId);
+        mealLoggingService.deleteAllForUser(userId);
+        chatMessageRepository.deleteByUser(user);
+        inbodyRecordRepository.deleteByUser(user);
         userProfileRepository.deleteByUser(user);
         userRepository.delete(user);
     }

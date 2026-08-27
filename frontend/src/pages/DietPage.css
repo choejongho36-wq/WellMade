@@ -215,13 +215,19 @@
 }
 .diet-item-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   padding: 8px 12px;
   background: #f9f8f5;
   border: 1px solid #e5e3dd;
   border-radius: 8px;
   font-size: 12.5px;
+}
+.diet-item-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .diet-item-name {
   flex: 1;
@@ -277,4 +283,50 @@
 .diet-item-unit {
   flex: none;
   color: #9b9a96;
+}
+
+/* 매칭 신뢰도 배지 (item 2: 매칭 단계 표시 / item 3: 후보 선택) */
+.diet-item-confidence {
+  font-size: 11px;
+  line-height: 1.5;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.diet-item-confidence-low {
+  background: #fdf2f0;
+  color: #b3392c;
+  border: 1px solid #f3d4cf;
+}
+.diet-item-confidence-mid {
+  background: #f5f4f0;
+  color: #8c8b88;
+}
+.diet-item-confidence-mid summary {
+  cursor: pointer;
+}
+.diet-item-candidates {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.diet-item-candidate-btn {
+  background: #fff;
+  border: 1px solid #da291c;
+  color: #da291c;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: Archivo, 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.diet-item-candidate-btn:hover:not(:disabled) {
+  background: #da291c;
+  color: #fff;
+}
+.diet-item-candidate-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

@@ -4,7 +4,7 @@ import iconGoogle from '../assets/icon-google.png'
 import iconKakao from '../assets/icon-kakao.png'
 import iconNaver from '../assets/icon-naver.png'
 
-export const API_BASE = 'http://localhost:8080'
+export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080'
 export const TOKEN_KEY = 'accessToken'
 const USER_CACHE_KEY = 'cachedUser'
 
@@ -95,6 +95,19 @@ export function useAuth() {
     setInbody(null)
   }
 
+  const deleteAccount = () => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/users/me`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('탈퇴에 실패했어요')
+      handleLogout()
+    })
+  }
+
   const extractInbody = (file) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
@@ -134,9 +147,9 @@ export function useAuth() {
 
   const updateGoal = (goal) => {
     const token = localStorage.getItem(TOKEN_KEY)
-    if (!token) return
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
 
-    fetch(`${API_BASE}/api/users/me/profile`, {
+    return fetch(`${API_BASE}/api/users/me/profile`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -149,6 +162,7 @@ export function useAuth() {
       }),
     }).then((res) => {
       if (res.ok) setProfile((prev) => ({ ...prev, goal }))
+      return res.ok
     })
   }
 
@@ -350,6 +364,29 @@ export function useAuth() {
     })
   }
 
+  // 매칭이 불확실한(matchTier: FUZZY) 항목에 대해 사용자가 후보 중 하나를 직접 고를 때 씀.
+  // 이 선택은 서버가 기억해뒀다가 다음에 같은 표현이 나오면 자동으로 적용됨
+  const resolveMealItemMatch = (mealId, itemIndex, resolvedFoodName) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/diet/meals/${mealId}/items/${itemIndex}/match`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ resolvedFoodName }),
+    }).then((res) => {
+      if (!res.ok) {
+        return res.text().then((message) => {
+          throw new Error(message || '매칭 변경에 실패했어요')
+        })
+      }
+      return res.json()
+    })
+  }
+
   const deleteMeal = (id) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
@@ -363,9 +400,9 @@ export function useAuth() {
   }
 
   return {
-    user, profile, inbody, handleLogout, updateGoal, updateName, extractInbody, confirmInbody,
+    user, profile, inbody, handleLogout, deleteAccount, updateGoal, updateName, extractInbody, confirmInbody,
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
-    updateMeal, updateMealItemAmount, deleteMeal,
+    updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
     sendChat, getChatHistory, getNutrientAdvice,
   }
 }

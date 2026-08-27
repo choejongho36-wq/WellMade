@@ -8,16 +8,35 @@
 
 .mp-profile-row {
   margin-top: 32px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid #da291c;
   display: flex;
   align-items: center;
   gap: 20px;
+}
+.mp-withdraw-btn {
+  align-self: flex-start;
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9b9a96;
+}
+.mp-withdraw-btn:hover {
+  color: #da291c;
 }
 .mp-avatar-lg {
   width: 64px;
   height: 64px;
   border-radius: 50%;
   flex: none;
-  background: #111;
+  background: #da291c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .mp-profile-name-row {
   display: flex;
@@ -115,6 +134,35 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* 목표 설정 모달 */
+.goal-option-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.goal-option {
+  padding: 12px 16px;
+  border: 1px solid #e5e3dd;
+  border-radius: 8px;
+  background: #f9f8f5;
+  color: #111;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.goal-option:hover {
+  border-color: #da291c;
+}
+.goal-option.selected {
+  border-color: #da291c;
+  background: #fff5f4;
+  color: #da291c;
 }
 
 /* 인바디 등록 모달 */
