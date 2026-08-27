@@ -148,7 +148,7 @@ public class DietMealController {
             return ResponseEntity.noContent().build();
         }
 
-        NutrientTarget recommended = nutrientTargetCalculator.calculate(inbody, profile.getGoal());
+        NutrientTarget recommended = nutrientTargetCalculator.calculate(inbody, profile);
         return ResponseEntity.ok(new TargetResponse(
                 recommended.kcal(), recommended.proteinG(), recommended.carbsG(), recommended.fatG(), false
         ));

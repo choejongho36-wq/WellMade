@@ -145,6 +145,36 @@ export function useAuth() {
     })
   }
 
+  const getInbodyHistory = () => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/users/me/inbody/history`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('인바디 이력을 불러오지 못했어요')
+      return res.json()
+    })
+  }
+
+  // 성별/키/출생연도. 목표 칼로리·기초대사량이 이 값으로 계산되므로 저장 후 프로필 상태도 같이 갱신함
+  const updateBody = ({ gender, heightCm, birthYear }) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/users/me/profile/body`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ gender, heightCm, birthYear }),
+    }).then((res) => {
+      if (!res.ok) throw new Error('신체 정보 저장에 실패했어요')
+      setProfile((prev) => ({ ...prev, gender, heightCm, birthYear }))
+    })
+  }
+
   const updateGoal = (goal) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
@@ -400,7 +430,7 @@ export function useAuth() {
   }
 
   return {
-    user, profile, inbody, handleLogout, deleteAccount, updateGoal, updateName, extractInbody, confirmInbody,
+    user, profile, inbody, handleLogout, deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, getInbodyHistory,
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
     updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
     sendChat, getChatHistory, getNutrientAdvice,
