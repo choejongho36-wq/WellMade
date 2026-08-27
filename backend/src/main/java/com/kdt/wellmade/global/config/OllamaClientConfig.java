@@ -1,6 +1,8 @@
 package com.kdt.wellmade.global.config;
 
 import java.time.Duration;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -29,5 +31,15 @@ public class OllamaClientConfig {
                 .baseUrl(baseUrl)
                 .requestFactory(factory)
                 .build();
+    }
+
+    /**
+     * 챗봇 SSE 스트리밍용 워커. SSE 응답은 요청 스레드 밖에서 토큰을 흘려보내야 하고,
+     * 그 스레드는 Ollama 응답을 기다리며 대부분 블로킹 I/O 상태라 가상 스레드가 잘 맞음.
+     * ExecutorService 빈이라 컨텍스트 종료 시 스프링이 shutdown 해줌.
+     */
+    @Bean
+    ExecutorService chatStreamExecutor() {
+        return Executors.newVirtualThreadPerTaskExecutor();
     }
 }

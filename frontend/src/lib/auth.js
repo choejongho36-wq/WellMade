@@ -221,22 +221,53 @@ export function useAuth() {
     })
   }
 
-  // 대화 이력을 이제 서버가 갖고 있어서(9번 패치), 매번 전체 배열이 아니라 새 메시지 하나만 보내면 됨
-  const sendChat = (message) => {
+  // 대화 이력을 이제 서버가 갖고 있어서(9번 패치), 매번 전체 배열이 아니라 새 메시지 하나만 보내면 됨.
+  // 응답은 SSE 스트림 - 토큰이 올 때마다 onDelta(누적문자열)를 호출하고, 최종 전체 문자열을 반환함.
+  const sendChat = async (message, onDelta) => {
     const token = localStorage.getItem(TOKEN_KEY)
-    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+    if (!token) throw new Error('로그인이 필요합니다')
 
-    return fetch(`${API_BASE}/api/users/me/chat`, {
+    const res = await fetch(`${API_BASE}/api/users/me/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ message }),
-    }).then((res) => {
-      if (!res.ok) throw new Error('답변을 받지 못했어요')
-      return res.json()
-    }).then((data) => data.content)
+    })
+    if (!res.ok || !res.body) throw new Error('답변을 받지 못했어요')
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let full = ''
+
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      // SSE는 이벤트마다 빈 줄로 구분. 마지막 조각은 아직 안 끝났을 수 있으니 buffer에 남겨둠
+      const events = buffer.split('\n\n')
+      buffer = events.pop() ?? ''
+
+      for (const evt of events) {
+        const data = evt
+          .split('\n')
+          .filter((l) => l.startsWith('data:'))
+          .map((l) => l.slice(5).trimStart())
+          .join('')
+        if (!data) continue
+
+        const parsed = JSON.parse(data)
+        if (parsed.error) throw new Error(parsed.error)
+        if (parsed.t) {
+          full += parsed.t
+          onDelta?.(full)
+        }
+      }
+    }
+    return full
   }
 
   const getChatHistory = () => {
@@ -316,6 +347,20 @@ export function useAuth() {
       headers: { Authorization: `Bearer ${token}` },
     }).then((res) => {
       if (!res.ok) throw new Error('월별 기록을 불러오지 못했어요')
+      return res.json()
+    })
+  }
+
+  // 달력 칸에 공휴일을 표시하기 위한 월 단위 조회. { "2026-01-01": "신정", ... } 형태
+  // (서버가 공공데이터포털 API로 조회 - 키 미설정이면 그냥 빈 객체가 옴)
+  const getHolidays = (year, month) => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return Promise.reject(new Error('로그인이 필요합니다'))
+
+    return fetch(`${API_BASE}/api/calendar/holidays?year=${year}&month=${month}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((res) => {
+      if (!res.ok) throw new Error('공휴일 정보를 불러오지 못했어요')
       return res.json()
     })
   }
@@ -431,7 +476,7 @@ export function useAuth() {
 
   return {
     user, profile, inbody, handleLogout, deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, getInbodyHistory,
-    logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
+    logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
     updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
     sendChat, getChatHistory, getNutrientAdvice,
   }

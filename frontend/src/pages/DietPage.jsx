@@ -33,7 +33,7 @@ function parseFoodItems(meal) {
 }
 
 function DietPage() {
-  const { user, logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getNutrientTarget, updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal } = useAuth()
+  const { user, logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal } = useAuth()
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [mealType, setMealType] = useState('')
   const [meals, setMeals] = useState([])
@@ -197,6 +197,7 @@ function DietPage() {
                 onSelect={setSelectedDate}
                 maxDateStr={todayStr()}
                 getMonthCalories={getMonthCalories}
+                getHolidays={getHolidays}
               />
 
               {isToday ? (

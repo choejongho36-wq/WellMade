@@ -55,10 +55,33 @@ function ChatDrawer({ open, onClose, sendChat, getChatHistory, getNutrientAdvice
     setLoading(true)
     setError('')
 
-    // 대화 이력은 서버(DB)가 갖고 있으므로 새 메시지 하나만 보내면 됨
-    sendChat(content)
+    // 대화 이력은 서버(DB)가 갖고 있으므로 새 메시지 하나만 보내면 됨.
+    // 응답은 스트리밍 - 토큰이 올 때마다 마지막 assistant 말풍선을 갱신함
+    const applyStream = (partial) => {
+      setMessages((prev) => {
+        const copy = [...prev]
+        const last = copy[copy.length - 1]
+        if (last?.role === 'assistant' && last.streaming) {
+          copy[copy.length - 1] = { ...last, content: partial }
+        } else {
+          copy.push({ role: 'assistant', content: partial, streaming: true })
+        }
+        return copy
+      })
+    }
+
+    sendChat(content, applyStream)
       .then((reply) => {
-        setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+        setMessages((prev) => {
+          const copy = [...prev]
+          const last = copy[copy.length - 1]
+          if (last?.role === 'assistant' && last.streaming) {
+            copy[copy.length - 1] = { role: 'assistant', content: reply }
+          } else {
+            copy.push({ role: 'assistant', content: reply })
+          }
+          return copy
+        })
       })
       .catch(() => setError('답변을 받지 못했어요. 잠시 후 다시 시도해주세요.'))
       .finally(() => setLoading(false))
@@ -152,7 +175,7 @@ function ChatDrawer({ open, onClose, sendChat, getChatHistory, getNutrientAdvice
               <div className="chat-bubble">{m.display ?? m.content}</div>
             </div>
           ))}
-          {loading && (
+          {loading && !messages[messages.length - 1]?.streaming && (
             <div className="chat-bubble-row assistant">
               <div className="chat-bubble chat-bubble-loading">생각하는 중...</div>
             </div>
