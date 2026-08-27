@@ -89,6 +89,12 @@ public class InbodyService {
         return inbodyRecordRepository.findByUserOrderByCreatedAtDesc(user, PageRequest.of(0, safeLimit));
     }
 
+    /** 마이페이지 추이 그래프 — 전체 이력을 오래된 순으로. 기간 필터는 프론트에서 처리. */
+    @Transactional(readOnly = true)
+    public List<InbodyRecord> getAllHistory(User user) {
+        return inbodyRecordRepository.findByUserOrderByCreatedAtAsc(user);
+    }
+
     public InbodyResult extract(MultipartFile imageFile) throws IOException {
         String base64Image = Base64.getEncoder().encodeToString(imageFile.getBytes());
         String mimeType = imageFile.getContentType() != null ? imageFile.getContentType() : "image/jpeg";

@@ -19,6 +19,7 @@ import org.springframework.web.client.RestClientException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
 import com.kdt.wellmade.domain.inbody.InbodyService;
+import com.kdt.wellmade.domain.mapage.Gender;
 import com.kdt.wellmade.domain.mapage.Goal;
 import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileService;
@@ -298,7 +299,7 @@ public class ChatService {
             return toJson(Map.of("error", "인바디 정보가 없어서 목표 섭취량을 계산할 수 없어요."));
         }
 
-        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, profile.getGoal());
+        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, profile);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("goal", GOAL_LABEL.get(profile.getGoal()));
@@ -364,7 +365,7 @@ public class ChatService {
         }
 
         Goal goal = profile.getGoal();
-        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, goal);
+        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, profile);
 
         List<OllamaMessage> messages = new ArrayList<>();
         messages.add(OllamaMessage.system(buildSystemPrompt(user) + "\n\n" + buildAdviceContext(goal, target, actual)));
@@ -445,6 +446,16 @@ public class ChatService {
         sb.append("\n\n사용자 정보:");
         if (hasGoal) {
             sb.append("\n- 목표: ").append(GOAL_LABEL.get(profile.getGoal()));
+        }
+        // 체지방률 정상범위·권장 섭취량이 성별에 따라 다르므로 모델에게 같이 알려줌
+        if (profile != null) {
+            List<String> body = new ArrayList<>();
+            if (profile.getGender() != null) body.add(profile.getGender() == Gender.MALE ? "남성" : "여성");
+            if (profile.getHeightCm() != null) body.add("키 " + profile.getHeightCm() + "cm");
+            if (profile.getBirthYear() != null) body.add("만 " + (LocalDate.now().getYear() - profile.getBirthYear()) + "세");
+            if (!body.isEmpty()) {
+                sb.append("\n- 신체 정보: ").append(String.join(", ", body));
+            }
         }
         if (inbody != null) {
             List<String> parts = new ArrayList<>();

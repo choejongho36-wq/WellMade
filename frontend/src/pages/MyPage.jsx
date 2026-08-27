@@ -4,7 +4,7 @@ import './MyPage.css'
 import { useAuth } from '../lib/auth.js'
 import PageShell from '../components/PageShell.jsx'
 import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
-import WorkoutIcon from '../components/WorkoutIcon.jsx'
+import profileImg from '../assets/profile.png'
 
 const GOAL_LABEL = {
   LOSE: '체중 감량',
@@ -27,6 +27,100 @@ const INBODY_FIELDS = [
 ]
 
 const DIET_HEADLINE_FIELD = { key: 'totalCalories', unit: 'kcal' }
+
+const TREND_METRICS = [
+  { key: 'weightKg', label: '체중', unit: 'kg' },
+  { key: 'skeletalMuscleMassKg', label: '골격근량', unit: 'kg' },
+  { key: 'bodyFatPercentage', label: '체지방률', unit: '%' },
+  { key: 'bmi', label: 'BMI', unit: '' },
+]
+const TREND_PERIODS = [
+  { label: '1개월', months: 1 },
+  { label: '3개월', months: 3 },
+  { label: '6개월', months: 6 },
+  { label: '전체', months: null },
+]
+
+function Sparkline({ points }) {
+  const w = 240
+  const h = 52
+  const pad = 5
+  const xs = points.map((p) => p.t)
+  const ys = points.map((p) => p.v)
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  const sx = (t) => pad + ((t - minX) / (maxX - minX || 1)) * (w - pad * 2)
+  const sy = (v) => pad + (1 - (v - minY) / (maxY - minY || 1)) * (h - pad * 2)
+  const d = points.map((p, i) => `${i ? 'L' : 'M'}${sx(p.t).toFixed(1)} ${sy(p.v).toFixed(1)}`).join(' ')
+  const last = points[points.length - 1]
+
+  return (
+    <svg className="mp-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      <path className="mp-spark-line" d={d} vectorEffect="non-scaling-stroke" />
+      <circle className="mp-spark-dot" cx={sx(last.t)} cy={sy(last.v)} r={3} vectorEffect="non-scaling-stroke" />
+    </svg>
+  )
+}
+
+function MiniTrend({ metric, points }) {
+  const latest = points.length ? points[points.length - 1].v : null
+  const delta = points.length >= 2 ? latest - points[0].v : null
+
+  return (
+    <div className="mp-mini">
+      <div className="mp-mini-head">
+        <span className="mp-mini-label">{metric.label}</span>
+        {delta != null && (
+          <span className={`mp-mini-delta${delta > 0 ? ' up' : delta < 0 ? ' down' : ''}`}>
+            {delta > 0 ? '+' : ''}{delta.toFixed(1)}{metric.unit}
+          </span>
+        )}
+      </div>
+      <div className="mp-mini-value">
+        {latest != null ? latest : '-'}
+        {metric.unit && <span className="mp-mini-unit">{metric.unit}</span>}
+      </div>
+      {points.length >= 2 ? (
+        <Sparkline points={points} />
+      ) : (
+        <div className="mp-mini-empty">기록 부족</div>
+      )}
+    </div>
+  )
+}
+
+function InbodyTrendChart({ history }) {
+  const [months, setMonths] = useState(3)
+
+  const cutoff = months ? Date.now() - months * 30 * 24 * 3600 * 1000 : 0
+  const inRange = history.filter((r) => new Date(r.measuredAt).getTime() >= cutoff)
+
+  return (
+    <div className="mp-trend">
+      <div className="mp-trend-tabs">
+        {TREND_PERIODS.map((p) => (
+          <button
+            key={p.label}
+            className={`mp-trend-tab${p.months === months ? ' active' : ''}`}
+            onClick={() => setMonths(p.months)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div className="mp-trend-grid">
+        {TREND_METRICS.map((m) => {
+          const points = inRange
+            .filter((r) => r[m.key] != null)
+            .map((r) => ({ t: new Date(r.measuredAt).getTime(), v: r[m.key] }))
+          return <MiniTrend key={m.key} metric={m} points={points} />
+        })}
+      </div>
+    </div>
+  )
+}
 
 function todayStr() {
   const d = new Date()
@@ -161,6 +255,92 @@ function InbodyUploadModal({ onClose, onExtract, onConfirm }) {
   )
 }
 
+const GENDER_LABEL = { MALE: '남성', FEMALE: '여성' }
+
+function BodyInfoModal({ profile, onClose, onSave }) {
+  const [gender, setGender] = useState(profile?.gender ?? null)
+  const [heightCm, setHeightCm] = useState(profile?.heightCm ?? '')
+  const [birthYear, setBirthYear] = useState(profile?.birthYear ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const height = Number(heightCm)
+  const year = Number(birthYear)
+  const valid =
+    gender &&
+    height >= 100 && height <= 250 &&
+    year >= 1900 && year <= new Date().getFullYear()
+
+  const handleSave = () => {
+    setSaving(true)
+    setError('')
+    onSave({ gender, heightCm: height, birthYear: year })
+      .then(onClose)
+      .catch((e) => setError(e.message || '저장에 실패했어요'))
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
+        <div className="modal-title">신체 정보</div>
+        <div className="modal-sub">
+          기초대사량과 목표 칼로리는 성별·키·나이에 따라 달라져요. 입력하면 더 정확한 수치로 계산돼요.
+        </div>
+
+        <div className="mp-body-field">
+          <span className="mp-body-label">성별</span>
+          <div className="mp-body-genders">
+            {Object.entries(GENDER_LABEL).map(([value, label]) => (
+              <button
+                key={value}
+                className={`mp-trend-tab${gender === value ? ' active' : ''}`}
+                onClick={() => setGender(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mp-body-field">
+          <span className="mp-body-label">키</span>
+          <span className="modal-review-input-wrap">
+            <input
+              type="number"
+              step="0.1"
+              className="modal-review-input"
+              value={heightCm}
+              onChange={(e) => setHeightCm(e.target.value)}
+            />
+            <span className="modal-review-unit">cm</span>
+          </span>
+        </div>
+
+        <div className="mp-body-field">
+          <span className="mp-body-label">출생연도</span>
+          <span className="modal-review-input-wrap">
+            <input
+              type="number"
+              step="1"
+              className="modal-review-input"
+              value={birthYear}
+              onChange={(e) => setBirthYear(e.target.value)}
+            />
+            <span className="modal-review-unit">년</span>
+          </span>
+        </div>
+
+        {error && <p className="mp-name-error">{error}</p>}
+        <button className="modal-btn" onClick={handleSave} disabled={!valid || saving}>
+          {saving ? '저장 중...' : '저장하기'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function GoalPickerModal({ current, onClose, onSelect }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -184,8 +364,10 @@ function GoalPickerModal({ current, onClose, onSelect }) {
 }
 
 function MyPage() {
-  const { user, profile, inbody, updateGoal, updateName, extractInbody, confirmInbody, getTodayTotal, getNutrientTarget, deleteAccount } = useAuth()
+  const { user, profile, inbody, updateGoal, updateName, updateBody, extractInbody, confirmInbody, getInbodyHistory, getTodayTotal, getNutrientTarget, deleteAccount } = useAuth()
   const navigate = useNavigate()
+  const [inbodyHistory, setInbodyHistory] = useState([])
+  const [bodyModalOpen, setBodyModalOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
@@ -205,6 +387,11 @@ function MyPage() {
   useEffect(() => {
     if (user) getNutrientTarget().then(setNutrientTarget).catch(() => {})
   }, [user])
+
+  // inbody(최신 레코드)가 바뀌면 = 새로 등록됐으면 추이도 다시 불러옴
+  useEffect(() => {
+    if (user) getInbodyHistory().then(setInbodyHistory).catch(() => {})
+  }, [user, inbody])
 
   const startEditName = () => {
     setNameDraft(profile?.name ?? '')
@@ -233,6 +420,12 @@ function MyPage() {
       .finally(() => setGoalModalOpen(false))
   }
 
+  // 성별/키/나이가 바뀌면 기초대사량 추정이 달라져서 목표 칼로리도 다시 계산됨 - 목표 변경과 같은 이유로 다시 불러옴
+  const saveBody = (values) =>
+    updateBody(values).then(() => getNutrientTarget().then(setNutrientTarget).catch(() => {}))
+
+  const hasBodyInfo = Boolean(profile?.gender && profile?.heightCm && profile?.birthYear)
+
   const handleWithdraw = () => {
     setWithdrawing(true)
     setWithdrawError('')
@@ -252,7 +445,7 @@ function MyPage() {
         <>
           <div className="mp-profile-row">
             <div className="mp-avatar-lg">
-              <WorkoutIcon size={36} />
+              <img src={profileImg} alt="" className="mp-avatar-img" />
             </div>
             <div>
               <div className="mp-profile-name-row">
@@ -289,12 +482,37 @@ function MyPage() {
               {nameError && <div className="mp-name-error">{nameError}</div>}
               <div className="mp-profile-sub">
                 {user.email}
+                {hasBodyInfo && (
+                  <>
+                    {' · '}
+                    {GENDER_LABEL[profile.gender]} · {profile.heightCm}cm · 만{' '}
+                    {new Date().getFullYear() - profile.birthYear}세
+                    <button className="link-btn mp-body-edit" onClick={() => setBodyModalOpen(true)}>
+                      수정
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             <button className="mp-withdraw-btn" onClick={() => setWithdrawModalOpen(true)}>
               회원탈퇴
             </button>
           </div>
+
+          {profile && !hasBodyInfo && (
+            <div className="mp-body-prompt">
+              <div>
+                <div className="mp-goal-title">신체 정보를 입력해주세요</div>
+                <p className="mp-profile-sub">
+                  기초대사량과 목표 칼로리는 성별·키·나이에 따라 크게 달라져요. 지금은 체중만으로
+                  대략 추정한 값이라 실제와 차이가 있을 수 있어요.
+                </p>
+              </div>
+              <button className="mp-inbody-btn" onClick={() => setBodyModalOpen(true)}>
+                입력하기
+              </button>
+            </div>
+          )}
 
           <div className="section-head">
             <div className="section-title">인바디</div>
@@ -329,6 +547,15 @@ function MyPage() {
                 </button>
               </div>
             </div>
+          )}
+
+          {inbodyHistory.length >= 2 && (
+            <>
+              <div className="section-head">
+                <div className="section-title">인바디 추이</div>
+              </div>
+              <InbodyTrendChart history={inbodyHistory} />
+            </>
           )}
 
           <div className="section-head">
@@ -366,6 +593,13 @@ function MyPage() {
           target={nutrientTarget}
           onTargetChange={setNutrientTarget}
           onClose={() => setNutrientModalOpen(false)}
+        />
+      )}
+      {bodyModalOpen && (
+        <BodyInfoModal
+          profile={profile}
+          onClose={() => setBodyModalOpen(false)}
+          onSave={saveBody}
         />
       )}
       {goalModalOpen && (

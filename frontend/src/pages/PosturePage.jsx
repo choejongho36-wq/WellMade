@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import './PosturePage.css'
 import PageShell from '../components/PageShell.jsx'
 import { usePoseLandmarker } from '../hooks/usePoseLandmarker.js'
+import { useAuth } from '../lib/auth.js'
 
 const PREVIEW_WIDTH = 480
 const PREVIEW_HEIGHT = 680
@@ -94,15 +95,23 @@ function PoseCaptureCard({ label, onDetected }) {
 function PosturePage() {
   const [insight, setInsight] = useState(null)
   const [insightError, setInsightError] = useState('')
+  const { profile } = useAuth()
 
-  // ponytail: 성별/출생년도 입력 UI는 아직 없음 — 연결 테스트 목적으로 임시 고정값 사용
   const handleFrontDetected = async (landmarks) => {
     setInsightError('')
+    if (!profile?.gender || !profile?.birthYear) {
+      setInsightError('마이페이지에서 성별과 출생연도를 먼저 입력해주세요.')
+      return
+    }
     try {
       const res = await fetch(`${AI_BASE}/ai/onboarding/posture-insight`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ front_landmarks: landmarks, gender: 'M', birth_year: 2000 }),
+        body: JSON.stringify({
+          front_landmarks: landmarks,
+          gender: profile.gender === 'MALE' ? 'M' : 'F',
+          birth_year: profile.birthYear,
+        }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setInsight(await res.json())
