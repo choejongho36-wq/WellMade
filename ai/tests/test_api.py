@@ -82,16 +82,18 @@ def test_coaching_frame_holding_at_bottom_normal():
 
 
 def test_coaching_frame_holding_gaze_forward_flagged():
-    # 무릎/엉덩이는 정상 범위인데 shoulder_forward_lean_deg만 임계값(20.0)을 넘게(고개가
+    # 무릎/엉덩이는 정상 범위인데 shoulder_forward_lean_deg만 임계값(40.0)을 넘게(고개가
     # 앞으로 떨어짐) 들어온 경우 -> 이상 감지돼야 함. (2026-08-26: 이 신호는 원래 "어깨
     # 말림"도 같이 판정했으나, 어깨 말림/등 굽음은 back_rounded로 통합하고 여기는 목/시선
-    # 전용 신호(part="gaze")로 분리했다 — rules.py/realtime.py 주석 참고.)
+    # 전용 신호(part="gaze")로 분리했다 — rules.py/realtime.py 주석 참고. 2026-08-27:
+    # 임곗값이 20.0 -> 40.0으로 올라가(실측 정상 사례 확장 + 귀 랜드마크 노이즈 감안,
+    # rules.py 주석 참고) 테스트 입력값도 그에 맞춰 올림.)
     angle_history = [
         {
             "timestamp": i * 0.1,
             "knee_angle": 85 + (i % 2),
             "hip_angle": 80 + (i % 2),
-            "shoulder_forward_lean_deg": 30,
+            "shoulder_forward_lean_deg": 50,
         }
         for i in range(10)
     ]

@@ -145,8 +145,18 @@ function getShoulderAlignmentAngle(landmarks, side = 'auto') {
   return calculateAngle(landmarks[earIdx], landmarks[shoulderIdx], landmarks[hipIdx])
 }
 
-// 목 기울기 - 상체 기울기(도). 0 이하면 목이 상체만큼(또는 더) 세워진 정상 자세,
-// 크게 양수면 목이 상체보다 훨씬 더 앞으로 숙여진(어깨 말림) 자세.
+// "귀-엉덩이가 일자로 뻗는지"를 각도로 잰 값 — 엉덩이→어깨 방향(상체)을 그대로
+// 연장했을 때의 방향과, 실제 어깨→귀 방향(목) 사이의 각도 차이다. 0이면 완전한 일자,
+// 양수면 그 연장선보다 목이 더 앞으로 꺾인(고개가 앞으로 떨어진) 상태, 음수면 그
+// 연장선보다 목이 더 세워진(뒤로 젖혀진) 상태 — 음수는 현재 정상으로 취급한다.
+// (2026-08-27 변경) 원래는 목 기울기·상체 기울기를 각각 atan2로 따로 구해서 뺐는데,
+// 이건 "귀-어깨-엉덩이가 일자인지"와 수학적으로 동일한 값이다 — getShoulderAlignmentAngle()
+// (귀-어깨-엉덩이 3점 각도)의 180도 보각과 정확히 일치함을 실제 사진 데이터로 확인했다
+// (36.9도로 일치). 다만 getShoulderAlignmentAngle()은 acos 기반이라 부호가 없어(0~180도)
+// 앞으로 숙임과 뒤로 젖힘을 구분 못 해 그대로 가져다 쓸 수는 없었고, 대신 상체 벡터와
+// 목 벡터 사이의 부호 있는 각도를 외적·내적으로 한 번에 구하는 방식으로 단순화했다 —
+// atan2 두 번 + 뺄셈이 atan2 한 번으로 줄었다(좌우 반전 케이스까지 부호 대칭 검증 완료,
+// 결과값은 기존 방식과 동일).
 function getShoulderForwardLeanDeg(landmarks, side = 'auto') {
   const chosen = selectSide(landmarks, side)
   const [earIdx, shoulderIdx, hipIdx, ankleIdx, toeIdx] =
@@ -160,15 +170,11 @@ function getShoulderForwardLeanDeg(landmarks, side = 'auto') {
   if (footLength < MIN_RELIABLE_FOOT_LENGTH) return 0
   const facingDirection = toe.x - ankle.x >= 0 ? 1 : -1
 
-  const torsoDx = (shoulder.x - hip.x) * facingDirection
-  const torsoDy = shoulder.y - hip.y
-  const torsoTiltDeg = (Math.atan2(torsoDx, -torsoDy) * 180) / Math.PI
-
-  const neckDx = (ear.x - shoulder.x) * facingDirection
-  const neckDy = ear.y - shoulder.y
-  const neckTiltDeg = (Math.atan2(neckDx, -neckDy) * 180) / Math.PI
-
-  return neckTiltDeg - torsoTiltDeg
+  const torsoVec = { x: shoulder.x - hip.x, y: shoulder.y - hip.y }
+  const neckVec = { x: ear.x - shoulder.x, y: ear.y - shoulder.y }
+  const cross = torsoVec.x * neckVec.y - torsoVec.y * neckVec.x
+  const dot = torsoVec.x * neckVec.x + torsoVec.y * neckVec.y
+  return ((Math.atan2(cross, dot) * 180) / Math.PI) * facingDirection
 }
 
 // 발뒤꿈치-발끝 높이차 / 발 길이. 값이 클수록 발뒤꿈치가 뜬 상태.
