@@ -1,0 +1,311 @@
+/* 마이페이지 (다이나믹 테마: 메인 히어로의 대각선/레드 포인트 DNA를 가져온 스타일) */
+.mp-greeting {
+  margin-top: 10px;
+  font: 400 34px 'Archivo Black', sans-serif;
+  letter-spacing: -0.01em;
+  color: #111;
+}
+
+.mp-profile-row {
+  margin-top: 32px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid #da291c;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.mp-withdraw-btn {
+  align-self: flex-start;
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9b9a96;
+}
+.mp-withdraw-btn:hover {
+  color: #da291c;
+}
+.mp-avatar-lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  flex: none;
+  background: #da291c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mp-profile-name-row {
+  display: flex;
+  align-items: center;
+}
+.mp-profile-name {
+  font: 800 20px Archivo, 'Noto Sans KR', sans-serif;
+  color: #111;
+}
+.mp-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #8c8b88;
+  cursor: pointer;
+}
+.mp-edit-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #111;
+}
+.mp-name-input {
+  font: 700 20px Archivo, 'Noto Sans KR', sans-serif;
+  color: #111;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 6px;
+  padding: 2px 8px;
+  outline: none;
+  max-width: 200px;
+}
+.mp-name-input:focus {
+  border-color: #da291c;
+}
+.mp-name-error {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #da291c;
+}
+.mp-goal-bib {
+  display: inline-block;
+  margin-left: 10px;
+  transform: skewX(-10deg);
+  background: #da291c;
+  border-radius: 4px;
+}
+.mp-goal-select {
+  display: block;
+  transform: skewX(10deg);
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.06em;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.mp-profile-sub {
+  margin-top: 5px;
+  font: 400 13px Archivo, 'Noto Sans KR', sans-serif;
+  color: #77767c;
+  letter-spacing: 0.02em;
+}
+
+.mp-inbody-empty {
+  margin-top: 14px;
+  transform: skewX(-4deg);
+  background: #fff;
+  border: 1px dashed #da291c;
+  border-radius: 10px;
+  padding: 30px;
+}
+.mp-inbody-empty-inner {
+  transform: skewX(4deg);
+  text-align: center;
+}
+.mp-goal-title {
+  font: 800 16px Archivo, 'Noto Sans KR', sans-serif;
+  color: #111;
+}
+.mp-inbody-btn {
+  margin-top: 16px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #da291c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 목표 설정 모달 */
+.goal-option-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.goal-option {
+  padding: 12px 16px;
+  border: 1px solid #e5e3dd;
+  border-radius: 8px;
+  background: #f9f8f5;
+  color: #111;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.goal-option:hover {
+  border-color: #da291c;
+}
+.goal-option.selected {
+  border-color: #da291c;
+  background: #fff5f4;
+  color: #da291c;
+}
+
+/* 인바디 등록 모달 */
+.modal-btn {
+  margin-top: 16px;
+  width: 100%;
+  padding: 11px 0;
+  border: none;
+  border-radius: 8px;
+  background: #da291c;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.modal-btn-secondary {
+  margin-top: 16px;
+  width: 100%;
+  padding: 11px 0;
+  border: 1px solid #e5e3dd;
+  border-radius: 8px;
+  background: transparent;
+  color: #111;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.modal-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.modal-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.modal-btn-row .modal-btn,
+.modal-btn-row .modal-btn-secondary {
+  flex: 1;
+  margin-top: 0;
+}
+.modal-review-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.modal-review-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e3dd;
+}
+.modal-review-item > span:first-child {
+  color: #77767c;
+}
+.modal-review-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.modal-review-input {
+  width: 72px;
+  text-align: right;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 6px;
+  color: #111;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 7px;
+}
+.modal-review-input:focus {
+  border-color: #da291c;
+  outline: none;
+}
+.modal-review-unit {
+  color: #9b9a96;
+  font-size: 12px;
+  min-width: 32px;
+}
+.modal-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+.modal-upload {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 96px;
+  padding: 20px 16px;
+  border: 1px dashed #e5e3dd;
+  border-radius: 10px;
+  background: #f9f8f5;
+  color: #9b9a96;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+  overflow: hidden;
+}
+.modal-upload:hover {
+  border-color: #da291c;
+  color: #111;
+}
+.modal-upload-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #f0efe9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #111;
+}
+.modal-upload-text {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.modal-upload-preview {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+.modal-file-name {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: #77767c;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

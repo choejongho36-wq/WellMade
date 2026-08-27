@@ -1,0 +1,189 @@
+/* light page shell: same nav look as the hero panel, for normal scrolling content pages */
+.page-shell {
+  display: flex;
+  align-items: stretch;
+  gap: 56px;
+  min-height: 100vh;
+  padding: 0 64px;
+  background: #fff;
+  color: #111;
+}
+.page-shell-nav {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: 180px;
+  padding-top: 64px;
+  padding-bottom: 56px;
+}
+.page-shell-content {
+  flex: 1;
+  min-width: 0;
+  padding-top: 56px;
+  padding-left: 56px;
+  padding-bottom: 56px;
+  border-left: 1px solid #da291c;
+}
+
+/* shared modal shell (인바디 등록, 영양소 상세 등) */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal {
+  position: relative;
+  width: 320px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 16px;
+  padding: 32px 28px;
+  text-align: center;
+}
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: #8c8b88;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 6px;
+}
+.modal-sub {
+  font-size: 12.5px;
+  color: #9b9a96;
+  margin-bottom: 24px;
+}
+
+/* shared page header (마이페이지/식단관리/자세측정) */
+.page-eyebrow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.page-index-tag {
+  font: 800 12px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.08em;
+  color: #da291c;
+  border: 1px solid #da291c;
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+/* shared section header + stat-tag strip (마이페이지 인바디 / 식단관리 오늘 요약) */
+.section-head {
+  margin-top: 44px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.section-title {
+  font: 800 14px Archivo, 'Noto Sans KR', sans-serif;
+  color: #111;
+}
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #da291c;
+}
+
+.tag-strip {
+  margin-top: 14px;
+  display: flex;
+  gap: 14px;
+}
+/* 항목이 하나뿐일 때(칼로리만 있는 요약 등)는 나머지 4개칸 폭까지 flex:1로 늘어나 버려서 폭을 제한함 */
+.tag-strip > .tag:only-child {
+  flex: none;
+  max-width: 220px;
+}
+
+/* 라벨 하나 + 칼로리 박스 하나짜리 요약 행 (마이페이지 오늘 식단 / 식단관리 총 섭취) */
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.summary-row-label {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #9b9a96;
+}
+.summary-row .tag-strip {
+  flex: 1;
+  margin-top: 0;
+}
+.summary-row .tag-strip > .tag:only-child {
+  flex: 1;
+  max-width: 130px;
+}
+.tag {
+  flex: 1;
+  transform: skewX(-6deg);
+  background: #fff;
+  border: 1px solid #da291c;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+}
+.tag-label {
+  flex: none;
+  width: 68px;
+  background: #da291c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tag-label span {
+  display: inline-block;
+  transform: skewX(6deg);
+  color: #fff;
+  font: 800 14px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.02em;
+}
+.tag-inner {
+  flex: 1;
+  min-width: 0;
+  transform: skewX(6deg);
+  padding: 18px 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+.tag-value {
+  font: 400 26px 'Archivo Black', sans-serif;
+  color: #da291c;
+}
+.tag-unit {
+  font: 800 13px Archivo, sans-serif;
+  color: #da291c;
+}
+.tag-clickable {
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.15s ease;
+}
+.tag-clickable:hover {
+  background: #fff5f4;
+}

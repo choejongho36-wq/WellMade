@@ -1,0 +1,280 @@
+.diet-split {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+  margin-top: 20px;
+}
+.diet-col-left {
+  flex: 1;
+  min-width: 0;
+}
+.diet-col-right {
+  flex: 1;
+  min-width: 0;
+}
+.diet-log-form {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.diet-log-form .chat-input {
+  width: 100%;
+}
+.diet-log-form .chat-send-btn {
+  width: 100%;
+  padding: 12px 0;
+}
+.diet-mealtype-select {
+  width: 100%;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  color: #111;
+  font-size: 13.5px;
+  font-family: inherit;
+  padding: 10px 12px;
+}
+.diet-mealtype-select:focus {
+  outline: none;
+  border-color: #da291c;
+}
+
+/* diet timeline (식단 기록, 다이나믹 테마) */
+.diet-timeline {
+  display: flex;
+  flex-direction: column;
+}
+.diet-row {
+  display: flex;
+  gap: 20px;
+}
+.diet-time {
+  width: 56px;
+  flex: none;
+  text-align: right;
+  font: 800 13px Archivo, 'Noto Sans KR', sans-serif;
+  color: #da291c;
+  padding-top: 16px;
+}
+.diet-line {
+  flex: none;
+  width: 1px;
+  background: #e5e3dd;
+  position: relative;
+}
+.diet-dot {
+  position: absolute;
+  top: 19px;
+  left: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #da291c;
+}
+.diet-body {
+  flex: 1;
+  padding: 12px 0 24px;
+}
+.diet-meal {
+  transform: skewX(-6deg);
+  background: #fff;
+  border: 1px solid #da291c;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+}
+/* 수정 모드에선 드롭다운/포커스 링이 기울어진 부모 안에서 어긋나므로 skew를 뺌 */
+.diet-meal.diet-meal-editing {
+  transform: none;
+}
+.diet-meal-inner {
+  flex: 1;
+  min-width: 0;
+  transform: skewX(6deg);
+  padding: 18px 20px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.diet-meal-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+}
+.diet-meal-sub {
+  font-size: 12px;
+  color: #77767c;
+  margin-top: 3px;
+}
+.diet-meal-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.diet-meal-status {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: Archivo, 'Noto Sans KR', sans-serif;
+  color: #da291c;
+}
+.diet-meal-delete {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: Archivo, 'Noto Sans KR', sans-serif;
+  color: #9b9a96;
+}
+.diet-meal-delete:hover {
+  color: #da291c;
+}
+.diet-meal-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.diet-meal-edit {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 20px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.diet-meal-edit .diet-mealtype-select {
+  width: auto;
+  flex: none;
+}
+.diet-meal-edit-input {
+  flex: 1;
+  min-width: 80px;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.diet-meal-edit-input:focus {
+  outline: none;
+  border-color: #da291c;
+}
+.diet-meal-edit-kcal {
+  flex: none;
+  width: 70px;
+}
+.diet-meal-edit-actions {
+  flex: none;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.diet-meal-cancel-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #9b9a96;
+}
+
+/* 항목별 그램 펼쳐보기/수정 (식단 기록) */
+.diet-item-toggle {
+  margin-top: 8px;
+  margin-left: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #9b9a96;
+  transition: color 0.15s ease;
+}
+.diet-item-toggle:hover {
+  color: #da291c;
+}
+.diet-item-list {
+  margin-top: 8px;
+  margin-left: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.diet-item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+.diet-item-name {
+  flex: 1;
+  min-width: 0;
+  color: #111;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diet-item-amount {
+  flex: none;
+  color: #77767c;
+}
+.diet-item-kcal {
+  flex: none;
+  width: 56px;
+  text-align: right;
+  color: #9b9a96;
+}
+.diet-item-edit-btn {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: Archivo, 'Noto Sans KR', sans-serif;
+  color: #da291c;
+}
+.diet-item-edit {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.diet-item-amount-input {
+  width: 64px;
+  text-align: right;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  font-family: inherit;
+}
+.diet-item-amount-input:focus {
+  outline: none;
+  border-color: #da291c;
+}
+.diet-item-unit {
+  flex: none;
+  color: #9b9a96;
+}

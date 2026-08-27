@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -79,6 +80,13 @@ public class InbodyService {
     @Transactional(readOnly = true)
     public Optional<InbodyRecord> getLatest(User user) {
         return inbodyRecordRepository.findTopByUserOrderByCreatedAtDesc(user);
+    }
+
+    /** 챗봇 툴콜링에서 체중/근육량 추세를 보여줄 때 씀. 최신순으로 최대 limit건. */
+    @Transactional(readOnly = true)
+    public List<InbodyRecord> getHistory(User user, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 10));
+        return inbodyRecordRepository.findByUserOrderByCreatedAtDesc(user, PageRequest.of(0, safeLimit));
     }
 
     public InbodyResult extract(MultipartFile imageFile) throws IOException {
