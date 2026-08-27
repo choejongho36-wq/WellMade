@@ -1206,15 +1206,28 @@ function MlTestPage() {
     }
   }, [])
 
-  // 측면(필수) 랜드마크로 계산한 값 + 정면(있으면) 랜드마크로 계산한 무릎모임/비대칭 값을
+  // 측면 랜드마크로 계산한 값 + 정면(있으면) 랜드마크로 계산한 무릎모임/비대칭 값을
   // AngleFrame 3개(타임스탬프만 다름)로 복제해 /ai/coaching/frame(AI-06)에 보낸다 — 값이
   // 동일하니 서버가 "정지" 상태로 인식해 실제 임계값 비교가 적용된다(파일 상단 주석 참고).
+  //
+  // (2026-08-27 추가) "정면 사진만으로도 판정이 되는지 확인해보고 싶다"는 요청에 따라,
+  // 측면 사진 없이 정면 사진만 있어도 판정 요청이 가능하게 했다. knee_angle/hip_angle
+  // (엉덩이-무릎-발목/어깨-엉덩이-무릎 3점 각도)은 카메라가 어느 방향을 보든 좌표 3개만
+  // 있으면 계산 자체는 되는 값이라, 정면 사진에서도 buildSideMetrics()를 그대로 돌릴 수
+  // 있다 — 다만 정면 사진은 앞뒤 굽힘이 카메라 축과 거의 겹쳐(원근 압축) 실제 각도보다
+  // 부정확하게 나올 수 있다. shoulder_forward_lean_deg/heel_lift_ratio/
+  // knee_over_toe_ratio/torso_shin_lean_gap_deg는 "몸이 향한 방향"을 발목-발끝의 좌우
+  // 오프셋(facingDirection)으로 판단하는데, 정면 사진에서는 그 오프셋이 거의 0이라
+  // MIN_RELIABLE_FOOT_LENGTH 게이트에 걸려 0/null로 나오는 게 정상이다 — 버그가 아니라
+  // "정면 사진만으로는 이 지표들을 신뢰할 수 없다"는 걸 그대로 보여주는 것이고, 오히려
+  // 이 페이지가 확인하려는 질문(정면 사진만으로 뭘 판정할 수 있고 뭘 못 하는지)에 대한
+  // 답이다.
   const requestJudgment = async () => {
-    if (!sideLandmarks) return
+    if (!sideLandmarks && !frontLandmarks) return
     setJudging(true)
     setJudgeError('')
     setJudgeResult(null)
-    const baseFrame = buildSideMetrics(sideLandmarks)
+    const baseFrame = buildSideMetrics(sideLandmarks ?? frontLandmarks)
     if (frontLandmarks) {
       baseFrame.knee_valgus_ratio = getKneeValgusRatio(frontLandmarks)
       baseFrame.knee_asymmetry_deg = getKneeLrAsymmetryDeg(frontLandmarks)
@@ -1255,6 +1268,12 @@ function MlTestPage() {
             <br />
             관절 인식이 엉뚱한 위치를 잡으면(예: 가려진 부위) 그 점을 사진 위에서 마우스/터치로
             눌러 드래그하면 위치를 고칠 수 있어요 — 고친 위치가 아래 측정값/판정에 바로 반영돼요.
+            <br />
+            측면 사진 없이 정면 사진만으로도 판정 요청을 보낼 수 있어요 — 정면 사진만으로
+            뭐가 판정되고 뭐가 안 되는지 확인하는 용도예요. 다만 측면 전용 지표(시선/발뒤꿈치/
+            무릎-발끝/무게중심)는 정면 사진에서는 "몸이 향한 방향"을 못 구해서 대부분
+            0/측정불가로 나와요 — 그건 오류가 아니라 정면 사진만으로는 그 지표들을 믿을 수
+            없다는 뜻이에요. 무릎 모임/좌우 비대칭은 정면 사진 전용이라 그대로 정상 판정돼요.
           </p>
 
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -1296,17 +1315,24 @@ function MlTestPage() {
           {status && <p className="pcard-desc" style={{ marginTop: 12 }}>{status}</p>}
 
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <MeasurementPanel title="측면 측정값" landmarks={sideLandmarks} />
+            <MeasurementPanel
+              title={sideLandmarks ? '측면 측정값' : '측면 지표 계산값 (정면 사진 기반 — 참고용, 신뢰 불가)'}
+              landmarks={sideLandmarks ?? frontLandmarks}
+            />
             <FrontalMeasurementPanel landmarks={frontLandmarks} />
           </div>
 
-          {sideLandmarks && (
+          {(sideLandmarks || frontLandmarks) && (
             <button
               onClick={requestJudgment}
               disabled={judging}
               style={{ marginTop: 16 }}
             >
-              {judging ? '판정 요청 중...' : 'AI 서버로 정상/이상 판정 요청'}
+              {judging
+                ? '판정 요청 중...'
+                : sideLandmarks
+                  ? 'AI 서버로 정상/이상 판정 요청'
+                  : 'AI 서버로 정상/이상 판정 요청 (정면 사진만 — 측면 전용 지표는 신뢰 불가)'}
             </button>
           )}
 
