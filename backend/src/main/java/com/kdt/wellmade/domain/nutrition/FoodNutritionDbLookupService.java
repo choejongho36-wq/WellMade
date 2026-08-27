@@ -67,10 +67,11 @@ public class FoodNutritionDbLookupService implements FoodNutritionLookupService 
     public List<String> suggestCandidates(String foodName, int limit) {
         String escaped = escapeLike(foodName);
         return jdbcTemplate.queryForList("""
-                SELECT DISTINCT food_name FROM food_nutrition_reference
+                SELECT food_name FROM food_nutrition_reference
                 WHERE food_name LIKE ?
                   AND calories IS NOT NULL
-                ORDER BY CASE WHEN data_generation_method = '분석' THEN 0 ELSE 1 END,
+                GROUP BY food_name
+                ORDER BY MIN(CASE WHEN data_generation_method = '분석' THEN 0 ELSE 1 END),
                          LENGTH(food_name) ASC
                 LIMIT ?
                 """, String.class, "%" + escaped + "%", limit);
