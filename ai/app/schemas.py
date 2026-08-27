@@ -120,11 +120,12 @@ class AngleFrame(BaseModel):
     knee_over_toe_ratio: Optional[float] = Field(
         None,
         description="무릎이 발끝보다 앞으로 나간 정도(app/pose/angles.py의 "
-        "get_knee_over_toe_ratio 참고). 필드명은 '_ratio'지만 발 길이로 정규화한 비율이 아니라 "
-        "원시 좌표 거리(facing_direction 방향 보정만 반영)다 — 필드명은 기존 API 호환을 위해 "
-        "유지, 자세한 배경은 angles.py 주석 참고. heel_lift_ratio와 동일하게 측면 랜드마크 "
-        "기준이라 프론트가 매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면 이 검사를 "
-        "건너뛴다(하위 호환).",
+        "get_knee_over_toe_ratio 참고) — 무릎-발끝 거리를 허벅지(엉덩이-무릎) 길이로 나눈 "
+        "비율이다. (2026-08-27 변경) 예전에는 정규화 없는 원시 좌표 거리였는데, 발이 "
+        "스탠스 때문에 바깥으로 돌아가면(외회전) 발 길이 자체가 줄어들어 자로 쓰기 "
+        "불안정하다는 게 확인돼(자세한 배경은 checklist 2026-08-27 addendum 참고) 허벅지 "
+        "길이 기준으로 바꿨다. heel_lift_ratio와 동일하게 측면 랜드마크 기준이라 프론트가 "
+        "매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면 이 검사를 건너뛴다(하위 호환).",
     )
     torso_length_ratio: Optional[float] = Field(
         None,

@@ -53,6 +53,12 @@ const LEFT_EAR = 7
 // 동일한 값/이유.
 const MIN_RELIABLE_FOOT_LENGTH = 0.03
 
+// 허벅지(엉덩이-무릎) 길이가 이보다 작으면(카메라가 너무 멀거나 하체가 가려짐)
+// 무릎-발끝 비율의 분모로 쓰기에 불안정해 계산을 포기한다. 발 길이 임곗값과 달리
+// 아직 실측 데이터로 검증한 값이 아니라, 우선 같은 자릿수(0.03)를 잠정 적용했다.
+// TODO: 팀 확정 필요 — 실측 데이터(build_dtw_templates.py 재추출)로 검증.
+const MIN_RELIABLE_THIGH_LENGTH = 0.03
+
 const KEY_LANDMARKS = {
   leftEar: 7,
   rightEar: 8,
@@ -177,18 +183,33 @@ function getHeelLiftRatio(landmarks, side = 'auto') {
   return (toe.y - heel.y) / footLength
 }
 
-// 무릎-발끝 원시 좌표 거리(발 길이 정규화 없음, facing_direction 방향 보정만 반영).
-// 값이 0 이하면 무릎이 발끝을 안 넘은 상태, 클수록 많이 넘은 상태.
+// 무릎-발끝 거리 / 허벅지(엉덩이-무릎) 길이. 값이 0 이하면 무릎이 발끝을 안 넘은 상태,
+// 클수록 허벅지 길이 대비 많이 넘은 상태.
+// (2026-08-27 변경) 예전에는 발 길이로 정규화하지 않고 원시 좌표 거리만 썼는데, 스쿼트
+// 스탠스 때문에 발이 자연스럽게 바깥으로 돌아가면(외회전) 발 길이 자체가 코사인 배율로
+// 줄어들어 자로 쓰기 불안정했다 — 실제로 정상적인 딥스쿼트 사진에서 오탐이 확인됐다
+// (checklist 2026-08-27 addendum 참고). 허벅지는 스쿼트의 주된 움직임(고관절·무릎 굽힘)이
+// 카메라 화면과 평행한 면 안에서 일어나는 회전이라 자세가 바뀌어도 화면상 길이가 거의
+// 안 변하고, 뼈 구간이라 등 굽음 같은 척추 변형에도 흔들리지 않아 발보다 안정적인 자다.
+// facingDirection(몸이 향한 방향 보정)은 여전히 발목-발끝 오프셋으로 판단하므로, 그 판단이
+// 신뢰할 수 없는 경우(발이 카메라를 거의 정면으로 향함)에는 별도 게이트를 그대로 둔다.
+// 두 게이트(발 길이/허벅지 길이) 중 하나라도 걸리면 null을 반환한다 — 예전에는 0을
+// 반환했는데, 0은 "무릎이 발끝을 안 넘은 안전한 상태"를 뜻하는 값이라 "측정 불가"와
+// 구분이 안 됐다(getTorsoLengthRatio와 동일하게 null로 통일).
 function getKneeOverToeRatio(landmarks, side = 'auto') {
   const chosen = selectSide(landmarks, side)
-  const [kneeIdx, ankleIdx, toeIdx] = chosen === 'left' ? [LEFT_KNEE, LEFT_ANKLE, LEFT_FOOT_INDEX] : [RIGHT_KNEE, RIGHT_ANKLE, RIGHT_FOOT_INDEX]
+  const [kneeIdx, hipIdx, ankleIdx, toeIdx] =
+    chosen === 'left' ? [LEFT_KNEE, LEFT_HIP, LEFT_ANKLE, LEFT_FOOT_INDEX] : [RIGHT_KNEE, RIGHT_HIP, RIGHT_ANKLE, RIGHT_FOOT_INDEX]
   const knee = landmarks[kneeIdx]
+  const hip = landmarks[hipIdx]
   const ankle = landmarks[ankleIdx]
   const toe = landmarks[toeIdx]
   const footLength = Math.abs(ankle.x - toe.x)
-  if (footLength < MIN_RELIABLE_FOOT_LENGTH) return 0
+  if (footLength < MIN_RELIABLE_FOOT_LENGTH) return null
+  const thighLength = Math.hypot(hip.x - knee.x, hip.y - knee.y)
+  if (thighLength < MIN_RELIABLE_THIGH_LENGTH) return null
   const facingDirection = toe.x - ankle.x >= 0 ? 1 : -1
-  return (knee.x - toe.x) * facingDirection
+  return ((knee.x - toe.x) * facingDirection) / thighLength
 }
 
 // 어깨-엉덩이 직선거리 / 발 길이. 등이 곧게 펴져 있으면 척추 길이에 가깝게, 둥글게
@@ -357,7 +378,7 @@ function withUpdatedLandmark(landmarks, index, x, y) {
 }
 
 function fmt(value, digits = 1) {
-  return value == null ? '측정 불가 (발 길이 너무 짧음)' : value.toFixed(digits)
+  return value == null ? '측정 불가 (기준 길이 너무 짧음)' : value.toFixed(digits)
 }
 
 function MeasurementPanel({ title, landmarks }) {
@@ -371,7 +392,7 @@ function MeasurementPanel({ title, landmarks }) {
         <div>어깨 각도(절대, 참고용): {fmt(getShoulderAlignmentAngle(landmarks))}도</div>
         <div>어깨 편차(목-상체 기울기 차이): {fmt(getShoulderForwardLeanDeg(landmarks))}도</div>
         <div>발뒤꿈치 뜸 비율: {fmt(getHeelLiftRatio(landmarks), 3)}</div>
-        <div>무릎-발끝 좌표 거리: {fmt(getKneeOverToeRatio(landmarks), 3)}</div>
+        <div>무릎-발끝/허벅지 길이 비율: {fmt(getKneeOverToeRatio(landmarks), 3)}</div>
         <div>어깨-엉덩이/발 길이 비율: {fmt(getTorsoLengthRatio(landmarks), 3)}</div>
       </div>
     </div>
