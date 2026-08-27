@@ -1219,19 +1219,30 @@ function MlTestPage() {
   // (엉덩이-무릎-발목/어깨-엉덩이-무릎 3점 각도)은 카메라가 어느 방향을 보든 좌표 3개만
   // 있으면 계산 자체는 되는 값이라, 정면 사진에서도 buildSideMetrics()를 그대로 돌릴 수
   // 있다 — 다만 정면 사진은 앞뒤 굽힘이 카메라 축과 거의 겹쳐(원근 압축) 실제 각도보다
-  // 부정확하게 나올 수 있다. shoulder_forward_lean_deg/heel_lift_ratio/
-  // knee_over_toe_ratio/torso_shin_lean_gap_deg는 "몸이 향한 방향"을 발목-발끝의 좌우
-  // 오프셋(facingDirection)으로 판단하는데, 정면 사진에서는 그 오프셋이 거의 0이라
-  // MIN_RELIABLE_FOOT_LENGTH 게이트에 걸려 0/null로 나오는 게 정상이다 — 버그가 아니라
-  // "정면 사진만으로는 이 지표들을 신뢰할 수 없다"는 걸 그대로 보여주는 것이고, 오히려
-  // 이 페이지가 확인하려는 질문(정면 사진만으로 뭘 판정할 수 있고 뭘 못 하는지)에 대한
-  // 답이다.
+  // 부정확하게 나올 수 있다.
+  //
+  // (2026-08-27 수정) shoulder_forward_lean_deg/heel_lift_ratio/knee_over_toe_ratio/
+  // torso_shin_lean_gap_deg는 "몸이 향한 방향"을 발목-발끝의 좌우 오프셋(facingDirection)
+  // 으로 판단하는데, 애초에는 "정면 사진에서는 그 오프셋이 거의 0이라 MIN_RELIABLE_FOOT_LENGTH
+  // 게이트에 걸려 0/null로 나오는 게 정상"이라고 가정했었다. 그런데 실제 정면 사진(발뒤꿈치가
+  // 바닥에 붙은 정상 자세)으로 검증해보니, 스쿼트 스탠스가 바깥으로 돌아가 있으면(외회전)
+  // 이 좌우 오프셋이 진짜 발 길이와 무관하게 게이트(0.03)를 우연히 통과해버려서
+  // heel_lift_ratio가 0.72까지 나오는(임곗값 0.5 초과 — 오탐) 사례가 실측으로 확인됐다.
+  // 게이트가 이 네 필드를 신뢰성 있게 걸러주지 못한다는 뜻이라, 게이트에 기대는 대신
+  // 측면 사진이 없을 때는 이 네 필드를 아예 baseFrame에서 제거해 서버로 보내지 않는다
+  // (전부 선택 필드라 없으면 서버가 해당 검사를 건너뛴다 — schemas.py 참고).
   const requestJudgment = async () => {
     if (!sideLandmarks && !frontLandmarks) return
     setJudging(true)
     setJudgeError('')
     setJudgeResult(null)
     const baseFrame = buildSideMetrics(sideLandmarks ?? frontLandmarks)
+    if (!sideLandmarks) {
+      delete baseFrame.shoulder_forward_lean_deg
+      delete baseFrame.heel_lift_ratio
+      delete baseFrame.knee_over_toe_ratio
+      delete baseFrame.torso_shin_lean_gap_deg
+    }
     if (frontLandmarks) {
       baseFrame.knee_valgus_ratio = getKneeValgusRatio(frontLandmarks)
       baseFrame.knee_asymmetry_deg = getKneeLrAsymmetryDeg(frontLandmarks)

@@ -754,6 +754,116 @@ def test_coaching_frame_heel_lift_ignored_while_standing():
     assert not any(issue["part"] == "heel" for issue in data["issues"]), data
 
 
+# (2026-08-27 추가, 같은 날 재정정) 웨지·역도화처럼 원래 발뒤꿈치를 들고 서는 사용자를
+# 위한 차이값 기준 판정 테스트 — 처음에는 온보딩 캘리브레이션(hip_calibration)에 기준값을
+# 두려 했으나, 온보딩은 "힐업 안 한" 평상시 자세로 재는 게 보통이라 그날그날 웨지 사용
+# 여부를 반영하지 못한다는 문제가 있어, angle_history 안에서 "이번 렙 직전 서 있던
+# 프레임"을 실시간으로 찾아 기준값으로 쓰는 방식(_find_standing_baseline_before_dip)으로
+# 바꿨다 — 아래 테스트는 hip_calibration이 아니라 angle_history 자체에 "서 있는 구간 +
+# 깊게 앉은 구간"을 함께 넣어 이 동적 기준값 동작을 검증한다.
+def _build_rep_history_with_standing_baseline(standing_heel_lift, hold_heel_lift, n_hold=120):
+    """서 있는 구간(5프레임) -> 점진적 하강(20프레임) -> 깊게 앉아 멈춘 구간(n_hold프레임)을
+    이어붙인 angle_history를 만든다. _find_standing_baseline_before_dip()이 찾을 "직전 서
+    있던 프레임"을 실제로 포함시키면서도, phase 판정(knee_slope 전체 회귀)이 "holding"으로
+    읽히도록 홀딩 구간을 충분히 길게 잡는다 — 하강을 3~4프레임 만에 뚝 끊어버리면(비현실적인
+    순간이동) 전체 구간 회귀 기울기가 지나치게 가팔라져 phase가 "descending"으로 읽히고
+    is_deep_hold 검사 블록 전체가 스킵돼버린다(judge_realtime_coaching은 "최근 N프레임"이
+    아니라 angle_history 전체로 기울기를 계산한다 — DTW 렙 추출과 마찬가지로 실제 서비스는
+    렙 시작부터의 전체 히스토리를 그대로 보내는 걸 전제하므로, 테스트도 실제 30fps 근처
+    간격 + 충분한 홀딩 프레임 수로 맞춰야 phase 판정이 실제 상황과 같아진다).
+    """
+    frames = []
+    for i in range(5):
+        frames.append(
+            {
+                "timestamp": i * 0.033,
+                "knee_angle": 175 + (i % 2),
+                "hip_angle": 170 + (i % 2),
+                "heel_lift_ratio": standing_heel_lift,
+            }
+        )
+    descent_frames = 20
+    for i in range(descent_frames):
+        progress = (i + 1) / descent_frames
+        frames.append(
+            {
+                "timestamp": (5 + i) * 0.033,
+                "knee_angle": 175 - (175 - 85) * progress,
+                "hip_angle": 170 - (170 - 80) * progress,
+                # heel_lift_ratio는 하강 중에는 그대로 서 있을 때 값을 유지한다(발뒤꿈치는
+                # 보통 하강 내내 바닥에 붙어있다가 깊게 앉은 뒤에야 변화가 생기는 게 자연스러운
+                # 시나리오라서) — _find_standing_baseline_before_dip()이 찾는 "150도 문턱을
+                # 넘기 직전 프레임"이 하강 중간의 임의 보간값이 아니라 정확히 standing_heel_lift
+                # 값이 되도록 하기 위함이기도 하다.
+                "heel_lift_ratio": standing_heel_lift,
+            }
+        )
+    base_index = 5 + descent_frames
+    for i in range(n_hold):
+        frames.append(
+            {
+                "timestamp": (base_index + i) * 0.033,
+                "knee_angle": 85 + (i % 2),
+                "hip_angle": 80 + (i % 2),
+                "heel_lift_ratio": hold_heel_lift,
+            }
+        )
+    return frames
+
+
+def test_coaching_frame_heel_lift_dynamic_baseline_prevents_false_positive_for_elevated_standing():
+    # 서 있을 때부터 heel_lift_ratio가 이미 임곗값을 넘는 사용자(웨지 사용) — 스쿼트 중에도
+    # 서 있을 때와 거의 같은 값이면(추가로 더 들리지 않았으면) 이상으로 잡으면 안 된다.
+    baseline = HEEL_LIFT_RATIO_THRESHOLD + 0.2  # 서 있을 때부터 이미 임곗값 초과
+    angle_history = _build_rep_history_with_standing_baseline(baseline, baseline + 0.05)
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(heel lift, dynamic elevated standing baseline):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["phase"] == "holding", data  # phase 판정 자체가 잘못돼 검사가 스킵된 게 아닌지 확인
+    assert not any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
+def test_coaching_frame_heel_lift_dynamic_baseline_still_flags_real_lift():
+    # 서 있을 때 기준값이 낮은 사용자가 스쿼트 중 실제로 기준보다 크게 더 들리면(차이값이
+    # 임곗값을 넘으면) 절대값이 임곗값 미만이어도 이상으로 잡아야 한다.
+    baseline = -0.3
+    latest = 0.5  # 절대값만 보면 HEEL_LIFT_RATIO_THRESHOLD(0.7) 미만이라 기존 방식이면 안 잡힘
+    assert latest < HEEL_LIFT_RATIO_THRESHOLD
+    assert latest - baseline > HEEL_LIFT_RATIO_THRESHOLD
+    angle_history = _build_rep_history_with_standing_baseline(baseline, latest)
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(heel lift, dynamic baseline catches real lift):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["phase"] == "holding", data
+    assert any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
+def test_coaching_frame_heel_lift_falls_back_to_absolute_without_standing_prefix():
+    # angle_history 안에 "서 있던 프레임"이 아예 없으면(예: 이미 깊게 앉은 채로 시작하는
+    # 히스토리) 동적 기준값을 못 찾아 기존처럼 절대값(HEEL_LIFT_RATIO_THRESHOLD)으로
+    # 판정해야 한다 — test_coaching_frame_heel_lift_flagged_when_deep_hold와 같은 상황이지만,
+    # 여기서는 "왜 절대값 경로를 타는지"를 명시적으로 검증한다.
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "heel_lift_ratio": HEEL_LIFT_RATIO_THRESHOLD + 0.3,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(heel lift, no standing prefix -> absolute fallback):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "heel" for issue in data["issues"]), data
+
+
 # (2026-08-24) 무릎 모임/좌우 비대칭 규칙기반 검사의 단위 테스트(get_knee_valgus_ratio/
 # get_knee_lr_asymmetry_deg 직접 호출)와 그 /ai/pose/analyze 통합 테스트가 이 자리에
 # 있었다 — AI-03 삭제(위 주석 참고)와 함께 이 두 함수 자체가 angles.py에서 제거되며 같이
@@ -805,6 +915,49 @@ def test_coaching_frame_knee_asymmetry_flagged_when_deep_hold():
     body = {"angle_history": angle_history}
     res = client.post("/ai/coaching/frame", json=body)
     print("coaching_frame(knee asymmetry, deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "asymmetry" for issue in data["issues"]), data
+
+
+# (2026-08-27 추가) 오버헤드 스쿼트 보상작용 참고 사진(무릎각도 154~158도)을 실제
+# mediapipe로 검증하다가, 무릎 모임(valgus)이 교과서적으로 뚜렷한 사진조차
+# is_deep_hold(무릎각도<150도) 게이트에 막혀 통째로 안 잡히는 걸 확인했다. 무릎 모임/
+# 좌우비대칭을 목/시선과 동일하게 상시검사로 바꾼 변경(realtime.py)이 실제로 "깊게 안
+# 앉은(무릎각도>=150도) 상태"에서도 잡아내는지 회귀로 고정한다.
+def test_coaching_frame_knee_valgus_flagged_even_when_not_deep_hold():
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 155,  # STANDING_KNEE_ANGLE_MIN(150) 이상 — is_deep_hold=False
+            "hip_angle": 165,
+            "knee_valgus_ratio": KNEE_VALGUS_RATIO_THRESHOLD - 0.3,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(knee valgus, NOT deep hold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_normal"] is False, data
+    assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
+
+
+def test_coaching_frame_knee_asymmetry_flagged_even_when_not_deep_hold():
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 155,  # STANDING_KNEE_ANGLE_MIN(150) 이상 — is_deep_hold=False
+            "hip_angle": 165,
+            "knee_asymmetry_deg": KNEE_ASYMMETRY_THRESHOLD_DEG + 10.0,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(knee asymmetry, NOT deep hold):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
     assert data["is_normal"] is False, data
@@ -1148,6 +1301,9 @@ if __name__ == "__main__":
     test_coaching_frame_heel_lift_flagged_when_deep_hold()
     test_coaching_frame_without_heel_lift_field_still_works()
     test_coaching_frame_heel_lift_ignored_while_standing()
+    test_coaching_frame_heel_lift_dynamic_baseline_prevents_false_positive_for_elevated_standing()
+    test_coaching_frame_heel_lift_dynamic_baseline_still_flags_real_lift()
+    test_coaching_frame_heel_lift_falls_back_to_absolute_without_standing_prefix()
     test_coaching_frame_knee_valgus_flagged_when_deep_hold()
     test_coaching_frame_knee_asymmetry_flagged_when_deep_hold()
     test_coaching_frame_without_frontal_fields_still_works()

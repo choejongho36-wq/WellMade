@@ -126,6 +126,32 @@ def _extract_last_completed_rep(angle_history: list[AngleFrame]) -> list[AngleFr
     return rep
 
 
+def _find_standing_baseline_before_dip(angle_history: list[AngleFrame]) -> AngleFrame | None:
+    """angle_history 안에서 "가장 최근에 시작된 하강" 바로 직전, 아직 서 있던(무릎각도
+    STANDING_KNEE_ANGLE_MIN 이상) 프레임 1개를 찾아 반환한다 — 없으면 None.
+
+    왜 이게 필요한가?: heel_lift_ratio를 절대값 하나로만 판정하면, 웨지·역도화처럼
+    원래 발뒤꿈치를 들고 서는 셋업을 쓰는 사용자는 가만히 서 있을 때부터 값이 높게
+    나와서 오탐이 난다(rules.py의 HEEL_LIFT_RATIO_THRESHOLD 주석 참고). "동작 중에
+    실제로 더 들렸는지"만 잡으려면 그 사람이 이번 렙을 시작하기 직전 실제로 어떤
+    상태로 서 있었는지가 기준이 돼야 한다.
+
+    (2026-08-27) 처음에는 온보딩 캘리브레이션(hip_calibration에 별도 필드 추가)으로
+    이 기준값을 한 번만 재서 쓰려고 했는데, 온보딩은 보통 "힐업 안 한" 평상시 자세로
+    측정하므로 웨지 사용 여부(그날그날 세션에서 정해지는 선택)를 반영하지 못한다는
+    문제가 있었다 — 그래서 매 렙 실시간으로 "방금 서 있던 상태"를 그대로 기준값으로
+    쓰는 이 방식으로 바꿨다. _extract_last_completed_rep()과 같은 STANDING_KNEE_ANGLE_MIN
+    경계 기준을 쓰되, 그쪽은 "이미 끝난 렙 전체"를 잘라내는 반면 이 함수는 "지금 진행
+    중인(또는 방금 끝난) 렙의 시작 직전 프레임 1개"만 찾는다는 차이가 있다.
+    """
+    knee = [f.knee_angle for f in angle_history]
+    n = len(knee)
+    for i in range(n - 1, 0, -1):
+        if knee[i] < STANDING_KNEE_ANGLE_MIN and knee[i - 1] >= STANDING_KNEE_ANGLE_MIN:
+            return angle_history[i - 1]
+    return None
+
+
 def _linear_fit(xs: list[float], ys: list[float]) -> tuple[float, float]:
     """
     최소제곱법으로 1차 직선(y = slope*x + intercept)을 구하고 (slope, r_squared)를 반환한다.
@@ -201,6 +227,16 @@ def judge_realtime_coaching(
     # 대신 담당한다(schemas.py/rules.py 주석 참고).
     latest_shoulder_forward_lean = angle_history[-1].shoulder_forward_lean_deg  # 선택 필드라 None일 수 있음
     latest_heel_lift = angle_history[-1].heel_lift_ratio  # 선택 필드라 None일 수 있음
+    # 발뒤꿈치 뜸 판정 기준값 — 이번 렙이 시작되기 직전 "서 있던" 프레임을 angle_history
+    # 안에서 실시간으로 찾아, 그 프레임의 heel_lift_ratio를 기준값으로 쓴다(절대값이 아니라
+    # 그 기준 대비 차이값으로 판정하기 위함 — 웨지·역도화 사용자처럼 원래 발뒤꿈치를 들고
+    # 서는 경우의 오탐을 막기 위함, rules.py의 HEEL_LIFT_RATIO_THRESHOLD 주석 참고). 그런
+    # "직전 서 있는 프레임"을 못 찾으면(사진 판정처럼 애초에 없는 경우 등) None으로 남아
+    # 기존처럼 절대값으로 판정한다.
+    heel_lift_standing_frame = _find_standing_baseline_before_dip(angle_history)
+    heel_lift_baseline = (
+        heel_lift_standing_frame.heel_lift_ratio if heel_lift_standing_frame is not None else None
+    )
     # 정면 랜드마크 기반 지표 — 프론트가 정면 카메라도 붙였을 때만 채워진다.
     latest_knee_valgus = angle_history[-1].knee_valgus_ratio  # 선택 필드라 None일 수 있음
     latest_knee_asymmetry = angle_history[-1].knee_asymmetry_deg  # 선택 필드라 None일 수 있음
@@ -286,12 +322,25 @@ def judge_realtime_coaching(
         # 발뒤꿈치 뜸도 knee/hip과 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 서 있는
         # 상태에서는 애초에 발뒤꿈치가 뜰 이유가 없어 검사 대상이 아니고, 동작 중(내려감/올라옴)에
         # 순간적으로 값이 흔들리는 걸 이상으로 잡으면 오탐이 늘어난다(rules.py 주석 참고).
-        if is_deep_hold and latest_heel_lift is not None and latest_heel_lift > HEEL_LIFT_RATIO_THRESHOLD:
-            issues.append({"part": "heel", "message": HEEL_LIFT_MESSAGE})
-        # 무릎 모임/좌우 비대칭도 발뒤꿈치와 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다
-        # (rules.py 주석 참고). 정면 카메라를 아직 안 붙인 프론트는 이 필드를
-        # 안 보내므로(None) 자동으로 검사가 건너뛰어진다 — 하위 호환.
-        if is_deep_hold and latest_knee_valgus is not None and latest_knee_valgus < KNEE_VALGUS_RATIO_THRESHOLD:
+        # heel_lift_baseline(서 있을 때 기준값)이 있으면 절대값 대신 그 기준 대비 얼마나
+        # 더 들렸는지(차이값)로 비교한다 — 없으면(하위 호환) 기존처럼 절대값 그대로 비교한다.
+        if is_deep_hold and latest_heel_lift is not None:
+            heel_lift_deviation = (
+                latest_heel_lift - heel_lift_baseline if heel_lift_baseline is not None else latest_heel_lift
+            )
+            if heel_lift_deviation > HEEL_LIFT_RATIO_THRESHOLD:
+                issues.append({"part": "heel", "message": HEEL_LIFT_MESSAGE})
+        # (2026-08-27 변경) 무릎 모임/좌우 비대칭은 원래 발뒤꿈치와 같은 이유로 "깊게 앉아
+        # 멈춘 상태"(is_deep_hold)에서만 검사했으나, 실제 오버헤드 스쿼트 평가 참고
+        # 사진(무릎각도 154~158도 — is_deep_hold 기준 150도 미달)으로 검증하다가 교과서적인
+        # 무릎 모임(valgus) 사례조차 깊이 게이트에 막혀 통째로 안 잡히는 걸 확인했다. 무릎
+        # 모임은 목/시선과 마찬가지로 "깊게 앉았을 때"만이 아니라 정지한 어느 시점에서든
+        # 확인해야 하는 문제라 판단해, 위 목/시선(gaze) 검사와 동일하게 is_deep_hold 조건
+        # 없이 검사하는 상시검사로 바꿨다(그 자리에 있던 "phase==holding으로 대체" 방안은
+        # 사진 판정이 동일 프레임 3개를 복제해 보내는 부작용에 기대는 방식이라 채택하지
+        # 않았다). 정면 카메라를 아직 안 붙인 프론트는 이 필드를 안 보내므로(None) 자동으로
+        # 검사가 건너뛰어진다 — 하위 호환.
+        if latest_knee_valgus is not None and latest_knee_valgus < KNEE_VALGUS_RATIO_THRESHOLD:
             issues.append({"part": "knee_valgus", "message": KNEE_VALGUS_MESSAGE})
         # (2026-08-27 폐기) 여기 있던 "고관절 과신전 의심"(latest_knee_valgus가
         # KNEE_VALGUS_RATIO_THRESHOLD 이상 ~ 1.1 미만이면 별도 태깅) 로직은 근거 부족으로
@@ -299,8 +348,7 @@ def judge_realtime_coaching(
         # 남은 주석 참고. knee_valgus_ratio가 KNEE_VALGUS_RATIO_THRESHOLD 이상(무릎이 발목
         # 너비 이상으로 벌어진 상태, varus 방향)이면 이제 아무 이슈도 태깅하지 않는다.
         if (
-            is_deep_hold
-            and latest_knee_asymmetry is not None
+            latest_knee_asymmetry is not None
             and latest_knee_asymmetry > KNEE_ASYMMETRY_THRESHOLD_DEG
         ):
             issues.append({"part": "asymmetry", "message": ASYMMETRY_MESSAGE})
