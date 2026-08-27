@@ -13,6 +13,7 @@
 
 from app.pose.coaching_messages import (
     ASYMMETRY_MESSAGE,
+    BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE,
     BACK_ROUNDED_MESSAGE,
     HEEL_LIFT_MESSAGE,
     HIP_HYPEREXTENSION_MESSAGE,
@@ -98,18 +99,15 @@ def judge_realtime_coaching(
 
     # 프레임이 너무 적으면 추세를 신뢰할 수 없다. 예외를 던지는 대신 "정지"로 잠정 판단하고
     # 신뢰도만 낮게 준다 — 세션 시작 직후 프레임이 아직 안 쌓였을 때도 프론트가 매번
-    # 에러 처리를 하지 않고 계속 호출할 수 있게 하기 위함.
+    # 에러 처리를 하지 않고 계속 호출할 수 있게 하기 위함. 이건 사용자에게 코칭할 "문제"가
+    # 아니라 세션이 막 시작해 데이터가 덜 쌓인 것뿐이라, 별도 문구 없이 낮은 confidence만
+    # 반환한다(하네스 AI-07이 신뢰도 낮음을 이미 판단 근거로 쓴다).
     if len(angle_history) < MIN_FRAMES:
         return {
             "phase": "holding",
             "is_normal": True,
             "confidence": round(len(angle_history) / MIN_FRAMES * 0.3, 2),
-            "issues": [
-                {
-                    "part": "data",
-                    "message": f"판정에 필요한 프레임이 부족합니다 ({len(angle_history)}/{MIN_FRAMES}).",
-                }
-            ],
+            "issues": [],
         }
 
     timestamps = [f.timestamp for f in angle_history]
@@ -248,6 +246,11 @@ def judge_realtime_coaching(
             and latest_torso_length_ratio < back_rounding_baseline * BACK_ROUNDING_RATIO_THRESHOLD
         ):
             issues.append({"part": "back_rounded", "message": BACK_ROUNDED_MESSAGE})
+        elif is_deep_hold and latest_torso_length_ratio is not None and back_rounding_baseline is None:
+            # 캘리브레이션이 없어 기준값 자체가 없는 경우 — 조용히 건너뛰지 않고, 왜 이
+            # 검사가 빠졌는지 알려준다(어깨 말림까지 여기로 흡수된 뒤로는 이 검사가 하는
+            # 역할이 커져서, 조용한 스킵보다 명시적 안내가 낫다고 판단).
+            issues.append({"part": "data", "message": BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE})
     else:
         # 동작 중에는 "정상범위 하한보다 훨씬 더 굽혀지는" 과도한 굽힘만 위험 신호로 본다.
         # (무릎에 부담이 되는 과도한 가동범위는 동작 단계와 무관하게 바로 감지해야 하기 때문)

@@ -1004,7 +1004,9 @@ def test_coaching_frame_back_rounded_ignored_while_standing():
 
 def test_coaching_frame_back_rounded_ignored_without_baseline():
     # torso_length_ratio 필드는 보내더라도, hip_calibration.standing_shoulder_hip_ratio가
-    # 없으면(하위 호환) 기준값이 없어 판정 자체를 건너뛴다.
+    # 없으면(하위 호환) 기준값이 없어 등 굽음(이상 유무) 자체는 판정하지 않는다 — 다만
+    # 조용히 건너뛰지 않고, 캘리브레이션이 필요하다는 안내(data 항목)는 대신 나가야 한다
+    # (2026-08-26: 어깨 말림까지 이 검사로 흡수된 뒤로 추가된 동작).
     angle_history = [
         {
             "timestamp": i * 0.1,
@@ -1020,6 +1022,7 @@ def test_coaching_frame_back_rounded_ignored_without_baseline():
     assert res.status_code == 200
     data = res.json()
     assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
+    assert any(issue["part"] == "data" and "캘리브레이션" in issue["message"] for issue in data["issues"]), data
 
 
 def test_coaching_frame_without_torso_length_ratio_field_still_works():

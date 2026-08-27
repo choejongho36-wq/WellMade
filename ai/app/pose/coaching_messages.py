@@ -23,6 +23,15 @@ KNEE_OVER_TOE_MESSAGE = "무릎이 발끝보다 많이 앞으로 나갔어요. �
 
 BACK_ROUNDED_MESSAGE = "등이 둥글게 말려 있어요. 허리를 곧게 펴고 가슴을 살짝 든 상태를 유지해주세요."
 
+# 등 굽음 판정은 온보딩 캘리브레이션(HipFlexibilityCalibration.standing_shoulder_hip_ratio)
+# 기준값이 있어야만 가능하다(rules.py의 BACK_ROUNDING_RATIO_THRESHOLD 주석 참고). 캘리브레이션이
+# 없으면 이상 유무를 아예 알 수 없는데, 이걸 조용히 건너뛰면(경고 없이) 사용자는 "등 굽음은
+# 항상 정상"으로 오해할 수 있다 — 어깨 말림까지 이 검사 하나로 흡수한 뒤로는 그 오해의
+# 범위가 더 커져서, 왜 이 검사가 빠졌는지 명시적으로 알려준다.
+BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE = (
+    "등이 굽었는지 정확히 확인하려면 온보딩에서 자세 캘리브레이션을 먼저 진행해주세요."
+)
+
 # knee_valgus_ratio를 재해석한 잠정 신호(rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD 참고)라
 # KNEE_VALGUS_MESSAGE처럼 "무릎이 모이고 있다"고 단정하지 않고, 확신이 낮은 신호라는 점을
 # 감안해 더 조심스러운 표현을 썼다 — 원인을 "고관절 과신전"이라고 진단하듯 말하는 대신,

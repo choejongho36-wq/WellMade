@@ -22,6 +22,18 @@ httpx>=0.27              # FastAPI TestClient가 내부적으로 사용
 scikit-learn>=1.4
 pandas>=2.2   # prepare_posture_reference.py에서 CSV 로딩에 사용
 
+# --- DTW 궤적 유사도 매칭 (app/pose/dtw_matching.py) ---
+# 허리 과신전/등 굽음을 실시간 영상에서 "정상 스쿼트 궤적과의 패턴 유사도"로 판정하기 위한
+# 다변량 DTW 거리 계산에 쓴다(체크리스트 "척추/허리" v3, 2026-08-27 addendum 참고).
+# fastdtw(근사)는 애매한 구간을 늘려 LLM 호출 비용을 오히려 키울 수 있어 제외, scipy
+# 직접구현은 정확하지만 구현/테스트 부담 때문에 제외하고 dtaidistance(정식 DTW, C 구현)로
+# 확정했다. mediapipe/opencv 같은 자세추정 라이브러리는 추가하지 않는다 — 좌표 추출·템플릿
+# 생성은 로컬 오프라인 스크립트에서만 하고(서버는 계산이 아니라 저장·판정만 한다는 원칙),
+# 이 라이브러리는 이미 만들어진 템플릿(숫자 배열)과의 거리 계산만 수행한다.
+# 설치에는 C 컴파일러가 필요하다(OpenMP 가속 확장 포함) — macOS는 Xcode Command Line
+# Tools, Linux는 build-essential 등이 이미 있으면 추가 설치 없이 빌드된다.
+dtaidistance>=2.3,<3.0
+
 # --- 하네스 오케스트레이션 (AI-07, app/orchestration/harness.py) ---
 # scikit-learn과 같은 이유로 버전을 고정한다 — SDK의 tool_use 응답 형태가 버전마다
 # 바뀔 수 있어 파싱 로직이 이 버전 기준으로 작성됐다. 실행에는 ANTHROPIC_API_KEY와
