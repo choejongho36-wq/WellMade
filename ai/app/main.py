@@ -4,6 +4,10 @@ AI 서버의 시작점.
 'uvicorn app.main:app --reload' 명령어로 이 서버를 실행한다.
 """
 
+from dotenv import load_dotenv
+
+load_dotenv()  # .env 파일의 값을 os.environ에 주입 (다른 app.* 모듈 임포트보다 먼저 실행)
+
 from datetime import date
 
 from fastapi import FastAPI
