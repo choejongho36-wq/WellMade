@@ -7,7 +7,6 @@ import ChatWidget from './components/ChatWidget.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import MainPage from './pages/MainPage.jsx'
 import MyPage from './pages/MyPage.jsx'
-import PosturePage from './pages/PosturePage.jsx'
 import DietPage from './pages/DietPage.jsx'
 import MlTestPage from './pages/MlTestPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
@@ -20,7 +19,6 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<MainPage />} />
         <Route path="/mypage" element={<MyPage />} />
-        <Route path="/posture" element={<PosturePage />} />
         <Route path="/mealplan" element={<DietPage />} />
         <Route path="/ml-test" element={<MlTestPage />} />
         <Route path="/oauth/redirect" element={<MainPage />} />
