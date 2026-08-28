@@ -20,6 +20,10 @@ DTW(동적 시간 워핑)로 정상 렙 템플릿 20개(app/pose/dtw_templates/*
 
 from pathlib import Path
 
+from app.coaching.hyperextension_llm_check import (
+    get_job_result as _get_llm_job_result,
+    start_hyperextension_analysis as _start_hyperextension_analysis,
+)
 from app.pose.coaching_messages import (
     ASYMMETRY_MESSAGE,
     BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE,
@@ -27,6 +31,7 @@ from app.pose.coaching_messages import (
     CENTER_OF_MASS_SHIFT_MESSAGE,
     DTW_FORM_MISMATCH_MESSAGE,
     HEEL_LIFT_MESSAGE,
+    HIP_HYPEREXTENSION_LLM_MESSAGE,
     KNEE_OVER_TOE_MESSAGE,
     KNEE_VALGUS_MESSAGE,
     GAZE_FORWARD_MESSAGE,
@@ -35,11 +40,13 @@ from app.pose.dtw_matching import (
     DEFAULT_METRIC_FIELDS,
     DTWTemplate,
     TemplateNotFoundError,
-    load_templates,
     nearest_normal_distance,
 )
+from app.pose.dtw_template_store import load_templates_for_store
 from app.pose.rules import (
     BACK_ROUNDING_RATIO_THRESHOLD,
+    DTW_AMBIGUOUS_LOWER_DISTANCE,
+    DTW_AMBIGUOUS_UPPER_DISTANCE,
     DTW_NEAREST_DISTANCE_THRESHOLD,
     HEEL_LIFT_RATIO_THRESHOLD,
     KNEE_ASYMMETRY_THRESHOLD_DEG,
@@ -60,22 +67,24 @@ JITTER_STD_THRESHOLD_DEG = 10.0  # 프레임 간 각도 변화량의 표준편�
 DEEP_MARGIN_DEG = 15.0  # 동작 중 정상범위 하한보다 이 값 이상 더 굽혀지면 "과도한 굽힘(위험)"으로 판단.
 STANDING_KNEE_ANGLE_MIN = 150.0  # 이 이상이면 "선 자세(하단이 아님)"로 보고, 정지 상태의 하단 자세 검사를 건너뜀.
 
-# app/pose/dtw_templates/*.json이 있는 디렉토리. 이 파일(app/coaching/realtime.py) 기준
-# 상대경로로 잡아, 배포 환경에서 작업 디렉토리가 달라져도 항상 같은 위치를 가리키게 한다.
+# app/pose/dtw_templates/*.json이 있는 디렉토리 — S3/로컬 캐시가 둘 다 없을 때의 최종
+# 폴백으로 쓰인다(app/pose/dtw_template_store.py의 load_templates_for_store 3단계 순서
+# 참고). 이 파일(app/coaching/realtime.py) 기준 상대경로로 잡아, 배포 환경에서 작업
+# 디렉토리가 달라져도 항상 같은 위치를 가리키게 한다.
 DTW_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "pose" / "dtw_templates"
 
-# 템플릿 20개는 요청마다 새로 읽지 않고 프로세스당 한 번만 읽어 캐싱한다 — 파일 읽기
-# 자체는 가볍지만(JSON 20개), 실시간 엔드포인트는 프레임마다 호출되므로 굳이 매번
-# 디스크 I/O를 반복할 이유가 없다. None은 "아직 안 읽음"과 "읽어봤는데 비어있음"을
-# 구분할 수 있는 값이 필요해서가 아니라(load_templates는 없으면 빈 리스트를 반환),
-# 단순히 "최초 1회만 로드"를 표시하는 용도다.
+# (2026-08-28 추가) 템플릿은 요청마다 새로 읽지 않고 프로세스당 한 번만 읽어 캐싱한다 —
+# S3 요청이 포함될 수 있어(load_templates_for_store) 디렉토리 파일만 읽던 때보다 이
+# 캐싱의 중요성이 더 커졌다: 캐싱이 없으면 실시간 엔드포인트가 프레임마다 S3에 GET을
+# 보내는 셈이 되어 버린다. None은 "아직 안 읽음"을 표시하는 용도다(빈 리스트도 유효한
+# 결과라 None과 구분해야 함).
 _dtw_templates_cache: list[DTWTemplate] | None = None
 
 
 def _get_dtw_templates() -> list[DTWTemplate]:
     global _dtw_templates_cache
     if _dtw_templates_cache is None:
-        _dtw_templates_cache = load_templates(DTW_TEMPLATES_DIR)
+        _dtw_templates_cache = load_templates_for_store(DTW_TEMPLATES_DIR)
     return _dtw_templates_cache
 
 
@@ -197,6 +206,7 @@ def _std_dev(values: list[float]) -> float:
 def judge_realtime_coaching(
     angle_history: list[AngleFrame],
     hip_calibration: HipFlexibilityCalibration | None = None,
+    pending_llm_job_id: str | None = None,
 ) -> dict:
     """
     최근 N프레임의 무릎/엉덩이 각도 시계열을 보고
@@ -204,8 +214,16 @@ def judge_realtime_coaching(
 
     반환값을 dict로 두는 이유는 main.py가 API 응답으로 감싸기 전, 하네스(AI-07)에서도
     그대로 재사용할 수 있는 순수 값 형태를 유지하기 위함이다.
+
+    pending_llm_job_id: 이전 호출에서 시작된 고관절 과신전 LLM 2차 확인 job이 있으면
+    프론트가 그대로 실어 보낸다 — app/coaching/hyperextension_llm_check.py 모듈
+    docstring, schemas.py의 CoachingFrameRequest/Response 필드 설명 참고.
     """
     issues: list[dict] = []
+    # 이번 응답에서 프론트가 계속 들고 있어야 할 job id — 기본은 "기다릴 것 없음"이고,
+    # 아래 (1.5)/(1.6) 블록에서 새로 시작하거나 아직 안 끝난 이전 job을 그대로 돌려줄 때만
+    # 채워진다.
+    outgoing_llm_job_id: str | None = None
 
     # 프레임이 너무 적으면 추세를 신뢰할 수 없다. 예외를 던지는 대신 "정지"로 잠정 판단하고
     # 신뢰도만 낮게 준다 — 세션 시작 직후 프레임이 아직 안 쌓였을 때도 프론트가 매번
@@ -218,6 +236,7 @@ def judge_realtime_coaching(
             "is_normal": True,
             "confidence": round(len(angle_history) / MIN_FRAMES * 0.3, 2),
             "issues": [],
+            "pending_llm_job_id": None,
         }
 
     timestamps = [f.timestamp for f in angle_history]
@@ -399,12 +418,38 @@ def judge_realtime_coaching(
                 }
             )
 
-    # --- (1.5) DTW 렙 패턴 유사도 판정 ---
+    # --- (1.45) 고관절 과신전 LLM 2차 확인 결과 회수 ---
+    # 프론트가 이전 응답에서 받은 pending_llm_job_id를 실어 보냈으면, 이번 렙과 무관하게
+    # 매 호출마다 "혹시 준비됐나"만 가볍게 확인한다(dict 조회 1회, 비용 없음) —
+    # app/coaching/hyperextension_llm_check.py 모듈 docstring의 "전달 시점" 참고.
+    if pending_llm_job_id is not None:
+        llm_result = _get_llm_job_result(pending_llm_job_id)
+        if llm_result is not None:
+            if llm_result.get("verdict") == "과신전_의심":
+                issues.append({"part": "hip_hyperextension", "message": HIP_HYPEREXTENSION_LLM_MESSAGE})
+            # verdict == "정상"이면 애매했던 렙이 실제로는 괜찮았다는 뜻이라 아무것도
+            # 추가하지 않는다 — 애초에 (1.5)에서도 이 렙에 대해 아무 말 안 했으므로
+            # 사용자 입장에서는 계속 조용했던 것과 같다.
+        else:
+            # 아직 안 끝났거나(pending) 만료/실패(error) — 어느 쪽이든 프론트는 같은
+            # job id로 계속 물어봐야 하니 그대로 돌려준다. get_job_result가 이미
+            # pending이 아닌 경우(만료/실패) 저장소에서 지웠으므로, 그 경우는 사실
+            # "더 기다려도 소용없음"인데 여기서는 구분하지 않고 동일하게 재전달한다 —
+            # 다음 호출에서 다시 조회하면 그때는 저장소에 없어 자연히 None으로 정리된다.
+            outgoing_llm_job_id = pending_llm_job_id
+
+    # --- (1.5) DTW 렙 패턴 유사도 판정 (+ 애매한 구간은 (1.55) LLM 2차 확인으로) ---
     # 위 (1)/(2)는 "현재 순간"만 보는 규칙기반 판정이라 phase에 따라 갈라지지만, 이 검사는
     # 그와 독립적으로 angle_history 전체를 훑어 "가장 최근에 완료된 렙"을 찾아 그 렙
     # 하나를 정상 렙 템플릿 20개와 통째로 비교한다 — 그래서 phase 분기 밖, 이 함수
     # 어디서 호출해도 상관없는 위치에 둔다. 자세한 배경은 이 파일 상단 docstring과
     # rules.py의 DTW_NEAREST_DISTANCE_THRESHOLD 주석 참고.
+    #
+    # (2026-08-28 추가) 거리가 DTW_AMBIGUOUS_LOWER_DISTANCE~DTW_AMBIGUOUS_UPPER_DISTANCE
+    # 사이(애매한 구간)에 들어오면 바로 form_pattern으로 태깅하지 않는다 — 사용자 지시
+    # ("애매한 건 얘기도 하지 말고")대로 이번 응답에서는 조용히 넘어가고, 대신 (1.6)에서
+    # LLM 2차 확인을 백그라운드로 시작한다. 그 상한/하한 밖(명백히 정상 또는 명백히
+    # 이상)은 기존처럼 즉시 판정한다 — LLM 응답(20~40초)을 기다릴 이유가 없다.
     rep_frames = _extract_last_completed_rep(angle_history)
     if rep_frames is not None:
         try:
@@ -412,8 +457,35 @@ def judge_realtime_coaching(
             nearest, _all_distances = nearest_normal_distance(
                 rep_frames, templates, metric_fields=DEFAULT_METRIC_FIELDS
             )
-            if nearest.distance > DTW_NEAREST_DISTANCE_THRESHOLD:
+            if nearest.distance > DTW_AMBIGUOUS_UPPER_DISTANCE:
                 issues.append({"part": "form_pattern", "message": DTW_FORM_MISMATCH_MESSAGE})
+            elif nearest.distance > DTW_AMBIGUOUS_LOWER_DISTANCE:
+                # --- (1.55) 애매한 구간 — 고관절 과신전 LLM 2차 확인 시작 ---
+                # 이미 기다리는 job이 있으면(pending_llm_job_id로 들어왔거나, 바로 위
+                # (1.45)에서 이번 응답에 이미 채워졌으면) 새로 시작하지 않는다 — 안 그러면
+                # "가장 최근 완료된 렙"이 다음 렙이 시작되기 전까지 여러 번의 200ms 폴링
+                # 동안 계속 이 애매한 구간에 머무르는데(LLM 자체가 20~40초 걸림), 매번
+                # 새 job을 띄우면 렙 하나에 수백 개의 중복 LLM 호출이 나가 비용이 폭증한다.
+                #
+                # 알려진 한계: 이 가드는 "지금 뭔가 기다리는 중이냐"만 보고 "이 렙을 이미
+                # 분석해봤냐"는 구분하지 않는다 — 그래서 LLM이 답을 준 직후, 다음 렙이
+                # 시작되기 전 짧은 틈에 같은(이미 분석 끝난) 렙이 다시 이 구간에 걸리면
+                # 한 번 더 분석을 시작할 수 있다. 렙별 식별자를 따로 매겨 완전히 막을
+                # 수도 있지만, 그러려면 세션 상태를 더 넓게 들고 있어야 해서(모듈
+                # docstring의 "좁은 예외" 원칙과 상충) 지금은 감수하기로 한 트레이드오프다
+                # — 실제로는 많아야 렙당 한 번 더 발생하는 수준이라 위 문제(수백 배 폭증)
+                # 와는 심각도가 다르다.
+                if pending_llm_job_id is None and outgoing_llm_job_id is None:
+                    new_job_id = _start_hyperextension_analysis(rep_frames)
+                    if new_job_id is not None:
+                        outgoing_llm_job_id = new_job_id
+                    elif nearest.distance > DTW_NEAREST_DISTANCE_THRESHOLD:
+                        # LLM 하이브리드가 설정 안 된 환경(AWS_BEDROCK_REGION/
+                        # HYPEREXTENSION_BEDROCK_MODEL_ID 미설정) — 이 기능이 없다고
+                        # 애매한 신호를 그냥 버리면 지금까지의 동작(임곗값 20.0 하나로만
+                        # 보던 것)보다 더 둔감해지는 셈이라, 기존 방식대로 되돌아가
+                        # 판정한다(하위 호환).
+                        issues.append({"part": "form_pattern", "message": DTW_FORM_MISMATCH_MESSAGE})
         except (ValueError, TemplateNotFoundError):
             # ValueError: 이 렙 프레임 중 하나라도 DEFAULT_METRIC_FIELDS(선택 필드인
             # torso_length_ratio/shoulder_forward_lean_deg 포함)가 없는 경우 —
@@ -421,6 +493,13 @@ def judge_realtime_coaching(
             # TemplateNotFoundError: 템플릿 디렉토리가 비어있는 개발/테스트 환경 —
             # 이 경우도 검사를 건너뛴다(운영 배포본에는 템플릿 20개가 항상 커밋돼 있다).
             pass
+
+    # (2026-08-28 추가, 2026-08-28 같은 날 폐기) 정면 전용 DTW 고관절 과신전
+    # 판정((1.6) 블록)이 이 자리에 있었다 — 정면 카메라는 고관절 과신전(시상면 신호)을
+    # 원리적으로 촬영할 수 없다는 게 실측(영상 프레임 직접 확인)으로 확인됐고, 정면
+    # 지표가 라벨보다 촬영 인물별로 더 강하게 클러스터링되는 것도 함께 확인돼(checklist
+    # 2026-08-28 addendum 1번 참고) 폐기했다. 진짜 고관절 과신전은 위 (1.45)/(1.55)의
+    # 측면 DTW+LLM 하이브리드로만 판정한다 — 정면 카메라만으로는 아직 대체 지표가 없다.
 
     # --- (3) 신뢰도 계산 ---
     # 하네스(AI-07)가 "confidence < 0.7이면 재분석"을 판단하는 근거가 되므로,
@@ -443,4 +522,5 @@ def judge_realtime_coaching(
         "is_normal": len(issues) == 0,
         "confidence": round(confidence, 2),
         "issues": issues,
+        "pending_llm_job_id": outgoing_llm_job_id,
     }

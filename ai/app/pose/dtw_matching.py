@@ -63,6 +63,10 @@ DEFAULT_METRIC_FIELDS: tuple[str, ...] = (
     "shoulder_forward_lean_deg",
 )
 
+# (2026-08-28 추가, 2026-08-28 같은 날 폐기) 정면 전용 지표 세트(FRONTAL_METRIC_FIELDS)가
+# 이 자리에 있었다 — 정면 카메라 기반 고관절 과신전 판정 자체가 원리적 한계(시상면 신호
+# 부재)로 폐기됐다. 자세한 배경은 checklist 2026-08-28 addendum 참고.
+
 
 class TemplateNotFoundError(RuntimeError):
     """템플릿이 하나도 없을 때 — 조용히 빈 결과를 주지 않고 명시적으로 알린다(back_rounded
@@ -225,6 +229,54 @@ def load_templates(directory: Path) -> list[DTWTemplate]:
     if not directory.exists():
         return []
     return [load_template(p) for p in sorted(directory.glob("*.json"))]
+
+
+# (2026-08-28 추가) 템플릿 여러 개를 파일 하나(JSON 배열)로 묶어 저장/로딩한다 —
+# app/pose/dtw_template_store.py가 S3에 이 묶음 파일 하나만 올려두고 서버는 딱 1번의
+# GET으로 전체를 받아오는 데 쓴다. 위 save_template()/load_template()(템플릿 1개씩,
+# 로컬 개별 파일용)과는 별개 — 각 항목의 JSON 구조 자체는 동일하고 그걸 리스트로 감싼
+# 것뿐이라 두 형식 사이 변환이 간단하다.
+def save_templates_bundle(templates: Sequence[DTWTemplate], path: Path) -> None:
+    payload = [
+        {
+            "label": t.label,
+            "source": t.source,
+            "metric_fields": list(t.metric_fields),
+            "normalization": t.normalization.to_dict(),
+            "curve": t.curve.tolist(),
+        }
+        for t in templates
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def load_templates_from_bundle(data: bytes | str) -> list[DTWTemplate]:
+    """묶음 파일(JSON 배열) 하나에서 템플릿 여러 개를 한 번에 읽는다 — S3에서 받아온
+    bytes를 그대로 넘기거나, 로컬 캐시 파일에서 읽은 내용을 넘기면 된다. 배열 안 항목
+    하나라도 형식이 깨져 있으면 몇 번째 항목인지 포함한 에러를 던진다(load_template()이
+    파일명을 포함해 어디가 문제인지 알려주는 것과 동일한 원칙 — 묶음 안에서는 파일명이
+    없으니 인덱스로 대신한다)."""
+    try:
+        parsed = json.loads(data)
+    except json.JSONDecodeError as e:
+        raise ValueError("템플릿 묶음 파일이 올바른 JSON이 아닙니다.") from e
+
+    templates: list[DTWTemplate] = []
+    for i, item in enumerate(parsed):
+        try:
+            templates.append(
+                DTWTemplate(
+                    label=item["label"],
+                    source=item["source"],
+                    metric_fields=tuple(item["metric_fields"]),
+                    normalization=MetricNormalization.from_dict(item["normalization"]),
+                    curve=np.asarray(item["curve"], dtype=float),
+                )
+            )
+        except (KeyError, TypeError) as e:
+            raise ValueError(f"템플릿 묶음의 {i}번째 항목 형식이 올바르지 않습니다.") from e
+    return templates
 
 
 @dataclass

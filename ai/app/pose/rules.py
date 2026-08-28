@@ -204,6 +204,28 @@ TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG = 25.0
 #   실제 "나쁜 폼" 렙 데이터가 모이면 반드시 재검증해야 한다.
 DTW_NEAREST_DISTANCE_THRESHOLD = 20.0
 
+# (2026-08-28 추가) DTW+LLM 하이브리드의 "애매한 구간" 경계 —
+# app/coaching/hyperextension_llm_check.py 참고. 최근접거리가 이 범위 안에 들어오면
+# 바로 form_pattern으로 태깅하지 않고 LLM 2차 확인으로 넘긴다(그마저도 설정 안 돼
+# 있으면 아래 하한/상한 근거에 적었듯 기존 임곗값 방식으로 되돌아간다 — 하위 호환).
+# 근거: DTW_NEAREST_DISTANCE_THRESHOLD와 마찬가지로 "나쁜 폼" 렙 데이터가 없어
+# 정성적으로 잡은 잠정 범위다.
+#   - 하한(10.0, 임곗값의 절반): "정상 대 정상" leave-one-out 관측 최댓값(19.29,
+#     바로 위 주석 참고)보다 한참 낮은 지점부터 "혹시 모르니 LLM에 물어보자"로
+#     넉넉하게 잡았다.
+#   - 상한(30.0, 임곗값의 1.5배): 실측으로 확인한 "심하게 왜곡된 렙"(hip_angle
+#     +60도·shoulder_forward_lean_deg +80도·torso_length_ratio 0.3배 왜곡 — 거리
+#     41.9, tests/test_api.py의 DTW 왜곡 테스트 참고)보다는 확실히 낮은 지점 — 이
+#     정도로 벗어난 렙은 LLM 응답(20~40초)을 기다릴 것도 없이 바로 이상으로 본다.
+DTW_AMBIGUOUS_LOWER_DISTANCE = 10.0
+DTW_AMBIGUOUS_UPPER_DISTANCE = 30.0
+
+# LLM 2차 확인 job 결과를 서버가 잠깐 담아두는 최대 시간(초) —
+# app/coaching/hyperextension_llm_check.py의 job 저장소 TTL. 프론트가 이 시간 안에
+# pending_llm_job_id를 다시 보내 결과를 받아가지 않으면(세션 종료, 네트워크 문제 등)
+# 버린다. 실측 지연시간(20~40초)의 몇 배 여유를 둔 값.
+LLM_HYPEREXTENSION_JOB_TTL_SECONDS = 300
+
 # 실시간 히스토리에서 "렙 1개"를 잘라낼 때(무릎각도가 STANDING_KNEE_ANGLE_MIN 아래로
 # 내려갔다 다시 올라오는 구간) 이보다 짧으면 렙이 아니라 노이즈(카메라 흔들림 등으로
 # 순간적으로 각도가 걸린 경우)로 보고 DTW 비교 자체를 건너뛴다.

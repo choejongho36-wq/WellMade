@@ -11,7 +11,7 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
 필드가 없다.
 """
 
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -162,6 +162,14 @@ class CoachingFrameRequest(BaseModel):
     hip_calibration: Optional[HipFlexibilityCalibration] = Field(
         None, description="개인별 고관절 유연성 캘리브레이션 결과. 없으면 고정 NORMAL_RANGES로 판정."
     )
+    pending_llm_job_id: Optional[str] = Field(
+        None,
+        description="이전 응답(CoachingFrameResponse.pending_llm_job_id)에서 받은 고관절 "
+        "과신전 LLM 2차 확인 job id. 프론트는 이 값을 그대로 다음 호출들에 실어 보낸다 — "
+        "서버는 세션을 기억하지 않고(무상태 설계 유지), 이 id로 job이 끝났는지만 그때그때 "
+        "조회한다(app/coaching/hyperextension_llm_check.py 참고). 대기 중인 job이 없으면 "
+        "생략한다.",
+    )
 
 
 class CoachingFrameResponse(BaseModel):
@@ -169,6 +177,16 @@ class CoachingFrameResponse(BaseModel):
     is_normal: bool
     confidence: float
     issues: List[PoseIssue]
+    pending_llm_job_id: Optional[str] = Field(
+        None,
+        description="지금 프론트가 계속 기다려야 할 고관절 과신전 LLM 2차 확인 job id. "
+        "이번 렙이 새로 애매한 구간(rules.py DTW_AMBIGUOUS_LOWER_DISTANCE~"
+        "DTW_AMBIGUOUS_UPPER_DISTANCE)에 걸려 새로 시작한 job일 수도 있고, 이전 요청에서 "
+        "받아 아직 안 끝난 job을 그대로 돌려준 것일 수도 있다 — 어느 쪽이든 프론트는 이 "
+        "값을 저장해뒀다가 다음 호출들의 요청에 그대로 실어 보내면 된다. None이면 지금 "
+        "기다릴 job이 없다는 뜻(방금 결과를 이슈로 받았거나, 애초에 없었음)이라 프론트가 "
+        "들고 있던 이전 job id는 지워도 된다.",
+    )
 
 
 # ---- 세션 종료 조건 판단 (AI-13) ----
@@ -418,3 +436,46 @@ class SessionReportResponse(BaseModel):
     generation_source: Literal["llm", "fallback"] = Field(
         ..., description="LLM이 summary_message를 직접 생성했는지, 규칙기반 템플릿 문구로 대체했는지"
     )
+
+
+# ---- LLM 모델 비교 테스트(/ai/dev/llm-model-compare, 2026-08-28 추가) ----
+# 실제 서비스 판정 경로(CoachingFrameRequest 등)와 무관한 개발/테스트 전용 스키마다.
+# app/coaching/llm_model_compare.py 모듈 docstring 참고 — "6랩 블라인드 테스트"를 여러
+# Bedrock 모델(Claude/Nova/Llama/Mistral 등)로 동시에 재현해 정확도/지연시간을 비교한다.
+
+
+class ModelCompareRepInput(BaseModel):
+    """비교 테스트에 넣을 렙 1개. AngleFrame을 그대로 재사용하지 않고 별도 모델로 둔 이유는
+    여기서는 "실시간 스트림 중 최근 N프레임"이 아니라 "렙 하나 전체"를 통째로 보내는 다른
+    형태의 입력이라, 필드 구성이 겹치더라도 의미가 다르기 때문(id/true_label 등 이 기능
+    전용 필드도 필요)."""
+
+    id: str = Field(..., description="렙 식별자(결과 매칭용). 예: '우혁_과신전'")
+    true_label: Optional[Literal["과신전", "정상"]] = Field(
+        None, description="정답 라벨(있으면 정확도 계산에 사용). 없으면 그 렙은 정확도 집계에서 제외."
+    )
+    frames: List[AngleFrame] = Field(..., min_length=1, description="렙 1개 동안의 관절각도 시계열(프레임 순서대로)")
+
+
+class ModelCompareRequest(BaseModel):
+    reps: List[ModelCompareRepInput] = Field(..., min_length=1)
+    model_ids: List[str] = Field(..., min_length=1, description="비교할 Bedrock 모델 ID 목록(예: 'anthropic.claude-haiku-4-5-20251001-v1:0', 'amazon.nova-pro-v1:0')")
+    region: Optional[str] = Field(None, description="Bedrock 리전. 없으면 서버 환경변수(AWS_BEDROCK_REGION)를 사용하고, 그것도 없으면 에러를 반환한다.")
+
+
+class ModelCompareVerdict(BaseModel):
+    verdict: Optional[Literal["과신전_의심", "정상"]] = None
+    confidence: Optional[Literal["상", "중", "하"]] = None
+    reasoning: Optional[str] = None
+    latency_ms: Optional[int] = None
+    error: Optional[str] = Field(None, description="이 모델·렙 조합 호출이 실패했다면 사유(예: 모델 접근권한 미승인).")
+
+
+class ModelCompareResponse(BaseModel):
+    results: Dict[str, Dict[str, ModelCompareVerdict]] = Field(
+        ..., description="model_id -> rep_id -> 판정 결과"
+    )
+    accuracy: Dict[str, Optional[float]] = Field(
+        ..., description="model_id -> true_label이 있는 렙 기준 정확도(0~1). true_label이 하나도 없으면 None."
+    )
+    error: Optional[str] = Field(None, description="비교 자체가 시작도 못 했을 때의 사유(예: boto3 미설치, 자격증명 없음).")

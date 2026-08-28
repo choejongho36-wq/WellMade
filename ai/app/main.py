@@ -15,6 +15,7 @@ from app.schemas import PostureInsightRequest, PostureInsightResponse
 from app.schemas import OrchestrateRequest, OrchestrateResponse
 from app.schemas import RagGuideRequest, RagGuideResponse, RagQnaRequest, RagQnaResponse
 from app.schemas import SessionReportRequest, SessionReportResponse
+from app.schemas import ModelCompareRequest, ModelCompareResponse
 from app.pose.angles import get_shoulder_tilt_angle, get_pelvis_tilt_angle
 from app.coaching.realtime import judge_realtime_coaching
 from app.session.termination import judge_session_end
@@ -22,6 +23,8 @@ from app.insight.posture_percentile import compute_posture_insight
 from app.orchestration.harness import decide_next_action
 from app.rag.generation import generate_guide, generate_qna
 from app.session.report import generate_session_report
+from app.coaching.llm_model_compare import compare_models
+import os
 
 app = FastAPI(title="WellMade AI Server")
 
@@ -62,13 +65,18 @@ def coaching_frame(request: CoachingFrameRequest):
     좌표를 받지 않고 프론트가 이미 계산한 각도 값만 받으므로, 정면 촬영을 지원하려면 이
     두 값을 프레임마다 함께 보내야 한다(app/schemas.py의 AngleFrame 참고).
     """
-    result = judge_realtime_coaching(request.angle_history, hip_calibration=request.hip_calibration)
+    result = judge_realtime_coaching(
+        request.angle_history,
+        hip_calibration=request.hip_calibration,
+        pending_llm_job_id=request.pending_llm_job_id,
+    )
 
     return CoachingFrameResponse(
         phase=result["phase"],
         is_normal=result["is_normal"],
         confidence=result["confidence"],
         issues=[PoseIssue(**issue) for issue in result["issues"]],
+        pending_llm_job_id=result["pending_llm_job_id"],
     )
 
 
@@ -184,3 +192,36 @@ def session_report(request: SessionReportRequest):
         previous_sessions=[p.model_dump() for p in request.previous_sessions],
     )
     return SessionReportResponse(**result)
+
+
+@app.post("/ai/dev/llm-model-compare", response_model=ModelCompareResponse)
+def llm_model_compare(request: ModelCompareRequest):
+    """
+    LLM 모델 비교 테스트 API (개발/테스트 전용 — API 명세 표(AI-XX)에 없음, 정식 서비스
+    경로가 아니다).
+
+    frontend/src/pages/MlTestPage.jsx의 "6랩 블라인드 테스트" 버튼 전용. 같은 렙 데이터를
+    여러 Bedrock 모델(Claude/Nova/Llama/Mistral 등)에 동시에 보내 판정 정확도·지연시간을
+    비교한다 — 사용자가 "비용/성능 면에서 여러 벤더 모델을 비교해보고, 클로드만 추천하지
+    말라"고 요청한 데 따른 도구다. 실제 서비스 판정 경로(coaching_frame의 애매한 구간 LLM
+    2차 확인)는 이 엔드포인트를 쓰지 않는다 — 여전히 app/coaching/hyperextension_llm_check.py
+    (Claude 전용, AnthropicBedrock)만 쓴다. 자세한 배경은 app/coaching/llm_model_compare.py
+    모듈 docstring 참고.
+
+    region을 요청에 안 실어 보내면 서버 환경변수 AWS_BEDROCK_REGION을 대신 쓴다(실제 서비스
+    경로와 같은 리전을 기본값으로 써서, 프론트가 매번 리전을 직접 입력하지 않아도 되게 함).
+    """
+    region = request.region or os.environ.get("AWS_BEDROCK_REGION")
+    if not region:
+        return ModelCompareResponse(
+            results={},
+            accuracy={},
+            error="리전이 지정되지 않았습니다. 요청의 region 필드나 서버의 AWS_BEDROCK_REGION 환경변수 중 하나가 필요합니다.",
+        )
+
+    result = compare_models(
+        reps=[r.model_dump() for r in request.reps],
+        model_ids=request.model_ids,
+        region=region,
+    )
+    return ModelCompareResponse(**result)

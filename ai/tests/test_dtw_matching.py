@@ -13,6 +13,7 @@ app/pose/dtw_matching.py 단위 테스트.
 한다 — 이 테스트는 "알고리즘 배선이 맞는지"만 보장한다.
 """
 
+import json
 import math
 from pathlib import Path
 
@@ -30,9 +31,11 @@ from app.pose.dtw_matching import (
     extract_metric_matrix,
     load_template,
     load_templates,
+    load_templates_from_bundle,
     nearest_normal_distance,
     normalize_matrix,
     save_template,
+    save_templates_bundle,
 )
 from app.schemas import AngleFrame
 
@@ -254,3 +257,35 @@ def test_real_templates_nearest_match_is_self_consistent():
     nearest, _ = nearest_normal_distance(frames, templates, metric_fields=fields)
     assert nearest.label == "normal"
     assert nearest.distance == pytest.approx(0.0, abs=1e-6)
+
+
+# ---- 템플릿 묶음(bundle) 저장/로딩 (2026-08-28 추가, app/pose/dtw_template_store.py용) ----
+
+
+def test_templates_bundle_roundtrip(tmp_path, two_templates):
+    templates, _norm = two_templates
+    path = tmp_path / "bundle.json"
+    save_templates_bundle(templates, path)
+    loaded = load_templates_from_bundle(path.read_bytes())
+
+    assert len(loaded) == len(templates)
+    for original, restored in zip(templates, loaded):
+        assert restored.label == original.label
+        assert restored.source == original.source
+        assert restored.metric_fields == original.metric_fields
+        assert np.allclose(restored.curve, original.curve)
+
+
+def test_load_templates_from_bundle_malformed_json_raises():
+    with pytest.raises(ValueError):
+        load_templates_from_bundle("이건 JSON이 아닙니다")
+
+
+def test_load_templates_from_bundle_malformed_item_raises_with_index():
+    # metric_fields/normalization/curve가 빠진 항목 — 몇 번째 항목인지 에러 메시지에 있어야 한다.
+    bad = json.dumps([{"label": "normal", "source": "rep_0"}])
+    with pytest.raises(ValueError) as exc_info:
+        load_templates_from_bundle(bad)
+    assert "0번째" in str(exc_info.value)
+
+

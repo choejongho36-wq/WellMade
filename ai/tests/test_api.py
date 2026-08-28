@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.pose.rules import personalized_hip_range, HEEL_LIFT_RATIO_THRESHOLD
-from app.schemas import HipFlexibilityCalibration
+from app.schemas import AngleFrame, HipFlexibilityCalibration
 from app.orchestration.harness import decide_next_action, API_KEY_ENV_VAR, DEFAULT_MODEL_ENV_VAR
 from app.rag.retrieval import search as rag_search
 from app.rag.generation import generate_guide, generate_qna
@@ -1152,6 +1152,232 @@ def test_coaching_frame_dtw_skipped_when_optional_fields_missing():
     assert not any(issue["part"] == "form_pattern" for issue in data["issues"]), data
 
 
+# (2026-08-28 추가, 2026-08-28 같은 날 폐기) 정면 전용 DTW 고관절 과신전 판정
+# (coaching/realtime.py (1.6) 블록) 테스트 3건이 이 자리에 있었다 — 정면 카메라는
+# 고관절 과신전(시상면 신호)을 원리적으로 촬영할 수 없다는 게 실측으로 확인돼 판정
+# 로직 전체와 함께 삭제했다. 자세한 배경은 checklist 2026-08-28 addendum 참고.
+
+
+# (2026-08-28) 측면 DTW+LLM 하이브리드(app/coaching/hyperextension_llm_check.py) 테스트.
+# 위 정면 DTW 테스트들과 마찬가지로 실제 템플릿(우혁_정상.mp4_rep0)을 왜곡해 DTW
+# 최근접거리를 원하는 범위로 만든다 — 아래 두 함수가 쓰는 offset 조합은 rules.py의
+# DTW_AMBIGUOUS_LOWER_DISTANCE(10.0)~DTW_AMBIGUOUS_UPPER_DISTANCE(30.0) 경계를 실측으로
+# 캘리브레이션한 결과다:
+#   - hip_offset=15.0, shoulder_offset=20.0, torso_scale=0.75 -> distance ≈ 10.82
+#     (하한 10.0보다 살짝 위, 옛 임곗값 20.0보다는 한참 아래 — 애매한 구간의 "낮은 쪽")
+#   - hip_offset=35.0, shoulder_offset=45.0, torso_scale=0.4 -> distance ≈ 23.19
+#     (옛 임곗값 20.0은 넘지만 새 상한 30.0보다는 아래 — 애매한 구간의 "높은 쪽")
+# 이 테스트 환경엔 AWS_BEDROCK_REGION/HYPEREXTENSION_BEDROCK_MODEL_ID가 설정돼있지
+# 않으므로(로컬 .env에 우연히 있어도 아래 헬퍼로 잠시 지운다 — _without_llm_env와 동일한
+# 이유), start_hyperextension_analysis()가 항상 None을 반환해 realtime.py가 기존 DTW
+# 임곗값(DTW_NEAREST_DISTANCE_THRESHOLD=20.0) 방식으로 폴백한다 — 즉 아래 두 테스트는
+# "LLM 미설정 환경에서도 하위 호환이 깨지지 않는다"를 검증한다. 실제 LLM 경로 자체는 더
+# 아래 test_coaching_frame_hyperextension_llm_hybrid_end_to_end()가 monkeypatch로
+# 검증한다.
+def _without_aws_bedrock_env(fn):
+    from app.coaching.hyperextension_llm_check import AWS_REGION_ENV_VAR, BEDROCK_MODEL_ID_ENV_VAR
+
+    saved = {}
+    for key in (AWS_REGION_ENV_VAR, BEDROCK_MODEL_ID_ENV_VAR):
+        saved[key] = os.environ.pop(key, None)
+    try:
+        return fn()
+    finally:
+        for key, value in saved.items():
+            if value is not None:
+                os.environ[key] = value
+
+
+def test_coaching_frame_dtw_ambiguous_below_old_threshold_no_llm_not_flagged():
+    def run():
+        angle_history = _real_dtw_rep_angle_history(hip_offset=15.0, shoulder_offset=20.0, torso_scale=0.75)
+        body = {"angle_history": angle_history}
+        res = client.post("/ai/coaching/frame", json=body)
+        print("coaching_frame(측면 dtw, 애매한 구간 낮은 쪽, LLM 미설정):", res.status_code, res.json())
+        assert res.status_code == 200
+        data = res.json()
+        assert not any(issue["part"] in ("form_pattern", "hip_hyperextension") for issue in data["issues"]), data
+        assert data["pending_llm_job_id"] is None, data
+
+    _without_aws_bedrock_env(run)
+
+
+def test_coaching_frame_dtw_ambiguous_above_old_threshold_no_llm_falls_back_and_flags():
+    def run():
+        angle_history = _real_dtw_rep_angle_history(hip_offset=35.0, shoulder_offset=45.0, torso_scale=0.4)
+        body = {"angle_history": angle_history}
+        res = client.post("/ai/coaching/frame", json=body)
+        print("coaching_frame(측면 dtw, 애매한 구간 높은 쪽, LLM 미설정):", res.status_code, res.json())
+        assert res.status_code == 200
+        data = res.json()
+        assert any(issue["part"] == "form_pattern" for issue in data["issues"]), data
+        assert not any(issue["part"] == "hip_hyperextension" for issue in data["issues"]), data
+        assert data["pending_llm_job_id"] is None, data
+
+    _without_aws_bedrock_env(run)
+
+
+# --- 아래는 hyperextension_llm_check.py 모듈 자체의 단위 테스트 — harness.py 테스트가
+# 쓰는 _FakeToolUseBlock/_FakeMessage/_FakeMessagesAPI/_FakeAnthropicClient(위 429번째 줄
+# 근처)와 generation.py 테스트가 쓰는 _FakeTextBlock(위 681번째 줄 근처)을 그대로 재사용한다
+# — AnthropicBedrock 클라이언트도 client.messages.create(...) -> response.content 구조가
+# 동일해(둘 다 anthropic SDK) 같은 가짜로 검증할 수 있다.
+def test_hyperextension_check_no_client_when_unconfigured():
+    def run():
+        from app.coaching.hyperextension_llm_check import start_hyperextension_analysis
+
+        angle_history = _real_dtw_rep_angle_history()
+        job_id = start_hyperextension_analysis(angle_history)
+        assert job_id is None
+
+    _without_aws_bedrock_env(run)
+
+
+def test_hyperextension_check_job_completes_and_is_consumed_once():
+    from app.coaching.hyperextension_llm_check import get_job_result, start_hyperextension_analysis
+
+    block = _FakeToolUseBlock(
+        "report_hip_hyperextension_verdict",
+        {"verdict": "과신전_의심", "confidence": "중", "reasoning": "테스트용 판정"},
+    )
+    fake_client = _FakeAnthropicClient(block=block)
+    # _call_llm 내부(_build_prompt)가 AngleFrame 속성 접근(f.timestamp 등)을 하므로 —
+    # realtime.py가 실제로 넘기는 것과 같은 타입으로 맞춘다(원시 dict가 아님).
+    angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
+    job_id = start_hyperextension_analysis(
+        angle_history, client=fake_client, model="test-model", run_in_background=False
+    )
+    assert job_id is not None
+
+    result = get_job_result(job_id)
+    assert result == {"verdict": "과신전_의심", "confidence": "중", "reasoning": "테스트용 판정"}
+    # 1회성 소비 — 같은 job_id로 다시 조회하면 아무것도 안 나온다.
+    assert get_job_result(job_id) is None
+
+
+def test_hyperextension_check_job_error_returns_none():
+    from app.coaching.hyperextension_llm_check import get_job_result, start_hyperextension_analysis
+
+    fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
+    angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
+    job_id = start_hyperextension_analysis(
+        angle_history, client=fake_client, model="test-model", run_in_background=False
+    )
+    assert job_id is not None
+    assert get_job_result(job_id) is None
+
+
+def test_hyperextension_check_missing_tool_use_block_treated_as_error():
+    from app.coaching.hyperextension_llm_check import get_job_result, start_hyperextension_analysis
+
+    fake_client = _FakeAnthropicClient(block=_FakeTextBlock("tool_use 아닌 응답"))
+    angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
+    job_id = start_hyperextension_analysis(
+        angle_history, client=fake_client, model="test-model", run_in_background=False
+    )
+    assert job_id is not None
+    assert get_job_result(job_id) is None
+
+
+def test_hyperextension_check_get_job_result_unknown_id_returns_none():
+    from app.coaching.hyperextension_llm_check import get_job_result
+
+    assert get_job_result(None) is None
+    assert get_job_result("no-such-job-id") is None
+
+
+def test_hyperextension_check_job_expires_after_ttl():
+    import time as _time
+
+    import app.coaching.hyperextension_llm_check as hll
+
+    block = _FakeToolUseBlock(
+        "report_hip_hyperextension_verdict",
+        {"verdict": "정상", "confidence": "상", "reasoning": "테스트용"},
+    )
+    fake_client = _FakeAnthropicClient(block=block)
+    angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
+    job_id = hll.start_hyperextension_analysis(
+        angle_history, client=fake_client, model="test-model", run_in_background=False
+    )
+    assert job_id is not None
+
+    # TTL을 직접 만료시켜(created_at을 과거로 되돌려) 정리 로직(_cleanup_expired_locked)이
+    # get_job_result() 호출 시점에 얹혀 동작하는지 확인한다 — 실제로 300초를 기다리지 않는다.
+    with hll._jobs_lock:
+        hll._jobs[job_id]["created_at"] = _time.time() - hll.LLM_HYPEREXTENSION_JOB_TTL_SECONDS - 1
+
+    assert hll.get_job_result(job_id) is None
+
+
+def test_hyperextension_check_downsample_caps_frame_count():
+    import app.coaching.hyperextension_llm_check as hll
+
+    base_history = _real_dtw_rep_angle_history()
+    frames = [AngleFrame(**f) for f in base_history] * 3  # MAX_PROMPT_FRAMES(60) 넘기기
+    assert len(frames) > hll.MAX_PROMPT_FRAMES
+    sampled = hll._downsample(frames)
+    assert len(sampled) == hll.MAX_PROMPT_FRAMES
+
+
+def test_hyperextension_check_build_prompt_includes_side_fields():
+    import app.coaching.hyperextension_llm_check as hll
+
+    angle_history = _real_dtw_rep_angle_history()
+    frames = [AngleFrame(**f) for f in angle_history]
+    prompt = hll._build_prompt(frames)
+    assert "hip_angle=" in prompt
+    assert "knee_angle=" in prompt
+    assert "과신전" in prompt
+
+
+def test_coaching_frame_hyperextension_llm_hybrid_end_to_end(monkeypatch):
+    # 전체 job_id 왕복 흐름을 실제 엔드포인트(/ai/coaching/frame)로 검증한다 — 사용자가
+    # 제안한 "첫 렙은 DTW 결과만(애매하면 얘기도 안 함), 다음 호출에서 준비돼 있으면 그때
+    # 알려줌" 시나리오 그대로다. 이 저장소 테스트 스위트에 monkeypatch가 쓰인 유일한
+    # 자리인데, judge_realtime_coaching()이 이 기능을 위해 별도 client 주입 파라미터를
+    # 노출하지 않게 설계했기 때문이다(모듈 내부 함수 자체를 갈아끼워야 함) — 위
+    # _Fake*client 패턴(의존성 주입)과는 다른 이유의 의도적 선택이다.
+    import app.coaching.realtime as realtime_module
+
+    fake_job_id = "fake-job-123"
+    monkeypatch.setattr(realtime_module, "_start_hyperextension_analysis", lambda rep_frames: fake_job_id)
+
+    # 1차 호출 시점엔 pending_llm_job_id가 없어 이 mock이 아예 호출되지 않고(아래 참고),
+    # 2차 호출에서 프론트가 job_id를 실어 보낼 때 처음 호출된다 — 그때 이미 "완료"로
+    # 응답하게 해 2번의 왕복으로 전체 흐름(시작 -> 결과 수신)을 검증한다. 실제로는 폴링
+    # 여러 번 만에 준비될 수 있다는 것은 get_job_result() 자체의 pending 동작을 검증하는
+    # 위 단위 테스트들이 이미 확인했다.
+    def fake_get_job_result(job_id):
+        assert job_id == fake_job_id
+        return {"verdict": "과신전_의심", "confidence": "중", "reasoning": "테스트"}
+
+    monkeypatch.setattr(realtime_module, "_get_llm_job_result", fake_get_job_result)
+
+    angle_history = _real_dtw_rep_angle_history(hip_offset=15.0, shoulder_offset=20.0, torso_scale=0.75)
+
+    # 1차 호출 — 애매한 구간이라 job이 새로 시작되지만, 아직 결과가 없으므로 이슈로
+    # 나타나면 안 된다(사용자 제안: "애매한 건 얘기도 하지 말고").
+    body = {"angle_history": angle_history}
+    res1 = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(LLM 하이브리드 1차):", res1.status_code, res1.json())
+    assert res1.status_code == 200
+    data1 = res1.json()
+    assert not any(issue["part"] in ("form_pattern", "hip_hyperextension") for issue in data1["issues"]), data1
+    assert data1["pending_llm_job_id"] == fake_job_id, data1
+
+    # 2차 호출 — 프론트가 job_id를 그대로 실어 보내면, 이번엔 결과가 준비돼있어(_run_job이
+    # "완료" 상태를 흉내) 이슈로 전달되고 pending_llm_job_id는 지워진다(1회성 소비 +
+    # 새로 시작할 job도 없음).
+    body2 = {"angle_history": angle_history, "pending_llm_job_id": fake_job_id}
+    res2 = client.post("/ai/coaching/frame", json=body2)
+    print("coaching_frame(LLM 하이브리드 2차, job 완료):", res2.status_code, res2.json())
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert any(issue["part"] == "hip_hyperextension" for issue in data2["issues"]), data2
+    assert data2["pending_llm_job_id"] is None, data2
+
+
 # (2026-08-24) 등 굽음(척추 굴곡) 규칙기반 검사의 단위 테스트(get_torso_length_ratio
 # 직접 호출)와 그 /ai/pose/analyze 통합 테스트가 이 자리에 있었다 — AI-03 삭제(위 주석
 # 참고)와 함께 get_torso_length_ratio() 자체가 angles.py에서 제거되며 같이 삭제했다.
@@ -1318,4 +1544,17 @@ if __name__ == "__main__":
     test_coaching_frame_dtw_form_pattern_not_flagged_for_real_normal_rep()
     test_coaching_frame_dtw_form_pattern_flagged_when_severely_distorted()
     test_coaching_frame_dtw_skipped_when_optional_fields_missing()
+    test_coaching_frame_dtw_ambiguous_below_old_threshold_no_llm_not_flagged()
+    test_coaching_frame_dtw_ambiguous_above_old_threshold_no_llm_falls_back_and_flags()
+    test_hyperextension_check_no_client_when_unconfigured()
+    test_hyperextension_check_job_completes_and_is_consumed_once()
+    test_hyperextension_check_job_error_returns_none()
+    test_hyperextension_check_missing_tool_use_block_treated_as_error()
+    test_hyperextension_check_get_job_result_unknown_id_returns_none()
+    test_hyperextension_check_job_expires_after_ttl()
+    test_hyperextension_check_downsample_caps_frame_count()
+    test_hyperextension_check_build_prompt_includes_side_fields()
+    # test_coaching_frame_hyperextension_llm_hybrid_end_to_end()는 pytest monkeypatch
+    # 픽스처가 있어야 해서(다른 테스트들처럼 인자 없이 직접 호출 불가) 이 수동 체크
+    # 블록에는 포함하지 않는다 — pytest 실행(python3 -m pytest tests/)으로만 검증한다.
     print("\nALL MANUAL CHECKS PASSED")
