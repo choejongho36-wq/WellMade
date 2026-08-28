@@ -246,10 +246,11 @@ function useAuthState() {
     authJson('/api/users/me/chat/nutrient-advice', { method: 'POST' }, '분석을 받지 못했어요')
       .then((data) => data.content)
 
-  const logMeal = (message, mealType) =>
+  // date를 넘기면 그 날짜로 기록된다(깜빡한 지난 끼니 채워넣기). 생략하면 서버가 오늘로 처리
+  const logMeal = (message, mealType, date) =>
     authJson('/api/diet/meals', {
       method: 'POST',
-      body: JSON.stringify({ message, mealType: mealType || null }),
+      body: JSON.stringify({ message, mealType: mealType || null, date: date || null }),
     }, '식단 기록에 실패했어요')
 
   const getTodayMeals = (date) =>

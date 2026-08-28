@@ -379,6 +379,7 @@ function MyPage() {
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawError, setWithdrawError] = useState('')
+  const [firstInbodyGuide, setFirstInbodyGuide] = useState(false)
 
   useEffect(() => {
     if (user) getTodayTotal(todayStr()).then(setTodaySummary).catch(() => {})
@@ -425,6 +426,16 @@ function MyPage() {
     updateBody(values).then(() => getNutrientTarget().then(setNutrientTarget).catch(() => {}))
 
   const hasBodyInfo = Boolean(profile?.gender && profile?.heightCm && profile?.birthYear)
+
+  // 첫 등록이면 추이 그래프가 왜 아직 안 보이는지 알려준다 (두 개부터 그려짐).
+  // inbody는 등록 전 값이라 여기서 판단할 수 있음 - confirmInbody가 성공한 뒤 갱신된다
+  const handleConfirmInbody = (values) => {
+    const isFirst = !inbody
+    return confirmInbody(values).then((data) => {
+      if (isFirst) setFirstInbodyGuide(true)
+      return data
+    })
+  }
 
   const handleWithdraw = () => {
     setWithdrawing(true)
@@ -584,8 +595,25 @@ function MyPage() {
         <InbodyUploadModal
           onClose={() => setModalOpen(false)}
           onExtract={extractInbody}
-          onConfirm={confirmInbody}
+          onConfirm={handleConfirmInbody}
         />
+      )}
+      {firstInbodyGuide && (
+        <div className="modal-backdrop" onClick={() => setFirstInbodyGuide(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setFirstInbodyGuide(false)} aria-label="닫기">×</button>
+            <div className="modal-title">첫 인바디가 등록됐어요</div>
+            <div className="modal-sub">
+              이제 체중·골격근량·체지방률을 기준으로 목표 칼로리가 계산돼요.
+            </div>
+            <p className="pcard-desc">
+              변화 추이 그래프는 기록이 <strong>두 개 이상</strong>일 때부터 그려져요.
+              다음에 인바디를 측정하면 "다시 입력"으로 등록해주세요 — 그때부터 체중과 근육량이
+              어떻게 변했는지 한눈에 볼 수 있어요.
+            </p>
+            <button className="modal-btn" onClick={() => setFirstInbodyGuide(false)}>확인했어요</button>
+          </div>
+        </div>
       )}
       {nutrientModalOpen && (
         <NutrientDetailModal

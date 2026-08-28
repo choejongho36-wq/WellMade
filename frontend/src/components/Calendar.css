@@ -126,3 +126,27 @@
 .cal-cell:disabled {
   cursor: not-allowed;
 }
+
+/* ============ 모바일 (~768px) ============
+   7열 그리드는 유지하되(달력이라 열 수를 못 줄임) 칸 안 글자를 줄인다 */
+@media (max-width: 768px) {
+  .cal {
+    padding: 14px;
+  }
+  .cal-grid {
+    gap: 3px;
+  }
+  .cal-cell {
+    padding: 3px;
+  }
+  .cal-cell-day {
+    font-size: 11.5px;
+  }
+  /* 좁은 칸에서는 공휴일 이름이 날짜를 밀어내므로 숨김 (색으로는 계속 구분됨) */
+  .cal-cell-holiday {
+    display: none;
+  }
+  .cal-cell-kcal {
+    font-size: 8px;
+  }
+}

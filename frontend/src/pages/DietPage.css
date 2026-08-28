@@ -21,6 +21,16 @@
 .diet-log-form .chat-input {
   width: 100%;
 }
+/* 오늘이 아닌 날짜를 선택했을 때 어느 날짜로 저장되는지 알려주는 안내 */
+.diet-log-date-notice {
+  background: #f2f1ec;
+  border-left: 3px solid #da291c;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #55534d;
+}
 .diet-log-form .chat-send-btn {
   width: 100%;
   padding: 12px 0;
@@ -329,4 +339,41 @@
 .diet-item-candidate-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* ============ 모바일 (~768px) ============ */
+@media (max-width: 768px) {
+  /* 달력 | 기록목록 2단을 세로로 */
+  .diet-split {
+    flex-direction: column;
+    gap: 28px;
+  }
+  /* 타임라인 왼쪽 끼니 라벨 칸을 좁힘 */
+  .diet-row {
+    gap: 12px;
+  }
+  .diet-time {
+    width: 34px;
+    font-size: 11px;
+  }
+  .diet-meal-inner {
+    padding: 14px;
+    gap: 10px;
+  }
+  .diet-meal-title {
+    font-size: 13.5px;
+  }
+  /* 이름/그램/칼로리/수정이 한 줄에 다 안 들어감 */
+  .diet-item-row-main {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .diet-item-name {
+    flex: 1 1 100%;
+    white-space: normal;
+  }
+  .diet-item-edit {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
 }
