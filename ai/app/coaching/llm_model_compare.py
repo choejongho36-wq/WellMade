@@ -2,17 +2,17 @@
 LLM 모델 비교 테스트 — "6랩 블라인드 테스트"를 여러 Bedrock 모델로 동시에 재현한다
 (2026-08-28 추가, MlTestPage.jsx의 "6랩 블라인드 테스트" 버튼 전용 개발/테스트 기능).
 
-배경: hyperextension_llm_check.py는 실제 서비스 경로용으로 AnthropicBedrock 클라이언트
-(Claude 계열 모델 전용, Anthropic Messages API)만 쓴다. 그런데 사용자가 "비용/성능 면에서
-여러 벤더 모델을 비교해보고 알려달라, 클로드만 추천하지 말라"고 명시적으로 요청했다 —
-Amazon Nova/Meta Llama/Mistral 등 비-Anthropic 모델도 같은 조건으로 테스트하려면
-Anthropic SDK가 아니라 Bedrock 자체의 Converse API(bedrock-runtime의 converse())를 써야
-한다 — 이 API는 Anthropic/Nova/Llama 3.1+/Mistral Large 등 여러 벤더 모델에서 동일한
-방식으로 도구 사용(toolConfig)을 지원하는 통합 인터페이스라, 벤더별로 다른 클라이언트/
-프롬프트 포맷을 만들지 않고도 같은 판정 함수로 여러 모델을 공정하게 비교할 수 있다.
+hyperextension_llm_check.py(실제 서비스 판정 경로)와 마찬가지로 boto3 bedrock-runtime의
+Converse API(converse())를 직접 쓴다 — 이 API는 Anthropic/Amazon Nova/Meta Llama/
+Mistral Large 등 여러 벤더 모델에서 동일한 방식으로 도구 사용(toolConfig)을 지원하는
+통합 인터페이스라, 벤더별로 다른 클라이언트/프롬프트 포맷을 만들지 않고도 같은 판정
+함수로 여러 모델을 공정하게 비교할 수 있다.
 
-이 모듈은 실제 서비스 판정 경로(hyperextension_llm_check.py)와 별개다 — 서비스는 여전히
-그 모듈만 쓴다. 여기는 순수 비교/실험 도구다.
+이 모듈은 실제 서비스 판정 경로(hyperextension_llm_check.py)와 별개다 — 그쪽은 환경변수
+(HYPEREXTENSION_BEDROCK_MODEL_ID)로 지정된 모델 하나만 실시간 코칭에 쓰지만, 여기는 여러
+모델 후보를 병렬로 동시에 호출해 정확도·지연시간을 나란히 비교하는 순수 비교/실험
+도구다 — 여기서 비교해보고 마음에 드는 모델 ID를 그 환경변수에 넣으면 실제 서비스
+경로에도 그대로 반영된다.
 """
 
 from __future__ import annotations

@@ -426,44 +426,32 @@ def test_orchestrate_fallback_repeated_issue_triggers_rag():
     _without_llm_env(run)
 
 
-class _FakeToolUseBlock:
-    def __init__(self, name, input_):
-        self.type = "tool_use"
-        self.name = name
-        self.input = input_
+def _tool_use_block(name, input_):
+    """Converse API 응답의 toolUse 블록(dict)을 흉내 낸다."""
+    return {"toolUse": {"name": name, "input": input_}}
 
 
-class _FakeMessage:
-    def __init__(self, content):
-        self.content = content
+class _FakeBedrockClient:
+    """실제 boto3 bedrock-runtime 클라이언트 대신 주입하는 가짜 클라이언트 — 네트워크
+    호출 없이 Converse API 응답 파싱/폴백 로직만 검증한다."""
 
-
-class _FakeMessagesAPI:
-    def __init__(self, block=None, exc=None):
-        self._block = block
+    def __init__(self, content_blocks=None, exc=None):
+        self._content_blocks = content_blocks if content_blocks is not None else []
         self._exc = exc
 
-    def create(self, **kwargs):
+    def converse(self, **kwargs):
         if self._exc is not None:
             raise self._exc
-        return _FakeMessage([self._block])
-
-
-class _FakeAnthropicClient:
-    """실제 anthropic.Anthropic() 대신 주입하는 가짜 클라이언트 — 네트워크 호출 없이
-    harness.decide_next_action()의 파싱/폴백 로직만 검증한다."""
-
-    def __init__(self, block=None, exc=None):
-        self.messages = _FakeMessagesAPI(block=block, exc=exc)
+        return {"output": {"message": {"content": self._content_blocks}}}
 
 
 def test_harness_llm_path_parses_tool_use_response():
     os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
     try:
-        block = _FakeToolUseBlock(
+        block = _tool_use_block(
             "recommend_expert_consultation", {"reasoning": "골반 비대칭이 반복됐습니다."}
         )
-        fake_client = _FakeAnthropicClient(block=block)
+        fake_client = _FakeBedrockClient(content_blocks=[block])
         result = decide_next_action("s1", {"issue_type": "pelvis_asymmetry"}, client=fake_client)
         print("harness(llm path):", result)
         assert result["source"] == "llm"
@@ -477,7 +465,7 @@ def test_harness_llm_path_parses_tool_use_response():
 def test_harness_llm_failure_falls_back():
     os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
     try:
-        fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
+        fake_client = _FakeBedrockClient(exc=RuntimeError("network down"))
         result = decide_next_action("s1", {}, client=fake_client)
         print("harness(llm failure -> fallback):", result)
         assert result["source"] == "fallback"
@@ -551,8 +539,8 @@ def test_rag_qna_fallback_no_match():
 def test_rag_guide_llm_path_uses_generated_text():
     os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
     try:
-        block = _FakeTextBlock("무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요.")
-        fake_client = _FakeAnthropicClient(block=block)
+        block = _text_block("무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요.")
+        fake_client = _FakeBedrockClient(content_blocks=[block])
         result = generate_guide("무릎 모임", client=fake_client)
         print("generate_guide(llm path):", result)
         assert result["generation_source"] == "llm"
@@ -565,7 +553,7 @@ def test_rag_guide_llm_path_uses_generated_text():
 def test_rag_guide_llm_failure_falls_back_to_short_message():
     os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
     try:
-        fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
+        fake_client = _FakeBedrockClient(exc=RuntimeError("network down"))
         result = generate_guide("무릎 모임", client=fake_client)
         print("generate_guide(llm failure -> fallback):", result)
         assert result["generation_source"] == "fallback"
@@ -636,8 +624,8 @@ def test_generate_session_report_fallback():
 def test_generate_session_report_llm_path():
     os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
     try:
-        block = _FakeTextBlock("오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요.")
-        fake_client = _FakeAnthropicClient(block=block)
+        block = _text_block("오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요.")
+        fake_client = _FakeBedrockClient(content_blocks=[block])
         history = make_frame_history(normal_count=8, abnormal_count=2, part="knee", deviation_deg=8.0)
         result = generate_session_report(history, session_duration_sec=180.0, client=fake_client)
         print("generate_session_report(llm path):", result)
@@ -678,12 +666,9 @@ def test_rag_qna_endpoint_returns_valid_response():
     _without_llm_env(run)
 
 
-class _FakeTextBlock:
-    """generation.py가 파싱하는 텍스트 응답 블록(anthropic SDK의 TextBlock 흉내)."""
-
-    def __init__(self, text):
-        self.type = "text"
-        self.text = text
+def _text_block(text):
+    """Converse API 응답의 text 블록(dict)을 흉내 낸다."""
+    return {"text": text}
 
 
 # knowledge_base.py가 coaching_messages.py의 문구를 그대로 재사용하므로, 테스트에서도 같은
@@ -1178,10 +1163,9 @@ def test_coaching_frame_dtw_ambiguous_above_old_threshold_no_llm_falls_back_and_
 
 
 # --- 아래는 hyperextension_llm_check.py 모듈 자체의 단위 테스트 — harness.py 테스트가
-# 쓰는 _FakeToolUseBlock/_FakeMessage/_FakeMessagesAPI/_FakeAnthropicClient(위 429번째 줄
-# 근처)와 generation.py 테스트가 쓰는 _FakeTextBlock(위 681번째 줄 근처)을 그대로 재사용한다
-# — AnthropicBedrock 클라이언트도 client.messages.create(...) -> response.content 구조가
-# 동일해(둘 다 anthropic SDK) 같은 가짜로 검증할 수 있다.
+# 쓰는 _FakeBedrockClient(위 429번째 줄 근처)와 generation.py 테스트가 쓰는 _text_block
+# 헬퍼(위 681번째 줄 근처)를 그대로 재사용한다 — 이 모듈도 같은 boto3 bedrock-runtime
+# Converse API를 쓰므로 같은 가짜로 검증할 수 있다.
 def test_hyperextension_check_no_client_when_unconfigured():
     def run():
         from app.coaching.hyperextension_llm_check import start_hyperextension_analysis
@@ -1196,11 +1180,11 @@ def test_hyperextension_check_no_client_when_unconfigured():
 def test_hyperextension_check_job_completes_and_is_consumed_once():
     from app.coaching.hyperextension_llm_check import get_job_result, start_hyperextension_analysis
 
-    block = _FakeToolUseBlock(
+    block = _tool_use_block(
         "report_hip_hyperextension_verdict",
         {"verdict": "과신전_의심", "confidence": "중", "reasoning": "테스트용 판정"},
     )
-    fake_client = _FakeAnthropicClient(block=block)
+    fake_client = _FakeBedrockClient(content_blocks=[block])
     # _call_llm 내부(_build_prompt)가 AngleFrame 속성 접근(f.timestamp 등)을 하므로 —
     # realtime.py가 실제로 넘기는 것과 같은 타입으로 맞춘다(원시 dict가 아님).
     angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
@@ -1218,7 +1202,7 @@ def test_hyperextension_check_job_completes_and_is_consumed_once():
 def test_hyperextension_check_job_error_returns_none():
     from app.coaching.hyperextension_llm_check import get_job_result, start_hyperextension_analysis
 
-    fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
+    fake_client = _FakeBedrockClient(exc=RuntimeError("network down"))
     angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
     job_id = start_hyperextension_analysis(
         angle_history, client=fake_client, model="test-model", run_in_background=False
@@ -1230,7 +1214,7 @@ def test_hyperextension_check_job_error_returns_none():
 def test_hyperextension_check_missing_tool_use_block_treated_as_error():
     from app.coaching.hyperextension_llm_check import get_job_result, start_hyperextension_analysis
 
-    fake_client = _FakeAnthropicClient(block=_FakeTextBlock("tool_use 아닌 응답"))
+    fake_client = _FakeBedrockClient(content_blocks=[_text_block("tool_use 아닌 응답")])
     angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
     job_id = start_hyperextension_analysis(
         angle_history, client=fake_client, model="test-model", run_in_background=False
@@ -1251,11 +1235,11 @@ def test_hyperextension_check_job_expires_after_ttl():
 
     import app.coaching.hyperextension_llm_check as hll
 
-    block = _FakeToolUseBlock(
+    block = _tool_use_block(
         "report_hip_hyperextension_verdict",
         {"verdict": "정상", "confidence": "상", "reasoning": "테스트용"},
     )
-    fake_client = _FakeAnthropicClient(block=block)
+    fake_client = _FakeBedrockClient(content_blocks=[block])
     angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
     job_id = hll.start_hyperextension_analysis(
         angle_history, client=fake_client, model="test-model", run_in_background=False

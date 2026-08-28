@@ -204,9 +204,10 @@ def llm_model_compare(request: ModelCompareRequest):
     여러 Bedrock 모델(Claude/Nova/Llama/Mistral 등)에 동시에 보내 판정 정확도·지연시간을
     비교한다 — 사용자가 "비용/성능 면에서 여러 벤더 모델을 비교해보고, 클로드만 추천하지
     말라"고 요청한 데 따른 도구다. 실제 서비스 판정 경로(coaching_frame의 애매한 구간 LLM
-    2차 확인)는 이 엔드포인트를 쓰지 않는다 — 여전히 app/coaching/hyperextension_llm_check.py
-    (Claude 전용, AnthropicBedrock)만 쓴다. 자세한 배경은 app/coaching/llm_model_compare.py
-    모듈 docstring 참고.
+    2차 확인)는 여전히 app/coaching/hyperextension_llm_check.py를 쓴다 — 이 개발용
+    엔드포인트로 여러 모델을 비교해보고, 마음에 드는 모델 ID를 그쪽 모듈의
+    HYPEREXTENSION_BEDROCK_MODEL_ID 환경변수에 넣으면 실제 서비스 경로에도 그대로
+    반영된다. 자세한 배경은 app/coaching/llm_model_compare.py 모듈 docstring 참고.
 
     region을 요청에 안 실어 보내면 서버 환경변수 AWS_BEDROCK_REGION을 대신 쓴다(실제 서비스
     경로와 같은 리전을 기본값으로 써서, 프론트가 매번 리전을 직접 입력하지 않아도 되게 함).

@@ -28,14 +28,14 @@
 import os
 from typing import Optional
 
-# anthropic 패키지가 없거나(로컬 미설치) API 키가 없어도(아직 발급 전) 서버 전체가
-# import 단계에서 죽으면 안 되므로, 최상단에서 바로 import하지 않고 지연 로딩한다.
+# boto3 패키지가 없거나(로컬 미설치) 리전이 없어도(아직 설정 전) 서버 전체가 import
+# 단계에서 죽으면 안 되므로, 최상단에서 바로 import하지 않고 지연 로딩한다.
 try:
-    import anthropic
+    import boto3
 
-    _ANTHROPIC_AVAILABLE = True
+    _BOTO3_AVAILABLE = True
 except ImportError:
-    _ANTHROPIC_AVAILABLE = False
+    _BOTO3_AVAILABLE = False
 
 # TODO: 팀 확정 필요 — 실제 사용할 모델 ID는 팀이 AWS Bedrock 콘솔(Model access)에서
 # 확인 후 환경변수(HARNESS_BEDROCK_MODEL_ID)로 지정한다. 특정 모델 이름을 여기
@@ -71,13 +71,17 @@ def _tool(name: str, description: str, extra_properties: Optional[dict] = None) 
     if extra_properties:
         properties.update(extra_properties)
     return {
-        "name": name,
-        "description": description,
-        "input_schema": {
-            "type": "object",
-            "properties": properties,
-            "required": ["reasoning"],
-        },
+        "toolSpec": {
+            "name": name,
+            "description": description,
+            "inputSchema": {
+                "json": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": ["reasoning"],
+                }
+            },
+        }
     }
 
 
@@ -220,7 +224,7 @@ def _format_context(session_id: str, context: dict) -> str:
 
 def _fallback_decision(context: dict) -> dict:
     """
-    LLM 호출이 불가능하거나(API 키 미설정, anthropic 미설치) 실패했을 때(네트워크 오류 등)
+    LLM 호출이 불가능하거나(리전 미설정, boto3 미설치) 실패했을 때(네트워크 오류 등)
     쓰는 규칙기반 안전 기본값.
 
     왜 필요한가? 이 엔드포인트는 실시간 코칭 흐름 중간에 호출될 수 있는데, LLM 호출 하나가
@@ -263,22 +267,22 @@ def _fallback_decision(context: dict) -> dict:
 
 
 def _get_client():
-    """AnthropicBedrock 클라이언트를 지연 생성한다. 패키지 미설치·리전 미설정이면 None을
-    반환해 호출부가 폴백 경로를 타게 한다(예외를 바로 던지지 않는 이유: 이 함수 하나만
-    보고도 '설정이 안 됐구나'를 판단할 수 있게 하기 위함)."""
-    if not _ANTHROPIC_AVAILABLE:
+    """boto3 bedrock-runtime 클라이언트를 지연 생성한다. 패키지 미설치·리전 미설정이면
+    None을 반환해 호출부가 폴백 경로를 타게 한다(예외를 바로 던지지 않는 이유: 이 함수
+    하나만 보고도 '설정이 안 됐구나'를 판단할 수 있게 하기 위함)."""
+    if not _BOTO3_AVAILABLE:
         return None
     region = os.environ.get(AWS_REGION_ENV_VAR)
     if not region:
         return None
-    return anthropic.AnthropicBedrock(aws_region=region)
+    return boto3.client("bedrock-runtime", region_name=region)
 
 
 def decide_next_action(session_id: str, context: dict, client=None) -> dict:
     """
     하네스의 메인 진입점. 상황 정보(context)를 보고 다음 액션을 결정한다.
 
-    client 파라미터를 받는 이유: 테스트에서 실제 Anthropic API를 호출하지 않고, tool_use
+    client 파라미터를 받는 이유: 테스트에서 실제 Bedrock API를 호출하지 않고, tool_use
     응답을 흉내 내는 가짜(fake) 클라이언트를 주입할 수 있게 하기 위함(의존성 주입 —
     실제 네트워크 호출 없이 파싱/폴백 로직을 검증할 수 있다).
     """
@@ -294,19 +298,19 @@ def decide_next_action(session_id: str, context: dict, client=None) -> dict:
         return result
 
     try:
-        response = active_client.messages.create(
-            model=model,
-            max_tokens=MAX_TOKENS,
-            system=HARNESS_SYSTEM_PROMPT,
-            tools=HARNESS_TOOLS,
-            tool_choice={"type": "any"},
-            messages=[{"role": "user", "content": _format_context(session_id, context)}],
+        response = active_client.converse(
+            modelId=model,
+            system=[{"text": HARNESS_SYSTEM_PROMPT}],
+            messages=[{"role": "user", "content": [{"text": _format_context(session_id, context)}]}],
+            toolConfig={"tools": HARNESS_TOOLS, "toolChoice": {"any": {}}},
+            inferenceConfig={"maxTokens": MAX_TOKENS},
         )
-        tool_use_block = next(block for block in response.content if block.type == "tool_use")
-        action_input = dict(tool_use_block.input)
+        content = response["output"]["message"]["content"]
+        tool_use = next(block["toolUse"] for block in content if "toolUse" in block)
+        action_input = dict(tool_use["input"])
         reasoning = action_input.pop("reasoning", "")
         return {
-            "next_action": tool_use_block.name,
+            "next_action": tool_use["name"],
             "reasoning": reasoning,
             "action_args": action_input,
             "source": "llm",

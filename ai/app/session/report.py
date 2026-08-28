@@ -28,11 +28,11 @@ import os
 from typing import Optional
 
 try:
-    import anthropic
+    import boto3
 
-    _ANTHROPIC_AVAILABLE = True
+    _BOTO3_AVAILABLE = True
 except ImportError:
-    _ANTHROPIC_AVAILABLE = False
+    _BOTO3_AVAILABLE = False
 
 AWS_REGION_ENV_VAR = "AWS_BEDROCK_REGION"
 MODEL_ENV_VAR = "HARNESS_BEDROCK_MODEL_ID"  # harness.py/generation.py와 의도적으로 같은 환경변수를 공유함
@@ -68,13 +68,13 @@ FREQUENCY_THRESHOLDS = [
 
 
 def _get_client():
-    """harness.py/generation.py와 동일한 지연 생성 패턴(AnthropicBedrock)."""
-    if not _ANTHROPIC_AVAILABLE:
+    """harness.py/generation.py와 동일한 지연 생성 패턴(boto3 bedrock-runtime)."""
+    if not _BOTO3_AVAILABLE:
         return None
     region = os.environ.get(AWS_REGION_ENV_VAR)
     if not region:
         return None
-    return anthropic.AnthropicBedrock(aws_region=region)
+    return boto3.client("bedrock-runtime", region_name=region)
 
 
 def _recommended_frequency_message(normal_ratio: float) -> str:
@@ -180,13 +180,14 @@ def generate_session_report(
             f"- 권장 빈도: {stats['recommended_frequency_message']}"
         )
         try:
-            response = active_client.messages.create(
-                model=os.environ[MODEL_ENV_VAR],
-                max_tokens=MAX_TOKENS,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
+            response = active_client.converse(
+                modelId=os.environ[MODEL_ENV_VAR],
+                system=[{"text": system_prompt}],
+                messages=[{"role": "user", "content": [{"text": user_message}]}],
+                inferenceConfig={"maxTokens": MAX_TOKENS},
             )
-            text_blocks = [b.text for b in response.content if getattr(b, "type", None) == "text"]
+            content = response["output"]["message"]["content"]
+            text_blocks = [block["text"] for block in content if "text" in block]
             generated = "".join(text_blocks).strip()
             if generated:
                 return {**stats, "summary_message": generated, "generation_source": "llm"}

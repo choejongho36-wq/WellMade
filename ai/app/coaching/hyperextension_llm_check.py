@@ -50,16 +50,16 @@ import uuid
 from typing import Any, Optional
 
 try:
-    import anthropic
+    import boto3
 
-    _ANTHROPIC_AVAILABLE = True
+    _BOTO3_AVAILABLE = True
 except ImportError:
-    _ANTHROPIC_AVAILABLE = False
+    _BOTO3_AVAILABLE = False
 
 from app.pose.rules import LLM_HYPEREXTENSION_JOB_TTL_SECONDS
 from app.schemas import AngleFrame
 
-# AWS Bedrock 인증(AnthropicBedrock, AWS SigV4 — boto3 필요, requirements.txt 참고).
+# AWS Bedrock 인증(boto3 bedrock-runtime, AWS SigV4 — requirements.txt 참고).
 # harness.py/rag/generation.py/session/report.py도 같은 AWS_REGION_ENV_VAR을 공유한다 —
 # 리전은 서버 전체에서 하나면 되므로 모듈마다 따로 안 둔다. 모델 ID만 모듈별로 분리했다
 # (이 모듈은 HYPEREXTENSION_BEDROCK_MODEL_ID, 나머지 셋은 HARNESS_BEDROCK_MODEL_ID 공유) —
@@ -88,28 +88,32 @@ _SIDE_FIELDS: tuple[str, ...] = (
 
 _VERDICT_TOOL_NAME = "report_hip_hyperextension_verdict"
 _VERDICT_TOOL = {
-    "name": _VERDICT_TOOL_NAME,
-    "description": "스쿼트 렙 1개의 측면 관절각도 시계열을 보고 고관절 과신전 여부를 판정해 보고한다.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "verdict": {
-                "type": "string",
-                "enum": ["과신전_의심", "정상"],
-                "description": "이 렙에 고관절 과신전(허리를 과도하게 젖히는 보상동작)이 있었는지.",
-            },
-            "confidence": {
-                "type": "string",
-                "enum": ["상", "중", "하"],
-                "description": "판정 확신도.",
-            },
-            "reasoning": {
-                "type": "string",
-                "description": "판정 근거를 한두 문장으로 설명.",
-            },
+    "toolSpec": {
+        "name": _VERDICT_TOOL_NAME,
+        "description": "스쿼트 렙 1개의 측면 관절각도 시계열을 보고 고관절 과신전 여부를 판정해 보고한다.",
+        "inputSchema": {
+            "json": {
+                "type": "object",
+                "properties": {
+                    "verdict": {
+                        "type": "string",
+                        "enum": ["과신전_의심", "정상"],
+                        "description": "이 렙에 고관절 과신전(허리를 과도하게 젖히는 보상동작)이 있었는지.",
+                    },
+                    "confidence": {
+                        "type": "string",
+                        "enum": ["상", "중", "하"],
+                        "description": "판정 확신도.",
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "description": "판정 근거를 한두 문장으로 설명.",
+                    },
+                },
+                "required": ["verdict", "confidence", "reasoning"],
+            }
         },
-        "required": ["verdict", "confidence", "reasoning"],
-    },
+    }
 }
 
 _SYSTEM_PROMPT = (
@@ -123,21 +127,21 @@ _SYSTEM_PROMPT = (
 
 
 def _get_client():
-    """AnthropicBedrock 클라이언트를 지연 생성한다. 패키지 미설치·리전 미설정이면
+    """boto3 bedrock-runtime 클라이언트를 지연 생성한다. 패키지 미설치·리전 미설정이면
     None을 반환해 호출부가 폴백 경로를 타게 한다 — harness.py의 _get_client()와
     동일한 원칙.
 
-    AnthropicBedrock은 생성 시점엔 자격증명을 검증하지 않고(내부적으로 boto3 체인에
+    boto3 클라이언트는 생성 시점엔 자격증명을 검증하지 않고(내부적으로 기본 체인에
     위임) 실제 요청 시점에야 실패하는데, 여기서는 "리전 환경변수가 있을 때만
     활성화"로 단순하게 판단해 설정 안 된 환경(로컬 개발 등)에서 매번 느린 실패를
     겪지 않고 바로 폴백하게 한다.
     """
-    if not _ANTHROPIC_AVAILABLE:
+    if not _BOTO3_AVAILABLE:
         return None
     region = os.environ.get(AWS_REGION_ENV_VAR)
     if not region:
         return None
-    return anthropic.AnthropicBedrock(aws_region=region)
+    return boto3.client("bedrock-runtime", region_name=region)
 
 
 def _downsample(rep_frames: list[AngleFrame], max_frames: int = MAX_PROMPT_FRAMES) -> list[AngleFrame]:
@@ -168,17 +172,18 @@ def _build_prompt(rep_frames: list[AngleFrame]) -> str:
 
 def _call_llm(rep_frames: list[AngleFrame], client, model: str) -> dict[str, Any]:
     prompt = _build_prompt(rep_frames)
-    response = client.messages.create(
-        model=model,
-        max_tokens=MAX_TOKENS,
-        system=_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
-        tools=[_VERDICT_TOOL],
-        tool_choice={"type": "tool", "name": _VERDICT_TOOL_NAME},
+    response = client.converse(
+        modelId=model,
+        system=[{"text": _SYSTEM_PROMPT}],
+        messages=[{"role": "user", "content": [{"text": prompt}]}],
+        toolConfig={"tools": [_VERDICT_TOOL], "toolChoice": {"tool": {"name": _VERDICT_TOOL_NAME}}},
+        inferenceConfig={"maxTokens": MAX_TOKENS},
     )
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == _VERDICT_TOOL_NAME:
-            data = block.input
+    content = response["output"]["message"]["content"]
+    for block in content:
+        tool_use = block.get("toolUse")
+        if tool_use and tool_use.get("name") == _VERDICT_TOOL_NAME:
+            data = tool_use.get("input", {})
             return {
                 "verdict": data.get("verdict"),
                 "confidence": data.get("confidence"),

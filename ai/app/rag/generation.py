@@ -29,11 +29,11 @@ import os
 from typing import Optional
 
 try:
-    import anthropic
+    import boto3
 
-    _ANTHROPIC_AVAILABLE = True
+    _BOTO3_AVAILABLE = True
 except ImportError:
-    _ANTHROPIC_AVAILABLE = False
+    _BOTO3_AVAILABLE = False
 
 from app.rag.retrieval import search
 
@@ -52,15 +52,16 @@ NO_MATCH_QNA_MESSAGE = "죄송해요, 관련된 안내 자료를 찾지 못했�
 
 
 def _get_client():
-    """AnthropicBedrock 클라이언트를 지연 생성한다. harness.py의 _get_client()와 동일한
-    패턴 — 각 모듈이 자기 완결적으로 폴백을 판단할 수 있도록 일부러 공용 함수로 뽑지 않고
-    모듈마다 자체 구현을 유지한다(rules.py/coaching/realtime.py 등 기존 관례와 동일)."""
-    if not _ANTHROPIC_AVAILABLE:
+    """boto3 bedrock-runtime 클라이언트를 지연 생성한다. harness.py의 _get_client()와
+    동일한 패턴 — 각 모듈이 자기 완결적으로 폴백을 판단할 수 있도록 일부러 공용 함수로
+    뽑지 않고 모듈마다 자체 구현을 유지한다(rules.py/coaching/realtime.py 등 기존 관례와
+    동일)."""
+    if not _BOTO3_AVAILABLE:
         return None
     region = os.environ.get(AWS_REGION_ENV_VAR)
     if not region:
         return None
-    return anthropic.AnthropicBedrock(aws_region=region)
+    return boto3.client("bedrock-runtime", region_name=region)
 
 
 def _sources_from_chunks(chunks: list[dict]) -> list[dict]:
@@ -86,13 +87,14 @@ def _sources_from_chunks(chunks: list[dict]) -> list[dict]:
 def _llm_generate(system_prompt: str, user_message: str, client) -> Optional[str]:
     """LLM 호출 공통 부분. 실패하면 None을 반환해 호출부가 폴백을 쓰게 한다."""
     try:
-        response = client.messages.create(
-            model=os.environ[MODEL_ENV_VAR],
-            max_tokens=MAX_TOKENS,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+        response = client.converse(
+            modelId=os.environ[MODEL_ENV_VAR],
+            system=[{"text": system_prompt}],
+            messages=[{"role": "user", "content": [{"text": user_message}]}],
+            inferenceConfig={"maxTokens": MAX_TOKENS},
         )
-        text_blocks = [b.text for b in response.content if getattr(b, "type", None) == "text"]
+        content = response["output"]["message"]["content"]
+        text_blocks = [block["text"] for block in content if "text" in block]
         combined = "".join(text_blocks).strip()
         return combined or None
     except Exception:  # noqa: BLE001 — 네트워크/파싱 등 다양한 이유로 실패할 수 있어 폭넓게 처리
