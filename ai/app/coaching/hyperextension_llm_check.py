@@ -59,11 +59,11 @@ except ImportError:
 from app.pose.rules import LLM_HYPEREXTENSION_JOB_TTL_SECONDS
 from app.schemas import AngleFrame
 
-# AWS Bedrock 인증 — harness.py/rag/generation.py(직접 Anthropic API, ANTHROPIC_API_KEY)와
-# 의도적으로 분리된 별도 환경변수다. 사용자가 "LLM API는 AWS에서 모델을 골라서 할 것"이라고
-# 확정해, 이 모듈만 AnthropicBedrock(AWS SigV4 인증, boto3 필요 — requirements.txt 참고)을
-# 쓴다 — 나머지 하네스/RAG 생성은 여전히 직접 API 키 방식을 쓰므로 같은 환경변수 이름을
-# 재사용하면 안 된다(서로 다른 인증 체계).
+# AWS Bedrock 인증(AnthropicBedrock, AWS SigV4 — boto3 필요, requirements.txt 참고).
+# harness.py/rag/generation.py/session/report.py도 같은 AWS_REGION_ENV_VAR을 공유한다 —
+# 리전은 서버 전체에서 하나면 되므로 모듈마다 따로 안 둔다. 모델 ID만 모듈별로 분리했다
+# (이 모듈은 HYPEREXTENSION_BEDROCK_MODEL_ID, 나머지 셋은 HARNESS_BEDROCK_MODEL_ID 공유) —
+# 과신전 2차 확인은 다른 세 기능과 별도로 모델을 바꿔 실험할 여지를 남겨둔다.
 AWS_REGION_ENV_VAR = "AWS_BEDROCK_REGION"
 BEDROCK_MODEL_ID_ENV_VAR = "HYPEREXTENSION_BEDROCK_MODEL_ID"
 

@@ -37,12 +37,13 @@ try:
 except ImportError:
     _ANTHROPIC_AVAILABLE = False
 
-# TODO: 팀 확정 필요 — 실제 사용할 모델 이름은 팀이 Anthropic 콘솔에서 확인 후
-# 환경변수(HARNESS_LLM_MODEL)로 지정한다. 특정 모델 이름을 여기 하드코딩하지 않은 이유:
-# 이 코드가 오래 유지되는 동안 모델 세대가 바뀔 수 있고, 잘못된/오래된 모델 이름을 코드에
-# 박아두면 나중에 조용히 실패하거나 예상과 다른 모델이 쓰일 위험이 있다.
-DEFAULT_MODEL_ENV_VAR = "HARNESS_LLM_MODEL"
-API_KEY_ENV_VAR = "ANTHROPIC_API_KEY"
+# TODO: 팀 확정 필요 — 실제 사용할 모델 ID는 팀이 AWS Bedrock 콘솔(Model access)에서
+# 확인 후 환경변수(HARNESS_BEDROCK_MODEL_ID)로 지정한다. 특정 모델 이름을 여기
+# 하드코딩하지 않은 이유: 이 코드가 오래 유지되는 동안 모델 세대가 바뀔 수 있고,
+# 잘못된/오래된 모델 이름을 코드에 박아두면 나중에 조용히 실패하거나 예상과 다른 모델이
+# 쓰일 위험이 있다.
+AWS_REGION_ENV_VAR = "AWS_BEDROCK_REGION"
+BEDROCK_MODEL_ID_ENV_VAR = "HARNESS_BEDROCK_MODEL_ID"
 
 MAX_TOKENS = 512
 
@@ -262,14 +263,15 @@ def _fallback_decision(context: dict) -> dict:
 
 
 def _get_client():
-    """anthropic 클라이언트를 지연 생성한다. 패키지 미설치·API 키 미설정이면 None을 반환해
-    호출부가 폴백 경로를 타게 한다(예외를 바로 던지지 않는 이유: 이 함수 하나만 보고도
-    '설정이 안 됐구나'를 판단할 수 있게 하기 위함)."""
+    """AnthropicBedrock 클라이언트를 지연 생성한다. 패키지 미설치·리전 미설정이면 None을
+    반환해 호출부가 폴백 경로를 타게 한다(예외를 바로 던지지 않는 이유: 이 함수 하나만
+    보고도 '설정이 안 됐구나'를 판단할 수 있게 하기 위함)."""
     if not _ANTHROPIC_AVAILABLE:
         return None
-    if not os.environ.get(API_KEY_ENV_VAR):
+    region = os.environ.get(AWS_REGION_ENV_VAR)
+    if not region:
         return None
-    return anthropic.Anthropic()
+    return anthropic.AnthropicBedrock(aws_region=region)
 
 
 def decide_next_action(session_id: str, context: dict, client=None) -> dict:
@@ -280,14 +282,14 @@ def decide_next_action(session_id: str, context: dict, client=None) -> dict:
     응답을 흉내 내는 가짜(fake) 클라이언트를 주입할 수 있게 하기 위함(의존성 주입 —
     실제 네트워크 호출 없이 파싱/폴백 로직을 검증할 수 있다).
     """
-    model = os.environ.get(DEFAULT_MODEL_ENV_VAR)
+    model = os.environ.get(BEDROCK_MODEL_ID_ENV_VAR)
     active_client = client if client is not None else _get_client()
 
     if active_client is None or not model:
         result = _fallback_decision(context)
         result["source"] = "fallback"
         result["fallback_reason"] = (
-            f"{API_KEY_ENV_VAR} 또는 {DEFAULT_MODEL_ENV_VAR} 환경변수가 설정되지 않았습니다."
+            f"{AWS_REGION_ENV_VAR} 또는 {BEDROCK_MODEL_ID_ENV_VAR} 환경변수가 설정되지 않았습니다."
         )
         return result
 

@@ -111,12 +111,6 @@ class AngleFrame(BaseModel):
         "무거운 연산(좌표 계산)은 클라이언트가 담당한다는 원칙을 이 필드에도 그대로 적용. "
         "선택 필드 — 없으면(정면 카메라 미지원 클라이언트) 무릎 모임 검사를 건너뛴다(하위 호환).",
     )
-    knee_asymmetry_deg: Optional[float] = Field(
-        None,
-        description="정면 촬영 기준 좌우 무릎 굽힘 각도 차이(app/pose/angles.py의 "
-        "get_knee_lr_asymmetry_deg 참고). knee_valgus_ratio와 동일한 이유로 "
-        "프론트가 직접 계산해서 보낸다. 선택 필드 — 없으면 좌우 비대칭 검사를 건너뛴다(하위 호환).",
-    )
     knee_over_toe_ratio: Optional[float] = Field(
         None,
         description="무릎이 발끝보다 앞으로 나간 정도(app/pose/angles.py의 "

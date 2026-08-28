@@ -302,7 +302,7 @@ function getTorsoShinLeanGapDeg(landmarks, side = 'auto') {
   return torsoLeanDeg - shinLeanDeg
 }
 
-// ---- 정면 촬영 전용(무릎 모임/좌우 비대칭) ----
+// ---- 정면 촬영 전용(무릎 모임) ----
 
 // 무릎 사이 너비 / 발목 사이 너비. 1.0 이상이면 정상, 작을수록 무릎이 안쪽으로 모인(valgus) 상태.
 function getKneeValgusRatio(frontLandmarks) {
@@ -310,13 +310,6 @@ function getKneeValgusRatio(frontLandmarks) {
   const ankleWidth = Math.abs(frontLandmarks[RIGHT_ANKLE].x - frontLandmarks[LEFT_ANKLE].x)
   if (ankleWidth === 0) return 1
   return kneeWidth / ankleWidth
-}
-
-// 좌우 무릎 굽힘 각도 차이(도, 절대값). 0에 가까울수록 대칭.
-function getKneeLrAsymmetryDeg(frontLandmarks) {
-  const leftAngle = calculateAngle(frontLandmarks[LEFT_HIP], frontLandmarks[LEFT_KNEE], frontLandmarks[LEFT_ANKLE])
-  const rightAngle = calculateAngle(frontLandmarks[RIGHT_HIP], frontLandmarks[RIGHT_KNEE], frontLandmarks[RIGHT_ANKLE])
-  return Math.abs(leftAngle - rightAngle)
 }
 
 // (2026-08-28 추가, 2026-08-28 같은 날 폐기) getFrontalKneeAngleAvg()가 이 자리에
@@ -528,7 +521,6 @@ function FrontalMeasurementPanel({ landmarks }) {
       <div className="pcard-body" style={{ fontSize: 13, lineHeight: 1.7 }}>
         <div className="pcard-title">정면 촬영 전용 측정값</div>
         <div>무릎 모임 비율: {fmt(getKneeValgusRatio(landmarks), 3)}</div>
-        <div>좌우 비대칭: {fmt(getKneeLrAsymmetryDeg(landmarks))}도</div>
         <div>
           무릎-발끝 방향 일치도(좌/우, 실험적·2026-08-27): {fmt(getKneeToeAlignmentRatio(landmarks).left, 2)} /{' '}
           {fmt(getKneeToeAlignmentRatio(landmarks).right, 2)}
@@ -550,7 +542,6 @@ const PART_LABELS = {
   shoulder: '어깨',
   heel: '발뒤꿈치',
   knee_valgus: '무릎 모임',
-  asymmetry: '좌우 비대칭',
   knee_over_toe: '무릎-발끝',
   back_rounded: '등 굽음',
   center_of_mass: '무게중심',
@@ -1373,7 +1364,6 @@ function MlTestPage() {
     }
     if (frontLandmarks) {
       baseFrame.knee_valgus_ratio = getKneeValgusRatio(frontLandmarks)
-      baseFrame.knee_asymmetry_deg = getKneeLrAsymmetryDeg(frontLandmarks)
     }
     const angle_history = [0, 0.1, 0.2].map((timestamp) => ({ timestamp, ...baseFrame }))
     try {
@@ -1416,7 +1406,7 @@ function MlTestPage() {
             뭐가 판정되고 뭐가 안 되는지 확인하는 용도예요. 다만 측면 전용 지표(시선/발뒤꿈치/
             무릎-발끝/무게중심)는 정면 사진에서는 "몸이 향한 방향"을 못 구해서 대부분
             0/측정불가로 나와요 — 그건 오류가 아니라 정면 사진만으로는 그 지표들을 믿을 수
-            없다는 뜻이에요. 무릎 모임/좌우 비대칭은 정면 사진 전용이라 그대로 정상 판정돼요.
+            없다는 뜻이에요. 무릎 모임은 정면 사진 전용이라 그대로 정상 판정돼요.
           </p>
 
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -1445,7 +1435,7 @@ function MlTestPage() {
               imgRef={frontImgRef}
               canvasRef={frontCanvasRef}
               fileInputRef={frontFileInputRef}
-              notReadyMessage="무릎 모임/좌우 비대칭/어깨·골반 좌우 기울기 측정에 쓰여요."
+              notReadyMessage="무릎 모임/어깨·골반 좌우 기울기 측정에 쓰여요."
               onPointerDown={handlePointerDown('front')}
               onPointerMove={handlePointerMove('front')}
               onPointerUp={handlePointerUp('front')}
@@ -1498,7 +1488,7 @@ function MlTestPage() {
             중/정지 단계를 실제로 어떻게 판정하는지도 확인할 수 있어요(그래프/슬라이더로 임의
             시점을 골라 수동으로 다시 확인할 수도 있어요).
             <br />
-            아직 정면 영상(무릎 모임/좌우 비대칭)은 지원하지 않고 측면 영상만 지원해요.
+            아직 정면 영상(무릎 모임)은 지원하지 않고 측면 영상만 지원해요.
           </p>
 
           <div style={{ maxWidth: 520 }}>

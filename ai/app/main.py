@@ -60,10 +60,10 @@ def coaching_frame(request: CoachingFrameRequest):
     프레임마다 새 딥러닝 추론을 돌리는 대신 이미 계산된 각도 값을 규칙기반으로
     비교하는 가벼운 연산이라, 실시간 호출에도 서버 부하 없이 응답할 수 있다.
 
-    각 프레임(AngleFrame)의 knee_valgus_ratio/knee_asymmetry_deg(선택 필드)는 정면
+    각 프레임(AngleFrame)의 knee_valgus_ratio(선택 필드)는 정면
     카메라 랜드마크로 프론트가 직접 계산해서 보낸다 — 이 엔드포인트는 원본
     좌표를 받지 않고 프론트가 이미 계산한 각도 값만 받으므로, 정면 촬영을 지원하려면 이
-    두 값을 프레임마다 함께 보내야 한다(app/schemas.py의 AngleFrame 참고).
+    값을 프레임마다 함께 보내야 한다(app/schemas.py의 AngleFrame 참고).
     """
     result = judge_realtime_coaching(
         request.angle_history,

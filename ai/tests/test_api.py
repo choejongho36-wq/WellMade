@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.pose.rules import personalized_hip_range, HEEL_LIFT_RATIO_THRESHOLD
 from app.schemas import AngleFrame, HipFlexibilityCalibration
-from app.orchestration.harness import decide_next_action, API_KEY_ENV_VAR, DEFAULT_MODEL_ENV_VAR
+from app.orchestration.harness import decide_next_action, AWS_REGION_ENV_VAR, BEDROCK_MODEL_ID_ENV_VAR
 from app.rag.retrieval import search as rag_search
 from app.rag.generation import generate_guide, generate_qna
 from app.session.report import generate_session_report, aggregate_session_stats
@@ -354,11 +354,11 @@ def test_posture_insight_old_age_maps_to_60_plus_bracket():
 
 
 def _without_llm_env(fn):
-    """테스트 중 ANTHROPIC_API_KEY/HARNESS_LLM_MODEL이 우연히 설정돼있어도(로컬 .env 등)
+    """테스트 중 AWS_BEDROCK_REGION/HARNESS_BEDROCK_MODEL_ID가 우연히 설정돼있어도(로컬 .env 등)
     fallback 경로 테스트가 실제 LLM을 호출하지 않도록, 두 환경변수를 잠시 지웠다가
     복원한다."""
     saved = {}
-    for key in (API_KEY_ENV_VAR, DEFAULT_MODEL_ENV_VAR):
+    for key in (AWS_REGION_ENV_VAR, BEDROCK_MODEL_ID_ENV_VAR):
         saved[key] = os.environ.pop(key, None)
     try:
         return fn()
@@ -458,7 +458,7 @@ class _FakeAnthropicClient:
 
 
 def test_harness_llm_path_parses_tool_use_response():
-    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
     try:
         block = _FakeToolUseBlock(
             "recommend_expert_consultation", {"reasoning": "골반 비대칭이 반복됐습니다."}
@@ -471,11 +471,11 @@ def test_harness_llm_path_parses_tool_use_response():
         assert result["reasoning"] == "골반 비대칭이 반복됐습니다."
         assert result["action_args"] == {}  # reasoning은 action_args에서 빠져야 함
     finally:
-        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+        os.environ.pop(BEDROCK_MODEL_ID_ENV_VAR, None)
 
 
 def test_harness_llm_failure_falls_back():
-    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
     try:
         fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
         result = decide_next_action("s1", {}, client=fake_client)
@@ -484,7 +484,7 @@ def test_harness_llm_failure_falls_back():
         assert "network down" in result["fallback_reason"]
         assert result["next_action"] == "proceed"  # 상황 정보가 없으니 안전한 기본값
     finally:
-        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+        os.environ.pop(BEDROCK_MODEL_ID_ENV_VAR, None)
 
 
 def test_rag_search_finds_relevant_document():
@@ -549,7 +549,7 @@ def test_rag_qna_fallback_no_match():
 
 
 def test_rag_guide_llm_path_uses_generated_text():
-    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
     try:
         block = _FakeTextBlock("무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요.")
         fake_client = _FakeAnthropicClient(block=block)
@@ -559,11 +559,11 @@ def test_rag_guide_llm_path_uses_generated_text():
         assert result["guidance_message"] == "무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요."
         assert result["matched"] is True
     finally:
-        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+        os.environ.pop(BEDROCK_MODEL_ID_ENV_VAR, None)
 
 
 def test_rag_guide_llm_failure_falls_back_to_short_message():
-    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
     try:
         fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
         result = generate_guide("무릎 모임", client=fake_client)
@@ -571,7 +571,7 @@ def test_rag_guide_llm_failure_falls_back_to_short_message():
         assert result["generation_source"] == "fallback"
         assert result["matched"] is True
     finally:
-        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+        os.environ.pop(BEDROCK_MODEL_ID_ENV_VAR, None)
 
 
 def test_rag_guide_endpoint_returns_valid_response():
@@ -634,7 +634,7 @@ def test_generate_session_report_fallback():
 
 
 def test_generate_session_report_llm_path():
-    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
     try:
         block = _FakeTextBlock("오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요.")
         fake_client = _FakeAnthropicClient(block=block)
@@ -644,7 +644,7 @@ def test_generate_session_report_llm_path():
         assert result["generation_source"] == "llm"
         assert result["summary_message"] == "오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요."
     finally:
-        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+        os.environ.pop(BEDROCK_MODEL_ID_ENV_VAR, None)
 
 
 def test_session_report_endpoint_returns_valid_response():
@@ -864,14 +864,12 @@ def test_coaching_frame_heel_lift_falls_back_to_absolute_without_standing_prefix
     assert any(issue["part"] == "heel" for issue in data["issues"]), data
 
 
-# (2026-08-24) 무릎 모임/좌우 비대칭 규칙기반 검사의 단위 테스트(get_knee_valgus_ratio/
-# get_knee_lr_asymmetry_deg 직접 호출)와 그 /ai/pose/analyze 통합 테스트가 이 자리에
-# 있었다 — AI-03 삭제(위 주석 참고)와 함께 이 두 함수 자체가 angles.py에서 제거되며 같이
-# 삭제했다. 아래 test_coaching_frame_knee_valgus_*/knee_asymmetry_* 테스트들이 실시간
-# 코칭(AI-06) 경로로 같은 임계값(KNEE_VALGUS_RATIO_THRESHOLD/KNEE_ASYMMETRY_THRESHOLD_DEG)
-# 판정을 계속 검증한다.
+# (2026-08-24) 무릎 모임 규칙기반 검사의 단위 테스트(get_knee_valgus_ratio 직접 호출)와
+# 그 /ai/pose/analyze 통합 테스트가 이 자리에 있었다 — AI-03 삭제(위 주석 참고)와 함께 이
+# 함수 자체가 angles.py에서 제거되며 같이 삭제했다. 아래 test_coaching_frame_knee_valgus_*
+# 테스트들이 실시간 코칭(AI-06) 경로로 같은 임계값(KNEE_VALGUS_RATIO_THRESHOLD) 판정을
+# 계속 검증한다.
 from app.pose.rules import (  # noqa: E402
-    KNEE_ASYMMETRY_THRESHOLD_DEG,
     KNEE_VALGUS_RATIO_THRESHOLD,
 )
 
@@ -902,25 +900,6 @@ def test_coaching_frame_knee_valgus_flagged_when_deep_hold():
 # 남은 주석과 checklist 2026-08-27 addendum 참고.
 
 
-def test_coaching_frame_knee_asymmetry_flagged_when_deep_hold():
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "knee_asymmetry_deg": KNEE_ASYMMETRY_THRESHOLD_DEG + 10.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(knee asymmetry, deep hold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert data["is_normal"] is False, data
-    assert any(issue["part"] == "asymmetry" for issue in data["issues"]), data
-
-
 # (2026-08-27 추가) 오버헤드 스쿼트 보상작용 참고 사진(무릎각도 154~158도)을 실제
 # mediapipe로 검증하다가, 무릎 모임(valgus)이 교과서적으로 뚜렷한 사진조차
 # is_deep_hold(무릎각도<150도) 게이트에 막혀 통째로 안 잡히는 걸 확인했다. 무릎 모임/
@@ -945,27 +924,8 @@ def test_coaching_frame_knee_valgus_flagged_even_when_not_deep_hold():
     assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
 
 
-def test_coaching_frame_knee_asymmetry_flagged_even_when_not_deep_hold():
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 155,  # STANDING_KNEE_ANGLE_MIN(150) 이상 — is_deep_hold=False
-            "hip_angle": 165,
-            "knee_asymmetry_deg": KNEE_ASYMMETRY_THRESHOLD_DEG + 10.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(knee asymmetry, NOT deep hold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert data["is_normal"] is False, data
-    assert any(issue["part"] == "asymmetry" for issue in data["issues"]), data
-
-
 def test_coaching_frame_without_frontal_fields_still_works():
-    # knee_valgus_ratio/knee_asymmetry_deg 필드를 아예 안 보내도 에러 없이 동작해야 한다(하위 호환).
+    # knee_valgus_ratio 필드를 아예 안 보내도 에러 없이 동작해야 한다(하위 호환).
     angle_history = [
         {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
     ]
@@ -974,7 +934,7 @@ def test_coaching_frame_without_frontal_fields_still_works():
     print("coaching_frame(no frontal fields):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
-    assert not any(issue["part"] in ("knee_valgus", "asymmetry") for issue in data["issues"]), data
+    assert not any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
 
 
 # (2026-08-24) 무릎-발끝 규칙기반 검사의 단위 테스트(get_knee_over_toe_ratio 직접 호출),
@@ -1531,7 +1491,6 @@ if __name__ == "__main__":
     test_coaching_frame_heel_lift_dynamic_baseline_still_flags_real_lift()
     test_coaching_frame_heel_lift_falls_back_to_absolute_without_standing_prefix()
     test_coaching_frame_knee_valgus_flagged_when_deep_hold()
-    test_coaching_frame_knee_asymmetry_flagged_when_deep_hold()
     test_coaching_frame_without_frontal_fields_still_works()
     test_coaching_frame_knee_over_toe_flagged_when_deep_hold()
     test_coaching_frame_without_knee_over_toe_field_still_works()

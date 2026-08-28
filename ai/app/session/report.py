@@ -34,8 +34,8 @@ try:
 except ImportError:
     _ANTHROPIC_AVAILABLE = False
 
-API_KEY_ENV_VAR = "ANTHROPIC_API_KEY"
-MODEL_ENV_VAR = "HARNESS_LLM_MODEL"  # harness.py/generation.py와 의도적으로 같은 환경변수를 공유함
+AWS_REGION_ENV_VAR = "AWS_BEDROCK_REGION"
+MODEL_ENV_VAR = "HARNESS_BEDROCK_MODEL_ID"  # harness.py/generation.py와 의도적으로 같은 환경변수를 공유함
 MAX_TOKENS = 400
 
 # 이상 부위(part) 코드를 사람이 읽는 한국어로 바꾸는 매핑. rules.py/coaching/realtime.py가
@@ -68,12 +68,13 @@ FREQUENCY_THRESHOLDS = [
 
 
 def _get_client():
-    """harness.py/generation.py와 동일한 지연 생성 패턴."""
+    """harness.py/generation.py와 동일한 지연 생성 패턴(AnthropicBedrock)."""
     if not _ANTHROPIC_AVAILABLE:
         return None
-    if not os.environ.get(API_KEY_ENV_VAR):
+    region = os.environ.get(AWS_REGION_ENV_VAR)
+    if not region:
         return None
-    return anthropic.Anthropic()
+    return anthropic.AnthropicBedrock(aws_region=region)
 
 
 def _recommended_frequency_message(normal_ratio: float) -> str:
