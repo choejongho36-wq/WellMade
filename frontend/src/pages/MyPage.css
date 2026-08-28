@@ -450,3 +450,42 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ============ 모바일 (~768px) ============ */
+@media (max-width: 768px) {
+  /* 아바타 + 이름/목표 + 탈퇴버튼이 한 줄에 안 들어감 */
+  .mp-profile-row {
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 24px;
+    padding-bottom: 24px;
+  }
+  .mp-avatar-lg {
+    width: 52px;
+    height: 52px;
+  }
+  .mp-withdraw-btn {
+    margin-left: auto;
+  }
+  .mp-profile-name-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .mp-profile-sub {
+    word-break: keep-all;
+  }
+  .mp-body-prompt,
+  .mp-inbody-empty {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 20px;
+  }
+  /* 추이 미니카드는 auto-fit(150px)이라 폰에서 1열로 떨어짐 - 2열 유지 */
+  .mp-trend-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .mp-trend-tabs {
+    flex-wrap: wrap;
+  }
+}

@@ -15,3 +15,15 @@
   color: #111;
   margin-bottom: 6px;
 }
+
+/* ============ 모바일 (~768px) ============
+   pcard는 flex:1 + min-width:240px라 좁은 화면에서 가로로 넘칠 수 있다 */
+@media (max-width: 768px) {
+  .pcard {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+  .pcard-body {
+    padding: 14px;
+  }
+}
