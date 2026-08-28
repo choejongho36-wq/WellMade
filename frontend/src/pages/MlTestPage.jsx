@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import './MlTestPage.css'
 import PageShell from '../components/PageShell.jsx'
 import { usePoseLandmarker } from '../hooks/usePoseLandmarker.js'
+import BLIND_TEST_REPS from '../data/blindTest6Reps.json'
 
 // (2026-08-24) 이 페이지는 원래 /ai/pose/analyze(AI-03, 정지 자세 1차 판정)를 호출해
 // "정상/이상" 결과까지 보여주는 통합 테스트 페이지였다. 사용자가 업로드한 서비스 흐름도를
@@ -32,6 +33,28 @@ import { usePoseLandmarker } from '../hooks/usePoseLandmarker.js'
 // 계산) 백엔드 변경은 필요 없다 — 드래그로 landmarks 배열의 x/y 값만 프론트 state에서
 // 바꾸고, 그 즉시 같은 랜드마크로 아래 측정값/판정 요청이 재계산된다.
 const AI_BASE = 'http://localhost:8000'
+
+// "6랩 블라인드 테스트" 비교 대상 후보 모델(2026-08-28 추가). 사용자가 "비용/성능 면에서
+// 여러 벤더 모델을 비교해보고, 클로드만 추천하지 말라"고 요청한 데 따라, 기본 선택값도
+// Claude 하나로 몰아두지 않고 벤더를 섞었다 — 실제로 판정 가능한지는 AWS Bedrock 콘솔에서
+// 계정이 해당 모델 접근권한(Model access)을 승인받았는지에 달려있어, 여기 목록에 있다고
+// 전부 바로 호출되는 건 아니다(승인 안 된 모델은 결과 셀에 오류로 표시됨).
+const CANDIDATE_MODELS = [
+  { id: 'anthropic.claude-haiku-4-5-20251001-v1:0', label: 'Claude Haiku 4.5', vendor: 'Anthropic' },
+  { id: 'anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5', vendor: 'Anthropic' },
+  { id: 'amazon.nova-lite-v1:0', label: 'Nova Lite', vendor: 'Amazon' },
+  { id: 'amazon.nova-pro-v1:0', label: 'Nova Pro', vendor: 'Amazon' },
+  { id: 'meta.llama3-3-70b-instruct-v1:0', label: 'Llama 3.3 70B', vendor: 'Meta' },
+  { id: 'mistral.mistral-large-2407-v1:0', label: 'Mistral Large', vendor: 'Mistral' },
+]
+const DEFAULT_SELECTED_MODEL_IDS = [
+  'anthropic.claude-haiku-4-5-20251001-v1:0',
+  'amazon.nova-pro-v1:0',
+  'meta.llama3-3-70b-instruct-v1:0',
+]
+
+const tableHeadStyle = { border: '1px solid #ddd', padding: '6px 8px', background: '#f7f7f7', textAlign: 'left', whiteSpace: 'nowrap' }
+const tableCellStyle = { border: '1px solid #ddd', padding: '6px 8px', verticalAlign: 'top' }
 const DRAG_HIT_RADIUS_PX = 16 // 이 거리(px) 안에 있는 핵심 관절점만 드래그로 잡을 수 있다.
 
 // MediaPipe Pose 33개 관절 좌표 중 각도/비율 계산에 실제로 쓰는 인덱스.
@@ -296,6 +319,53 @@ function getKneeLrAsymmetryDeg(frontLandmarks) {
   return Math.abs(leftAngle - rightAngle)
 }
 
+// (2026-08-28 추가, 2026-08-28 같은 날 폐기) getFrontalKneeAngleAvg()가 이 자리에
+// 있었다 — 정면 전용 DTW 고관절 과신전 판정용 지표였는데, 정면 카메라는 고관절
+// 과신전(시상면 신호)을 원리적으로 촬영할 수 없다는 게 실측으로 확인돼 판정 로직
+// 전체와 함께 폐기했다(백엔드 checklist 2026-08-28 addendum 참고).
+
+// 발끝-발목 x offset이 이보다 작으면(발이 카메라를 거의 정면으로 향하거나 인식이 불안정)
+// 방향 판단 자체를 신뢰할 수 없어 계산을 포기한다 — MIN_RELIABLE_FOOT_LENGTH와 같은 이유,
+// 다만 여기는 발 길이 전체가 아니라 발목 대비 발끝의 "가로 방향 벌어짐"만 보므로 별도 상수로 둔다.
+const MIN_RELIABLE_TOE_OFFSET = 0.02
+
+// (2026-08-27 추가) 무릎-발끝 방향 일치도 — 무릎이 발목 대비 가로로 얼마나 벌어졌는지를
+// 발끝이 발목 대비 가로로 얼마나 벌어졌는지로 나눈 비율, 다리별로 따로 계산한다(좌우
+// 보정 불필요 — 다리 방향에 따라 부호가 자동으로 맞춰짐). 값이 0~1 사이면 무릎이 발끝이
+// 가리키는 방향 "안쪽"에서만 움직인 것(와이드 스쿼트처럼 발과 무릎이 같이 밖을 향해도
+// 정상), 1보다 훨씬 크면 무릎이 발끝보다 더 바깥으로 벌어진 것(내반슬/O자 다리 의심),
+// 음수면 무릎이 발끝과 반대 방향(안쪽)으로 움직인 것(무릎 모임/valgus 의심)이다.
+//
+// 기존 무릎 모임 비율(getKneeValgusRatio, 무릎폭/발목폭 단순 비율)은 "얼마나 넓은지"만
+// 봐서, 와이드 스쿼트(발도 무릎도 같이 밖으로 벌어짐 — 정상)와 내반슬(발은 정면인데
+// 무릎만 밖으로 벌어짐 — 이상)을 구분하지 못했다(실측 사진 4장 중 안정적인 넓은 스탠스
+// 사진의 무릎폭/발목폭이 1.14, 확정된 내반슬 사진이 1.46~1.37로 겹치는 구간이 있어 상한
+// 임곗값을 못 정하던 문제 — checklist 2026-08-27 addendum 참고). 이 지표는 "발끝이
+// 가리키는 방향 대비 무릎이 그 방향을 따라가는지"를 봐서 원리적으로 이 둘을 구분할 수
+// 있고, 실측 사진 4장(내반슬 확정 2장 → 1.72/1.84, 안정적 와이드 스쿼트 → 0.43/0.43,
+// 무릎모임 확정 → -1.46) 전부 방향이 라벨과 일치하는 걸 확인했다.
+//
+// TODO: 팀 확정 필요 — 표본이 4장뿐이고(그나마 신뢰 가능한 다리가 한쪽뿐인 경우가
+// 대부분) 임곗값은 전혀 잡지 않았다. 지금은 계산값만 이 페이지에 보여주는 단계이고,
+// 서버 판정(AI-06)에는 아직 연결하지 않는다 — 사진을 더 모아 임곗값을 검증한 뒤 연결
+// 여부를 다시 결정한다.
+function getKneeToeAlignmentRatio(frontLandmarks) {
+  const legs = [
+    { kneeIdx: LEFT_KNEE, ankleIdx: LEFT_ANKLE, toeIdx: LEFT_FOOT_INDEX },
+    { kneeIdx: RIGHT_KNEE, ankleIdx: RIGHT_ANKLE, toeIdx: RIGHT_FOOT_INDEX },
+  ]
+  const [left, right] = legs.map(({ kneeIdx, ankleIdx, toeIdx }) => {
+    const knee = frontLandmarks[kneeIdx]
+    const ankle = frontLandmarks[ankleIdx]
+    const toe = frontLandmarks[toeIdx]
+    const kneeOffset = knee.x - ankle.x
+    const toeOffset = toe.x - ankle.x
+    if (Math.abs(toeOffset) < MIN_RELIABLE_TOE_OFFSET) return null
+    return kneeOffset / toeOffset
+  })
+  return { left, right }
+}
+
 // 좌우 두 점을 잇는 선이 수평선과 이루는 각도(도), 부호 있게. 양수=왼쪽이 더 높음.
 // AI-15(동년배 비교 인사이트)가 서버에서 계산하는 값과 동일한 공식 — 이 페이지에서는
 // 그 API를 호출하지 않고 프론트에서 미리 값만 확인해보는 용도.
@@ -459,6 +529,10 @@ function FrontalMeasurementPanel({ landmarks }) {
         <div className="pcard-title">정면 촬영 전용 측정값</div>
         <div>무릎 모임 비율: {fmt(getKneeValgusRatio(landmarks), 3)}</div>
         <div>좌우 비대칭: {fmt(getKneeLrAsymmetryDeg(landmarks))}도</div>
+        <div>
+          무릎-발끝 방향 일치도(좌/우, 실험적·2026-08-27): {fmt(getKneeToeAlignmentRatio(landmarks).left, 2)} /{' '}
+          {fmt(getKneeToeAlignmentRatio(landmarks).right, 2)}
+        </div>
         <div style={{ marginTop: 8, opacity: 0.7 }}>동년배 비교 인사이트(AI-15)용 참고값</div>
         <div>어깨 좌우 기울기: {fmt(getShoulderTiltAngle(landmarks))}도</div>
         <div>골반 좌우 기울기: {fmt(getPelvisTiltAngle(landmarks))}도</div>
@@ -809,6 +883,13 @@ function MlTestPage() {
   // 움직이지 않아도 AI가 각 렙 저점을 알아서 판독해 여기 채워 넣는다.
   const [repBottoms, setRepBottoms] = useState([])
   const [repResults, setRepResults] = useState([])
+
+  // ---- "6랩 블라인드 테스트" 모델 비교(개발용) 상태 ----
+  const [selectedModelIds, setSelectedModelIds] = useState(DEFAULT_SELECTED_MODEL_IDS)
+  const [customModelInput, setCustomModelInput] = useState('')
+  const [blindTestRunning, setBlindTestRunning] = useState(false)
+  const [blindTestResult, setBlindTestResult] = useState(null)
+  const [blindTestError, setBlindTestError] = useState('')
   const videoElRef = useRef(null)
   const videoCanvasRef = useRef(null)
 
@@ -983,6 +1064,53 @@ function MlTestPage() {
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return res.json()
+  }
+
+  // ---- "6랩 블라인드 테스트" 모델 비교(개발용, /ai/dev/llm-model-compare) ----
+  const modelLabel = (id) => CANDIDATE_MODELS.find((m) => m.id === id)?.label ?? id
+
+  const toggleModelId = (id) => {
+    setSelectedModelIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  const addCustomModelId = () => {
+    const id = customModelInput.trim()
+    if (!id) return
+    if (!selectedModelIds.includes(id)) {
+      setSelectedModelIds((prev) => [...prev, id])
+      if (!CANDIDATE_MODELS.some((m) => m.id === id)) {
+        CANDIDATE_MODELS.push({ id, label: id, vendor: '직접 추가' })
+      }
+    }
+    setCustomModelInput('')
+  }
+
+  const runBlindTest = async () => {
+    setBlindTestRunning(true)
+    setBlindTestError('')
+    setBlindTestResult(null)
+    try {
+      const reps = BLIND_TEST_REPS.map((rep) => ({
+        id: rep.id,
+        true_label: rep.true_label,
+        frames: rep.frames,
+      }))
+      const res = await fetch(`${AI_BASE}/ai/dev/llm-model-compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reps, model_ids: selectedModelIds }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      if (data.error) {
+        setBlindTestError(data.error)
+      }
+      setBlindTestResult(data)
+    } catch (err) {
+      setBlindTestError(`AI 서버 연결 실패: ${err.message} (AI 서버가 localhost:8000에서 실행 중인지 확인해주세요)`)
+    } finally {
+      setBlindTestRunning(false)
+    }
   }
 
   // detectRepBottoms가 찾아낸 저점들을 순서대로(직렬로) 서버에 판독 요청한다. 사람이
@@ -1518,6 +1646,119 @@ function MlTestPage() {
               </>
             )}
           </div>
+
+      <div className="section-head" style={{ marginTop: 32 }}>
+        <div className="section-title">6랩 블라인드 테스트 — LLM 모델 비교 (개발용)</div>
+      </div>
+
+      <div style={{ maxWidth: 760 }}>
+        <p className="pcard-desc" style={{ marginBottom: 12 }}>
+          claude/wellmade-ai-progress.md(2026-08-25/26)의 "블라인드 테스트(6/6, 100% 정확)"에 썼던
+          것과 같은 조합(우혁/주영/형준 각 과신전·정상 렙 1개씩, 총 6개)을 실제 관절각도 데이터로
+          미리 저장해뒀어요. 아래에서 비교할 모델을 고르고 버튼 한 번을 누르면, 6개 렙을 각 모델에
+          정답 없이(블라인드) 보내 판정시키고 정답과 비교해 모델별 정확도·확신도·지연시간을 한번에
+          보여줘요. 벤더가 다른 모델(Claude/Nova/Llama/Mistral)도 같은 Bedrock Converse API로 동일
+          조건에서 비교하는 구조라, 특정 벤더에 치우치지 않고 공정하게 비교할 수 있어요.
+        </p>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginBottom: 12 }}>
+          {CANDIDATE_MODELS.map((m) => (
+            <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
+              <input
+                type="checkbox"
+                checked={selectedModelIds.includes(m.id)}
+                onChange={() => toggleModelId(m.id)}
+              />
+              {m.label} <span style={{ color: '#888', fontSize: 12 }}>({m.vendor})</span>
+            </label>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <input
+            type="text"
+            placeholder="직접 모델 ID 추가 (예: cohere.command-r-plus-v1:0)"
+            value={customModelInput}
+            onChange={(e) => setCustomModelInput(e.target.value)}
+            style={{ flex: 1, padding: '6px 8px' }}
+          />
+          <button onClick={addCustomModelId} disabled={!customModelInput.trim()}>
+            추가
+          </button>
+        </div>
+
+        <button onClick={runBlindTest} disabled={blindTestRunning || selectedModelIds.length === 0}>
+          {blindTestRunning
+            ? `실행 중... (${selectedModelIds.length}개 모델 × 6랩, 모델당 최대 40초 정도 걸릴 수 있어요)`
+            : `6랩 블라인드 테스트 실행 (선택된 모델 ${selectedModelIds.length}개)`}
+        </button>
+
+        {blindTestError && (
+          <p className="pcard-desc" style={{ marginTop: 8, color: '#c0392b' }}>{blindTestError}</p>
+        )}
+
+        {blindTestResult && (
+          <div style={{ marginTop: 16, overflowX: 'auto' }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th style={tableHeadStyle}>렙 (정답)</th>
+                  {selectedModelIds.map((id) => (
+                    <th key={id} style={tableHeadStyle}>{modelLabel(id)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {BLIND_TEST_REPS.map((rep) => (
+                  <tr key={rep.id}>
+                    <td style={tableCellStyle}>
+                      {rep.person} · <strong>{rep.true_label}</strong>
+                      <div style={{ color: '#888', fontSize: 11 }}>{rep.frames.length}프레임</div>
+                    </td>
+                    {selectedModelIds.map((modelId) => {
+                      const cell = blindTestResult.results?.[modelId]?.[rep.id]
+                      if (!cell) return <td key={modelId} style={tableCellStyle}>—</td>
+                      if (cell.error) {
+                        return (
+                          <td key={modelId} style={{ ...tableCellStyle, color: '#c0392b' }}>
+                            오류: {cell.error}
+                          </td>
+                        )
+                      }
+                      const predictedLabel = cell.verdict === '과신전_의심' ? '과신전' : cell.verdict === '정상' ? '정상' : '?'
+                      const correct = predictedLabel === rep.true_label
+                      return (
+                        <td
+                          key={modelId}
+                          style={{
+                            ...tableCellStyle,
+                            background: correct ? '#eafaf1' : '#fdecea',
+                          }}
+                        >
+                          {predictedLabel} (확신도: {cell.confidence})
+                          <div style={{ color: '#888', fontSize: 11 }}>{cell.latency_ms}ms</div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+                <tr>
+                  <td style={{ ...tableCellStyle, fontWeight: 'bold' }}>정확도</td>
+                  {selectedModelIds.map((modelId) => {
+                    const acc = blindTestResult.accuracy?.[modelId]
+                    return (
+                      <td key={modelId} style={{ ...tableCellStyle, fontWeight: 'bold' }}>
+                        {acc === null || acc === undefined ? '—' : `${Math.round(acc * 100)}% (${Math.round(acc * 6)}/6)`}
+                      </td>
+                    )
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
     </PageShell>
   )
 }

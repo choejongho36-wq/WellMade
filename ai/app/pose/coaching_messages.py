@@ -68,3 +68,25 @@ DTW_FORM_MISMATCH_MESSAGE = (
     "이번 렙의 전체적인 움직임 패턴이 정상 스쿼트와 다소 차이가 있는 것 같아요. "
     "속도를 조금 늦추고 자세를 다시 한번 확인해보세요."
 )
+
+
+# (2026-08-28 추가, 2026-08-28 같은 날 폐기) 정면 촬영 전용 DTW 고관절 과신전 판정에
+# 쓰던 HIP_HYPEREXTENSION_FRONTAL_MESSAGE가 이 자리에 있었다 — 정면 카메라는 고관절
+# 과신전(시상면 신호)을 원리적으로 촬영할 수 없다는 게 실측(영상 프레임 직접 확인)으로
+# 확인됐고, 정면 지표(knee_valgus_ratio 등)가 라벨보다 촬영 인물별로 더 강하게
+# 클러스터링되는 것도 함께 확인돼(checklist 2026-08-28 addendum 1번 참고) 판정 로직
+# 전체(realtime.py (1.6) 블록, dtw_matching.py의 FRONTAL_METRIC_FIELDS,
+# app/pose/dtw_templates_frontal/, ml_training/build_dtw_templates.py의 프론트 관련
+# 함수들, 관련 테스트)와 함께 폐기했다. 대체 지표는 아직 없다 — 진짜 고관절 과신전은
+# 측면 DTW+LLM 하이브리드(HIP_HYPEREXTENSION_LLM_MESSAGE, 아래 참고)로만 판정한다.
+
+
+# (2026-08-28 추가) 측면 DTW+LLM 하이브리드(app/coaching/hyperextension_llm_check.py)가
+# "과신전_의심"으로 판정했을 때 쓰는 문구. 이 판정은 위 정면 버전과 달리 실제 시상면
+# 신호(hip_angle, torso 기울기)를 LLM이 직접 본 결과이고, 지난 세션 블라인드
+# 테스트(6/6, 100%)로 검증된 경로다 — 다만 LLM 확신도가 "중"으로 나올 때도 있어(같은
+# 실험 결과) 여전히 단정적이지 않은 톤을 유지한다.
+HIP_HYPEREXTENSION_LLM_MESSAGE = (
+    "직전 렙에서 고관절이 과도하게 젖혀지는 것처럼 보였어요. "
+    "복부에 힘을 주고 골반을 중립으로 유지한 채 앉아보세요."
+)

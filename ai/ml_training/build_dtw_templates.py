@@ -48,7 +48,9 @@ from app.pose.dtw_matching import (  # noqa: E402
     build_template,
     compute_normalization,
     extract_metric_matrix,
+    load_templates,
     save_template,
+    save_templates_bundle,
 )
 
 DATASET_DIR = Path.home() / "mnt" / "Dataset"
@@ -66,6 +68,19 @@ VIDEO_FILES = [
     "주영_정상.mp4",
     "형준_정상.mp4",
 ]
+
+# (2026-08-28 추가) 정면 전용 DTW 템플릿 — 주영·형준의 정면 촬영(정상/과신전)이
+# 새로 확보되면서, 우혁 1명뿐이라 보류했던 "정면 데이터가 더 모이면 별도 템플릿
+# 세트로 다뤄야 한다"(위 모듈 docstring, dtw_matching.py 주석)를 실행에 옮긴다.
+# 측면 템플릿(20개)과 달리 여기는 "정상 대 정상" 단일 클래스 이상치 탐지가 아니라,
+# 정상/과신전 두 클래스 실측 데이터를 다 갖고 있어 nearest_normal_distance()의
+# (2026-08-28 추가, 2026-08-28 같은 날 폐기) 정면 전용 DTW 고관절 과신전 판정에 쓰던
+# FRONTAL_VIDEO_SOURCES/FRONTAL_VIDEO_DIRS/FRONTAL_METRIC_FIELDS/FRONTAL_TEMPLATE_DIR,
+# get_knee_valgus_ratio()/frame_metrics_frontal()/step_frontal_videos()/
+# step_frontal_build()가 이 자리에 있었다 — 정면 카메라는 고관절 과신전(시상면 신호)을
+# 원리적으로 촬영할 수 없다는 게 실측으로 확인돼 판정 로직 전체와 함께 폐기했다.
+# 자세한 배경은 checklist 2026-08-28 addendum 참고. 부활시키려면 git 히스토리에서
+# 복구 가능하지만, 위 실측 결론상 그대로 되살리는 것은 권장되지 않는다.
 
 # 시상면(측면) 지표만 사용 — 모듈 docstring 참고.
 METRIC_FIELDS = ("knee_angle", "hip_angle", "torso_length_ratio", "shoulder_forward_lean_deg")
@@ -359,8 +374,46 @@ def step_build():
     print(f"정규화 기준값(표준편차): {normalization.stds}")
 
 
+# (2026-08-28 추가) app/pose/dtw_templates/*.json(개별 파일 20개)을 S3용 묶음 파일
+# 하나로 합친다 — 배경은 app/pose/dtw_template_store.py 모듈 docstring 참고("데이터를
+# 코드 저장소(git)에서 분리해 승인 워크플로우가 배포에 묶이지 않게 한다"). 이 함수는
+# 로컬 파일만 만들고 실제 S3 업로드는 하지 않는다 — 자격증명을 다루는 코드를 이 저장소에
+# 최소화한다는 원칙(hyperextension_llm_check.py도 호출만 하고 발급/관리는 안 다룸)과
+# 동일하다. 업로드는 사람이 직접(예: aws s3 cp) 하거나 배포 파이프라인에서 처리한다.
+BUNDLE_OUTPUT_PATH = AI_DIR / "ml_training" / "data" / "dtw_templates_bundle.json"
+
+
+def step_bundle():
+    """TEMPLATE_DIR(app/pose/dtw_templates/)에 이미 있는 개별 템플릿 JSON들을 읽어
+    묶음 파일 하나로 저장한다 — --step build를 먼저 실행해 템플릿이 이미 만들어져
+    있어야 한다(새로 만들지 않고 기존 걸 그대로 묶기만 함)."""
+    templates = load_templates(TEMPLATE_DIR)
+    if not templates:
+        print(f"{TEMPLATE_DIR}에 템플릿이 없습니다 — 먼저 --step build를 실행하세요.")
+        return
+
+    save_templates_bundle(templates, BUNDLE_OUTPUT_PATH)
+    size_kb = BUNDLE_OUTPUT_PATH.stat().st_size / 1024
+    print(f"템플릿 {len(templates)}개를 묶음 파일로 저장 완료 -> {BUNDLE_OUTPUT_PATH} ({size_kb:.1f}KB)")
+    print(
+        "다음 단계(수동): aws s3 cp "
+        f"{BUNDLE_OUTPUT_PATH} s3://<버킷>/<키> "
+        "--region <리전> 으로 업로드한 뒤, 서버 배포 환경에 DTW_TEMPLATES_S3_BUCKET/"
+        "DTW_TEMPLATES_S3_KEY/DTW_TEMPLATES_S3_REGION 환경변수를 설정하세요."
+    )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--step", choices=["videos", "images", "build"], required=True)
+    parser.add_argument(
+        "--step",
+        choices=["videos", "images", "build", "bundle"],
+        required=True,
+    )
     args = parser.parse_args()
-    {"videos": step_videos, "images": step_images, "build": step_build}[args.step]()
+    {
+        "videos": step_videos,
+        "images": step_images,
+        "build": step_build,
+        "bundle": step_bundle,
+    }[args.step]()

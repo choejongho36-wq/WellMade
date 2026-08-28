@@ -47,6 +47,14 @@ PART_LABELS = {
     "back_rounded": "등(자세)",
     "movement": "움직임 안정성",
     "data": "판정 데이터",
+    # (2026-08-28 추가, 2026-08-28 같은 날 폐기) "hip_hyperextension_frontal": "고관절
+    # 과신전(정면)" 라벨이 이 자리에 있었다 — 정면 카메라 기반 판정 자체가 폐기됐다
+    # (checklist 2026-08-28 addendum 참고). "hip_hyperextension"(측면 DTW+LLM
+    # 하이브리드)만 남는다.
+    # (2026-08-28 추가) 측면 DTW+LLM 하이브리드(coaching/realtime.py (1.45) 블록,
+    # app/coaching/hyperextension_llm_check.py, HIP_HYPEREXTENSION_LLM_MESSAGE)가
+    # 반환하는 part 값 — 위 정면 버전과 달리 실제 시상면 신호를 LLM이 직접 본 판정이다.
+    "hip_hyperextension": "고관절 과신전",
 }
 
 # 정상 비율에 따른 권장 운동 빈도 — 요구사항 정의서 예시("부족 시 권장 빈도 문구")를
