@@ -32,7 +32,8 @@ import BLIND_TEST_REPS from '../data/blindTest6Reps.json'
 // 했다. 서버에는 여전히 원본 좌표를 보내지 않으므로(이 페이지는 항상 서버 호출 없이 각도만
 // 계산) 백엔드 변경은 필요 없다 — 드래그로 landmarks 배열의 x/y 값만 프론트 state에서
 // 바꾸고, 그 즉시 같은 랜드마크로 아래 측정값/판정 요청이 재계산된다.
-const AI_BASE = 'http://localhost:8000'
+// auth.js 의 API_BASE 와 같은 방식 - 빌드 시 VITE_AI_BASE 로 주입, 없으면 로컬 기본값
+const AI_BASE = import.meta.env.VITE_AI_BASE || 'http://localhost:8000'
 
 // "6랩 블라인드 테스트" 비교 대상 후보 모델(2026-08-28 추가). 사용자가 "비용/성능 면에서
 // 여러 벤더 모델을 비교해보고, 클로드만 추천하지 말라"고 요청한 데 따라, 기본 선택값도

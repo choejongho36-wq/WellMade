@@ -24,7 +24,7 @@ export const SOCIAL_PROVIDERS = [
 
 export const NAV_ITEMS = [
   { label: '마이페이지', path: '/mypage' },
-  { label: '자세 측정', path: '/posture' },
+  { label: '자세 측정', path: '/ml-test' },
   { label: '식단 기록', path: '/mealplan' },
   { label: '운동 추천' },
 ]
