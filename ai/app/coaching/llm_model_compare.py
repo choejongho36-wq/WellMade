@@ -2,17 +2,17 @@
 LLM 모델 비교 테스트 — "6랩 블라인드 테스트"를 여러 Bedrock 모델로 동시에 재현한다
 (2026-08-28 추가, MlTestPage.jsx의 "6랩 블라인드 테스트" 버튼 전용 개발/테스트 기능).
 
-배경: hyperextension_llm_check.py는 실제 서비스 경로용으로 AnthropicBedrock 클라이언트
-(Claude 계열 모델 전용, Anthropic Messages API)만 쓴다. 그런데 사용자가 "비용/성능 면에서
-여러 벤더 모델을 비교해보고 알려달라, 클로드만 추천하지 말라"고 명시적으로 요청했다 —
-Amazon Nova/Meta Llama/Mistral 등 비-Anthropic 모델도 같은 조건으로 테스트하려면
-Anthropic SDK가 아니라 Bedrock 자체의 Converse API(bedrock-runtime의 converse())를 써야
-한다 — 이 API는 Anthropic/Nova/Llama 3.1+/Mistral Large 등 여러 벤더 모델에서 동일한
-방식으로 도구 사용(toolConfig)을 지원하는 통합 인터페이스라, 벤더별로 다른 클라이언트/
-프롬프트 포맷을 만들지 않고도 같은 판정 함수로 여러 모델을 공정하게 비교할 수 있다.
+hyperextension_llm_check.py(실제 서비스 판정 경로)와 마찬가지로 boto3 bedrock-runtime의
+Converse API(converse())를 직접 쓴다 — 이 API는 Anthropic/Amazon Nova/Meta Llama/
+Mistral Large 등 여러 벤더 모델에서 동일한 방식으로 도구 사용(toolConfig)을 지원하는
+통합 인터페이스라, 벤더별로 다른 클라이언트/프롬프트 포맷을 만들지 않고도 같은 판정
+함수로 여러 모델을 공정하게 비교할 수 있다.
 
-이 모듈은 실제 서비스 판정 경로(hyperextension_llm_check.py)와 별개다 — 서비스는 여전히
-그 모듈만 쓴다. 여기는 순수 비교/실험 도구다.
+이 모듈은 실제 서비스 판정 경로(hyperextension_llm_check.py)와 별개다 — 그쪽은 환경변수
+(HYPEREXTENSION_BEDROCK_MODEL_ID)로 지정된 모델 하나만 실시간 코칭에 쓰지만, 여기는 여러
+모델 후보를 병렬로 동시에 호출해 정확도·지연시간을 나란히 비교하는 순수 비교/실험
+도구다 — 여기서 비교해보고 마음에 드는 모델 ID를 그 환경변수에 넣으면 실제 서비스
+경로에도 그대로 반영된다.
 """
 
 from __future__ import annotations
@@ -61,22 +61,27 @@ _TOOL_SPEC = {
             "json": {
                 "type": "object",
                 "properties": {
-                    "verdict": {
+                    # 필드 순서 = 모델이 강제 tool call로 값을 채우는 순서(Converse API의
+                    # toolChoice가 이 도구를 강제하므로). verdict를 맨 앞에 두면 근거(reasoning)를
+                    # 쓰기도 전에 결론부터 확정해야 해서 CoT(생각 먼저, 결론 나중)의 이점을 못
+                    # 살린다 — reasoning을 먼저 채우게 해서 판정 전에 근거를 먼저 풀어놓도록
+                    # 순서를 바꿨다(2026-08-31, 프롬프트 문구는 변경하지 않음).
+                    "reasoning": {
                         "type": "string",
-                        "enum": ["과신전_의심", "정상"],
-                        "description": "이 렙에 고관절 과신전(허리를 과도하게 젖히는 보상동작)이 있었는지.",
+                        "description": "판정 근거를 한두 문장으로 설명.",
                     },
                     "confidence": {
                         "type": "string",
                         "enum": ["상", "중", "하"],
                         "description": "판정 확신도.",
                     },
-                    "reasoning": {
+                    "verdict": {
                         "type": "string",
-                        "description": "판정 근거를 한두 문장으로 설명.",
+                        "enum": ["과신전_의심", "정상"],
+                        "description": "이 렙에 고관절 과신전(허리를 과도하게 젖히는 보상동작)이 있었는지.",
                     },
                 },
-                "required": ["verdict", "confidence", "reasoning"],
+                "required": ["reasoning", "confidence", "verdict"],
             }
         },
     }
@@ -86,6 +91,9 @@ _SYSTEM_PROMPT = (
     "당신은 스쿼트 자세를 분석하는 운동처방 전문가입니다. 측면에서 촬영한 관절각도 "
     "시계열만 보고, 고관절 과신전(허리를 과도하게 젖히는 보상동작) 여부를 판정해야 "
     "합니다. 단일 프레임의 절대 수치보다, 렙 전체에 걸친 패턴의 형태로 판단하세요. "
+    "판정을 정하기 전에 reasoning 필드에 관찰한 패턴과 근거를 먼저 충분히 정리하고, "
+    "그 근거를 바탕으로 confidence와 verdict를 결정하세요 — 결론부터 정한 뒤 근거를 "
+    "나중에 붙이지 마세요. "
     "report_hip_hyperextension_verdict 도구를 반드시 한 번 호출해 결과를 보고하세요."
 )
 
@@ -135,6 +143,7 @@ def _call_one(client, model_id: str, frames: list[dict]) -> dict[str, Any]:
             system=[{"text": _SYSTEM_PROMPT}],
             messages=[{"role": "user", "content": [{"text": prompt}]}],
             toolConfig={"tools": [_TOOL_SPEC], "toolChoice": {"tool": {"name": _TOOL_NAME}}},
+            inferenceConfig={"temperature": 0},
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
         content = response["output"]["message"]["content"]
