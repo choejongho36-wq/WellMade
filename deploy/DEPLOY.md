@@ -19,13 +19,7 @@ cd ~/WellMade
 
 `application.yml` / `.env` 는 gitignore라 서버 파일이 그대로 유지된다.
 
-## 서버 최초 1회
 
-```bash
-cd ~/WellMade
-git checkout main            # 배포는 main 기준
-chmod +x deploy/deploy.sh
-cp .env.example .env && nano .env
 ```
 
 ## 주의
