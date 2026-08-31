@@ -61,22 +61,27 @@ _TOOL_SPEC = {
             "json": {
                 "type": "object",
                 "properties": {
-                    "verdict": {
+                    # 필드 순서 = 모델이 강제 tool call로 값을 채우는 순서(Converse API의
+                    # toolChoice가 이 도구를 강제하므로). verdict를 맨 앞에 두면 근거(reasoning)를
+                    # 쓰기도 전에 결론부터 확정해야 해서 CoT(생각 먼저, 결론 나중)의 이점을 못
+                    # 살린다 — reasoning을 먼저 채우게 해서 판정 전에 근거를 먼저 풀어놓도록
+                    # 순서를 바꿨다(2026-08-31, 프롬프트 문구는 변경하지 않음).
+                    "reasoning": {
                         "type": "string",
-                        "enum": ["과신전_의심", "정상"],
-                        "description": "이 렙에 고관절 과신전(허리를 과도하게 젖히는 보상동작)이 있었는지.",
+                        "description": "판정 근거를 한두 문장으로 설명.",
                     },
                     "confidence": {
                         "type": "string",
                         "enum": ["상", "중", "하"],
                         "description": "판정 확신도.",
                     },
-                    "reasoning": {
+                    "verdict": {
                         "type": "string",
-                        "description": "판정 근거를 한두 문장으로 설명.",
+                        "enum": ["과신전_의심", "정상"],
+                        "description": "이 렙에 고관절 과신전(허리를 과도하게 젖히는 보상동작)이 있었는지.",
                     },
                 },
-                "required": ["verdict", "confidence", "reasoning"],
+                "required": ["reasoning", "confidence", "verdict"],
             }
         },
     }
@@ -86,6 +91,9 @@ _SYSTEM_PROMPT = (
     "당신은 스쿼트 자세를 분석하는 운동처방 전문가입니다. 측면에서 촬영한 관절각도 "
     "시계열만 보고, 고관절 과신전(허리를 과도하게 젖히는 보상동작) 여부를 판정해야 "
     "합니다. 단일 프레임의 절대 수치보다, 렙 전체에 걸친 패턴의 형태로 판단하세요. "
+    "판정을 정하기 전에 reasoning 필드에 관찰한 패턴과 근거를 먼저 충분히 정리하고, "
+    "그 근거를 바탕으로 confidence와 verdict를 결정하세요 — 결론부터 정한 뒤 근거를 "
+    "나중에 붙이지 마세요. "
     "report_hip_hyperextension_verdict 도구를 반드시 한 번 호출해 결과를 보고하세요."
 )
 

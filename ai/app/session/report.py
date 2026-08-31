@@ -35,7 +35,10 @@ except ImportError:
     _BOTO3_AVAILABLE = False
 
 AWS_REGION_ENV_VAR = "AWS_BEDROCK_REGION"
-MODEL_ENV_VAR = "HARNESS_BEDROCK_MODEL_ID"  # harness.py/generation.py와 의도적으로 같은 환경변수를 공유함
+# (2026-08-31) 원래는 harness.py/generation.py와 HARNESS_BEDROCK_MODEL_ID를 공유했다. 하네스가
+# 완전히 규칙기반으로 바뀌고(LLM 미사용) RAG 생성도 별도 변수(RAG_GENERATION_BEDROCK_MODEL_ID)로
+# 분리되면서, 사실상 이 모듈(AI-12 세션 리포트) 전용 변수가 됐다 — 이름도 그에 맞게 바꿨다.
+MODEL_ENV_VAR = "SESSION_REPORT_BEDROCK_MODEL_ID"
 MAX_TOKENS = 400
 
 # 이상 부위(part) 코드를 사람이 읽는 한국어로 바꾸는 매핑. rules.py/coaching/realtime.py가

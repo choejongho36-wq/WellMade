@@ -306,13 +306,19 @@ class OrchestrateRequest(BaseModel):
 
 
 class OrchestrateResponse(BaseModel):
-    next_action: NextAction = Field(..., description="하네스가 결정한 다음 행동")
-    reasoning: str = Field(..., description="이 행동을 선택한 이유(한국어)")
+    next_action: NextAction = Field(
+        ..., description="하네스가 결정한 다음 행동. harness.py의 _fallback_decision()이 결정한다."
+    )
+    reasoning: str = Field(..., description="이 행동을 선택한 이유(한국어). 규칙기반이 만든 고정 문구다.")
     action_args: dict = Field(default_factory=dict, description="액션별 부가 인자 (예: end_session의 end_reason)")
     source: Literal["llm", "fallback"] = Field(
-        ..., description="LLM이 직접 판단했는지, LLM 호출이 불가능/실패해 규칙기반 폴백을 썼는지"
+        ...,
+        description="(2026-08-31) 이 하네스는 완전히 규칙기반이라 항상 \"fallback\"이 반환된다. "
+        "필드 자체는 과거 LLM 판단/reasoning 다듬기 시절 API 계약과의 호환을 위해 남겨뒀다.",
     )
-    fallback_reason: Optional[str] = Field(None, description="source가 fallback일 때만: 폴백을 쓴 이유")
+    fallback_reason: Optional[str] = Field(
+        None, description="지금은 항상 고정 안내 문구가 담긴다(과거엔 LLM 실패 사유였음)."
+    )
 
 
 # ---- RAG 지식베이스 검색·생성 (AI-08/09/14) ----
@@ -477,3 +483,4 @@ class ModelCompareResponse(BaseModel):
         ..., description="model_id -> true_label이 있는 렙 기준 정확도(0~1). true_label이 하나도 없으면 None."
     )
     error: Optional[str] = Field(None, description="비교 자체가 시작도 못 했을 때의 사유(예: boto3 미설치, 자격증명 없음).")
+

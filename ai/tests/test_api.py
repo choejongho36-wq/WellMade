@@ -19,10 +19,10 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.pose.rules import personalized_hip_range, HEEL_LIFT_RATIO_THRESHOLD
 from app.schemas import AngleFrame, HipFlexibilityCalibration
-from app.orchestration.harness import decide_next_action, AWS_REGION_ENV_VAR, BEDROCK_MODEL_ID_ENV_VAR
+from app.orchestration.harness import decide_next_action
 from app.rag.retrieval import search as rag_search
-from app.rag.generation import generate_guide, generate_qna
-from app.session.report import generate_session_report, aggregate_session_stats
+from app.rag.generation import generate_guide, generate_qna, AWS_REGION_ENV_VAR, MODEL_ENV_VAR as RAG_MODEL_ENV_VAR
+from app.session.report import generate_session_report, aggregate_session_stats, MODEL_ENV_VAR as REPORT_MODEL_ENV_VAR
 
 client = TestClient(app)
 
@@ -354,11 +354,13 @@ def test_posture_insight_old_age_maps_to_60_plus_bracket():
 
 
 def _without_llm_env(fn):
-    """테스트 중 AWS_BEDROCK_REGION/HARNESS_BEDROCK_MODEL_ID가 우연히 설정돼있어도(로컬 .env 등)
-    fallback 경로 테스트가 실제 LLM을 호출하지 않도록, 두 환경변수를 잠시 지웠다가
-    복원한다."""
+    """테스트 중 AWS_BEDROCK_REGION/RAG_GENERATION_BEDROCK_MODEL_ID/
+    SESSION_REPORT_BEDROCK_MODEL_ID가 우연히 설정돼있어도(로컬 .env 등) fallback 경로
+    테스트가 실제 LLM을 호출하지 않도록, 관련 환경변수를 잠시 지웠다가 복원한다.
+    (2026-08-31) 하네스는 더 이상 LLM을 호출하지 않으므로 여기서 관리할 필요가 없어졌다 —
+    RAG 생성·세션 리포트 두 모듈만 남았다."""
     saved = {}
-    for key in (AWS_REGION_ENV_VAR, BEDROCK_MODEL_ID_ENV_VAR):
+    for key in (AWS_REGION_ENV_VAR, RAG_MODEL_ENV_VAR, REPORT_MODEL_ENV_VAR):
         saved[key] = os.environ.pop(key, None)
     try:
         return fn()
@@ -445,34 +447,29 @@ class _FakeBedrockClient:
         return {"output": {"message": {"content": self._content_blocks}}}
 
 
-def test_harness_llm_path_parses_tool_use_response():
-    os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
-    try:
-        block = _tool_use_block(
-            "recommend_expert_consultation", {"reasoning": "골반 비대칭이 반복됐습니다."}
-        )
-        fake_client = _FakeBedrockClient(content_blocks=[block])
-        result = decide_next_action("s1", {"issue_type": "pelvis_asymmetry"}, client=fake_client)
-        print("harness(llm path):", result)
-        assert result["source"] == "llm"
-        assert result["next_action"] == "recommend_expert_consultation"
-        assert result["reasoning"] == "골반 비대칭이 반복됐습니다."
-        assert result["action_args"] == {}  # reasoning은 action_args에서 빠져야 함
-    finally:
-        os.environ.pop(BEDROCK_MODEL_ID_ENV_VAR, None)
+def test_harness_decide_next_action_is_pure_rule_based():
+    # (2026-08-31) 하네스는 LLM을 전혀 호출하지 않는다 — next_action과 reasoning 모두
+    # 규칙기반(_fallback_decision)이 결정한 값 그대로 나가야 하고, source/fallback_reason도
+    # 항상 같은 고정값이어야 한다.
+    result = decide_next_action("s1", {"landmark_visibility": 0.3})
+    print("harness(rule-based only):", result)
+    assert result["next_action"] == "request_retake"
+    assert "visibility" in result["reasoning"]
+    assert result["source"] == "fallback"
+    assert result["fallback_reason"] is not None
 
 
-def test_harness_llm_failure_falls_back():
-    os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
+def test_harness_decide_next_action_ignores_env_vars():
+    # 과거엔 HARNESS_BEDROCK_MODEL_ID/AWS_BEDROCK_REGION이 있으면 LLM 경로를 탔지만, 이제는
+    # 하네스가 이 두 환경변수를 아예 읽지 않으므로 설정 여부와 무관하게 결과가 같아야 한다.
+    os.environ["AWS_BEDROCK_REGION"] = "ap-northeast-2"
     try:
-        fake_client = _FakeBedrockClient(exc=RuntimeError("network down"))
-        result = decide_next_action("s1", {}, client=fake_client)
-        print("harness(llm failure -> fallback):", result)
+        result = decide_next_action("s1", {})
+        print("harness(env vars set but unused):", result)
+        assert result["next_action"] == "proceed"
         assert result["source"] == "fallback"
-        assert "network down" in result["fallback_reason"]
-        assert result["next_action"] == "proceed"  # 상황 정보가 없으니 안전한 기본값
     finally:
-        os.environ.pop(BEDROCK_MODEL_ID_ENV_VAR, None)
+        os.environ.pop("AWS_BEDROCK_REGION", None)
 
 
 def test_rag_search_finds_relevant_document():
@@ -537,7 +534,7 @@ def test_rag_qna_fallback_no_match():
 
 
 def test_rag_guide_llm_path_uses_generated_text():
-    os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
+    os.environ[RAG_MODEL_ENV_VAR] = "fake-model-for-test"
     try:
         block = _text_block("무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요.")
         fake_client = _FakeBedrockClient(content_blocks=[block])
@@ -547,11 +544,11 @@ def test_rag_guide_llm_path_uses_generated_text():
         assert result["guidance_message"] == "무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요."
         assert result["matched"] is True
     finally:
-        os.environ.pop(BEDROCK_MODEL_ID_ENV_VAR, None)
+        os.environ.pop(RAG_MODEL_ENV_VAR, None)
 
 
 def test_rag_guide_llm_failure_falls_back_to_short_message():
-    os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
+    os.environ[RAG_MODEL_ENV_VAR] = "fake-model-for-test"
     try:
         fake_client = _FakeBedrockClient(exc=RuntimeError("network down"))
         result = generate_guide("무릎 모임", client=fake_client)
@@ -559,7 +556,7 @@ def test_rag_guide_llm_failure_falls_back_to_short_message():
         assert result["generation_source"] == "fallback"
         assert result["matched"] is True
     finally:
-        os.environ.pop(BEDROCK_MODEL_ID_ENV_VAR, None)
+        os.environ.pop(RAG_MODEL_ENV_VAR, None)
 
 
 def test_rag_guide_endpoint_returns_valid_response():
@@ -638,7 +635,7 @@ def test_generate_session_report_fallback():
 
 
 def test_generate_session_report_llm_path():
-    os.environ[BEDROCK_MODEL_ID_ENV_VAR] = "fake-model-for-test"
+    os.environ[REPORT_MODEL_ENV_VAR] = "fake-model-for-test"
     try:
         block = _text_block("오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요.")
         fake_client = _FakeBedrockClient(content_blocks=[block])
@@ -648,7 +645,7 @@ def test_generate_session_report_llm_path():
         assert result["generation_source"] == "llm"
         assert result["summary_message"] == "오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요."
     finally:
-        os.environ.pop(BEDROCK_MODEL_ID_ENV_VAR, None)
+        os.environ.pop(REPORT_MODEL_ENV_VAR, None)
 
 
 def test_session_report_endpoint_returns_valid_response():

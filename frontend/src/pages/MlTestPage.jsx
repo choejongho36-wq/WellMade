@@ -1695,68 +1695,80 @@ function MlTestPage() {
         {blindTestError && (
           <p className="pcard-desc" style={{ marginTop: 8, color: '#c0392b' }}>{blindTestError}</p>
         )}
+      </div>
 
-        {blindTestResult && (
-          <div style={{ marginTop: 16, overflowX: 'auto' }}>
-            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th style={tableHeadStyle}>렙 (정답)</th>
-                  {selectedModelIds.map((id) => (
-                    <th key={id} style={tableHeadStyle}>{modelLabel(id)}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {BLIND_TEST_REPS.map((rep) => (
-                  <tr key={rep.id}>
-                    <td style={tableCellStyle}>
-                      {rep.person} · <strong>{rep.true_label}</strong>
-                      <div style={{ color: '#888', fontSize: 11 }}>{rep.frames.length}프레임</div>
-                    </td>
-                    {selectedModelIds.map((modelId) => {
-                      const cell = blindTestResult.results?.[modelId]?.[rep.id]
-                      if (!cell) return <td key={modelId} style={tableCellStyle}>—</td>
-                      if (cell.error) {
-                        return (
-                          <td key={modelId} style={{ ...tableCellStyle, color: '#c0392b' }}>
-                            오류: {cell.error}
-                          </td>
-                        )
-                      }
-                      const predictedLabel = cell.verdict === '과신전_의심' ? '과신전' : cell.verdict === '정상' ? '정상' : '?'
-                      const correct = predictedLabel === rep.true_label
+      {blindTestResult && (
+        // 선택한 모델이 많아지면 열이 늘어나 760px보다 훨씬 넓어질 수 있다. 위 설명/체크박스와
+        // 달리 이 테이블은 maxWidth:760 박스 밖에 둬서 페이지 본문의 실제 너비를 그대로 쓰고,
+        // 그래도 넘치는 경우에만 가로 스크롤되게 한다 — 스크롤 가능하다는 걸 시각적으로도 알 수
+        // 있게 테두리를 둔다(2026-08-31, "가로로 잘려서 나온다" 리포트 대응).
+        <div
+          style={{
+            marginTop: 16,
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            border: '1px solid #e5e3dd',
+            borderRadius: 10,
+          }}
+        >
+          <table style={{ borderCollapse: 'collapse', minWidth: '100%', fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th style={tableHeadStyle}>렙 (정답)</th>
+                {selectedModelIds.map((id) => (
+                  <th key={id} style={tableHeadStyle}>{modelLabel(id)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {BLIND_TEST_REPS.map((rep) => (
+                <tr key={rep.id}>
+                  <td style={tableCellStyle}>
+                    {rep.person} · <strong>{rep.true_label}</strong>
+                    <div style={{ color: '#888', fontSize: 11 }}>{rep.frames.length}프레임</div>
+                  </td>
+                  {selectedModelIds.map((modelId) => {
+                    const cell = blindTestResult.results?.[modelId]?.[rep.id]
+                    if (!cell) return <td key={modelId} style={tableCellStyle}>—</td>
+                    if (cell.error) {
                       return (
-                        <td
-                          key={modelId}
-                          style={{
-                            ...tableCellStyle,
-                            background: correct ? '#eafaf1' : '#fdecea',
-                          }}
-                        >
-                          {predictedLabel} (확신도: {cell.confidence})
-                          <div style={{ color: '#888', fontSize: 11 }}>{cell.latency_ms}ms</div>
+                        <td key={modelId} style={{ ...tableCellStyle, color: '#c0392b' }}>
+                          오류: {cell.error}
                         </td>
                       )
-                    })}
-                  </tr>
-                ))}
-                <tr>
-                  <td style={{ ...tableCellStyle, fontWeight: 'bold' }}>정확도</td>
-                  {selectedModelIds.map((modelId) => {
-                    const acc = blindTestResult.accuracy?.[modelId]
+                    }
+                    const predictedLabel = cell.verdict === '과신전_의심' ? '과신전' : cell.verdict === '정상' ? '정상' : '?'
+                    const correct = predictedLabel === rep.true_label
                     return (
-                      <td key={modelId} style={{ ...tableCellStyle, fontWeight: 'bold' }}>
-                        {acc === null || acc === undefined ? '—' : `${Math.round(acc * 100)}% (${Math.round(acc * 6)}/6)`}
+                      <td
+                        key={modelId}
+                        style={{
+                          ...tableCellStyle,
+                          background: correct ? '#eafaf1' : '#fdecea',
+                        }}
+                      >
+                        {predictedLabel} (확신도: {cell.confidence})
+                        <div style={{ color: '#888', fontSize: 11 }}>{cell.latency_ms}ms</div>
                       </td>
                     )
                   })}
                 </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+              ))}
+              <tr>
+                <td style={{ ...tableCellStyle, fontWeight: 'bold' }}>정확도</td>
+                {selectedModelIds.map((modelId) => {
+                  const acc = blindTestResult.accuracy?.[modelId]
+                  return (
+                    <td key={modelId} style={{ ...tableCellStyle, fontWeight: 'bold' }}>
+                      {acc === null || acc === undefined ? '—' : `${Math.round(acc * 100)}% (${Math.round(acc * 6)}/6)`}
+                    </td>
+                  )
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
 
     </PageShell>
   )
