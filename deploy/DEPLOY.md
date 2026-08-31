@@ -10,9 +10,13 @@
 aws ssm start-session --target i-033f1166c97c824aa --region ap-northeast-2
 # 콘솔로 붙어도 된다: EC2 -> 인스턴스 선택 -> 연결 -> Session Manager
 
-cd ~/WellMade
+cd /home/ssm-user/WellMade   # 세션은 /usr/bin 에서 시작하므로 cd 필수
 ./deploy/deploy.sh
 ```
+
+Session Manager는 `ssm-user` 로 로그인되고, 리포도 그 계정 홈에 있다.
+`sudo` 없이 그대로 실행하면 된다 (ssm-user 가 docker 그룹에 있어 `docker compose` 가 바로 됨).
+실행 권한이 없다고 나오면 `chmod +x deploy/deploy.sh` 하거나 `bash deploy/deploy.sh` 로 실행.
 
 `deploy.sh` 가 하는 일: `git pull --ff-only` → `docker compose -f docker-compose.prod.yml up -d --build`
 → 안 쓰는 이미지 정리 → 컨테이너 상태 출력.
