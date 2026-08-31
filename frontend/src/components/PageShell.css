@@ -26,11 +26,6 @@
   border-left: 1px solid #da291c;
 }
 /* showNav={false}일 때(예: ml-test) — 사이드바가 없으니 구분선/왼쪽 여백도 같이 뺀다 */
-.page-shell-content--full {
-  padding-left: 0;
-  border-left: none;
-}
-
 /* shared modal shell (인바디 등록, 영양소 상세 등) */
 .modal-backdrop {
   position: fixed;
@@ -215,10 +210,6 @@
     border-left: none;
     border-top: 1px solid #da291c;
   }
-  .page-shell-content--full {
-    border-top: none;
-  }
-
   .modal {
     width: min(320px, calc(100vw - 32px));
     padding: 28px 20px;
