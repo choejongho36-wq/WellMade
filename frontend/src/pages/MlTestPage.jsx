@@ -35,23 +35,31 @@ import BLIND_TEST_REPS from '../data/blindTest6Reps.json'
 // auth.js 의 API_BASE 와 같은 방식 - 빌드 시 VITE_AI_BASE 로 주입, 없으면 로컬 기본값
 const AI_BASE = import.meta.env.VITE_AI_BASE || 'http://localhost:8000'
 
-// "6랩 블라인드 테스트" 비교 대상 후보 모델(2026-08-28 추가). 사용자가 "비용/성능 면에서
-// 여러 벤더 모델을 비교해보고, 클로드만 추천하지 말라"고 요청한 데 따라, 기본 선택값도
-// Claude 하나로 몰아두지 않고 벤더를 섞었다 — 실제로 판정 가능한지는 AWS Bedrock 콘솔에서
-// 계정이 해당 모델 접근권한(Model access)을 승인받았는지에 달려있어, 여기 목록에 있다고
-// 전부 바로 호출되는 건 아니다(승인 안 된 모델은 결과 셀에 오류로 표시됨).
+// "6랩 블라인드 테스트" 비교 대상 후보 모델 — 실제로 판정 가능한지는 AWS Bedrock 콘솔에서
+// 계정이 해당 모델 접근권한(Model access)을 승인받았는지, 그리고 리전에서 온디맨드 호출을
+// 지원하는지에 달려있어, 여기 목록에 있다고 전부 바로 호출되는 건 아니다(승인 안 됐거나
+// 추론 프로필이 필요한 모델은 결과 셀에 오류로 표시됨).
 const CANDIDATE_MODELS = [
-  { id: 'anthropic.claude-haiku-4-5-20251001-v1:0', label: 'Claude Haiku 4.5', vendor: 'Anthropic' },
-  { id: 'anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5', vendor: 'Anthropic' },
-  { id: 'amazon.nova-lite-v1:0', label: 'Nova Lite', vendor: 'Amazon' },
-  { id: 'amazon.nova-pro-v1:0', label: 'Nova Pro', vendor: 'Amazon' },
-  { id: 'meta.llama3-3-70b-instruct-v1:0', label: 'Llama 3.3 70B', vendor: 'Meta' },
-  { id: 'mistral.mistral-large-2407-v1:0', label: 'Mistral Large', vendor: 'Mistral' },
+  { id: 'apac.amazon.nova-micro-v1:0', label: 'Nova Micro', vendor: 'Amazon' },
+  { id: 'apac.amazon.nova-lite-v1:0', label: 'Nova Lite', vendor: 'Amazon' },
+  { id: 'apac.amazon.nova-pro-v1:0', label: 'Nova Pro', vendor: 'Amazon' },
+  { id: 'apac.anthropic.claude-3-5-sonnet-20240620-v1:0', label: 'Claude 3.5 Sonnet', vendor: 'Anthropic' },
+  { id: 'apac.anthropic.claude-3-haiku-20240307-v1:0', label: 'Claude 3 Haiku', vendor: 'Anthropic' },
+  { id: 'apac.anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Claude 3.5 Sonnet v2', vendor: 'Anthropic' },
+  { id: 'apac.anthropic.claude-sonnet-4-20250514-v1:0', label: 'Claude Sonnet 4', vendor: 'Anthropic' },
+  { id: 'global.anthropic.claude-haiku-4-5-20251001-v1:0', label: 'Claude Haiku 4.5', vendor: 'Anthropic' },
+  { id: 'global.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5', vendor: 'Anthropic' },
 ]
 const DEFAULT_SELECTED_MODEL_IDS = [
-  'anthropic.claude-haiku-4-5-20251001-v1:0',
-  'amazon.nova-pro-v1:0',
-  'meta.llama3-3-70b-instruct-v1:0',
+  'apac.amazon.nova-micro-v1:0',
+  'apac.amazon.nova-lite-v1:0',
+  'apac.amazon.nova-pro-v1:0',
+  'apac.anthropic.claude-3-5-sonnet-20240620-v1:0',
+  'apac.anthropic.claude-3-haiku-20240307-v1:0',
+  'apac.anthropic.claude-3-5-sonnet-20241022-v2:0',
+  'apac.anthropic.claude-sonnet-4-20250514-v1:0',
+  'global.anthropic.claude-haiku-4-5-20251001-v1:0',
+  'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
 ]
 
 const tableHeadStyle = { border: '1px solid #ddd', padding: '6px 8px', background: '#f7f7f7', textAlign: 'left', whiteSpace: 'nowrap' }
@@ -303,7 +311,7 @@ function getTorsoShinLeanGapDeg(landmarks, side = 'auto') {
   return torsoLeanDeg - shinLeanDeg
 }
 
-// ---- 정면 촬영 전용(무릎 모임/좌우 비대칭) ----
+// ---- 정면 촬영 전용(무릎 모임) ----
 
 // 무릎 사이 너비 / 발목 사이 너비. 1.0 이상이면 정상, 작을수록 무릎이 안쪽으로 모인(valgus) 상태.
 function getKneeValgusRatio(frontLandmarks) {
@@ -311,13 +319,6 @@ function getKneeValgusRatio(frontLandmarks) {
   const ankleWidth = Math.abs(frontLandmarks[RIGHT_ANKLE].x - frontLandmarks[LEFT_ANKLE].x)
   if (ankleWidth === 0) return 1
   return kneeWidth / ankleWidth
-}
-
-// 좌우 무릎 굽힘 각도 차이(도, 절대값). 0에 가까울수록 대칭.
-function getKneeLrAsymmetryDeg(frontLandmarks) {
-  const leftAngle = calculateAngle(frontLandmarks[LEFT_HIP], frontLandmarks[LEFT_KNEE], frontLandmarks[LEFT_ANKLE])
-  const rightAngle = calculateAngle(frontLandmarks[RIGHT_HIP], frontLandmarks[RIGHT_KNEE], frontLandmarks[RIGHT_ANKLE])
-  return Math.abs(leftAngle - rightAngle)
 }
 
 // (2026-08-28 추가, 2026-08-28 같은 날 폐기) getFrontalKneeAngleAvg()가 이 자리에
@@ -529,7 +530,6 @@ function FrontalMeasurementPanel({ landmarks }) {
       <div className="pcard-body" style={{ fontSize: 13, lineHeight: 1.7 }}>
         <div className="pcard-title">정면 촬영 전용 측정값</div>
         <div>무릎 모임 비율: {fmt(getKneeValgusRatio(landmarks), 3)}</div>
-        <div>좌우 비대칭: {fmt(getKneeLrAsymmetryDeg(landmarks))}도</div>
         <div>
           무릎-발끝 방향 일치도(좌/우, 실험적·2026-08-27): {fmt(getKneeToeAlignmentRatio(landmarks).left, 2)} /{' '}
           {fmt(getKneeToeAlignmentRatio(landmarks).right, 2)}
@@ -551,7 +551,6 @@ const PART_LABELS = {
   shoulder: '어깨',
   heel: '발뒤꿈치',
   knee_valgus: '무릎 모임',
-  asymmetry: '좌우 비대칭',
   knee_over_toe: '무릎-발끝',
   back_rounded: '등 굽음',
   center_of_mass: '무게중심',
@@ -1374,7 +1373,6 @@ function MlTestPage() {
     }
     if (frontLandmarks) {
       baseFrame.knee_valgus_ratio = getKneeValgusRatio(frontLandmarks)
-      baseFrame.knee_asymmetry_deg = getKneeLrAsymmetryDeg(frontLandmarks)
     }
     const angle_history = [0, 0.1, 0.2].map((timestamp) => ({ timestamp, ...baseFrame }))
     try {
@@ -1417,7 +1415,7 @@ function MlTestPage() {
             뭐가 판정되고 뭐가 안 되는지 확인하는 용도예요. 다만 측면 전용 지표(시선/발뒤꿈치/
             무릎-발끝/무게중심)는 정면 사진에서는 "몸이 향한 방향"을 못 구해서 대부분
             0/측정불가로 나와요 — 그건 오류가 아니라 정면 사진만으로는 그 지표들을 믿을 수
-            없다는 뜻이에요. 무릎 모임/좌우 비대칭은 정면 사진 전용이라 그대로 정상 판정돼요.
+            없다는 뜻이에요. 무릎 모임은 정면 사진 전용이라 그대로 정상 판정돼요.
           </p>
 
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -1446,7 +1444,7 @@ function MlTestPage() {
               imgRef={frontImgRef}
               canvasRef={frontCanvasRef}
               fileInputRef={frontFileInputRef}
-              notReadyMessage="무릎 모임/좌우 비대칭/어깨·골반 좌우 기울기 측정에 쓰여요."
+              notReadyMessage="무릎 모임/어깨·골반 좌우 기울기 측정에 쓰여요."
               onPointerDown={handlePointerDown('front')}
               onPointerMove={handlePointerMove('front')}
               onPointerUp={handlePointerUp('front')}
@@ -1499,7 +1497,7 @@ function MlTestPage() {
             중/정지 단계를 실제로 어떻게 판정하는지도 확인할 수 있어요(그래프/슬라이더로 임의
             시점을 골라 수동으로 다시 확인할 수도 있어요).
             <br />
-            아직 정면 영상(무릎 모임/좌우 비대칭)은 지원하지 않고 측면 영상만 지원해요.
+            아직 정면 영상(무릎 모임)은 지원하지 않고 측면 영상만 지원해요.
           </p>
 
           <div style={{ maxWidth: 520 }}>
@@ -1697,68 +1695,80 @@ function MlTestPage() {
         {blindTestError && (
           <p className="pcard-desc" style={{ marginTop: 8, color: '#c0392b' }}>{blindTestError}</p>
         )}
+      </div>
 
-        {blindTestResult && (
-          <div style={{ marginTop: 16, overflowX: 'auto' }}>
-            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th style={tableHeadStyle}>렙 (정답)</th>
-                  {selectedModelIds.map((id) => (
-                    <th key={id} style={tableHeadStyle}>{modelLabel(id)}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {BLIND_TEST_REPS.map((rep) => (
-                  <tr key={rep.id}>
-                    <td style={tableCellStyle}>
-                      {rep.person} · <strong>{rep.true_label}</strong>
-                      <div style={{ color: '#888', fontSize: 11 }}>{rep.frames.length}프레임</div>
-                    </td>
-                    {selectedModelIds.map((modelId) => {
-                      const cell = blindTestResult.results?.[modelId]?.[rep.id]
-                      if (!cell) return <td key={modelId} style={tableCellStyle}>—</td>
-                      if (cell.error) {
-                        return (
-                          <td key={modelId} style={{ ...tableCellStyle, color: '#c0392b' }}>
-                            오류: {cell.error}
-                          </td>
-                        )
-                      }
-                      const predictedLabel = cell.verdict === '과신전_의심' ? '과신전' : cell.verdict === '정상' ? '정상' : '?'
-                      const correct = predictedLabel === rep.true_label
+      {blindTestResult && (
+        // 선택한 모델이 많아지면 열이 늘어나 760px보다 훨씬 넓어질 수 있다. 위 설명/체크박스와
+        // 달리 이 테이블은 maxWidth:760 박스 밖에 둬서 페이지 본문의 실제 너비를 그대로 쓰고,
+        // 그래도 넘치는 경우에만 가로 스크롤되게 한다 — 스크롤 가능하다는 걸 시각적으로도 알 수
+        // 있게 테두리를 둔다(2026-08-31, "가로로 잘려서 나온다" 리포트 대응).
+        <div
+          style={{
+            marginTop: 16,
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            border: '1px solid #e5e3dd',
+            borderRadius: 10,
+          }}
+        >
+          <table style={{ borderCollapse: 'collapse', minWidth: '100%', fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th style={tableHeadStyle}>렙 (정답)</th>
+                {selectedModelIds.map((id) => (
+                  <th key={id} style={tableHeadStyle}>{modelLabel(id)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {BLIND_TEST_REPS.map((rep) => (
+                <tr key={rep.id}>
+                  <td style={tableCellStyle}>
+                    {rep.person} · <strong>{rep.true_label}</strong>
+                    <div style={{ color: '#888', fontSize: 11 }}>{rep.frames.length}프레임</div>
+                  </td>
+                  {selectedModelIds.map((modelId) => {
+                    const cell = blindTestResult.results?.[modelId]?.[rep.id]
+                    if (!cell) return <td key={modelId} style={tableCellStyle}>—</td>
+                    if (cell.error) {
                       return (
-                        <td
-                          key={modelId}
-                          style={{
-                            ...tableCellStyle,
-                            background: correct ? '#eafaf1' : '#fdecea',
-                          }}
-                        >
-                          {predictedLabel} (확신도: {cell.confidence})
-                          <div style={{ color: '#888', fontSize: 11 }}>{cell.latency_ms}ms</div>
+                        <td key={modelId} style={{ ...tableCellStyle, color: '#c0392b' }}>
+                          오류: {cell.error}
                         </td>
                       )
-                    })}
-                  </tr>
-                ))}
-                <tr>
-                  <td style={{ ...tableCellStyle, fontWeight: 'bold' }}>정확도</td>
-                  {selectedModelIds.map((modelId) => {
-                    const acc = blindTestResult.accuracy?.[modelId]
+                    }
+                    const predictedLabel = cell.verdict === '과신전_의심' ? '과신전' : cell.verdict === '정상' ? '정상' : '?'
+                    const correct = predictedLabel === rep.true_label
                     return (
-                      <td key={modelId} style={{ ...tableCellStyle, fontWeight: 'bold' }}>
-                        {acc === null || acc === undefined ? '—' : `${Math.round(acc * 100)}% (${Math.round(acc * 6)}/6)`}
+                      <td
+                        key={modelId}
+                        style={{
+                          ...tableCellStyle,
+                          background: correct ? '#eafaf1' : '#fdecea',
+                        }}
+                      >
+                        {predictedLabel} (확신도: {cell.confidence})
+                        <div style={{ color: '#888', fontSize: 11 }}>{cell.latency_ms}ms</div>
                       </td>
                     )
                   })}
                 </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+              ))}
+              <tr>
+                <td style={{ ...tableCellStyle, fontWeight: 'bold' }}>정확도</td>
+                {selectedModelIds.map((modelId) => {
+                  const acc = blindTestResult.accuracy?.[modelId]
+                  return (
+                    <td key={modelId} style={{ ...tableCellStyle, fontWeight: 'bold' }}>
+                      {acc === null || acc === undefined ? '—' : `${Math.round(acc * 100)}% (${Math.round(acc * 6)}/6)`}
+                    </td>
+                  )
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
 
     </PageShell>
   )

@@ -2,49 +2,38 @@
 하네스 오케스트레이션 (AI-07).
 
 요구사항 정의서(`실시간운동코칭_AI요구사항정의서_v2.xlsx`, 시트 "2.하네스판단로직")의
-판단 포인트 H-01~H-06을 LLM Tool Use(Function Calling)로 구현한다.
+판단 포인트 H-01~H-06을 규칙기반(if/elif)으로 구현한다.
 
-왜 이 판단을 규칙기반(if/else)이 아니라 LLM에게 맡기는가?
-- 다른 모든 판정(정지 자세, 실시간 코칭, ML 분류)은 "각도가 범위 안/밖"처럼 답이
-  명확해서 규칙기반이 더 적합했다. 하지만 여기서 결정하는 건 "지금 상황에서 다음에 뭘
-  해야 하는가"라는, 여러 신호(신뢰도/소견 유형/반복 횟수/지속시간 등)를 종합해서 판단해야
-  하는 문제라 조건문을 계속 늘리는 방식으로는 관리가 어렵다. 요구사항 정의서도 이 지점을
-  "LLM이 상황에 따라 스스로 다음 행동을 결정하는" 하네스로 명시하고 있다.
-- Tool Use를 쓰는 이유: LLM이 자유 텍스트로 "다음엔 재분석을 하는 게 좋겠어요"라고 답하면
-  파싱이 불안정하다. 가능한 액션을 도구(tool) 목록으로 미리 정의하고 그중 하나를 반드시
-  호출하게 하면(tool_choice="any"), 응답이 항상 파싱 가능한 구조로 나온다.
+(2026-08-31) 원래는 이 판단을 LLM Tool Use(Function Calling)로 구현했었다 — "여러 신호를
+종합해서 판단해야 하는 문제라 조건문을 계속 늘리는 방식으로는 관리가 어렵다"는 이유였다.
+그런데 실제로 이 하네스가 받는 입력(confidence, landmark_visibility, issue_repeat_count,
+pelvis_height_diff_deg 등)은 전부 이미 정제된 숫자/불리언 값이라, 아래 [판단 규칙]을 그대로
+옮긴 임계값 비교(_fallback_decision)만으로도 결정이 완결된다는 게 확인됐다. 게다가 이
+엔드포인트(/ai/orchestrate)는 실시간 코칭 흐름 중 반복 호출될 것으로 예상돼, 결정마다 LLM
+호출의 비용·지연·실패 위험을 감수할 이득이 크지 않다고 판단해 완전히 규칙기반으로
+되돌렸다(판단 근거는 Claude 프로젝트의 2026-08-31 addendum-5/6/7 문서 참고). reasoning
+문구도 이제 아래 _fallback_decision()에 하드코딩된 한국어 템플릿이 전부다 — 문구를 바꾸고
+싶으면 그 함수의 문자열을 직접 수정하면 된다.
 
-이 모듈이 "실행"이 아니라 "결정"만 한다는 점이 중요하다: trigger_rag_search를 선택해도
-이 함수가 실제로 RAG를 호출하지는 않는다(AI-08/09가 아직 구현 전이기도 하고, API 명세상
-`/ai/orchestrate`는 { nextAction, reasoning }만 돌려주는 결정 엔드포인트다). 실제 액션
-실행은 이 응답을 받은 백엔드/프론트가 담당한다.
+이 모듈이 "실행"이 아니라 "결정"만 한다는 점은 여전히 유효하다: trigger_rag_search를
+선택해도 이 함수가 실제로 RAG를 호출하지는 않는다(AI-08/09가 아직 구현 전이기도 하고, API
+명세상 `/ai/orchestrate`는 { nextAction, reasoning }만 돌려주는 결정 엔드포인트다). 실제
+액션 실행은 이 응답을 받은 백엔드/프론트가 담당한다.
 
 # TODO: 팀 확정 필요 — 요구사항 정의서의 AI-07 ID가 시트마다 다르게 쓰였다("1.AI모듈상세"는
 # 하네스 오케스트레이션, "8.요구사항정의서"는 세션 종료 판단으로 AI-07을 재사용함). 이 모듈은
 # "1.AI모듈상세"·"2.하네스판단로직"·"5.AI_API명세"(POST /ai/orchestrate) 기준으로 구현했다 —
 # ID 체계를 팀이 통일해야 함.
+
+# TODO: 팀 확정 필요 — 아래 HARNESS_TOOLS(11개 액션) 중 hold_judgment, wait_next_frame,
+# use_generic_guidance, prefer_latest_document 4개는 _fallback_decision()에 아직 분기가
+# 없어 지금은 절대 선택되지 않는다(2026-08-31 규칙기반 전환으로 발견됨 — 예전엔 LLM이 이
+# 4개도 직접 골랐지만, 지금은 이 함수가 유일한 결정 경로다). 이 4개에 대한 규칙을 추가할지,
+# 실사용에서 거의 안 쓰이는 액션이라 빼도 되는지 팀 확인 필요(Claude 프로젝트 addendum-6
+# 문서 참고).
 """
 
-import os
 from typing import Optional
-
-# anthropic 패키지가 없거나(로컬 미설치) API 키가 없어도(아직 발급 전) 서버 전체가
-# import 단계에서 죽으면 안 되므로, 최상단에서 바로 import하지 않고 지연 로딩한다.
-try:
-    import anthropic
-
-    _ANTHROPIC_AVAILABLE = True
-except ImportError:
-    _ANTHROPIC_AVAILABLE = False
-
-# TODO: 팀 확정 필요 — 실제 사용할 모델 이름은 팀이 Anthropic 콘솔에서 확인 후
-# 환경변수(HARNESS_LLM_MODEL)로 지정한다. 특정 모델 이름을 여기 하드코딩하지 않은 이유:
-# 이 코드가 오래 유지되는 동안 모델 세대가 바뀔 수 있고, 잘못된/오래된 모델 이름을 코드에
-# 박아두면 나중에 조용히 실패하거나 예상과 다른 모델이 쓰일 위험이 있다.
-DEFAULT_MODEL_ENV_VAR = "HARNESS_LLM_MODEL"
-API_KEY_ENV_VAR = "ANTHROPIC_API_KEY"
-
-MAX_TOKENS = 512
 
 # H-02(골반 비대칭)는 요구사항 정의서에 "임계치 초과"라고만 적혀있고 구체적인 도(度) 값이
 # 없다. 자세 비교 인사이트(AI-15/AI-04, app/insight/posture_percentile.py)에서 실측정한
@@ -62,24 +51,34 @@ REALTIME_CONFIDENCE_THRESHOLD = 0.65  # H-03 (실시간 코칭 판정)
 
 def _tool(name: str, description: str, extra_properties: Optional[dict] = None) -> dict:
     """
-    도구(tool) 스키마를 만드는 헬퍼. 모든 도구에 공통으로 "reasoning"(선택 이유) 필드를
-    강제한다 — 이렇게 하면 어떤 액션을 고르든 항상 API 응답에 담을 근거 텍스트가 함께
-    나온다(spec의 응답 예시 { nextAction, reasoning }를 만족시키는 방법).
+    도구(tool) 스키마를 만드는 헬퍼 — 지금은 실제로 호출하는 곳이 없다(아래 HARNESS_TOOLS는
+    참고용 문서로만 남아있음, 이유는 모듈 docstring 참고). 예전 LLM Tool Use 시절 스키마
+    형태를 그대로 남겨둔 이유는, 각 액션의 부가 인자(action_args) 구조를 이 형태로 보는 게
+    가장 명확하기 때문이다.
     """
     properties = {"reasoning": {"type": "string", "description": "이 액션을 선택한 이유(한국어, 1~2문장)"}}
     if extra_properties:
         properties.update(extra_properties)
     return {
-        "name": name,
-        "description": description,
-        "input_schema": {
-            "type": "object",
-            "properties": properties,
-            "required": ["reasoning"],
-        },
+        "toolSpec": {
+            "name": name,
+            "description": description,
+            "inputSchema": {
+                "json": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": ["reasoning"],
+                }
+            },
+        }
     }
 
 
+# (2026-08-31) 이 모듈은 이제 LLM을 전혀 호출하지 않는다. 아래 HARNESS_TOOLS·
+# HARNESS_SYSTEM_PROMPT는 어떤 코드도 참조하지 않는 순수 참고 문서다 — 액션별 부가 인자
+# (action_args) 구조와 H-01~H-06 판단 규칙을 한눈에 보여주는 자료로서 가치가 있어 남겨둔다.
+# schemas.py의 NextAction Literal과 이름을 맞춰야 하는 것도 여전히 유효하다.
+#
 # 요구사항 정의서 "2.하네스판단로직" 시트의 "선택 가능 액션" 컬럼을 그대로 도구화한 것.
 # H-01과 H-03에 둘 다 등장하는 "재분석"은 같은 도구(request_reanalysis)로 합쳤다 — 둘 다
 # "지금 확정하지 말고 몇 프레임 더 본다"는 같은 의미의 액션이기 때문.
@@ -189,43 +188,14 @@ HARNESS_SYSTEM_PROMPT = """당신은 운동 자세 코칭 앱 "WellMade"의 AI �
 """
 
 
-def _format_context(session_id: str, context: dict) -> str:
-    """상황 정보 dict를 LLM이 읽을 수 있는 한국어 설명으로 바꾼다.
-    값이 없는(None) 필드는 아예 안 보여준다 — "없다"와 "0이다"를 혼동하지 않게 하기 위함
-    (예: issue_repeat_count=0을 "반복 안 됨"이 아니라 "정보 없음"으로 착각하면 안 됨)."""
-    lines = [f"세션 ID: {session_id}", "", "[현재 상황]"]
-    labels = {
-        "confidence": "판정 신뢰도(0~1)",
-        "landmark_visibility": "관절 평균 visibility(0~1)",
-        "issue_type": "감지된 이상 소견 종류",
-        "issue_repeat_count": "동일 소견 반복 감지 횟수",
-        "pelvis_height_diff_deg": "좌우 골반 높이차(도)",
-        "elapsed_normal_time_sec": "정상판정 상태 누적 지속시간(초)",
-        "session_end_condition_met": "세션 종료 조건(AI-13) 충족 여부",
-        "user_requested_end": "사용자가 직접 종료를 요청했는지 여부",
-        "rag_result_count": "RAG 검색 결과 문서 수",
-        "rag_results_conflicting": "RAG 검색 결과 내용 상충 여부",
-    }
-    has_any = False
-    for key, label in labels.items():
-        value = context.get(key)
-        if value is not None:
-            lines.append(f"- {label}: {value}")
-            has_any = True
-    if not has_any:
-        lines.append("- (제공된 상황 정보 없음)")
-    return "\n".join(lines)
-
-
 def _fallback_decision(context: dict) -> dict:
     """
-    LLM 호출이 불가능하거나(API 키 미설정, anthropic 미설치) 실패했을 때(네트워크 오류 등)
-    쓰는 규칙기반 안전 기본값.
+    하네스의 실제 판단 로직(2026-08-31부터 유일한 경로 — 더 이상 "폴백"이 아니라 이게
+    본체다. 함수 이름은 과거 LLM 시절의 흔적으로 그대로 남겨뒀다).
 
-    왜 필요한가? 이 엔드포인트는 실시간 코칭 흐름 중간에 호출될 수 있는데, LLM 호출 하나가
-    실패했다고 사용자 경험 전체가 끊기면 안 된다. "판단 규칙"을 그대로 if/elif로 옮겨서,
-    LLM 없이도 최소한의 안전한 결정을 내릴 수 있게 한다 — 프로젝트 전체의 "규칙기반이
-    LLM의 안전망 역할을 한다"는 설계 원칙을 이 모듈에도 그대로 적용한 것.
+    위 HARNESS_SYSTEM_PROMPT의 [판단 규칙]을 그대로 if/elif로 옮긴 것. 이 엔드포인트는
+    실시간 코칭 흐름 중간에 반복 호출될 수 있는데, 입력이 이미 정제된 숫자/불리언 값이라
+    임계값 비교만으로 결정이 완결되므로 LLM 호출 없이도 안전하고 빠르게 판단할 수 있다.
     """
     visibility = context.get("landmark_visibility")
     confidence = context.get("confidence")
@@ -261,57 +231,21 @@ def _fallback_decision(context: dict) -> dict:
     return {"next_action": "proceed", "reasoning": "특이 신호가 없어 정상적으로 진행합니다.", "action_args": {}}
 
 
-def _get_client():
-    """anthropic 클라이언트를 지연 생성한다. 패키지 미설치·API 키 미설정이면 None을 반환해
-    호출부가 폴백 경로를 타게 한다(예외를 바로 던지지 않는 이유: 이 함수 하나만 보고도
-    '설정이 안 됐구나'를 판단할 수 있게 하기 위함)."""
-    if not _ANTHROPIC_AVAILABLE:
-        return None
-    if not os.environ.get(API_KEY_ENV_VAR):
-        return None
-    return anthropic.Anthropic()
-
-
-def decide_next_action(session_id: str, context: dict, client=None) -> dict:
+def decide_next_action(session_id: str, context: dict) -> dict:
     """
     하네스의 메인 진입점. 상황 정보(context)를 보고 다음 액션을 결정한다.
 
-    client 파라미터를 받는 이유: 테스트에서 실제 Anthropic API를 호출하지 않고, tool_use
-    응답을 흉내 내는 가짜(fake) 클라이언트를 주입할 수 있게 하기 위함(의존성 주입 —
-    실제 네트워크 호출 없이 파싱/폴백 로직을 검증할 수 있다).
+    (2026-08-31) 완전히 규칙기반으로 동작한다 — LLM 호출은 하지 않는다. next_action과
+    reasoning 문구 모두 _fallback_decision()이 결정한 값 그대로 나간다. source/
+    fallback_reason 필드는 과거 LLM 판단·reasoning 다듬기 시절의 API 계약을 그대로 유지하기
+    위해 남겨뒀고(OrchestrateResponse를 쓰는 다른 곳을 건드리지 않기 위함), 이제는 항상
+    같은 값이 나간다.
+
+    session_id는 지금은 쓰이지 않지만, 이 함수가 세션 단위 API(/ai/orchestrate)의 결정
+    로직이라는 걸 시그니처에서도 알 수 있게, 그리고 나중에 세션별 로깅 등에 쓸 수 있게
+    남겨둔다.
     """
-    model = os.environ.get(DEFAULT_MODEL_ENV_VAR)
-    active_client = client if client is not None else _get_client()
-
-    if active_client is None or not model:
-        result = _fallback_decision(context)
-        result["source"] = "fallback"
-        result["fallback_reason"] = (
-            f"{API_KEY_ENV_VAR} 또는 {DEFAULT_MODEL_ENV_VAR} 환경변수가 설정되지 않았습니다."
-        )
-        return result
-
-    try:
-        response = active_client.messages.create(
-            model=model,
-            max_tokens=MAX_TOKENS,
-            system=HARNESS_SYSTEM_PROMPT,
-            tools=HARNESS_TOOLS,
-            tool_choice={"type": "any"},
-            messages=[{"role": "user", "content": _format_context(session_id, context)}],
-        )
-        tool_use_block = next(block for block in response.content if block.type == "tool_use")
-        action_input = dict(tool_use_block.input)
-        reasoning = action_input.pop("reasoning", "")
-        return {
-            "next_action": tool_use_block.name,
-            "reasoning": reasoning,
-            "action_args": action_input,
-            "source": "llm",
-        }
-    except Exception as exc:  # noqa: BLE001 — LLM 호출은 네트워크/파싱 등 다양한 이유로 실패할 수 있어,
-        # 하나하나 잡기보다 "실패하면 안전한 규칙기반으로 대체한다"는 원칙으로 폭넓게 처리한다.
-        result = _fallback_decision(context)
-        result["source"] = "fallback"
-        result["fallback_reason"] = f"LLM 호출 실패: {exc}"
-        return result
+    result = _fallback_decision(context)
+    result["source"] = "fallback"
+    result["fallback_reason"] = "이 하네스는 항상 규칙기반으로 판단합니다(2026-08-31, LLM 호출 제거)."
+    return result
