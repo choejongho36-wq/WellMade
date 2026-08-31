@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# GitHub Actions가 SSM으로 이 스크립트를 ssm-user 권한으로 실행한다.
-# 서버에 최초 1회: git checkout main && chmod +x deploy/deploy.sh
+# 서버에서 직접 실행하는 배포 스크립트.
+#
+#   ssh <서버> && cd ~/WellMade && ./deploy/deploy.sh
+#
+# 최초 1회: git checkout main && chmod +x deploy/deploy.sh
 set -euo pipefail
 
 cd "$(dirname "$0")/.."   # ~/WellMade
