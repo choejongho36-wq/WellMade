@@ -484,3 +484,42 @@ class ModelCompareResponse(BaseModel):
     )
     error: Optional[str] = Field(None, description="비교 자체가 시작도 못 했을 때의 사유(예: boto3 미설치, 자격증명 없음).")
 
+
+SessionStage = Literal[
+    "session_start",
+    "side_setup",
+    "side_instruction",
+    "side_ready",
+    "side_squat",
+    "front_setup",
+    "front_instruction",
+    "front_ready",
+    "front_squat",
+    "session_finish",
+]
+
+
+SessionEvent = Literal[
+    "session_started",
+    "camera_ready",
+    "guide_completed",
+    "set_started",
+    "set_completed",
+]
+
+
+CameraView = Literal[
+    "side",
+    "front",
+]
+
+
+class SessionGuideRequest(BaseModel):
+    current_stage: SessionStage
+    event: SessionEvent
+
+
+class SessionGuideResponse(BaseModel):
+    stage: SessionStage
+    camera_view: CameraView | None = None
+    message: str | None = None
