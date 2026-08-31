@@ -3,14 +3,31 @@ import { useNavigate } from 'react-router-dom'
 import RobotIcon from './RobotIcon.jsx'
 import './ChatDrawer.css'
 
-// 나머지 메뉴는 관련 기능이 추가되는 대로 여기에 이어서 추가
+// 챗봇이 실제로 가진 도구(ChatService의 TOOLS)에 1:1로 대응하는 바로가기.
+// label을 그대로 사용자 메시지로 보내면 모델이 해당 도구를 호출하게 된다 -
+// 도구가 없는 질문을 넣으면 모델이 지어내려 하므로, 여기 항목은 도구와 맞춰서 유지할 것.
+// label은 버튼에 보이는 짧은 이름, send는 실제로 모델에게 보내는 문장이다.
+// 버튼을 짧게 줄이면 도구 호출이 약해질 수 있어서 보내는 문장은 온전하게 유지한다.
 const CHAT_MENU_ITEMS = [
-  { id: 'diet-manage', label: '나의 식단 기록', path: '/mealplan' },
-  { id: 'nutrient-advice', label: '오늘 영양소 분석', action: 'nutrient-advice' },
+  // get_meals_for_date
+  { id: 'meals-today', label: '오늘 식단', send: '오늘 뭐 먹었지?' },
+  { id: 'meals-yesterday', label: '어제 식단', send: '어제 먹은 거 보여줘' },
+  // get_daily_total
+  { id: 'total-today', label: '오늘 섭취량', send: '오늘 총 섭취량 알려줘' },
+  // calculate_nutrient_target
+  { id: 'target', label: '목표 섭취량', send: '내 목표 섭취량 알려줘' },
+  // get_inbody_history
+  { id: 'inbody-trend', label: '체중 추세', send: '요즘 체중 변화 어때?' },
+  // 도구가 아니라 전용 API(/nutrient-advice) - 목표 대비 분석을 서버가 계산해서 넘긴다
+  { id: 'nutrient-advice', label: '영양소 분석', action: 'nutrient-advice' },
+  { id: 'diet-manage', label: '식단 기록', path: '/mealplan' },
 ]
 
-function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, getNutrientAdvice, userName }) {
-  const greeting = `안녕하세요, ${userName ?? '회원'}님 반갑습니다.\n궁금하신 내용을 선택해주세요.`
+// 로딩 인디케이터: 글자 -> 점 순서로 물결이 흐르도록 한 칸씩 지연을 준다
+const THINKING_TEXT = [...'생각하는 중']
+const TYPING_STEP_SEC = 0.09
+
+function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, userName }) {
   const navigate = useNavigate()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -18,6 +35,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, getNutr
   const [error, setError] = useState('')
   const [pendingFollowUp, setPendingFollowUp] = useState(null)
   const [historyLoaded, setHistoryLoaded] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -42,7 +60,9 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, getNutr
             setMessages(history.map((h) => ({ role: h.role, content: h.content })))
           }
         })
-        .catch(() => {}) // 이력 로드 실패는 조용히 무시 - 새 대화 시작하듯 진행하면 됨
+        // 조용히 넘기면 "대화가 사라진 것"처럼 보인다. 새 대화는 계속 할 수 있으므로
+        // 화면을 막지는 않고 안내만 띄운다
+        .catch(() => setError('이전 대화를 불러오지 못했어요. 새로 시작할 수는 있어요.'))
     }
   }, [open, loggedIn, historyLoaded, getChatHistory])
 
@@ -106,7 +126,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, getNutr
     }
 
     if (item.action === 'nutrient-advice') {
-      setMessages((prev) => [...prev, { role: 'user', content: item.label }])
+      setMessages((prev) => [...prev, { role: 'user', content: item.send ?? item.label }])
       setLoading(true)
       setError('')
       getNutrientAdvice()
@@ -121,14 +141,14 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, getNutr
     if (item.followUp) {
       setMessages((prev) => [
         ...prev,
-        { role: 'user', content: item.label },
+        { role: 'user', content: item.send ?? item.label },
         { role: 'assistant', content: item.followUp },
       ])
       setPendingFollowUp(item)
       return
     }
 
-    sendMessage(item.label)
+    sendMessage(item.send ?? item.label)
   }
 
   const handleSend = () => {
@@ -153,11 +173,32 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, getNutr
     }
   }
 
+  // 확인 없이 지우면 되돌릴 수 없어서 한 번 물어본다 (서버에서 완전 삭제됨)
+  const handleClearHistory = () => {
+    if (!window.confirm('대화 기록을 모두 지울까요? 되돌릴 수 없어요.')) return
+
+    setClearing(true)
+    setError('')
+    clearChatHistory()
+      .then(() => {
+        setMessages([])
+        setPendingFollowUp(null)
+      })
+      .catch((e) => setError(e.message || '대화 기록을 지우지 못했어요'))
+      .finally(() => setClearing(false))
+  }
+
   return (
     <div className={`chat-drawer-backdrop${open ? ' open' : ''}`} onClick={onClose}>
       <div className="chat-drawer" onClick={(e) => e.stopPropagation()}>
         <div className="chat-drawer-header">
           <div className="chat-drawer-title">WELL<span>MADE</span></div>
+          {/* 이력은 다음 답변의 맥락으로도 쓰이므로, 지우면 말투까지 새 대화로 초기화된다 */}
+          {loggedIn && messages.length > 0 && (
+            <button className="chat-drawer-clear" onClick={handleClearHistory} disabled={clearing}>
+              {clearing ? '지우는 중...' : '대화 기록 지우기'}
+            </button>
+          )}
           <button className="chat-drawer-close" onClick={onClose} aria-label="닫기">×</button>
         </div>
 
@@ -181,31 +222,76 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, getNutr
                     <div className="chat-greeting-avatar">
                       <RobotIcon size={36} />
                     </div>
-                    <p className="chat-drawer-hint">{greeting}</p>
-                  </div>
-                  <div className="chat-starter-list">
-                    {CHAT_MENU_ITEMS.map((item) => (
-                      <button key={item.id} className="chat-starter-btn" onClick={() => handleMenuClick(item)}>
-                        {item.label}
-                      </button>
-                    ))}
+                    <p className="chat-drawer-hint">
+                      안녕하세요, <span className="chat-greeting-name">{userName ?? '회원'}</span>님 반갑습니다.
+                      <br />궁금하신 내용을 선택해주세요.
+                    </p>
                   </div>
                 </>
               )}
               {messages.map((m, i) => (
                 <div key={i} className={`chat-bubble-row ${m.role}`}>
+                  {/* 누가 한 말인지 말풍선마다 보이도록 챗봇 답변 옆에 아이콘을 붙인다.
+                      같은 화자가 연달아 말하면 첫 줄에만 아이콘을 두고 나머지는 자리만 비운다 */}
+                  {m.role === 'assistant' && (
+                    <div className="chat-bubble-avatar">
+                      {messages[i - 1]?.role !== 'assistant' && <RobotIcon size={22} color="#fff" />}
+                    </div>
+                  )}
                   <div className="chat-bubble">{m.display ?? m.content}</div>
                 </div>
               ))}
               {loading && !messages[messages.length - 1]?.streaming && (
                 <div className="chat-bubble-row assistant">
-                  <div className="chat-bubble chat-bubble-loading">생각하는 중...</div>
+                  <div className="chat-bubble-avatar">
+                    {messages[messages.length - 1]?.role !== 'assistant' && <RobotIcon size={22} color="#fff" />}
+                  </div>
+                  {/* 글자 대신 점 세 개가 차례로 튀는 타이핑 인디케이터.
+                      스크린리더는 aria-label로 상태를 읽고, 점 자체는 aria-hidden으로 숨긴다 */}
+                  {/* 글자와 점이 하나의 물결로 이어지도록 글자를 한 자씩 쪼개서
+                      같은 애니메이션에 순서대로 지연을 준다. 글자를 쪼개면 스크린리더가
+                      낱자로 읽으므로 wrapper의 aria-label로 문구 전체를 대신 읽힌다 */}
+                  <div className="chat-bubble chat-bubble-loading" role="status">
+                    <span className="chat-typing-text" aria-label="생각하는 중">
+                      {THINKING_TEXT.map((ch, i) => (
+                        <span
+                          key={i}
+                          className="chat-typing-char"
+                          style={{ animationDelay: `${i * TYPING_STEP_SEC}s` }}
+                        >
+                          {ch === ' ' ? ' ' : ch}
+                        </span>
+                      ))}
+                    </span>
+                    <span className="chat-typing" aria-hidden="true">
+                      {[0, 1, 2].map((i) => (
+                        <span
+                          key={i}
+                          style={{ animationDelay: `${(THINKING_TEXT.length + i) * TYPING_STEP_SEC}s` }}
+                        />
+                      ))}
+                    </span>
+                  </div>
                 </div>
               )}
               <div ref={bottomRef} />
             </div>
 
             {error && <p className="chat-drawer-error">{error}</p>}
+
+            {/* 대화 중에도 계속 보이는 바로가기. 가로 스크롤이라 항목이 늘어도 입력창을 밀지 않는다 */}
+            <div className="chat-quick-menu">
+              {CHAT_MENU_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  className="chat-quick-btn"
+                  onClick={() => handleMenuClick(item)}
+                  disabled={loading}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
 
             <div className="chat-input-row">
               <textarea
