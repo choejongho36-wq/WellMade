@@ -11,7 +11,7 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
 필드가 없다.
 """
 
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -256,6 +256,72 @@ class PostureInsightResponse(BaseModel):
     pelvis_message: str
 
     message: str = Field(..., description="어깨+골반 인사이트를 하나로 합친 한국어 문구 (TTS로 바로 읽을 수 있는 텍스트)")
+
+
+# ---- 영양 섭취 또래 비교 (신규 — posture-insight의 자매 기능) ----
+# 질병관리청 2024 국민건강통계의 성별×연령대별 평균 섭취량과 비교한다. 원 통계가 집계값
+# (평균+표준오차)만 공개해서 분포가 없으므로, 백분위가 아니라 "평균 대비 몇 %"만 낸다.
+
+
+class NutritionPeerCompareRequest(BaseModel):
+    """영양 섭취 또래 비교(/ai/nutrition/peer-compare) 요청.
+
+    섭취량은 백엔드가 이미 집계해둔 하루 합계를 그대로 넘긴다(AI 서버는 식단 기록을
+    들고 있지 않다 — 무상태 설계). 넘기지 않은 영양소는 비교에서 빠진다."""
+
+    gender: Gender
+    birth_year: int = Field(..., ge=1900, le=2026, description="출생년도. 서버가 현재 연도 기준으로 연령대를 계산한다")
+    energy_kcal: Optional[float] = Field(None, ge=0)
+    protein_g: Optional[float] = Field(None, ge=0)
+    carbs_g: Optional[float] = Field(None, ge=0)
+    fat_g: Optional[float] = Field(None, ge=0)
+
+
+class NutrientPeerComparison(BaseModel):
+    nutrient: str
+    unit: str
+    my_value: float
+    peer_mean: float
+    percent_of_peer: float = Field(..., description="또래 평균 대비 내 섭취량 비율(%)")
+    message: str
+
+
+class NutritionPeerCompareResponse(BaseModel):
+    age_bracket: str = Field(..., description="비교에 사용한 연령 구간 (예: '30-39')")
+    sample_size: int
+    low_sample_warning: bool
+    comparisons: list[NutrientPeerComparison]
+    peer_energy_ratio_pct: Optional[float] = Field(None, description="또래의 에너지 권장섭취량 대비 섭취 비율(%)")
+    peer_protein_ratio_pct: Optional[float] = Field(None, description="또래의 단백질 권장섭취량 대비 섭취 비율(%)")
+    message: str
+    source: str
+
+
+# ---- BMI 또래 비교 + 비만도 분류 (인바디 수치 해석) ----
+
+
+class BmiInsightRequest(BaseModel):
+    """BMI 인사이트(/ai/inbody/bmi-insight) 요청.
+
+    BMI는 백엔드(인바디 기록)가 이미 갖고 있는 값을 그대로 넘긴다 - 키/몸무게로 다시
+    계산하지 않는다(인바디 기기가 낸 값과 우리가 계산한 값이 미세하게 달라지는 걸 피함)."""
+
+    bmi: float = Field(..., gt=0, le=100)
+    gender: Gender
+    birth_year: int = Field(..., ge=1900, le=2026)
+
+
+class BmiInsightResponse(BaseModel):
+    bmi: float
+    category: str = Field(..., description="대한비만학회 기준 분류 (저체중/정상/비만 전단계/1~3단계 비만)")
+    age_bracket: str
+    sample_size: int
+    peer_mean: Optional[float] = None
+    percentile: Optional[float] = Field(
+        None, description="같은 성별·연령대에서 이 BMI 이하인 비율(%). 공개 백분위수(5~95) 밖이면 None"
+    )
+    message: str
+    source: str
 
 
 # ---- 하네스 오케스트레이션 (AI-07) ----

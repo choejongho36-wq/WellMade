@@ -177,6 +177,51 @@
   margin: 0 4px 0 0;
 }
 
+/* 또래 비교 - 목표 게이지와 다른 축의 정보라 시각적으로도 구분되게 카드로 묶는다 */
+.nutrient-peer {
+  margin: 0 24px 18px;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.nutrient-peer-head {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #55534d;
+  margin-bottom: 8px;
+}
+.nutrient-peer-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.9;
+  color: #55534d;
+}
+.nutrient-peer-label {
+  flex: none;
+  width: 52px;
+  color: #8c8b88;
+}
+.nutrient-peer-value {
+  flex: 1;
+  min-width: 0;
+}
+.nutrient-peer-mean {
+  color: #9b9a96;
+}
+.nutrient-peer-pct {
+  flex: none;
+  font-weight: 700;
+  color: #111;
+}
+.nutrient-peer-source {
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: #9b9a96;
+}
+
 .nutrient-no-target {
   margin: 0 24px 22px;
   font-size: 11.5px;
