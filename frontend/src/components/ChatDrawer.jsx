@@ -9,7 +9,7 @@ const CHAT_MENU_ITEMS = [
   { id: 'nutrient-advice', label: '오늘 영양소 분석', action: 'nutrient-advice' },
 ]
 
-function ChatDrawer({ open, onClose, sendChat, getChatHistory, getNutrientAdvice, userName }) {
+function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, getNutrientAdvice, userName }) {
   const greeting = `안녕하세요, ${userName ?? '회원'}님 반갑습니다.\n궁금하신 내용을 선택해주세요.`
   const navigate = useNavigate()
   const [messages, setMessages] = useState([])
@@ -34,7 +34,7 @@ function ChatDrawer({ open, onClose, sendChat, getChatHistory, getNutrientAdvice
 
   // 드로어를 처음 열 때 서버에 저장된 이전 대화를 한 번 불러옴 - 새로고침/재접속해도 이어서 보임
   useEffect(() => {
-    if (open && !historyLoaded) {
+    if (open && loggedIn && !historyLoaded) {
       setHistoryLoaded(true)
       getChatHistory()
         .then((history) => {
@@ -44,7 +44,16 @@ function ChatDrawer({ open, onClose, sendChat, getChatHistory, getNutrientAdvice
         })
         .catch(() => {}) // 이력 로드 실패는 조용히 무시 - 새 대화 시작하듯 진행하면 됨
     }
-  }, [open, historyLoaded, getChatHistory])
+  }, [open, loggedIn, historyLoaded, getChatHistory])
+
+  // 로그아웃하면(세션 만료 포함) 남의 대화가 남지 않도록 비우고, 다음 로그인 때 다시 불러오게 함
+  useEffect(() => {
+    if (!loggedIn) {
+      setMessages([])
+      setError('')
+      setHistoryLoaded(false)
+    }
+  }, [loggedIn])
 
   const sendMessage = (content, display) => {
     if (loading) return
@@ -55,12 +64,35 @@ function ChatDrawer({ open, onClose, sendChat, getChatHistory, getNutrientAdvice
     setLoading(true)
     setError('')
 
-    // 대화 이력은 서버(DB)가 갖고 있으므로 새 메시지 하나만 보내면 됨
-    sendChat(content)
-      .then((reply) => {
-        setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+    // 대화 이력은 서버(DB)가 갖고 있으므로 새 메시지 하나만 보내면 됨.
+    // 응답은 스트리밍 - 토큰이 올 때마다 마지막 assistant 말풍선을 갱신함
+    const applyStream = (partial) => {
+      setMessages((prev) => {
+        const copy = [...prev]
+        const last = copy[copy.length - 1]
+        if (last?.role === 'assistant' && last.streaming) {
+          copy[copy.length - 1] = { ...last, content: partial }
+        } else {
+          copy.push({ role: 'assistant', content: partial, streaming: true })
+        }
+        return copy
       })
-      .catch(() => setError('답변을 받지 못했어요. 잠시 후 다시 시도해주세요.'))
+    }
+
+    sendChat(content, applyStream)
+      .then((reply) => {
+        setMessages((prev) => {
+          const copy = [...prev]
+          const last = copy[copy.length - 1]
+          if (last?.role === 'assistant' && last.streaming) {
+            copy[copy.length - 1] = { role: 'assistant', content: reply }
+          } else {
+            copy.push({ role: 'assistant', content: reply })
+          }
+          return copy
+        })
+      })
+      .catch((e) => setError(e.message || '답변을 받지 못했어요. 잠시 후 다시 시도해주세요.'))
       .finally(() => setLoading(false))
   }
 
@@ -129,52 +161,67 @@ function ChatDrawer({ open, onClose, sendChat, getChatHistory, getNutrientAdvice
           <button className="chat-drawer-close" onClick={onClose} aria-label="닫기">×</button>
         </div>
 
-        <div className="chat-drawer-messages">
-          {messages.length === 0 && (
-            <>
-              <div className="chat-greeting-row">
-                <div className="chat-greeting-avatar">
-                  <RobotIcon size={36} />
+        <div className="chat-drawer-body">
+          {/* 비로그인 상태에서는 아래 내용을 통째로 덮고, inert로 클릭·탭 이동까지 막는다 */}
+          {!loggedIn && (
+            <div className="chat-login-overlay">
+              <RobotIcon size={40} color="#111" />
+              <p className="chat-login-overlay-title">로그인이 필요해요</p>
+              <p className="chat-login-overlay-sub">
+                로그인하시면 목표와 인바디 수치에 맞춘 식단·운동 코칭을 받을 수 있어요.
+              </p>
+            </div>
+          )}
+
+          <div className="chat-drawer-inner" inert={!loggedIn}>
+            <div className="chat-drawer-messages">
+              {messages.length === 0 && (
+                <>
+                  <div className="chat-greeting-row">
+                    <div className="chat-greeting-avatar">
+                      <RobotIcon size={36} />
+                    </div>
+                    <p className="chat-drawer-hint">{greeting}</p>
+                  </div>
+                  <div className="chat-starter-list">
+                    {CHAT_MENU_ITEMS.map((item) => (
+                      <button key={item.id} className="chat-starter-btn" onClick={() => handleMenuClick(item)}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {messages.map((m, i) => (
+                <div key={i} className={`chat-bubble-row ${m.role}`}>
+                  <div className="chat-bubble">{m.display ?? m.content}</div>
                 </div>
-                <p className="chat-drawer-hint">{greeting}</p>
-              </div>
-              <div className="chat-starter-list">
-                {CHAT_MENU_ITEMS.map((item) => (
-                  <button key={item.id} className="chat-starter-btn" onClick={() => handleMenuClick(item)}>
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          {messages.map((m, i) => (
-            <div key={i} className={`chat-bubble-row ${m.role}`}>
-              <div className="chat-bubble">{m.display ?? m.content}</div>
+              ))}
+              {loading && !messages[messages.length - 1]?.streaming && (
+                <div className="chat-bubble-row assistant">
+                  <div className="chat-bubble chat-bubble-loading">생각하는 중...</div>
+                </div>
+              )}
+              <div ref={bottomRef} />
             </div>
-          ))}
-          {loading && (
-            <div className="chat-bubble-row assistant">
-              <div className="chat-bubble chat-bubble-loading">생각하는 중...</div>
+
+            {error && <p className="chat-drawer-error">{error}</p>}
+
+            <div className="chat-input-row">
+              <textarea
+                className="chat-input"
+                rows={1}
+                placeholder={pendingFollowUp ? '예: 김치찌개' : '메시지를 입력하세요'}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={loading}
+              />
+              <button className="chat-send-btn" onClick={handleSend} disabled={loading || !input.trim()}>
+                전송
+              </button>
             </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
-
-        {error && <p className="chat-drawer-error">{error}</p>}
-
-        <div className="chat-input-row">
-          <textarea
-            className="chat-input"
-            rows={1}
-            placeholder={pendingFollowUp ? '예: 김치찌개' : '메시지를 입력하세요'}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={loading}
-          />
-          <button className="chat-send-btn" onClick={handleSend} disabled={loading || !input.trim()}>
-            전송
-          </button>
+          </div>
         </div>
       </div>
     </div>

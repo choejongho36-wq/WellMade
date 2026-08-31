@@ -192,3 +192,57 @@
 .tag-clickable:hover {
   background: #fff5f4;
 }
+
+/* ============ 모바일 (~768px) ============
+   데스크톱은 [180px 사이드 네비 | 세로 구분선 | 본문] 2단 구조인데, 폰 폭에서는
+   좌우 패딩(64px×2) + 네비(180px) + gap(56px)만으로 364px를 먹어 본문이 사라진다.
+   세로로 쌓고 구분선을 가로선으로 바꾼다. */
+@media (max-width: 768px) {
+  .page-shell {
+    flex-direction: column;
+    gap: 0;
+    padding: 0 20px;
+  }
+  .page-shell-nav {
+    width: 100%;
+    padding-top: 24px;
+    padding-bottom: 0;
+  }
+  .page-shell-content {
+    padding-top: 24px;
+    padding-left: 0;
+    padding-bottom: 40px;
+    border-left: none;
+    border-top: 1px solid #da291c;
+  }
+  .page-shell-content--full {
+    border-top: none;
+  }
+
+  .modal {
+    width: min(320px, calc(100vw - 32px));
+    padding: 28px 20px;
+  }
+
+  .section-head {
+    margin-top: 32px;
+  }
+  /* 인바디 5개 태그가 flex:1로 나란히 서면 폰에서 한 칸이 60px도 안 된다 */
+  .tag-strip {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .tag-strip > .tag {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 140px;
+  }
+  .tag-inner {
+    padding: 14px 0;
+  }
+  .tag-value {
+    font-size: 22px;
+  }
+  .summary-row {
+    flex-wrap: wrap;
+  }
+}

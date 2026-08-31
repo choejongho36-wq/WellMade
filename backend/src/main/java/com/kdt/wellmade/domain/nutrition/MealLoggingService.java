@@ -63,9 +63,10 @@ public class MealLoggingService {
      * @param userId     사용자 ID
      * @param rawMessage 사용자가 보낸 원문 메시지
      * @param mealType   "BREAKFAST"/"LUNCH"/"DINNER"/"SNACK" - null이면 현재 시각 기준으로 자동 추정
+     * @param loggedDate 먹은 날짜 - null이면 오늘. 깜빡한 지난 끼니를 나중에 채워 넣을 수 있게 받는다
      * @return 저장된 결과 (합산 영양성분 + 인식 못 한 음식 목록)
      */
-    public MealLogResult logMeal(Long userId, String rawMessage, String mealType) {
+    public MealLogResult logMeal(Long userId, String rawMessage, String mealType, LocalDate loggedDate) {
         List<FoodParsingService.FoodItem> parsedItems = foodParsingService.parse(rawMessage);
 
         double totalCalories = 0, totalProtein = 0, totalCarbs = 0, totalFat = 0;
@@ -115,7 +116,7 @@ public class MealLoggingService {
                  kcal, protein_g, carbs_g, fat_g, food_items)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                userId, LocalDate.now(), resolvedMealType, menuNameSummary, rawMessage,
+                userId, loggedDate != null ? loggedDate : LocalDate.now(), resolvedMealType, menuNameSummary, rawMessage,
                 Math.round(totalCalories), totalProtein, totalCarbs, totalFat, foodItemsJson
         );
  

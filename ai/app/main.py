@@ -32,18 +32,14 @@ import os
 
 app = FastAPI(title="WellMade AI Server")
 
-# 프론트(Vite 개발 서버, localhost:5173)가 브라우저에서 이 서버를 직접 호출하려면 CORS
-# 설정이 필요하다 — 이게 없으면 브라우저가 실제 요청 전에 보내는 사전요청(OPTIONS)이
-# 405 Method Not Allowed로 거부되어, POST 요청 자체가 서버에 도달하지 못한다.
-# 로컬 개발용 오리진만 허용해뒀다.
-# TODO: 팀 확정 필요 — 실제 배포 도메인이 정해지면 allow_origins를 그 도메인으로 좁혀야
-# 한다(지금처럼 로컬 포트만 있는 상태를 운영에도 그대로 쓰면 안 됨).
+# 브라우저가 이 서버를 직접(cross-origin) 호출할 때 CORS가 필요하다 — 없으면 사전요청(OPTIONS)이
+# 거부되어 POST가 서버에 도달하지 못한다. 운영에서 프론트를 nginx로 같은 오리진에 두면 CORS는
+# 사실상 필요없어지지만, 직접 호출 경로를 대비해 오리진을 환경변수로 받는다.
+# ALLOWED_ORIGINS: 콤마로 구분(예: "https://wellmade.example,https://www.wellmade.example").
+_allowed = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite 기본 개발 서버 포트
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=[o.strip() for o in _allowed.split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -18,6 +18,12 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** "2026-08-27" -> "8월 27일" */
+function formatDateLabel(dateStr) {
+  const [, month, day] = dateStr.split('-')
+  return `${Number(month)}월 ${Number(day)}일`
+}
+
 const SUMMARY_HEADLINE_FIELD = { key: 'totalCalories', unit: 'kcal' }
 const DIET_DISCLAIMER_KEY = 'dietDisclaimerSeen'
 
@@ -33,7 +39,7 @@ function parseFoodItems(meal) {
 }
 
 function DietPage() {
-  const { user, logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getNutrientTarget, updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal } = useAuth()
+  const { user, logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal } = useAuth()
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [mealType, setMealType] = useState('')
   const [meals, setMeals] = useState([])
@@ -86,7 +92,7 @@ function DietPage() {
 
     setLoading(true)
     setNotice('')
-    logMeal(text, mealType)
+    logMeal(text, mealType, selectedDate)
       .then((result) => {
         // 매칭된 항목만 저장되고, 실패한 항목은 notFoundFoods로 따로 안내됨 (부분 저장 가능)
         const saved = Boolean(result.menuNameSummary)
@@ -197,39 +203,47 @@ function DietPage() {
                 onSelect={setSelectedDate}
                 maxDateStr={todayStr()}
                 getMonthCalories={getMonthCalories}
+                getHolidays={getHolidays}
               />
 
-              {isToday ? (
-                <div className="diet-log-form">
-                  <select
-                    className="diet-mealtype-select"
-                    value={mealType}
-                    onChange={(e) => setMealType(e.target.value)}
-                    disabled={loading}
-                  >
-                    <option value="">자동 (시간대로 추정)</option>
-                    {Object.entries(MEAL_TYPE_LABEL).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                  <textarea
-                    className="chat-input"
-                    rows={3}
-                    placeholder="언제 뭘 드셨나요? (예: 점심에 김치찌개랑 밥 한공기 먹었어요)"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    disabled={loading}
-                  />
-                  <button className="chat-send-btn" onClick={handleLog} disabled={loading || !input.trim()}>
-                    {loading ? '기록 중...' : '기록하기'}
-                  </button>
-                </div>
-              ) : (
-                <p className="pcard-desc" style={{ marginTop: 16 }}>
-                  지난 기록을 보고 있어요. 새로 기록하려면 오늘 날짜를 선택하세요.
-                </p>
-              )}
+              <div className="diet-log-form">
+                {!isToday && (
+                  <p className="diet-log-date-notice">
+                    <strong>{formatDateLabel(selectedDate)}</strong>의 기록으로 저장돼요.
+                    끼니를 직접 골라주세요.
+                  </p>
+                )}
+                <select
+                  className="diet-mealtype-select"
+                  value={mealType}
+                  onChange={(e) => setMealType(e.target.value)}
+                  disabled={loading}
+                >
+                  {/* 지난 날짜는 '자동'이 현재 시각으로 추정돼 엉뚱한 끼니가 되므로 직접 고르게 함 */}
+                  <option value="" disabled={!isToday}>
+                    {isToday ? '자동 (시간대로 추정)' : '끼니 선택'}
+                  </option>
+                  {Object.entries(MEAL_TYPE_LABEL).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <textarea
+                  className="chat-input"
+                  rows={3}
+                  placeholder="언제 뭘 드셨나요? (예: 점심에 김치찌개랑 밥 한공기 먹었어요)"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={loading}
+                />
+                <button
+                  className="chat-send-btn"
+                  onClick={handleLog}
+                  disabled={loading || !input.trim() || (!isToday && !mealType)}
+                >
+                  {loading ? '기록 중...' : '기록하기'}
+                </button>
+              </div>
               {notice && <p className="chat-drawer-error">{notice}</p>}
             </div>
 

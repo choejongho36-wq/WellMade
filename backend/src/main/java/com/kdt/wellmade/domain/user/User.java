@@ -41,6 +41,11 @@ public class User {
     @Column(length = 255)
     private String email;
 
+    // 탈퇴 시 소셜 제공자 연동 해제(unlink)에 쓸 마지막 로그인 시점의 access token.
+    // 신원확인용으로만 쓰고 평소엔 참조 안 함. 만료됐으면 unlink가 실패할 뿐 탈퇴는 진행됨.
+    @Column(name = "social_access_token", length = 1000)
+    private String socialAccessToken;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -52,6 +57,10 @@ public class User {
         this.provider = provider;
         this.providerId = providerId;
         this.email = email;
+    }
+
+    public void updateSocialAccessToken(String socialAccessToken){
+        this.socialAccessToken = socialAccessToken;
     }
 
     @PrePersist

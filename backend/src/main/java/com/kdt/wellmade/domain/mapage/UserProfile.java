@@ -46,6 +46,18 @@ public class UserProfile {
     @Column(length = 20)
     private Goal goal;                  // LOSE, GAIN, MAINTAIN
 
+    // 기초대사량(Mifflin-St Jeor) 계산에 필요한 신체 정보. 셋 다 있어야 성별/키 반영 추정이 가능하고,
+    // 하나라도 비면 체중 기반 대략 추정으로 떨어짐.
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private Gender gender;              // MALE, FEMALE
+
+    @Column(name = "height_cm")
+    private Double heightCm;
+
+    @Column(name = "birth_year")
+    private Integer birthYear;
+
     // 전부 null이면 목표+인바디로 자동 계산한 추천값을 씀. 사용자가 직접 수정하면 4개 다 채워서 저장함.
     @Column(name = "target_kcal")
     private Double targetKcal;
@@ -89,6 +101,19 @@ public class UserProfile {
         this.profileImageUrl = profileImageUrl;
         if (goal != null) {
             this.goal = goal;
+        }
+    }
+
+    /** 성별/키/출생연도 수정. null인 항목은 기존 값을 유지함 */
+    public void updateBody(Gender gender, Double heightCm, Integer birthYear) {
+        if (gender != null) {
+            this.gender = gender;
+        }
+        if (heightCm != null) {
+            this.heightCm = heightCm;
+        }
+        if (birthYear != null) {
+            this.birthYear = birthYear;
         }
     }
 

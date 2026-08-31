@@ -61,7 +61,11 @@ public class DietMealController {
 
     @PostMapping
     public MealLoggingService.MealLogResult logMeal(@AuthenticationPrincipal Long userId, @RequestBody LogMealRequest request) {
-        return mealLoggingService.logMeal(userId, request.message(), request.mealType());
+        LocalDate date = request.date();
+        if (date != null && date.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("아직 오지 않은 날짜에는 기록할 수 없어요.");
+        }
+        return mealLoggingService.logMeal(userId, request.message(), request.mealType(), date);
     }
 
     @GetMapping("/today")
@@ -148,7 +152,7 @@ public class DietMealController {
             return ResponseEntity.noContent().build();
         }
 
-        NutrientTarget recommended = nutrientTargetCalculator.calculate(inbody, profile.getGoal());
+        NutrientTarget recommended = nutrientTargetCalculator.calculate(inbody, profile);
         return ResponseEntity.ok(new TargetResponse(
                 recommended.kcal(), recommended.proteinG(), recommended.carbsG(), recommended.fatG(), false
         ));
@@ -176,7 +180,9 @@ public class DietMealController {
         }
     }
 
-    public record LogMealRequest(String message, String mealType) {}
+    // date는 생략 가능 - 없으면 오늘로 기록된다
+    public record LogMealRequest(String message, String mealType,
+                                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {}
     public record UpdateMealRequest(String mealType, String menuName, double kcal) {}
     public record UpdateMealItemRequest(double amountG) {}
     public record ResolveMealItemMatchRequest(String resolvedFoodName) {}
