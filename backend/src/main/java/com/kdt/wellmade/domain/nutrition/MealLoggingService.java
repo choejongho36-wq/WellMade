@@ -6,8 +6,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
 
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -78,18 +82,27 @@ public class MealLoggingService {
         }
 
         for (FoodParsingService.FoodItem item : parsedItems) {
-            String searchName = resolveSearchName(userId, item.foodName(), item.searchName());
+            // 모델이 만든 searchName보다 사용자가 말한 이름을 먼저 믿는다 - 모델이 가끔 검색어를
+            // 제멋대로 구체화해서("토스트" -> "토스트칩") 엉뚱한 제품에 확정 매칭되기 때문
+            String userName = resolveSearchName(userId, item.foodName(), item.foodName());
+            String modelName = resolveSearchName(userId, item.foodName(), item.searchName());
 
-            FoodNutritionLookupService.NutritionInfo info = (item.amountG() != null && item.amountG() > 0)
-                    // 사용자가 그램을 직접 말한 경우 - 그 값 그대로
-                    ? nutritionLookupService.lookup(searchName, item.amountG())
-                    // 인분수만 말한 경우 - DB 표준중량 × 인분수로 서버가 환산
-                    : nutritionLookupService.lookupByServings(searchName, item.servings());
+            Match match = lookupFor(userName, item);
+            if (!modelName.equals(userName) && (match == null || match.isFuzzy())) {
+                // 사용자가 말한 이름으로는 정확히 못 찾은 경우에만 모델 검색어를 써본다
+                // ("포카칩 큰 봉지" -> "포카칩"처럼 이름을 줄여야 찾히는 케이스가 여기서 살아남음)
+                Match alternative = lookupFor(modelName, item);
+                if (alternative != null && (match == null || !alternative.isFuzzy())) {
+                    match = alternative;
+                }
+            }
 
-            if (info == null) {
+            if (match == null) {
                 notFound.add(item.foodName());
                 continue;
             }
+            String searchName = match.searchName();
+            FoodNutritionLookupService.NutritionInfo info = match.info();
 
             totalCalories += info.calories();
             totalProtein += info.proteinG();
@@ -98,35 +111,88 @@ public class MealLoggingService {
 
             // searchName도 같이 저장해둠 - 나중에 그램 수를 수정할 때 같은 이름으로 다시 조회해야 하는데
             // foodName(사용자가 말한 그대로, 예: "포카칩 큰 봉지")으로는 DB 재검색이 안 될 수 있어서
-            foodItemsForJson.add(item(item.foodName(), searchName, info, candidatesIfUnsure(searchName, info)));
+            Map<String, Object> saved = item(item.foodName(), searchName, info, candidatesFor(searchName));
+            // 개수/인분수는 그램으로 환산되고 나면 사라져서 화면에 "3개"가 안 보임 - 표시용으로 같이 남긴다
+            if ((item.amountG() == null || item.amountG() <= 0) && item.servings() > 1) {
+                saved.put("servings", compactNumber(item.servings()));
+            }
+            foodItemsForJson.add(saved);
         }
 
         if (foodItemsForJson.isEmpty()) {
             // 매칭된 게 하나도 없을 때만 저장할 게 없으므로 여기서 끝냄
-            return new MealLogResult(null, null, 0, 0, 0, 0, notFound);
+            return new MealLogResult(null, null, 0, 0, 0, 0, notFound, null, List.of());
         }
 
         String resolvedMealType = (mealType != null) ? mealType : inferMealTypeByTime();
         String foodItemsJson = toJson(foodItemsForJson);
         String menuNameSummary = summarizeMenuNames(foodItemsForJson);
 
+        // 저장된 id가 필요함 - 기록 직후 그 자리에서 "다른 음식인가요?" 후보를 고칠 수 있어야 해서
+        Object[] params = {
+                userId, loggedDate != null ? loggedDate : LocalDate.now(), resolvedMealType, menuNameSummary, rawMessage,
+                Math.round(totalCalories), totalProtein, totalCarbs, totalFat, foodItemsJson
+        };
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(con -> {
+            PreparedStatement ps = con.prepareStatement("""
+                    INSERT INTO diet_meals
+                    (user_id, logged_date, meal_type, menu_name, raw_message,
+                     kcal, protein_g, carbs_g, fat_g, food_items)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, Statement.RETURN_GENERATED_KEYS);
+            for (int i = 0; i < params.length; i++) {
+                ps.setObject(i + 1, params[i]);
+            }
+            return ps;
+        }, keyHolder);
+
+        return new MealLogResult(
+                menuNameSummary, resolvedMealType,
+                totalCalories, totalProtein, totalCarbs, totalFat,
+                notFound,
+                keyHolder.getKey() != null ? keyHolder.getKey().longValue() : null,
+                foodItemsForJson
+        );
+    }
+ 
+    /**
+     * 표준 식품 DB에 없어서 자동 조회가 안 된 음식을, 사용자가 칼로리를 직접 적어서 기록하는 경로.
+     * 영양성분은 알 수 없으므로 칼로리만 반영하고 userEntered=true로 표시함
+     * (프론트가 "직접 입력한 항목"이라고 알려주고, 그램 수 재조회 UI는 숨김).
+     */
+    public MealLogResult logManualMeal(Long userId, String foodName, double kcal, String mealType, LocalDate loggedDate) {
+        String name = foodName != null ? foodName.trim() : "";
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("음식 이름을 입력해주세요.");
+        }
+        if (kcal <= 0 || kcal > 10000) {
+            throw new IllegalArgumentException("칼로리는 1 ~ 10000 사이로 입력해주세요.");
+        }
+
+        Map<String, Object> manualItem = new LinkedHashMap<>();
+        manualItem.put("foodName", name);
+        manualItem.put("amountG", 0);
+        manualItem.put("calories", round1(kcal));
+        manualItem.put("proteinG", 0);
+        manualItem.put("carbsG", 0);
+        manualItem.put("fatG", 0);
+        manualItem.put("userEntered", true);
+
+        String resolvedMealType = (mealType != null) ? mealType : inferMealTypeByTime();
         jdbcTemplate.update("""
                 INSERT INTO diet_meals
                 (user_id, logged_date, meal_type, menu_name, raw_message,
                  kcal, protein_g, carbs_g, fat_g, food_items)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                userId, loggedDate != null ? loggedDate : LocalDate.now(), resolvedMealType, menuNameSummary, rawMessage,
-                Math.round(totalCalories), totalProtein, totalCarbs, totalFat, foodItemsJson
+                userId, loggedDate != null ? loggedDate : LocalDate.now(), resolvedMealType, name, name,
+                Math.round(kcal), 0, 0, 0, toJson(List.of(manualItem))
         );
- 
-        return new MealLogResult(
-                menuNameSummary, resolvedMealType,
-                totalCalories, totalProtein, totalCarbs, totalFat,
-                notFound
-        );
+
+        return new MealLogResult(name, resolvedMealType, kcal, 0, 0, 0, List.of(), null, List.of(manualItem));
     }
- 
+
     /**
      * 특정 날짜에 기록된 끼니 목록. 입력한 순서가 아니라 아침 -> 점심 -> 저녁 순으로 정렬하고,
      * 간식은 위치가 중요하지 않아 맨 뒤로 보냄 (같은 끼니 종류끼리는 기록한 시간순).
@@ -189,17 +255,60 @@ public class MealLoggingService {
         );
     }
  
-    /** 기록 수정 - 끼니 종류/메뉴명/칼로리만 직접 고칠 때 (본인 소유 레코드만) */
+    /**
+     * 기록 수정 (본인 소유 레코드만).
+     * 메뉴명을 바꾸면 그 이름으로 영양성분을 다시 조회해서 칼로리까지 자동으로 맞춰준다
+     * (이름만 바뀌고 칼로리가 옛날 음식 값으로 남아있으면 기록이 틀어지므로).
+     * 메뉴명이 그대로면 사용자가 입력한 칼로리를 그대로 반영함.
+     */
     public void updateMeal(Long userId, Long mealId, String mealType, String menuName, double kcal) {
-        int updated = jdbcTemplate.update("""
+        Map<String, Object> row;
+        try {
+            row = jdbcTemplate.queryForMap(
+                    "SELECT menu_name, food_items FROM diet_meals WHERE id = ? AND user_id = ?", mealId, userId);
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("수정할 기록을 찾을 수 없습니다.");
+        }
+
+        String newName = menuName != null ? menuName.trim() : "";
+        if (!newName.isBlank() && !newName.equals(row.get("menu_name"))) {
+            replaceMealFood(userId, mealId, mealType, newName, parseFoodItemsJson((String) row.get("food_items")));
+            return;
+        }
+
+        jdbcTemplate.update("""
                 UPDATE diet_meals
                 SET meal_type = ?, menu_name = ?, kcal = ?
                 WHERE id = ? AND user_id = ?
                 """, mealType, menuName, Math.round(kcal), mealId, userId);
+    }
 
-        if (updated == 0) {
-            throw new IllegalArgumentException("수정할 기록을 찾을 수 없습니다.");
+    /**
+     * 메뉴명이 바뀐 경우 - 끼니 전체를 새 이름의 음식 하나로 교체하고 영양성분을 다시 계산함.
+     * 항목이 하나뿐이었다면 그때 쓰던 그램 수를 유지하고, 여러 개였다면 새 음식 1인분 기준으로 잡는다.
+     */
+    private void replaceMealFood(Long userId, Long mealId, String mealType, String menuName,
+                                 List<Map<String, Object>> oldItems) {
+        String searchName = resolveSearchName(userId, menuName, menuName);
+        double keepAmountG = oldItems.size() == 1 ? toDouble(oldItems.get(0).get("amountG")) : 0;
+
+        FoodNutritionLookupService.NutritionInfo info = keepAmountG > 0
+                ? nutritionLookupService.lookup(searchName, keepAmountG)
+                : nutritionLookupService.lookupByServings(searchName, 1);
+        if (info == null) {
+            throw new IllegalArgumentException("\"" + menuName + "\"(으)로는 음식을 찾지 못했어요. 다른 이름으로 적어주세요.");
         }
+
+        List<Map<String, Object>> items = List.of(item(menuName, searchName, info, candidatesFor(searchName)));
+        jdbcTemplate.update("""
+                UPDATE diet_meals
+                SET meal_type = ?, menu_name = ?, kcal = ?, protein_g = ?, carbs_g = ?, fat_g = ?, food_items = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                mealType, menuName, Math.round(info.calories()),
+                round1(info.proteinG()), round1(info.carbsG()), round1(info.fatG()), toJson(items),
+                mealId, userId
+        );
     }
 
     /**
@@ -238,7 +347,7 @@ public class MealLoggingService {
             throw new IllegalArgumentException("해당 음식을 다시 조회하지 못했어요.");
         }
 
-        items.set(itemIndex, item(foodName, searchName, info, candidatesIfUnsure(searchName, info)));
+        items.set(itemIndex, item(foodName, searchName, info, candidatesFor(searchName)));
 
         return recalculateAndSave(userId, mealId, items);
     }
@@ -285,10 +394,18 @@ public class MealLoggingService {
         }
 
         // 후보 목록은 그대로 들고가서, 이번 선택이 잘못됐어도 사용자가 다른 후보로 다시 바꿀 수 있게 함
-        items.set(itemIndex, item(foodName, resolvedFoodName, info, existingCandidates(target)));
+        Map<String, Object> replaced = item(foodName, resolvedFoodName, info, existingCandidates(target));
+        if (target.get("servings") != null) {
+            // JSON을 다시 읽으면 3 -> 3.0(double)이 되므로 정수로 되돌려서 "×3.0"으로 보이지 않게
+            replaced.put("servings", compactNumber(toDouble(target.get("servings"))));
+        }
+        items.set(itemIndex, replaced);
 
-        // 이 사용자가 이 검색어를 다시 쓰면 다음부턴 후보 제시 없이 바로 이 매칭이 적용되도록 기억해둠
-        foodAliasService.save(userId, previousSearchName, resolvedFoodName);
+        // 이 사용자가 이 검색어를 다시 쓰면 다음부턴 후보 제시 없이 바로 이 매칭이 적용되도록 기억해둠.
+        // 같은 이름을 다시 고른 경우는 기억할 게 없으므로 저장하지 않음 (X -> X 별칭이 쌓이는 걸 방지)
+        if (!resolvedFoodName.equals(previousSearchName)) {
+            foodAliasService.save(userId, previousSearchName, resolvedFoodName);
+        }
 
         return recalculateAndSave(userId, mealId, items);
     }
@@ -347,12 +464,35 @@ public class MealLoggingService {
         return foodAliasService.findResolved(userId, normalized).orElse(normalized);
     }
 
-    /** FUZZY 매칭이면 사용자에게 보여줄 후보 목록을 붙여줌 (확실한 매칭이면 빈 리스트) */
-    private List<String> candidatesIfUnsure(String searchName, FoodNutritionLookupService.NutritionInfo info) {
-        if (info.matchTier() != FoodNutritionLookupService.MatchTier.FUZZY) {
-            return List.of();
+    /** 검색어 하나로 조회한 결과 - 어떤 이름으로 찾았는지 같이 들고 다녀야 나중에 재조회가 됨 */
+    private record Match(String searchName, FoodNutritionLookupService.NutritionInfo info) {
+        boolean isFuzzy() {
+            return info.matchTier() == FoodNutritionLookupService.MatchTier.FUZZY;
         }
-        return nutritionLookupService.suggestCandidates(searchName, 5);
+    }
+
+    private Match lookupFor(String searchName, FoodParsingService.FoodItem item) {
+        FoodNutritionLookupService.NutritionInfo info = (item.amountG() != null && item.amountG() > 0)
+                // 사용자가 그램을 직접 말한 경우 - 그 값 그대로
+                ? nutritionLookupService.lookup(searchName, item.amountG())
+                // 인분수만 말한 경우 - DB 표준중량 × 인분수로 서버가 환산
+                : nutritionLookupService.lookupByServings(searchName, item.servings());
+        return info != null ? new Match(searchName, info) : null;
+    }
+
+    /**
+     * 사용자가 다른 음식으로 바꿔 고를 수 있게 후보 목록을 붙여줌.
+     * 이름이 정확히 일치해도(예: "토스트"는 DB에 음료류로만 있음) 엉뚱한 음식일 수 있어서 FUZZY가
+     * 아니어도 후보를 같이 저장한다 - 프론트는 FUZZY일 때만 경고를 띄우고, 그 외에는 접어서 보여줌.
+     */
+    private List<String> candidatesFor(String searchName) {
+        List<String> candidates = nutritionLookupService.suggestCandidates(searchName, 5);
+        return candidates.size() > 1 ? candidates : List.of();
+    }
+
+    /** 3.0 -> 3 처럼 정수면 정수로 (화면에 "×3.0"으로 나오지 않게) */
+    private Object compactNumber(double value) {
+        return value == Math.rint(value) ? (Object) (int) value : (Object) round1(value);
     }
 
     /** 기존에 저장돼 있던 항목의 candidates 배열을 그대로 꺼내옴 (없으면 빈 리스트) */
@@ -377,7 +517,9 @@ public class MealLoggingService {
         }
         if (foodName.equals("밥") || foodName.equals("흰쌀밥") || foodName.equals("쌀밥")
                 || foodName.equals("백미밥") || foodName.equals("공깃밥")) {
-            return "멥쌀밥";
+            // "멥쌀밥"(농촌진흥청 성분표)은 품종별 행만 있고 식품중량이 전부 비어 있어서 인분수 환산이 안 됨.
+            // 식약처 "쌀밥"(밥류)은 식품중량이 있으므로 이쪽으로 보낸다
+            return "쌀밥";
         }
         return modelSearchName;
     }
@@ -385,7 +527,10 @@ public class MealLoggingService {
     /** DB 매칭까지 성공한 항목만으로 메뉴명을 요약 (못 찾은 항목은 notFound로 따로 안내) */
     private String summarizeMenuNames(List<Map<String, Object>> foodItemsForJson) {
         return foodItemsForJson.stream()
-                .map(m -> (String) m.get("foodName"))
+                .map(m -> {
+                    Object servings = m.get("servings");
+                    return servings != null ? m.get("foodName") + " ×" + servings : (String) m.get("foodName");
+                })
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("(인식된 음식 없음)");
     }
@@ -466,7 +611,10 @@ public class MealLoggingService {
             double totalProteinG,
             double totalCarbsG,
             double totalFatG,
-            List<String> notFoundFoods
+            List<String> notFoundFoods,
+            // 방금 저장된 끼니의 id와 항목들 - 프론트가 기록 직후 그 자리에서 매칭 후보를 고칠 수 있게
+            Long mealId,
+            List<Map<String, Object>> items
     ) {}
  
     public record DailyTotal(
