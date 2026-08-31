@@ -134,7 +134,12 @@ public class FoodParsingService {
                 // JSON 항목만 뽑아내는 작업인데 온도가 기본값(0.8)이라 형식이 흔들릴 여지가 컸음.
                 // format:"json"으로 출력 자체를 강제하고 temperature:0으로 결정적으로 만듦.
                 "format", "json",
-                "options", Map.of("temperature", 0, "num_ctx", 4096)
+                // keep_alive를 안 보내면 Ollama 기본값(5분)으로 되돌아가, 챗봇이 24h로 올려둔
+                // 상주 시간을 이 호출이 다시 깎아버린다. 같은 모델을 쓰므로 값을 맞춰둔다
+                "keep_alive", "24h",
+                // num_ctx는 ChatService와 반드시 같은 값 - 다르면 Ollama가 같은 모델을
+                // 요청마다 내렸다 올려서(4.7GB) 매번 20초씩 더 걸린다
+                "options", Map.of("temperature", 0, "num_ctx", 8192)
         );
  
         String responseJson;

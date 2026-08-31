@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -71,6 +72,12 @@ public class ChatController {
     public List<ChatHistoryItem> history(@AuthenticationPrincipal Long userId) {
         User user = userService.getUser(userId);
         return chatService.getHistory(user);
+    }
+
+    /** 대화 이력 전체 삭제 (본인 것만) */
+    @DeleteMapping("/history")
+    public void clearHistory(@AuthenticationPrincipal Long userId) {
+        chatService.clearHistory(userService.getUser(userId));
     }
 
     @PostMapping("/nutrient-advice")
