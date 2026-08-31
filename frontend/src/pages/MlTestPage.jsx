@@ -34,23 +34,31 @@ import BLIND_TEST_REPS from '../data/blindTest6Reps.json'
 // 바꾸고, 그 즉시 같은 랜드마크로 아래 측정값/판정 요청이 재계산된다.
 const AI_BASE = 'http://localhost:8000'
 
-// "6랩 블라인드 테스트" 비교 대상 후보 모델(2026-08-28 추가). 사용자가 "비용/성능 면에서
-// 여러 벤더 모델을 비교해보고, 클로드만 추천하지 말라"고 요청한 데 따라, 기본 선택값도
-// Claude 하나로 몰아두지 않고 벤더를 섞었다 — 실제로 판정 가능한지는 AWS Bedrock 콘솔에서
-// 계정이 해당 모델 접근권한(Model access)을 승인받았는지에 달려있어, 여기 목록에 있다고
-// 전부 바로 호출되는 건 아니다(승인 안 된 모델은 결과 셀에 오류로 표시됨).
+// "6랩 블라인드 테스트" 비교 대상 후보 모델 — 실제로 판정 가능한지는 AWS Bedrock 콘솔에서
+// 계정이 해당 모델 접근권한(Model access)을 승인받았는지, 그리고 리전에서 온디맨드 호출을
+// 지원하는지에 달려있어, 여기 목록에 있다고 전부 바로 호출되는 건 아니다(승인 안 됐거나
+// 추론 프로필이 필요한 모델은 결과 셀에 오류로 표시됨).
 const CANDIDATE_MODELS = [
-  { id: 'anthropic.claude-haiku-4-5-20251001-v1:0', label: 'Claude Haiku 4.5', vendor: 'Anthropic' },
-  { id: 'anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5', vendor: 'Anthropic' },
-  { id: 'amazon.nova-lite-v1:0', label: 'Nova Lite', vendor: 'Amazon' },
-  { id: 'amazon.nova-pro-v1:0', label: 'Nova Pro', vendor: 'Amazon' },
-  { id: 'meta.llama3-3-70b-instruct-v1:0', label: 'Llama 3.3 70B', vendor: 'Meta' },
-  { id: 'mistral.mistral-large-2407-v1:0', label: 'Mistral Large', vendor: 'Mistral' },
+  { id: 'apac.amazon.nova-micro-v1:0', label: 'Nova Micro', vendor: 'Amazon' },
+  { id: 'apac.amazon.nova-lite-v1:0', label: 'Nova Lite', vendor: 'Amazon' },
+  { id: 'apac.amazon.nova-pro-v1:0', label: 'Nova Pro', vendor: 'Amazon' },
+  { id: 'apac.anthropic.claude-3-5-sonnet-20240620-v1:0', label: 'Claude 3.5 Sonnet', vendor: 'Anthropic' },
+  { id: 'apac.anthropic.claude-3-haiku-20240307-v1:0', label: 'Claude 3 Haiku', vendor: 'Anthropic' },
+  { id: 'apac.anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Claude 3.5 Sonnet v2', vendor: 'Anthropic' },
+  { id: 'apac.anthropic.claude-sonnet-4-20250514-v1:0', label: 'Claude Sonnet 4', vendor: 'Anthropic' },
+  { id: 'global.anthropic.claude-haiku-4-5-20251001-v1:0', label: 'Claude Haiku 4.5', vendor: 'Anthropic' },
+  { id: 'global.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5', vendor: 'Anthropic' },
 ]
 const DEFAULT_SELECTED_MODEL_IDS = [
-  'anthropic.claude-haiku-4-5-20251001-v1:0',
-  'amazon.nova-pro-v1:0',
-  'meta.llama3-3-70b-instruct-v1:0',
+  'apac.amazon.nova-micro-v1:0',
+  'apac.amazon.nova-lite-v1:0',
+  'apac.amazon.nova-pro-v1:0',
+  'apac.anthropic.claude-3-5-sonnet-20240620-v1:0',
+  'apac.anthropic.claude-3-haiku-20240307-v1:0',
+  'apac.anthropic.claude-3-5-sonnet-20241022-v2:0',
+  'apac.anthropic.claude-sonnet-4-20250514-v1:0',
+  'global.anthropic.claude-haiku-4-5-20251001-v1:0',
+  'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
 ]
 
 const tableHeadStyle = { border: '1px solid #ddd', padding: '6px 8px', background: '#f7f7f7', textAlign: 'left', whiteSpace: 'nowrap' }

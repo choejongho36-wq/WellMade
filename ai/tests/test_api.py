@@ -596,7 +596,23 @@ def test_aggregate_session_stats_basic():
     assert stats["normal_ratio"] == 0.7
     assert stats["avg_deviation_deg"] == 10.0
     assert stats["most_frequent_issue_part"] == "knee"
+    assert stats["issue_counts_by_part"] == {"knee": 3}
     assert stats["improvement_vs_previous_pct"] is None
+
+
+def test_aggregate_session_stats_issue_counts_by_part_multiple_parts():
+    # 통계 리포트의 "부위별 이상 발생 빈도 막대그래프"가 쓸 전체 분포 검증 — most_frequent_issue_part는
+    # 최댓값 1개(knee)만 보여주지만, issue_counts_by_part는 모든 부위의 카운트를 함께 담아야 한다.
+    history = [
+        {"timestamp": 0.0, "is_normal": False, "issues": [{"part": "knee", "deviation_deg": 10.0}]},
+        {"timestamp": 1.0, "is_normal": False, "issues": [{"part": "knee", "deviation_deg": 8.0}]},
+        {"timestamp": 2.0, "is_normal": False, "issues": [{"part": "hip", "deviation_deg": 5.0}]},
+        {"timestamp": 3.0, "is_normal": True, "issues": []},
+    ]
+    stats = aggregate_session_stats(history, previous_sessions=[])
+    print("aggregate_session_stats(mixed parts):", stats)
+    assert stats["issue_counts_by_part"] == {"knee": 2, "hip": 1}
+    assert stats["most_frequent_issue_part"] == "knee"
 
 
 def test_aggregate_session_stats_improvement_vs_previous():
@@ -648,6 +664,7 @@ def test_session_report_endpoint_returns_valid_response():
         assert res.status_code == 200
         data = res.json()
         assert data["normal_ratio"] == 0.7
+        assert data["issue_counts_by_part"] == {"knee": 3}
         assert data["improvement_vs_previous_pct"] == 20.0
         assert data["generation_source"] == "fallback"
 
@@ -1464,6 +1481,7 @@ if __name__ == "__main__":
     test_rag_guide_endpoint_returns_valid_response()
     test_rag_qna_endpoint_returns_valid_response()
     test_aggregate_session_stats_basic()
+    test_aggregate_session_stats_issue_counts_by_part_multiple_parts()
     test_aggregate_session_stats_improvement_vs_previous()
     test_generate_session_report_fallback()
     test_generate_session_report_llm_path()

@@ -424,6 +424,10 @@ class SessionReportResponse(BaseModel):
     normal_ratio: float = Field(..., description="세션 전체 정상 자세 비율(0~1)")
     avg_deviation_deg: Optional[float] = Field(None, description="이상 소견의 평균 편차(도). deviation_deg가 제공된 소견이 하나도 없으면 None")
     most_frequent_issue_part: Optional[str] = Field(None, description="가장 자주 감지된 이상 부위. 이상 소견이 없으면 None")
+    issue_counts_by_part: Dict[str, int] = Field(
+        default_factory=dict,
+        description="부위별 이상 감지 횟수 전체 분포(예: {\"knee\": 5, \"hip\": 2}). most_frequent_issue_part는 이 중 최댓값 1개만 뽑은 값이고, 이 필드는 프론트가 부위별 막대그래프 등을 그릴 때 쓰는 전체 분포다. 이상 소견이 없으면 빈 딕셔너리.",
+    )
     improvement_vs_previous_pct: Optional[float] = Field(None, description="직전 세션 대비 정상 비율 개선폭(%p). previous_sessions가 없으면 None")
     recommended_frequency_message: str = Field(..., description="정상 비율 기준 규칙기반 권장 운동 빈도 문구")
     summary_message: str = Field(..., description="세션 전체를 요약하는 한국어 코칭 문구 (TTS로 바로 읽을 수 있는 텍스트)")

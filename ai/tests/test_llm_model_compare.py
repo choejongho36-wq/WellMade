@@ -40,7 +40,7 @@ class _FakeBedrockRuntimeClient:
         self._verdict_by_model = verdict_by_model
         self._error_models = error_models
 
-    def converse(self, modelId, system, messages, toolConfig):
+    def converse(self, modelId, system, messages, toolConfig, inferenceConfig=None):
         if modelId in self._error_models:
             raise RuntimeError("모델 접근권한이 없습니다(시뮬레이션).")
         verdict, confidence = self._verdict_by_model[modelId]

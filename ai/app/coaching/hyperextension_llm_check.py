@@ -177,7 +177,7 @@ def _call_llm(rep_frames: list[AngleFrame], client, model: str) -> dict[str, Any
         system=[{"text": _SYSTEM_PROMPT}],
         messages=[{"role": "user", "content": [{"text": prompt}]}],
         toolConfig={"tools": [_VERDICT_TOOL], "toolChoice": {"tool": {"name": _VERDICT_TOOL_NAME}}},
-        inferenceConfig={"maxTokens": MAX_TOKENS},
+        inferenceConfig={"maxTokens": MAX_TOKENS, "temperature": 0},
     )
     content = response["output"]["message"]["content"]
     for block in content:

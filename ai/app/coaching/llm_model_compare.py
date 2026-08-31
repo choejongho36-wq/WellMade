@@ -135,6 +135,7 @@ def _call_one(client, model_id: str, frames: list[dict]) -> dict[str, Any]:
             system=[{"text": _SYSTEM_PROMPT}],
             messages=[{"role": "user", "content": [{"text": prompt}]}],
             toolConfig={"tools": [_TOOL_SPEC], "toolChoice": {"tool": {"name": _TOOL_NAME}}},
+            inferenceConfig={"temperature": 0},
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
         content = response["output"]["message"]["content"]

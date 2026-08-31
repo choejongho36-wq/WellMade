@@ -101,6 +101,9 @@ def aggregate_session_stats(frame_history: list[dict], previous_sessions: list[d
     deviations = [i["deviation_deg"] for i in all_issues if i.get("deviation_deg") is not None]
     avg_deviation_deg = round(sum(deviations) / len(deviations), 1) if deviations else None
 
+    # part_counts는 "가장 빈번한 부위" 계산에도 쓰이고, issue_counts_by_part로 그대로
+    # 응답에 실어 보내 프론트가 부위별 이상 발생 빈도 막대그래프를 그릴 수 있게 한다
+    # (2026-08-31 추가 — 통계 리포트 그래프 예시 논의에서 나온 요청).
     part_counts: dict[str, int] = {}
     for issue in all_issues:
         part_counts[issue["part"]] = part_counts.get(issue["part"], 0) + 1
@@ -118,6 +121,7 @@ def aggregate_session_stats(frame_history: list[dict], previous_sessions: list[d
         "normal_ratio": round(normal_ratio, 2),
         "avg_deviation_deg": avg_deviation_deg,
         "most_frequent_issue_part": most_frequent_issue_part,
+        "issue_counts_by_part": part_counts,
         "improvement_vs_previous_pct": improvement_vs_previous_pct,
         "recommended_frequency_message": _recommended_frequency_message(normal_ratio),
     }
