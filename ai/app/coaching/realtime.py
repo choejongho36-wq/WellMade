@@ -25,7 +25,6 @@ from app.coaching.hyperextension_llm_check import (
     start_hyperextension_analysis as _start_hyperextension_analysis,
 )
 from app.pose.coaching_messages import (
-    ASYMMETRY_MESSAGE,
     BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE,
     BACK_ROUNDED_MESSAGE,
     CENTER_OF_MASS_SHIFT_MESSAGE,
@@ -49,7 +48,6 @@ from app.pose.rules import (
     DTW_AMBIGUOUS_UPPER_DISTANCE,
     DTW_NEAREST_DISTANCE_THRESHOLD,
     HEEL_LIFT_RATIO_THRESHOLD,
-    KNEE_ASYMMETRY_THRESHOLD_DEG,
     KNEE_OVER_TOE_RATIO_THRESHOLD,
     KNEE_VALGUS_RATIO_THRESHOLD,
     MIN_DTW_REP_FRAMES,
@@ -258,7 +256,6 @@ def judge_realtime_coaching(
     )
     # 정면 랜드마크 기반 지표 — 프론트가 정면 카메라도 붙였을 때만 채워진다.
     latest_knee_valgus = angle_history[-1].knee_valgus_ratio  # 선택 필드라 None일 수 있음
-    latest_knee_asymmetry = angle_history[-1].knee_asymmetry_deg  # 선택 필드라 None일 수 있음
     # 무릎-발끝 — 측면 랜드마크 기준이라 정면 카메라 여부와 무관하게 선택 필드다.
     latest_knee_over_toe = angle_history[-1].knee_over_toe_ratio  # 선택 필드라 None일 수 있음
     # 등 굽음 — 측면 랜드마크 기준. hip_calibration.standing_shoulder_hip_ratio라는
@@ -366,11 +363,6 @@ def judge_realtime_coaching(
         # 폐기했다 — 자세한 배경은 rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD 자리에
         # 남은 주석 참고. knee_valgus_ratio가 KNEE_VALGUS_RATIO_THRESHOLD 이상(무릎이 발목
         # 너비 이상으로 벌어진 상태, varus 방향)이면 이제 아무 이슈도 태깅하지 않는다.
-        if (
-            latest_knee_asymmetry is not None
-            and latest_knee_asymmetry > KNEE_ASYMMETRY_THRESHOLD_DEG
-        ):
-            issues.append({"part": "asymmetry", "message": ASYMMETRY_MESSAGE})
         # 무릎-발끝도 발뒤꿈치와 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 동작
         # 중(내려가는/올라오는 도중)에는 무릎이 발끝을 순간적으로 넘는 게 자연스러울 수 있다.
         if (

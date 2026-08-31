@@ -111,12 +111,6 @@ class AngleFrame(BaseModel):
         "무거운 연산(좌표 계산)은 클라이언트가 담당한다는 원칙을 이 필드에도 그대로 적용. "
         "선택 필드 — 없으면(정면 카메라 미지원 클라이언트) 무릎 모임 검사를 건너뛴다(하위 호환).",
     )
-    knee_asymmetry_deg: Optional[float] = Field(
-        None,
-        description="정면 촬영 기준 좌우 무릎 굽힘 각도 차이(app/pose/angles.py의 "
-        "get_knee_lr_asymmetry_deg 참고). knee_valgus_ratio와 동일한 이유로 "
-        "프론트가 직접 계산해서 보낸다. 선택 필드 — 없으면 좌우 비대칭 검사를 건너뛴다(하위 호환).",
-    )
     knee_over_toe_ratio: Optional[float] = Field(
         None,
         description="무릎이 발끝보다 앞으로 나간 정도(app/pose/angles.py의 "
@@ -312,13 +306,19 @@ class OrchestrateRequest(BaseModel):
 
 
 class OrchestrateResponse(BaseModel):
-    next_action: NextAction = Field(..., description="하네스가 결정한 다음 행동")
-    reasoning: str = Field(..., description="이 행동을 선택한 이유(한국어)")
+    next_action: NextAction = Field(
+        ..., description="하네스가 결정한 다음 행동. harness.py의 _fallback_decision()이 결정한다."
+    )
+    reasoning: str = Field(..., description="이 행동을 선택한 이유(한국어). 규칙기반이 만든 고정 문구다.")
     action_args: dict = Field(default_factory=dict, description="액션별 부가 인자 (예: end_session의 end_reason)")
     source: Literal["llm", "fallback"] = Field(
-        ..., description="LLM이 직접 판단했는지, LLM 호출이 불가능/실패해 규칙기반 폴백을 썼는지"
+        ...,
+        description="(2026-08-31) 이 하네스는 완전히 규칙기반이라 항상 \"fallback\"이 반환된다. "
+        "필드 자체는 과거 LLM 판단/reasoning 다듬기 시절 API 계약과의 호환을 위해 남겨뒀다.",
     )
-    fallback_reason: Optional[str] = Field(None, description="source가 fallback일 때만: 폴백을 쓴 이유")
+    fallback_reason: Optional[str] = Field(
+        None, description="지금은 항상 고정 안내 문구가 담긴다(과거엔 LLM 실패 사유였음)."
+    )
 
 
 # ---- RAG 지식베이스 검색·생성 (AI-08/09/14) ----
@@ -430,6 +430,10 @@ class SessionReportResponse(BaseModel):
     normal_ratio: float = Field(..., description="세션 전체 정상 자세 비율(0~1)")
     avg_deviation_deg: Optional[float] = Field(None, description="이상 소견의 평균 편차(도). deviation_deg가 제공된 소견이 하나도 없으면 None")
     most_frequent_issue_part: Optional[str] = Field(None, description="가장 자주 감지된 이상 부위. 이상 소견이 없으면 None")
+    issue_counts_by_part: Dict[str, int] = Field(
+        default_factory=dict,
+        description="부위별 이상 감지 횟수 전체 분포(예: {\"knee\": 5, \"hip\": 2}). most_frequent_issue_part는 이 중 최댓값 1개만 뽑은 값이고, 이 필드는 프론트가 부위별 막대그래프 등을 그릴 때 쓰는 전체 분포다. 이상 소견이 없으면 빈 딕셔너리.",
+    )
     improvement_vs_previous_pct: Optional[float] = Field(None, description="직전 세션 대비 정상 비율 개선폭(%p). previous_sessions가 없으면 None")
     recommended_frequency_message: str = Field(..., description="정상 비율 기준 규칙기반 권장 운동 빈도 문구")
     summary_message: str = Field(..., description="세션 전체를 요약하는 한국어 코칭 문구 (TTS로 바로 읽을 수 있는 텍스트)")
@@ -479,3 +483,76 @@ class ModelCompareResponse(BaseModel):
         ..., description="model_id -> true_label이 있는 렙 기준 정확도(0~1). true_label이 하나도 없으면 None."
     )
     error: Optional[str] = Field(None, description="비교 자체가 시작도 못 했을 때의 사유(예: boto3 미설치, 자격증명 없음).")
+
+
+SessionStage = Literal[
+    "session_start",
+    "side_setup",
+    "side_instruction",
+    "side_ready",
+    "side_squat",
+    "front_setup",
+    "front_instruction",
+    "front_ready",
+    "front_squat",
+    "session_finish",
+]
+
+
+SessionEvent = Literal[
+    "session_started",
+    "camera_ready",
+    "guide_completed",
+    "set_started",
+    "set_completed",
+]
+
+
+CameraView = Literal[
+    "side",
+    "front",
+]
+
+
+class SessionGuideRequest(BaseModel):
+    current_stage: SessionStage
+    event: SessionEvent
+
+
+class SessionGuideResponse(BaseModel):
+    stage: SessionStage
+    camera_view: CameraView | None = None
+    message: str | None = None
+    
+    
+class SessionReportRequest(BaseModel):
+    frame_history: list[dict[str, Any]]
+    session_duration_sec: float
+    previous_sessions: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
+
+
+class SessionReportStatistics(BaseModel):
+    total_reps: int
+    normal_reps: int
+    abnormal_reps: int
+
+    normal_ratio: float
+
+    previous_normal_ratio: float | None = None
+    normal_ratio_delta: float | None = None
+
+    issue_counts: dict[str, int]
+
+    most_frequent_issue: str | None = None
+
+    rep_timeline: list[dict[str, Any]]
+
+
+class SessionReportResponse(BaseModel):
+    session_duration_sec: float
+
+    statistics: SessionReportStatistics
+
+    coaching_summary: str

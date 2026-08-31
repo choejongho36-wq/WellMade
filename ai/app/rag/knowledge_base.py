@@ -36,7 +36,6 @@ Cleveland Clinic, IJSPT)를 참고해 직접 작성한 문서다. 원문을 그�
 """
 
 from app.pose.coaching_messages import (
-    ASYMMETRY_MESSAGE,
     BACK_ROUNDED_MESSAGE,
     GAZE_FORWARD_MESSAGE,
     HEEL_LIFT_MESSAGE,
@@ -125,24 +124,6 @@ KNOWLEDGE_BASE = [
             "쪽으로 미는 발목 스트레칭(ankle dorsiflexion stretch)을 준비 운동에 포함하거나, "
             "필요하다면 얇은 굽(꿈치 리프트, 웨지)을 임시로 활용해 발목 부담을 줄여주는 방법도 "
             "함께 안내되곤 한다."
-        ),
-        "source": "ACE (American Council on Exercise)",
-        "source_url": "https://www.acefitness.org/",
-        "source_date": "2026-08",
-    },
-    {
-        "id": "squat_asymmetry",
-        "title": "스쿼트 좌우 비대칭(체중 쏠림) 교정",
-        "tags": ["squat_asymmetry", "좌우 비대칭", "비대칭", "체중 쏠림", "movement"],
-        "short_message": ASYMMETRY_MESSAGE,
-        "body": (
-            "좌우 다리에 실리는 체중이 눈에 띄게 다른 경우다. 한쪽으로 체중이 쏠린 채 반복하면 "
-            "쏠리는 쪽 무릎·고관절에 부담이 누적될 수 있다는 점이 일반적으로 지적된다.\n\n"
-            "일시적인 쏠림은 카메라 각도나 순간적인 균형 문제일 수 있지만, 반복적으로 같은 "
-            "방향으로 쏠린다면 좌우 근력 차이나 과거 부상 이력과 관련이 있을 수 있다. 이 경우 "
-            "거울이나 영상으로 스스로 확인하며 '양쪽에 동일한 무게가 실린다'는 느낌을 의식적으로 "
-            "맞추는 연습이 1차적으로 권장되며, 반복 패턴이 뚜렷하다면 트레이너나 물리치료사와 "
-            "상담해 원인을 확인하는 것이 좋다."
         ),
         "source": "ACE (American Council on Exercise)",
         "source_url": "https://www.acefitness.org/",

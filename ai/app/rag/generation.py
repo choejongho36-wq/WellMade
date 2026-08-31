@@ -18,27 +18,27 @@ short_message(knowledge_base.py 참고, 기존 ML 분류기 문구와 동일 출
 쓴다 — "LLM 없이도 안전한 기본값이 있어야 한다"는 원칙은 같지만, 이 경우엔 규칙을 다시
 짜는 대신 이미 검수된 문구를 재사용하는 편이 할루시네이션 위험도 없고 더 안전하다.
 
-# TODO: 팀 확정 필요 — 이 모듈은 harness.py와 동일한 환경변수(ANTHROPIC_API_KEY,
-# HARNESS_LLM_MODEL)를 재사용한다. 하네스 판단용 LLM 호출과 RAG 생성용 LLM 호출을 서로
-# 다른 모델/설정으로 분리하고 싶다면 별도 환경변수를 도입해야 하지만, 지금 단계에서는
-# "환경변수 하나 더 늘리는 것" 자체가 운영 복잡도이자 설정 실수 여지라고 판단해 재사용을
-# 기본값으로 삼았다(사용자가 밝힌 비용 우려와도 맞음 — 관리 포인트를 늘리지 않는 방향).
+# (2026-08-31) 원래는 harness.py와 같은 환경변수(HARNESS_BEDROCK_MODEL_ID)를 공유했다.
+# 하네스가 완전히 규칙기반으로 바뀌면서(더 이상 LLM을 호출하지 않음) 그 이름을 그대로
+# 물려받는 게 오히려 혼란스러워, RAG 생성 전용 환경변수(RAG_GENERATION_BEDROCK_MODEL_ID)로
+# 분리했다. 실제 모델 선택은 이 모듈을 담당하는 사람이 정한다 — 지금은 .env에 비워둔
+# 상태(=LLM 미사용, 규칙기반 폴백 문구만 사용).
 """
 
 import os
 from typing import Optional
 
 try:
-    import anthropic
+    import boto3
 
-    _ANTHROPIC_AVAILABLE = True
+    _BOTO3_AVAILABLE = True
 except ImportError:
-    _ANTHROPIC_AVAILABLE = False
+    _BOTO3_AVAILABLE = False
 
 from app.rag.retrieval import search
 
-API_KEY_ENV_VAR = "ANTHROPIC_API_KEY"
-MODEL_ENV_VAR = "HARNESS_LLM_MODEL"  # harness.py와 의도적으로 같은 이름을 공유함(위 설명 참고)
+AWS_REGION_ENV_VAR = "AWS_BEDROCK_REGION"
+MODEL_ENV_VAR = "RAG_GENERATION_BEDROCK_MODEL_ID"  # (2026-08-31) harness.py와의 공유를 그만두고 분리(위 설명 참고)
 MAX_TOKENS = 400
 
 GUIDE_TOP_K = 1
@@ -52,14 +52,16 @@ NO_MATCH_QNA_MESSAGE = "죄송해요, 관련된 안내 자료를 찾지 못했�
 
 
 def _get_client():
-    """anthropic 클라이언트를 지연 생성한다. harness.py의 _get_client()와 동일한 패턴 —
-    각 모듈이 자기 완결적으로 폴백을 판단할 수 있도록 일부러 공용 함수로 뽑지 않고
-    모듈마다 자체 구현을 유지한다(rules.py/coaching/realtime.py 등 기존 관례와 동일)."""
-    if not _ANTHROPIC_AVAILABLE:
+    """boto3 bedrock-runtime 클라이언트를 지연 생성한다. harness.py의 _get_client()와
+    동일한 패턴 — 각 모듈이 자기 완결적으로 폴백을 판단할 수 있도록 일부러 공용 함수로
+    뽑지 않고 모듈마다 자체 구현을 유지한다(rules.py/coaching/realtime.py 등 기존 관례와
+    동일)."""
+    if not _BOTO3_AVAILABLE:
         return None
-    if not os.environ.get(API_KEY_ENV_VAR):
+    region = os.environ.get(AWS_REGION_ENV_VAR)
+    if not region:
         return None
-    return anthropic.Anthropic()
+    return boto3.client("bedrock-runtime", region_name=region)
 
 
 def _sources_from_chunks(chunks: list[dict]) -> list[dict]:
@@ -85,13 +87,14 @@ def _sources_from_chunks(chunks: list[dict]) -> list[dict]:
 def _llm_generate(system_prompt: str, user_message: str, client) -> Optional[str]:
     """LLM 호출 공통 부분. 실패하면 None을 반환해 호출부가 폴백을 쓰게 한다."""
     try:
-        response = client.messages.create(
-            model=os.environ[MODEL_ENV_VAR],
-            max_tokens=MAX_TOKENS,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+        response = client.converse(
+            modelId=os.environ[MODEL_ENV_VAR],
+            system=[{"text": system_prompt}],
+            messages=[{"role": "user", "content": [{"text": user_message}]}],
+            inferenceConfig={"maxTokens": MAX_TOKENS},
         )
-        text_blocks = [b.text for b in response.content if getattr(b, "type", None) == "text"]
+        content = response["output"]["message"]["content"]
+        text_blocks = [block["text"] for block in content if "text" in block]
         combined = "".join(text_blocks).strip()
         return combined or None
     except Exception:  # noqa: BLE001 — 네트워크/파싱 등 다양한 이유로 실패할 수 있어 폭넓게 처리

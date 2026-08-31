@@ -253,6 +253,13 @@ function useAuthState() {
       body: JSON.stringify({ message, mealType: mealType || null, date: date || null }),
     }, '식단 기록에 실패했어요')
 
+  // 표준 식품 DB에 없어서 자동 조회가 안 된 음식 - 사용자가 칼로리를 직접 적어 기록할 때
+  const logManualMeal = (foodName, kcal, mealType, date) =>
+    authJsonWithServerError('/api/diet/meals/manual', {
+      method: 'POST',
+      body: JSON.stringify({ foodName, kcal, mealType: mealType || null, date: date || null }),
+    }, '직접 기록에 실패했어요')
+
   const getTodayMeals = (date) =>
     authJson(`/api/diet/meals/today${date ? `?date=${date}` : ''}`, {}, '식단 기록을 불러오지 못했어요')
 
@@ -291,8 +298,9 @@ function useAuthState() {
     authFetch(`/api/diet/meals/${id}`, {
       method: 'PUT',
       body: JSON.stringify({ mealType, menuName, kcal }),
-    }).then((res) => {
-      if (!res.ok) throw new Error('수정에 실패했어요')
+    }).then(async (res) => {
+      // 이름을 바꾸면 서버가 그 음식으로 다시 조회하는데, 못 찾으면 이유를 그대로 보여줌
+      if (!res.ok) throw new Error((await res.text()) || '수정에 실패했어요')
     })
 
   const updateMealItemAmount = (mealId, itemIndex, amountG) =>
@@ -317,6 +325,7 @@ function useAuthState() {
   return {
     user, profile, inbody, handleLogout, deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, getInbodyHistory,
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
+    logManualMeal,
     updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
     sendChat, getChatHistory, getNutrientAdvice,
   }

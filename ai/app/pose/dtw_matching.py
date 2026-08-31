@@ -53,7 +53,7 @@ import numpy as np
 # "측면 3+정면 2"라는 서술은 실제 파일과 안 맞음, 실제로는 측면 4+정면 1) 정면 지표로
 # 의미 있는 템플릿을 만들 수 없었다 — 자세한 내용은 ml_training/build_dtw_templates.py
 # 참고. 정면 데이터가 더 모이면 별도 템플릿 세트로 다뤄야 한다.
-# knee_asymmetry_deg/knee_over_toe_ratio/heel_lift_ratio는 무릎모임·좌우비대칭·체중이동
+# knee_over_toe_ratio/heel_lift_ratio는 무릎-발끝·체중이동
 # 판정에 쓰이는 별개 지표라 이 목적(허리/등)에서는 기본값에서 제외했다 — 필요하면 호출
 # 쪽에서 metric_fields를 직접 지정해 바꿀 수 있다.
 DEFAULT_METRIC_FIELDS: tuple[str, ...] = (

@@ -19,10 +19,10 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.pose.rules import personalized_hip_range, HEEL_LIFT_RATIO_THRESHOLD
 from app.schemas import AngleFrame, HipFlexibilityCalibration
-from app.orchestration.harness import decide_next_action, API_KEY_ENV_VAR, DEFAULT_MODEL_ENV_VAR
+from app.orchestration.harness import decide_next_action
 from app.rag.retrieval import search as rag_search
-from app.rag.generation import generate_guide, generate_qna
-from app.session.report import generate_session_report, aggregate_session_stats
+from app.rag.generation import generate_guide, generate_qna, AWS_REGION_ENV_VAR, MODEL_ENV_VAR as RAG_MODEL_ENV_VAR
+from app.session.report import generate_session_report, aggregate_session_stats, MODEL_ENV_VAR as REPORT_MODEL_ENV_VAR
 
 client = TestClient(app)
 
@@ -354,11 +354,13 @@ def test_posture_insight_old_age_maps_to_60_plus_bracket():
 
 
 def _without_llm_env(fn):
-    """테스트 중 ANTHROPIC_API_KEY/HARNESS_LLM_MODEL이 우연히 설정돼있어도(로컬 .env 등)
-    fallback 경로 테스트가 실제 LLM을 호출하지 않도록, 두 환경변수를 잠시 지웠다가
-    복원한다."""
+    """테스트 중 AWS_BEDROCK_REGION/RAG_GENERATION_BEDROCK_MODEL_ID/
+    SESSION_REPORT_BEDROCK_MODEL_ID가 우연히 설정돼있어도(로컬 .env 등) fallback 경로
+    테스트가 실제 LLM을 호출하지 않도록, 관련 환경변수를 잠시 지웠다가 복원한다.
+    (2026-08-31) 하네스는 더 이상 LLM을 호출하지 않으므로 여기서 관리할 필요가 없어졌다 —
+    RAG 생성·세션 리포트 두 모듈만 남았다."""
     saved = {}
-    for key in (API_KEY_ENV_VAR, DEFAULT_MODEL_ENV_VAR):
+    for key in (AWS_REGION_ENV_VAR, RAG_MODEL_ENV_VAR, REPORT_MODEL_ENV_VAR):
         saved[key] = os.environ.pop(key, None)
     try:
         return fn()
@@ -426,65 +428,48 @@ def test_orchestrate_fallback_repeated_issue_triggers_rag():
     _without_llm_env(run)
 
 
-class _FakeToolUseBlock:
-    def __init__(self, name, input_):
-        self.type = "tool_use"
-        self.name = name
-        self.input = input_
+def _tool_use_block(name, input_):
+    """Converse API 응답의 toolUse 블록(dict)을 흉내 낸다."""
+    return {"toolUse": {"name": name, "input": input_}}
 
 
-class _FakeMessage:
-    def __init__(self, content):
-        self.content = content
+class _FakeBedrockClient:
+    """실제 boto3 bedrock-runtime 클라이언트 대신 주입하는 가짜 클라이언트 — 네트워크
+    호출 없이 Converse API 응답 파싱/폴백 로직만 검증한다."""
 
-
-class _FakeMessagesAPI:
-    def __init__(self, block=None, exc=None):
-        self._block = block
+    def __init__(self, content_blocks=None, exc=None):
+        self._content_blocks = content_blocks if content_blocks is not None else []
         self._exc = exc
 
-    def create(self, **kwargs):
+    def converse(self, **kwargs):
         if self._exc is not None:
             raise self._exc
-        return _FakeMessage([self._block])
+        return {"output": {"message": {"content": self._content_blocks}}}
 
 
-class _FakeAnthropicClient:
-    """실제 anthropic.Anthropic() 대신 주입하는 가짜 클라이언트 — 네트워크 호출 없이
-    harness.decide_next_action()의 파싱/폴백 로직만 검증한다."""
+def test_harness_decide_next_action_is_pure_rule_based():
+    # (2026-08-31) 하네스는 LLM을 전혀 호출하지 않는다 — next_action과 reasoning 모두
+    # 규칙기반(_fallback_decision)이 결정한 값 그대로 나가야 하고, source/fallback_reason도
+    # 항상 같은 고정값이어야 한다.
+    result = decide_next_action("s1", {"landmark_visibility": 0.3})
+    print("harness(rule-based only):", result)
+    assert result["next_action"] == "request_retake"
+    assert "visibility" in result["reasoning"]
+    assert result["source"] == "fallback"
+    assert result["fallback_reason"] is not None
 
-    def __init__(self, block=None, exc=None):
-        self.messages = _FakeMessagesAPI(block=block, exc=exc)
 
-
-def test_harness_llm_path_parses_tool_use_response():
-    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+def test_harness_decide_next_action_ignores_env_vars():
+    # 과거엔 HARNESS_BEDROCK_MODEL_ID/AWS_BEDROCK_REGION이 있으면 LLM 경로를 탔지만, 이제는
+    # 하네스가 이 두 환경변수를 아예 읽지 않으므로 설정 여부와 무관하게 결과가 같아야 한다.
+    os.environ["AWS_BEDROCK_REGION"] = "ap-northeast-2"
     try:
-        block = _FakeToolUseBlock(
-            "recommend_expert_consultation", {"reasoning": "골반 비대칭이 반복됐습니다."}
-        )
-        fake_client = _FakeAnthropicClient(block=block)
-        result = decide_next_action("s1", {"issue_type": "pelvis_asymmetry"}, client=fake_client)
-        print("harness(llm path):", result)
-        assert result["source"] == "llm"
-        assert result["next_action"] == "recommend_expert_consultation"
-        assert result["reasoning"] == "골반 비대칭이 반복됐습니다."
-        assert result["action_args"] == {}  # reasoning은 action_args에서 빠져야 함
-    finally:
-        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
-
-
-def test_harness_llm_failure_falls_back():
-    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
-    try:
-        fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
-        result = decide_next_action("s1", {}, client=fake_client)
-        print("harness(llm failure -> fallback):", result)
+        result = decide_next_action("s1", {})
+        print("harness(env vars set but unused):", result)
+        assert result["next_action"] == "proceed"
         assert result["source"] == "fallback"
-        assert "network down" in result["fallback_reason"]
-        assert result["next_action"] == "proceed"  # 상황 정보가 없으니 안전한 기본값
     finally:
-        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+        os.environ.pop("AWS_BEDROCK_REGION", None)
 
 
 def test_rag_search_finds_relevant_document():
@@ -549,29 +534,29 @@ def test_rag_qna_fallback_no_match():
 
 
 def test_rag_guide_llm_path_uses_generated_text():
-    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    os.environ[RAG_MODEL_ENV_VAR] = "fake-model-for-test"
     try:
-        block = _FakeTextBlock("무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요.")
-        fake_client = _FakeAnthropicClient(block=block)
+        block = _text_block("무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요.")
+        fake_client = _FakeBedrockClient(content_blocks=[block])
         result = generate_guide("무릎 모임", client=fake_client)
         print("generate_guide(llm path):", result)
         assert result["generation_source"] == "llm"
         assert result["guidance_message"] == "무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요."
         assert result["matched"] is True
     finally:
-        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+        os.environ.pop(RAG_MODEL_ENV_VAR, None)
 
 
 def test_rag_guide_llm_failure_falls_back_to_short_message():
-    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    os.environ[RAG_MODEL_ENV_VAR] = "fake-model-for-test"
     try:
-        fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
+        fake_client = _FakeBedrockClient(exc=RuntimeError("network down"))
         result = generate_guide("무릎 모임", client=fake_client)
         print("generate_guide(llm failure -> fallback):", result)
         assert result["generation_source"] == "fallback"
         assert result["matched"] is True
     finally:
-        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+        os.environ.pop(RAG_MODEL_ENV_VAR, None)
 
 
 def test_rag_guide_endpoint_returns_valid_response():
@@ -608,7 +593,23 @@ def test_aggregate_session_stats_basic():
     assert stats["normal_ratio"] == 0.7
     assert stats["avg_deviation_deg"] == 10.0
     assert stats["most_frequent_issue_part"] == "knee"
+    assert stats["issue_counts_by_part"] == {"knee": 3}
     assert stats["improvement_vs_previous_pct"] is None
+
+
+def test_aggregate_session_stats_issue_counts_by_part_multiple_parts():
+    # 통계 리포트의 "부위별 이상 발생 빈도 막대그래프"가 쓸 전체 분포 검증 — most_frequent_issue_part는
+    # 최댓값 1개(knee)만 보여주지만, issue_counts_by_part는 모든 부위의 카운트를 함께 담아야 한다.
+    history = [
+        {"timestamp": 0.0, "is_normal": False, "issues": [{"part": "knee", "deviation_deg": 10.0}]},
+        {"timestamp": 1.0, "is_normal": False, "issues": [{"part": "knee", "deviation_deg": 8.0}]},
+        {"timestamp": 2.0, "is_normal": False, "issues": [{"part": "hip", "deviation_deg": 5.0}]},
+        {"timestamp": 3.0, "is_normal": True, "issues": []},
+    ]
+    stats = aggregate_session_stats(history, previous_sessions=[])
+    print("aggregate_session_stats(mixed parts):", stats)
+    assert stats["issue_counts_by_part"] == {"knee": 2, "hip": 1}
+    assert stats["most_frequent_issue_part"] == "knee"
 
 
 def test_aggregate_session_stats_improvement_vs_previous():
@@ -634,17 +635,17 @@ def test_generate_session_report_fallback():
 
 
 def test_generate_session_report_llm_path():
-    os.environ[DEFAULT_MODEL_ENV_VAR] = "fake-model-for-test"
+    os.environ[REPORT_MODEL_ENV_VAR] = "fake-model-for-test"
     try:
-        block = _FakeTextBlock("오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요.")
-        fake_client = _FakeAnthropicClient(block=block)
+        block = _text_block("오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요.")
+        fake_client = _FakeBedrockClient(content_blocks=[block])
         history = make_frame_history(normal_count=8, abnormal_count=2, part="knee", deviation_deg=8.0)
         result = generate_session_report(history, session_duration_sec=180.0, client=fake_client)
         print("generate_session_report(llm path):", result)
         assert result["generation_source"] == "llm"
         assert result["summary_message"] == "오늘도 수고하셨어요! 무릎 자세에 조금 더 신경 써보면 좋을 것 같아요."
     finally:
-        os.environ.pop(DEFAULT_MODEL_ENV_VAR, None)
+        os.environ.pop(REPORT_MODEL_ENV_VAR, None)
 
 
 def test_session_report_endpoint_returns_valid_response():
@@ -660,6 +661,7 @@ def test_session_report_endpoint_returns_valid_response():
         assert res.status_code == 200
         data = res.json()
         assert data["normal_ratio"] == 0.7
+        assert data["issue_counts_by_part"] == {"knee": 3}
         assert data["improvement_vs_previous_pct"] == 20.0
         assert data["generation_source"] == "fallback"
 
@@ -678,12 +680,9 @@ def test_rag_qna_endpoint_returns_valid_response():
     _without_llm_env(run)
 
 
-class _FakeTextBlock:
-    """generation.py가 파싱하는 텍스트 응답 블록(anthropic SDK의 TextBlock 흉내)."""
-
-    def __init__(self, text):
-        self.type = "text"
-        self.text = text
+def _text_block(text):
+    """Converse API 응답의 text 블록(dict)을 흉내 낸다."""
+    return {"text": text}
 
 
 # knowledge_base.py가 coaching_messages.py의 문구를 그대로 재사용하므로, 테스트에서도 같은
@@ -864,14 +863,12 @@ def test_coaching_frame_heel_lift_falls_back_to_absolute_without_standing_prefix
     assert any(issue["part"] == "heel" for issue in data["issues"]), data
 
 
-# (2026-08-24) 무릎 모임/좌우 비대칭 규칙기반 검사의 단위 테스트(get_knee_valgus_ratio/
-# get_knee_lr_asymmetry_deg 직접 호출)와 그 /ai/pose/analyze 통합 테스트가 이 자리에
-# 있었다 — AI-03 삭제(위 주석 참고)와 함께 이 두 함수 자체가 angles.py에서 제거되며 같이
-# 삭제했다. 아래 test_coaching_frame_knee_valgus_*/knee_asymmetry_* 테스트들이 실시간
-# 코칭(AI-06) 경로로 같은 임계값(KNEE_VALGUS_RATIO_THRESHOLD/KNEE_ASYMMETRY_THRESHOLD_DEG)
-# 판정을 계속 검증한다.
+# (2026-08-24) 무릎 모임 규칙기반 검사의 단위 테스트(get_knee_valgus_ratio 직접 호출)와
+# 그 /ai/pose/analyze 통합 테스트가 이 자리에 있었다 — AI-03 삭제(위 주석 참고)와 함께 이
+# 함수 자체가 angles.py에서 제거되며 같이 삭제했다. 아래 test_coaching_frame_knee_valgus_*
+# 테스트들이 실시간 코칭(AI-06) 경로로 같은 임계값(KNEE_VALGUS_RATIO_THRESHOLD) 판정을
+# 계속 검증한다.
 from app.pose.rules import (  # noqa: E402
-    KNEE_ASYMMETRY_THRESHOLD_DEG,
     KNEE_VALGUS_RATIO_THRESHOLD,
 )
 
@@ -902,25 +899,6 @@ def test_coaching_frame_knee_valgus_flagged_when_deep_hold():
 # 남은 주석과 checklist 2026-08-27 addendum 참고.
 
 
-def test_coaching_frame_knee_asymmetry_flagged_when_deep_hold():
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "knee_asymmetry_deg": KNEE_ASYMMETRY_THRESHOLD_DEG + 10.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(knee asymmetry, deep hold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert data["is_normal"] is False, data
-    assert any(issue["part"] == "asymmetry" for issue in data["issues"]), data
-
-
 # (2026-08-27 추가) 오버헤드 스쿼트 보상작용 참고 사진(무릎각도 154~158도)을 실제
 # mediapipe로 검증하다가, 무릎 모임(valgus)이 교과서적으로 뚜렷한 사진조차
 # is_deep_hold(무릎각도<150도) 게이트에 막혀 통째로 안 잡히는 걸 확인했다. 무릎 모임/
@@ -945,27 +923,8 @@ def test_coaching_frame_knee_valgus_flagged_even_when_not_deep_hold():
     assert any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
 
 
-def test_coaching_frame_knee_asymmetry_flagged_even_when_not_deep_hold():
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 155,  # STANDING_KNEE_ANGLE_MIN(150) 이상 — is_deep_hold=False
-            "hip_angle": 165,
-            "knee_asymmetry_deg": KNEE_ASYMMETRY_THRESHOLD_DEG + 10.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(knee asymmetry, NOT deep hold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert data["is_normal"] is False, data
-    assert any(issue["part"] == "asymmetry" for issue in data["issues"]), data
-
-
 def test_coaching_frame_without_frontal_fields_still_works():
-    # knee_valgus_ratio/knee_asymmetry_deg 필드를 아예 안 보내도 에러 없이 동작해야 한다(하위 호환).
+    # knee_valgus_ratio 필드를 아예 안 보내도 에러 없이 동작해야 한다(하위 호환).
     angle_history = [
         {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
     ]
@@ -974,7 +933,7 @@ def test_coaching_frame_without_frontal_fields_still_works():
     print("coaching_frame(no frontal fields):", res.status_code, res.json())
     assert res.status_code == 200
     data = res.json()
-    assert not any(issue["part"] in ("knee_valgus", "asymmetry") for issue in data["issues"]), data
+    assert not any(issue["part"] == "knee_valgus" for issue in data["issues"]), data
 
 
 # (2026-08-24) 무릎-발끝 규칙기반 검사의 단위 테스트(get_knee_over_toe_ratio 직접 호출),
@@ -1218,10 +1177,9 @@ def test_coaching_frame_dtw_ambiguous_above_old_threshold_no_llm_falls_back_and_
 
 
 # --- 아래는 hyperextension_llm_check.py 모듈 자체의 단위 테스트 — harness.py 테스트가
-# 쓰는 _FakeToolUseBlock/_FakeMessage/_FakeMessagesAPI/_FakeAnthropicClient(위 429번째 줄
-# 근처)와 generation.py 테스트가 쓰는 _FakeTextBlock(위 681번째 줄 근처)을 그대로 재사용한다
-# — AnthropicBedrock 클라이언트도 client.messages.create(...) -> response.content 구조가
-# 동일해(둘 다 anthropic SDK) 같은 가짜로 검증할 수 있다.
+# 쓰는 _FakeBedrockClient(위 429번째 줄 근처)와 generation.py 테스트가 쓰는 _text_block
+# 헬퍼(위 681번째 줄 근처)를 그대로 재사용한다 — 이 모듈도 같은 boto3 bedrock-runtime
+# Converse API를 쓰므로 같은 가짜로 검증할 수 있다.
 def test_hyperextension_check_no_client_when_unconfigured():
     def run():
         from app.coaching.hyperextension_llm_check import start_hyperextension_analysis
@@ -1236,11 +1194,11 @@ def test_hyperextension_check_no_client_when_unconfigured():
 def test_hyperextension_check_job_completes_and_is_consumed_once():
     from app.coaching.hyperextension_llm_check import get_job_result, start_hyperextension_analysis
 
-    block = _FakeToolUseBlock(
+    block = _tool_use_block(
         "report_hip_hyperextension_verdict",
         {"verdict": "과신전_의심", "confidence": "중", "reasoning": "테스트용 판정"},
     )
-    fake_client = _FakeAnthropicClient(block=block)
+    fake_client = _FakeBedrockClient(content_blocks=[block])
     # _call_llm 내부(_build_prompt)가 AngleFrame 속성 접근(f.timestamp 등)을 하므로 —
     # realtime.py가 실제로 넘기는 것과 같은 타입으로 맞춘다(원시 dict가 아님).
     angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
@@ -1258,7 +1216,7 @@ def test_hyperextension_check_job_completes_and_is_consumed_once():
 def test_hyperextension_check_job_error_returns_none():
     from app.coaching.hyperextension_llm_check import get_job_result, start_hyperextension_analysis
 
-    fake_client = _FakeAnthropicClient(exc=RuntimeError("network down"))
+    fake_client = _FakeBedrockClient(exc=RuntimeError("network down"))
     angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
     job_id = start_hyperextension_analysis(
         angle_history, client=fake_client, model="test-model", run_in_background=False
@@ -1270,7 +1228,7 @@ def test_hyperextension_check_job_error_returns_none():
 def test_hyperextension_check_missing_tool_use_block_treated_as_error():
     from app.coaching.hyperextension_llm_check import get_job_result, start_hyperextension_analysis
 
-    fake_client = _FakeAnthropicClient(block=_FakeTextBlock("tool_use 아닌 응답"))
+    fake_client = _FakeBedrockClient(content_blocks=[_text_block("tool_use 아닌 응답")])
     angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
     job_id = start_hyperextension_analysis(
         angle_history, client=fake_client, model="test-model", run_in_background=False
@@ -1291,11 +1249,11 @@ def test_hyperextension_check_job_expires_after_ttl():
 
     import app.coaching.hyperextension_llm_check as hll
 
-    block = _FakeToolUseBlock(
+    block = _tool_use_block(
         "report_hip_hyperextension_verdict",
         {"verdict": "정상", "confidence": "상", "reasoning": "테스트용"},
     )
-    fake_client = _FakeAnthropicClient(block=block)
+    fake_client = _FakeBedrockClient(content_blocks=[block])
     angle_history = [AngleFrame(**f) for f in _real_dtw_rep_angle_history()]
     job_id = hll.start_hyperextension_analysis(
         angle_history, client=fake_client, model="test-model", run_in_background=False
@@ -1520,6 +1478,7 @@ if __name__ == "__main__":
     test_rag_guide_endpoint_returns_valid_response()
     test_rag_qna_endpoint_returns_valid_response()
     test_aggregate_session_stats_basic()
+    test_aggregate_session_stats_issue_counts_by_part_multiple_parts()
     test_aggregate_session_stats_improvement_vs_previous()
     test_generate_session_report_fallback()
     test_generate_session_report_llm_path()
@@ -1531,7 +1490,6 @@ if __name__ == "__main__":
     test_coaching_frame_heel_lift_dynamic_baseline_still_flags_real_lift()
     test_coaching_frame_heel_lift_falls_back_to_absolute_without_standing_prefix()
     test_coaching_frame_knee_valgus_flagged_when_deep_hold()
-    test_coaching_frame_knee_asymmetry_flagged_when_deep_hold()
     test_coaching_frame_without_frontal_fields_still_works()
     test_coaching_frame_knee_over_toe_flagged_when_deep_hold()
     test_coaching_frame_without_knee_over_toe_field_still_works()

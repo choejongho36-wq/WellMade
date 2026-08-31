@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth.js'
+import Modal from './Modal.jsx'
 import './NutrientDetailModal.css'
 
 const HERO_GAUGE_SEGMENTS = 14
 const MACRO_GAUGE_SEGMENTS = 7
 
 const ROWS = [
-  { key: 'totalCalories', targetKey: 'kcal', label: '총 섭취 칼로리', unit: 'kcal' },
+  { key: 'totalCalories', targetKey: 'kcal', label: '총 섭취 칼로리', short: '칼로리', unit: 'kcal' },
   { key: 'totalProteinG', targetKey: 'proteinG', label: '단백질', unit: 'g' },
   { key: 'totalCarbsG', targetKey: 'carbsG', label: '탄수화물', unit: 'g' },
   { key: 'totalFatG', targetKey: 'fatG', label: '지방', unit: 'g' },
@@ -21,6 +22,16 @@ function gaugeFilledCount(value, targetValue, segments) {
   if (targetValue == null || targetValue <= 0) return 0
   const percent = Math.min(100, (value / targetValue) * 100)
   return Math.round((percent / 100) * segments)
+}
+
+/** 목표를 넘겼는지 - 목표가 없거나 0이면 판정하지 않음 */
+function isOver(value, targetValue) {
+  return targetValue != null && targetValue > 0 && value > targetValue
+}
+
+/** 초과 섭취 표시용 화살표 (위로 통통 튀는 애니메이션은 CSS에서) */
+function OverArrow() {
+  return <span className="nutrient-over-arrow" aria-hidden="true">▲</span>
 }
 
 function Gauge({ filled, total, tone }) {
@@ -49,10 +60,13 @@ function Gauge({ filled, total, tone }) {
 function MacroColumn({ label, unit, value, targetValue }) {
   const displayValue = formatValue(value, unit)
   const filled = gaugeFilledCount(value, targetValue, MACRO_GAUGE_SEGMENTS)
+  const over = isOver(value, targetValue)
 
   return (
     <div className="nutrient-macro-col">
-      <div className="nutrient-macro-label">{label}</div>
+      <div className={`nutrient-macro-label${over ? ' over' : ''}`}>
+        {label}{over && <OverArrow />}
+      </div>
       <div className="nutrient-macro-values">
         <span className="nutrient-macro-value">{displayValue}{unit}</span>
         {targetValue != null && (
@@ -151,12 +165,12 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
   const calories = summary.totalCalories ?? 0
   const targetKcal = target ? target.kcal : null
   const heroFilled = gaugeFilledCount(calories, targetKcal, HERO_GAUGE_SEGMENTS)
+  const overLabels = target
+    ? ROWS.filter((r) => isOver(summary[r.key] ?? 0, target[r.targetKey])).map((r) => r.short ?? r.label)
+    : []
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal nutrient-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
-
+    <Modal className="nutrient-modal" onClose={onClose}>
         <div className="nutrient-modal-head">
           <div className="modal-title">{title}</div>
           {target && !editing && (
@@ -171,7 +185,9 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
         ) : (
           <>
             <div className="nutrient-hero">
-              <div className="nutrient-hero-label">총 섭취 칼로리</div>
+              <div className="nutrient-hero-label">
+                총 섭취 칼로리{isOver(calories, targetKcal) && <OverArrow />}
+              </div>
               <div className="nutrient-hero-values">
                 <div className="nutrient-hero-value">
                   <span className="nutrient-hero-num">{Math.round(calories)}</span>
@@ -199,6 +215,13 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
               ))}
             </div>
 
+            {overLabels.length > 0 && (
+              <p className="nutrient-over-warning">
+                <OverArrow />
+                초과 섭취 주의 · {overLabels.join(', ')} — 목표치를 넘었어요
+              </p>
+            )}
+
             {!target && (
               <p className="nutrient-no-target">
                 목표와 인바디를 등록하면 목표 대비 섭취량을 함께 볼 수 있어요.
@@ -206,8 +229,7 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
             )}
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }
 

@@ -15,15 +15,21 @@ import java.util.regex.Pattern;
  * 이 코드를 쓰는 다른 클래스(MealParsingTestController 등)는 수정할 필요 없음.
  *
  * 매칭 전략 (위에서부터 순서대로 시도, 먼저 맞는 게 있으면 그걸 채택):
- *   1. food_name(구체적 제품명, 예: "포카칩 오리지널")이 정확히 일치 + 분석값 우선  -> EXACT_PRODUCT
- *      -> "포카칩"처럼 특정 브랜드/제품명을 검색할 때 대표식품명(카테고리)보다 먼저 확인해야
- *         엉뚱한 카테고리의 다른 제품으로 잘못 매칭되는 걸 막을 수 있음
- *   2. food_name 정확히 일치, 분석값 없으면 아무거나                              -> EXACT_PRODUCT
- *   3. representative_food_name(카테고리 통칭, 예: "김치찌개")이 정확히 일치 + 분석값 우선 -> EXACT_CATEGORY
- *   4. representative_food_name 정확히 일치, 분석값 없으면 아무거나                -> EXACT_CATEGORY
- *   5. 그래도 없으면 food_name에 LIKE 검색으로 폴백 - 분석값 우선, 이름 길이가 짧아
- *      검색어에 더 가까운(덜 구체적인 다른 옵션이 섞여 들어갈 여지가 적은) 항목 우선   -> FUZZY
+ *   1. 요리(data_type='음식')에서 food_name 정확일치                          -> EXACT_PRODUCT
+ *   2. 요리에서 representative_food_name(카테고리 통칭) 정확일치              -> EXACT_CATEGORY
+ *   3. 가공식품/원재료까지 포함해서 food_name 정확일치                        -> EXACT_PRODUCT
+ *   4. 가공식품/원재료까지 포함해서 representative_food_name 정확일치         -> EXACT_CATEGORY
+ *   5. 그래도 없으면 food_name에 LIKE 검색으로 폴백                          -> FUZZY
  *   6. nutrition_basis_unit이 "100ml"인 경우 국물류로 보고 100g과 동일하게 근사 처리
+ *
+ * 요리를 가공식품보다 먼저 보는 이유: 식약처 가공식품 데이터에는 일상 단어와 겹치는 상품명이 있어서
+ * (예: "토스트"라는 이름의 탄산음료 750ml) 이름만 보고 고르면 엉뚱한 제품이 확정 매칭돼버림.
+ * 같은 이름이 여러 개면 분석값을, 그 다음으로는 이름이 짧아 대표성이 높은 행을 고른다.
+ *
+ * 인분수로 조회할 때(lookupByServings)는 위 단계로 음식을 먼저 고른 뒤, 그 행에 식품중량이 없으면
+ * 같은 음식의 다른 행에서 식품중량이 적힌 걸 찾아 씀. 그것마저 없으면(원재료성 데이터는 식품중량이
+ * 아예 없음) 영양성분 기준량 100g으로 넣고 weightEstimated=true로 표시함 - 기록은 되게 하되
+ * 프론트가 "추정값이니 그램 수를 고쳐달라"고 안내함.
  *
  * 1~4단계는 신뢰도 높음(자동 확정), 5단계(FUZZY)는 엉뚱한 음식일 수 있어서 호출부가
  * suggestCandidates()로 후보를 뽑아 사용자에게 확인받는 흐름으로 이어짐.
@@ -54,10 +60,22 @@ public class FoodNutritionDbLookupService implements FoodNutritionLookupService 
         }
 
         Double referenceWeight = parseWeightReference((String) match.row().get("food_weight_reference"));
+        if (referenceWeight == null) {
+            // 매칭된 행에 식품중량이 없으면 "같은 음식"의 다른 행 중 중량이 적힌 걸 찾아 그 행으로 계산.
+            // 음식 자체를 바꾸지는 않는다 - 중량 조건을 매칭 단계에 섞으면 엉뚱한 음식이 뽑힐 수 있어서
+            // (예: 사과 -> 사과파이) 매칭 규칙은 그대로 두고 행만 바꿔 끼운다
+            Map<String, Object> weighted = findWeightedRowForSameFood(match.row());
+            if (weighted != null) {
+                match = new MatchResult(weighted, match.tier());
+                referenceWeight = parseWeightReference((String) weighted.get("food_weight_reference"));
+            }
+        }
+
+        // 원재료성 데이터(농촌진흥청/수산과학원 성분표)는 식품중량이 아예 없음 - 여기서 기록을 실패시키면
+        // "사과 1개" 같은 흔한 입력이 막히므로, 영양성분 기준량(전 행 100g/100ml)으로 일단 넣고
+        // weightEstimated로 표시해서 사용자가 항목별 그램 수를 고치게 한다
         boolean weightEstimated = referenceWeight == null;
-        // 기준중량이 없으면 영양성분 기준량(보통 100g/100ml)을 1인분으로 간주 - 완전히 틀린 값보다는
-        // "DB에 있는 값 기준"이 낫고, weightEstimated=true로 표시해서 프론트가 추정임을 알려줌
-        double baseWeight = referenceWeight != null ? referenceWeight : 100.0;
+        double baseWeight = weightEstimated ? 100.0 : referenceWeight;
         double amountG = baseWeight * Math.max(servings, 0.1);
 
         return buildResult(foodName, match, amountG, weightEstimated);
@@ -95,53 +113,21 @@ public class FoodNutritionDbLookupService implements FoodNutritionLookupService 
     }
 
     private MatchResult findBestMatch(String foodName) {
-        // 1) 식품명(구체적 제품명) 정확 일치 + 분석값 우선
-        List<Map<String, Object>> exactFoodNameAnalyzed = jdbcTemplate.queryForList("""
-                SELECT * FROM food_nutrition_reference
-                WHERE food_name = ?
-                  AND data_generation_method = '분석'
-                  AND calories IS NOT NULL
-                LIMIT 1
-                """, foodName);
-        if (!exactFoodNameAnalyzed.isEmpty()) {
-            return new MatchResult(exactFoodNameAnalyzed.get(0), MatchTier.EXACT_PRODUCT);
+        // 1) 요리(data_type='음식')에서 먼저 찾는다 - "토스트"처럼 흔한 음식 이름이 같은 이름의
+        //    가공식품(음료 "토스트" 750ml)에 걸리는 걸 막기 위함. 제품명을 정확히 말한 경우는
+        //    아래 가공식품 단계나 LIKE 폴백에서 잡힌다
+        MatchResult dish = findExactMatch(foodName, true);
+        if (dish != null) {
+            return dish;
         }
 
-        // 2) 식품명 정확 일치, 분석값 없으면 아무거나
-        List<Map<String, Object>> exactFoodNameAny = jdbcTemplate.queryForList("""
-                SELECT * FROM food_nutrition_reference
-                WHERE food_name = ?
-                  AND calories IS NOT NULL
-                LIMIT 1
-                """, foodName);
-        if (!exactFoodNameAny.isEmpty()) {
-            return new MatchResult(exactFoodNameAny.get(0), MatchTier.EXACT_PRODUCT);
+        // 2) 요리에 없으면 가공식품/원재료까지 포함해서 정확일치 검색
+        MatchResult product = findExactMatch(foodName, false);
+        if (product != null) {
+            return product;
         }
 
-        // 3) 대표식품명(카테고리) 정확 일치 + 분석값 우선
-        List<Map<String, Object>> exactRepAnalyzed = jdbcTemplate.queryForList("""
-                SELECT * FROM food_nutrition_reference
-                WHERE representative_food_name = ?
-                  AND data_generation_method = '분석'
-                  AND calories IS NOT NULL
-                LIMIT 1
-                """, foodName);
-        if (!exactRepAnalyzed.isEmpty()) {
-            return new MatchResult(exactRepAnalyzed.get(0), MatchTier.EXACT_CATEGORY);
-        }
-
-        // 4) 대표식품명 정확 일치, 분석값 없으면 아무거나
-        List<Map<String, Object>> exactRepAny = jdbcTemplate.queryForList("""
-                SELECT * FROM food_nutrition_reference
-                WHERE representative_food_name = ?
-                  AND calories IS NOT NULL
-                LIMIT 1
-                """, foodName);
-        if (!exactRepAny.isEmpty()) {
-            return new MatchResult(exactRepAny.get(0), MatchTier.EXACT_CATEGORY);
-        }
-
-        // 5) 폴백: food_name에 LIKE 검색 - 분석값 우선, 그다음 이름이 짧아 검색어에 더 가까운 것 우선
+        // 3) 폴백: food_name에 LIKE 검색 - 분석값 우선, 그다음 이름이 짧아 검색어에 더 가까운 것 우선
         String escapedFoodName = escapeLike(foodName);
         List<Map<String, Object>> likeMatch = jdbcTemplate.queryForList("""
                 SELECT * FROM food_nutrition_reference
@@ -157,6 +143,70 @@ public class FoodNutritionDbLookupService implements FoodNutritionLookupService 
 
         return null; // 못 찾음 - 호출부에서 "이 음식은 DB에 없어요" 처리 필요
     }
+
+    /**
+     * 식품명 -> 대표식품명 순으로 정확일치를 찾음. 같은 이름이 여럿이면 분석값을, 그 다음으로는
+     * 이름이 짧은(덜 구체적이라 대표성이 높은) 행을 고른다.
+     *
+     * @param dishOnly true면 요리 데이터(data_type='음식')만 대상으로 함
+     */
+    private MatchResult findExactMatch(String foodName, boolean dishOnly) {
+        // 고정 문자열이라 인젝션 여지 없음 (검색어는 바인딩 파라미터로만 들어감)
+        String dishFilter = dishOnly ? "AND data_type = '음식'" : "";
+
+        List<Map<String, Object>> byFoodName =
+                jdbcTemplate.queryForList(EXACT_MATCH_SQL.formatted("food_name", dishFilter), foodName);
+        if (!byFoodName.isEmpty()) {
+            return new MatchResult(byFoodName.get(0), MatchTier.EXACT_PRODUCT);
+        }
+
+        List<Map<String, Object>> byRepName =
+                jdbcTemplate.queryForList(EXACT_MATCH_SQL.formatted("representative_food_name", dishFilter), foodName);
+        if (!byRepName.isEmpty()) {
+            return new MatchResult(byRepName.get(0), MatchTier.EXACT_CATEGORY);
+        }
+        return null;
+    }
+
+    /** %s 자리에는 코드에 고정된 컬럼명/필터만 들어감 (검색어는 바인딩 파라미터) */
+    private static final String EXACT_MATCH_SQL = """
+            SELECT * FROM food_nutrition_reference
+            WHERE %s = ?
+              AND calories IS NOT NULL
+              %s
+            ORDER BY CASE WHEN data_generation_method = '분석' THEN 0 ELSE 1 END,
+                     LENGTH(food_name) ASC
+            LIMIT 1
+            """;
+
+    /**
+     * 매칭된 행에 식품중량이 없을 때, 같은 음식(같은 식품명 -> 없으면 같은 대표식품명)의 행 중에서
+     * 식품중량이 적힌 행을 찾아옴. 영양성분도 그 행 값을 쓰므로 중량과 성분이 같은 레코드에서 나온다.
+     */
+    private Map<String, Object> findWeightedRowForSameFood(Map<String, Object> row) {
+        List<Map<String, Object>> byFoodName =
+                jdbcTemplate.queryForList(WEIGHTED_ROW_SQL.formatted("food_name"), row.get("food_name"));
+        if (!byFoodName.isEmpty()) {
+            return byFoodName.get(0);
+        }
+        String repName = (String) row.get("representative_food_name");
+        if (repName == null || repName.isBlank()) {
+            return null;
+        }
+        List<Map<String, Object>> byRepName =
+                jdbcTemplate.queryForList(WEIGHTED_ROW_SQL.formatted("representative_food_name"), repName);
+        return byRepName.isEmpty() ? null : byRepName.get(0);
+    }
+
+    /** %s 자리에는 코드에 고정된 컬럼명만 들어감 (검색어는 바인딩 파라미터) */
+    private static final String WEIGHTED_ROW_SQL = """
+            SELECT * FROM food_nutrition_reference
+            WHERE %s = ?
+              AND calories IS NOT NULL
+              AND food_weight_reference REGEXP '[0-9]'
+            ORDER BY CASE WHEN data_generation_method = '분석' THEN 0 ELSE 1 END
+            LIMIT 1
+            """;
 
     private String escapeLike(String raw) {
         return raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");

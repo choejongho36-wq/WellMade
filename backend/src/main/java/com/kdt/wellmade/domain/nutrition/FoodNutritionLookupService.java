@@ -13,14 +13,14 @@ public interface FoodNutritionLookupService {
     NutritionInfo lookup(String foodName, double amountG);
 
     /**
-     * 사용자가 인분수/개수만 말한 경우(예: "김치찌개 1인분", "엽기떡볶이 2인분") - DB의 1인분 기준중량
-     * (food_weight_reference)에 인분수를 곱해서 그램으로 환산. 기준중량이 없는 음식이면 영양성분
-     * 기준량(보통 100g/100ml)을 1인분으로 간주해서 계산하고, 이 경우 weightEstimated=true로 표시함
-     * - 이걸 프론트에서 "표준 중량 정보 없어서 대략 추정" 배지로 보여줌.
+     * 사용자가 인분수/개수만 말한 경우(예: "김치찌개 1인분", "사과 1개") - DB의 1인분 기준중량
+     * (food_weight_reference)에 인분수를 곱해서 그램으로 환산. 매칭된 행에 중량이 없으면 같은 음식의
+     * 다른 행에서 중량이 적힌 걸 찾아 쓰고, 그것도 없으면 영양성분 기준량(100g/100ml)으로 일단 기록한
+     * 뒤 weightEstimated=true로 표시함 - 기록 자체를 실패시키지 않고, 사용자가 그램 수를 고칠 수 있게.
      *
      * @param foodName 조회할 음식명 (검색용으로 정규화된 이름)
      * @param servings 인분수/개수 (기본 1)
-     * @return 계산된 영양정보, 못 찾으면 null
+     * @return 계산된 영양정보, 음식 자체를 못 찾으면 null
      */
     NutritionInfo lookupByServings(String foodName, double servings);
 
@@ -39,7 +39,7 @@ public interface FoodNutritionLookupService {
             double fatG,
             double amountG,          // 실제 계산에 쓰인 최종 그램수 (인분수 기반이면 환산된 값)
             MatchTier matchTier,     // 몇 단계에서 매칭됐는지 - 프론트 신뢰도 배지용
-            boolean weightEstimated  // food_weight_reference가 없어서 100g/ml을 1인분으로 가정했는지
+            boolean weightEstimated  // DB에 1인분 중량이 없어 100g 기준으로 넣은 값인지 (수정 유도용)
     ) {}
 
     /** DB 매칭 신뢰도 단계. 프론트가 이 값에 따라 배지/후보 UI를 다르게 보여줌 */

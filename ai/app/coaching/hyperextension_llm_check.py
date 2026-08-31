@@ -50,20 +50,22 @@ import uuid
 from typing import Any, Optional
 
 try:
-    import anthropic
+    import boto3
 
-    _ANTHROPIC_AVAILABLE = True
+    _BOTO3_AVAILABLE = True
 except ImportError:
-    _ANTHROPIC_AVAILABLE = False
+    _BOTO3_AVAILABLE = False
 
 from app.pose.rules import LLM_HYPEREXTENSION_JOB_TTL_SECONDS
 from app.schemas import AngleFrame
 
-# AWS Bedrock 인증 — harness.py/rag/generation.py(직접 Anthropic API, ANTHROPIC_API_KEY)와
-# 의도적으로 분리된 별도 환경변수다. 사용자가 "LLM API는 AWS에서 모델을 골라서 할 것"이라고
-# 확정해, 이 모듈만 AnthropicBedrock(AWS SigV4 인증, boto3 필요 — requirements.txt 참고)을
-# 쓴다 — 나머지 하네스/RAG 생성은 여전히 직접 API 키 방식을 쓰므로 같은 환경변수 이름을
-# 재사용하면 안 된다(서로 다른 인증 체계).
+# AWS Bedrock 인증(boto3 bedrock-runtime, AWS SigV4 — requirements.txt 참고).
+# rag/generation.py/session/report.py도 같은 AWS_REGION_ENV_VAR을 공유한다 — 리전은 서버
+# 전체에서 하나면 되므로 모듈마다 따로 안 둔다. 모델 ID는 모듈별로 분리했다(이 모듈은
+# HYPEREXTENSION_BEDROCK_MODEL_ID, RAG 생성은 RAG_GENERATION_BEDROCK_MODEL_ID, 세션
+# 리포트는 SESSION_REPORT_BEDROCK_MODEL_ID — 2026-08-31, harness.py는 완전히 규칙기반으로
+# 바뀌어 이제 이 목록에서 빠졌다). 과신전 2차 확인은 다른 기능들과 별도로 모델을 바꿔
+# 실험할 여지를 남겨둔다.
 AWS_REGION_ENV_VAR = "AWS_BEDROCK_REGION"
 BEDROCK_MODEL_ID_ENV_VAR = "HYPEREXTENSION_BEDROCK_MODEL_ID"
 
@@ -88,28 +90,37 @@ _SIDE_FIELDS: tuple[str, ...] = (
 
 _VERDICT_TOOL_NAME = "report_hip_hyperextension_verdict"
 _VERDICT_TOOL = {
-    "name": _VERDICT_TOOL_NAME,
-    "description": "스쿼트 렙 1개의 측면 관절각도 시계열을 보고 고관절 과신전 여부를 판정해 보고한다.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "verdict": {
-                "type": "string",
-                "enum": ["과신전_의심", "정상"],
-                "description": "이 렙에 고관절 과신전(허리를 과도하게 젖히는 보상동작)이 있었는지.",
-            },
-            "confidence": {
-                "type": "string",
-                "enum": ["상", "중", "하"],
-                "description": "판정 확신도.",
-            },
-            "reasoning": {
-                "type": "string",
-                "description": "판정 근거를 한두 문장으로 설명.",
-            },
+    "toolSpec": {
+        "name": _VERDICT_TOOL_NAME,
+        "description": "스쿼트 렙 1개의 측면 관절각도 시계열을 보고 고관절 과신전 여부를 판정해 보고한다.",
+        "inputSchema": {
+            "json": {
+                "type": "object",
+                "properties": {
+                    # 필드 순서 = 모델이 강제 tool call로 값을 채우는 순서(Converse API의
+                    # toolChoice가 이 도구를 강제하므로). verdict를 맨 앞에 두면 근거(reasoning)를
+                    # 쓰기도 전에 결론부터 확정해야 해서 CoT(생각 먼저, 결론 나중)의 이점을 못
+                    # 살린다 — reasoning을 먼저 채우게 해서 판정 전에 근거를 먼저 풀어놓도록
+                    # 순서를 바꿨다(2026-08-31, 프롬프트 문구는 변경하지 않음).
+                    "reasoning": {
+                        "type": "string",
+                        "description": "판정 근거를 한두 문장으로 설명.",
+                    },
+                    "confidence": {
+                        "type": "string",
+                        "enum": ["상", "중", "하"],
+                        "description": "판정 확신도.",
+                    },
+                    "verdict": {
+                        "type": "string",
+                        "enum": ["과신전_의심", "정상"],
+                        "description": "이 렙에 고관절 과신전(허리를 과도하게 젖히는 보상동작)이 있었는지.",
+                    },
+                },
+                "required": ["reasoning", "confidence", "verdict"],
+            }
         },
-        "required": ["verdict", "confidence", "reasoning"],
-    },
+    }
 }
 
 _SYSTEM_PROMPT = (
@@ -117,27 +128,29 @@ _SYSTEM_PROMPT = (
     "시계열만 보고, 고관절 과신전(허리를 과도하게 젖히는 보상동작) 여부를 판정해야 "
     "합니다. 단일 프레임의 절대 수치보다, 렙 전체에 걸친 패턴의 형태(예: 저점 이후 "
     "고관절/상체가 완전히 편 상태로 복귀하는지, 상체 기울기가 깊이에 비례해 점진적으로 "
-    "느는지 급격히 튀는지)로 판단하세요. report_hip_hyperextension_verdict 도구를 "
-    "반드시 한 번 호출해 결과를 보고하세요."
+    "느는지 급격히 튀는지)로 판단하세요. 판정을 정하기 전에 reasoning 필드에 관찰한 "
+    "패턴과 근거를 먼저 충분히 정리하고, 그 근거를 바탕으로 confidence와 verdict를 "
+    "결정하세요 — 결론부터 정한 뒤 근거를 나중에 붙이지 마세요. "
+    "report_hip_hyperextension_verdict 도구를 반드시 한 번 호출해 결과를 보고하세요."
 )
 
 
 def _get_client():
-    """AnthropicBedrock 클라이언트를 지연 생성한다. 패키지 미설치·리전 미설정이면
+    """boto3 bedrock-runtime 클라이언트를 지연 생성한다. 패키지 미설치·리전 미설정이면
     None을 반환해 호출부가 폴백 경로를 타게 한다 — harness.py의 _get_client()와
     동일한 원칙.
 
-    AnthropicBedrock은 생성 시점엔 자격증명을 검증하지 않고(내부적으로 boto3 체인에
+    boto3 클라이언트는 생성 시점엔 자격증명을 검증하지 않고(내부적으로 기본 체인에
     위임) 실제 요청 시점에야 실패하는데, 여기서는 "리전 환경변수가 있을 때만
     활성화"로 단순하게 판단해 설정 안 된 환경(로컬 개발 등)에서 매번 느린 실패를
     겪지 않고 바로 폴백하게 한다.
     """
-    if not _ANTHROPIC_AVAILABLE:
+    if not _BOTO3_AVAILABLE:
         return None
     region = os.environ.get(AWS_REGION_ENV_VAR)
     if not region:
         return None
-    return anthropic.AnthropicBedrock(aws_region=region)
+    return boto3.client("bedrock-runtime", region_name=region)
 
 
 def _downsample(rep_frames: list[AngleFrame], max_frames: int = MAX_PROMPT_FRAMES) -> list[AngleFrame]:
@@ -168,17 +181,18 @@ def _build_prompt(rep_frames: list[AngleFrame]) -> str:
 
 def _call_llm(rep_frames: list[AngleFrame], client, model: str) -> dict[str, Any]:
     prompt = _build_prompt(rep_frames)
-    response = client.messages.create(
-        model=model,
-        max_tokens=MAX_TOKENS,
-        system=_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
-        tools=[_VERDICT_TOOL],
-        tool_choice={"type": "tool", "name": _VERDICT_TOOL_NAME},
+    response = client.converse(
+        modelId=model,
+        system=[{"text": _SYSTEM_PROMPT}],
+        messages=[{"role": "user", "content": [{"text": prompt}]}],
+        toolConfig={"tools": [_VERDICT_TOOL], "toolChoice": {"tool": {"name": _VERDICT_TOOL_NAME}}},
+        inferenceConfig={"maxTokens": MAX_TOKENS, "temperature": 0},
     )
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == _VERDICT_TOOL_NAME:
-            data = block.input
+    content = response["output"]["message"]["content"]
+    for block in content:
+        tool_use = block.get("toolUse")
+        if tool_use and tool_use.get("name") == _VERDICT_TOOL_NAME:
+            data = tool_use.get("input", {})
             return {
                 "verdict": data.get("verdict"),
                 "confidence": data.get("confidence"),
