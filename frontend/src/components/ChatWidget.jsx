@@ -3,7 +3,7 @@ import ChatDrawer from './ChatDrawer.jsx'
 import RobotIcon from './RobotIcon.jsx'
 import './ChatWidget.css'
 
-function ChatWidget({ loggedIn, sendChat, getChatHistory, getNutrientAdvice, userName }) {
+function ChatWidget({ loggedIn, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, userName }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -18,6 +18,7 @@ function ChatWidget({ loggedIn, sendChat, getChatHistory, getNutrientAdvice, use
         onClose={() => setOpen(false)}
         sendChat={sendChat}
         getChatHistory={getChatHistory}
+        clearChatHistory={clearChatHistory}
         getNutrientAdvice={getNutrientAdvice}
         userName={userName}
       />

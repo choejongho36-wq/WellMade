@@ -18,10 +18,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
@@ -56,17 +58,38 @@ public class ChatService {
 
     // Ollama에 보낼 컨텍스트로 불러올 최근 이력 개수. 매 턴 이만큼을 프리필하므로 응답 속도에 직결됨
     // (T4 기준 30개는 프리필만 10초 넘게 걸림). 6번 주고받은 맥락이면 대부분의 상담엔 충분함.
-    private static final int CONTEXT_HISTORY_LIMIT = 12;
+    private static final int CONTEXT_HISTORY_LIMIT = 8;
+    // 이력 1건이 그대로 들어가면 컨텍스트를 다 잡아먹는다(사용자 메시지는 최대 2000자).
+    // 맥락 유지에는 앞부분이면 충분하므로 잘라서 넣는다 - 화면에 보여주는 이력은 자르지 않음
+    private static final int CONTEXT_MESSAGE_MAX_CHARS = 800;
     // 프론트에 "이전 대화 이어서 보기"용으로 내려줄 이력 개수
     private static final int DISPLAY_HISTORY_LIMIT = 100;
     private static final int MAX_CONTENT_LENGTH = 2000;
 
-    private static final String SYSTEM_PROMPT =
-            "당신은 인바디 측정 수치와 사용자 목표를 바탕으로 식단과 운동을 추천하는 헬스케어 AI 어시스턴트입니다. "
-          + "의학적 진단이 아닌 생활습관 조언을 제공하며, 친근하고 구체적인 톤으로 답변합니다. "
-          + "마크다운 헤더나 표, 이모지 없이 대화체 문장으로 간결하게 답변합니다. "
-          + "식사 기록, 섭취량, 목표 섭취량처럼 실제 데이터가 필요한 질문에는 절대 추측하거나 암산하지 말고, "
-          + "제공된 도구를 호출해서 실제 값을 확인한 뒤에 그 값을 인용해서 답변하세요.";
+    // 예전 프롬프트는 역할을 "식단과 운동을 추천하는 어시스턴트"로 정의해서, 모델이 묻지도 않은
+    // 추천을 매번 덧붙였다("안녕" -> 하루 식단표). 또 기록이 없을 때 어떻게 답할지 정해두지 않아
+    // 없는 식단을 지어내기도 했다. 그래서 역할을 "물어본 것에 답하는" 쪽으로 좁히고, 하지 말아야
+    // 할 행동을 명시적으로 금지한다.
+    private static final String SYSTEM_PROMPT = """
+            당신은 사용자의 식단 기록과 인바디 수치를 확인해주는 헬스케어 어시스턴트입니다.
+            의학적 진단은 하지 않고 생활습관 수준의 정보만 다룹니다.
+
+            답변 규칙:
+            1. 사용자가 물어본 것에만 답하세요. 묻지 않은 추천, 제안, 계획, 후속 질문을 덧붙이지 마세요.
+            2. 식단이나 운동 추천은 사용자가 명시적으로 요청했을 때만 하세요.
+            3. 답변은 2~4문장으로 짧게. 마크다운 헤더/표/목록/이모지 없이 대화체로 쓰세요.
+            4. 반드시 한국어로만 답하세요. 다른 언어를 섞지 마세요.
+            5. 직전에 한 답변을 다시 반복하지 마세요.
+            6. 인사에는 한 문장으로 인사만 하세요. 무엇을 확인할지 되묻거나 제안하지 마세요.
+
+            데이터 규칙:
+            7. 식사 기록, 섭취량, 목표 섭취량, 인바디 수치는 절대 추측하거나 암산하지 말고,
+               제공된 도구를 호출해 실제 값을 확인한 뒤 그 값을 인용해서 답하세요.
+            8. 도구 결과가 비어 있으면 "기록이 없다"고만 답하세요. 없는 기록을 지어내거나,
+               대신 식단을 만들어 제안하지 마세요.
+            9. 숫자를 직접 더하지 마세요. 합계는 도구가 돌려준 값(totalKcal, totalCalories 등)을
+               그대로 인용하세요.
+            """;
 
     private static final Map<Goal, String> GOAL_LABEL = Map.of(
             Goal.LOSE, "체중감량",
@@ -157,7 +180,7 @@ public class ChatService {
         List<OllamaMessage> messages = new ArrayList<>();
         messages.add(OllamaMessage.system(buildSystemPrompt(user)));
         for (ChatMessageEntity h : loadRecentHistory(user, CONTEXT_HISTORY_LIMIT)) {
-            messages.add(new OllamaMessage(h.getRole(), h.getContent(), null, null));
+            messages.add(new OllamaMessage(h.getRole(), truncateForContext(h.getContent()), null, null));
         }
         messages.add(OllamaMessage.user(userMessage));
 
@@ -167,10 +190,27 @@ public class ChatService {
             onDelta.accept(delta);
         });
 
+        // 모델이 아무것도 내놓지 않는 경우가 드물게 있다(도구도 안 부르고 content도 비어서 옴).
+        // 그대로 두면 화면에 빈 말풍선만 남고 이력에도 빈 답변이 저장되므로 안내 문구로 대체한다.
+        if (full.isEmpty()) {
+            String fallback = "답변을 만들지 못했어요. 조금 더 구체적으로 다시 물어봐 주세요.";
+            full.append(fallback);
+            onDelta.accept(fallback);
+        }
+
         // Ollama 호출(느릴 수 있음)이 끝난 뒤에 저장함 - 트랜잭션을 외부 HTTP 호출 동안 붙잡고
         // 있지 않으려는 의도. 두 저장 사이에 실패가 나도 사용자 메시지 한 줄만 남는 정도라 치명적이지 않음.
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(userMessage).build());
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(full.toString()).build());
+    }
+
+    /**
+     * 이 사용자의 대화 이력을 전부 지운다. 이력은 다음 답변의 컨텍스트로도 쓰이므로
+     * (loadRecentHistory) 지우고 나면 말투/맥락까지 새 대화처럼 초기화된다.
+     */
+    @Transactional
+    public void clearHistory(User user) {
+        chatMessageRepository.deleteByUser(user);
     }
 
     /** 프론트에서 드로어를 열 때 "이전 대화 이어보기"용으로 내려줄 이력 (오래된 순) */
@@ -189,6 +229,19 @@ public class ChatService {
         return chronological;
     }
 
+    /**
+     * 컨텍스트에 넣을 이력 1건을 잘라낸다. num_ctx를 넘기면 Ollama가 앞쪽(=시스템 프롬프트)부터
+     * 버리기 때문에, 대화가 길어지면 답변 규칙이 통째로 사라진다. 그걸 막기 위한 상한.
+     */
+    private String truncateForContext(String content) {
+        if (content == null) {
+            return "";
+        }
+        return content.length() <= CONTEXT_MESSAGE_MAX_CHARS
+                ? content
+                : content.substring(0, CONTEXT_MESSAGE_MAX_CHARS) + "...";
+    }
+
     /** 빈 메시지 거부 + 길이 상한. 예전엔 클라이언트가 배열 통째로 보내서 role 위조가 가능했지만,
      *  이제 문자열 하나만 받으므로 검증할 것도 이 정도로 단순해짐. */
     private String validateAndTrim(String rawMessage) {
@@ -200,30 +253,31 @@ public class ChatService {
     }
 
     /**
-     * 1) tools를 포함해 한 번 (비스트리밍) 호출해서 모델이 도구를 부르는지 본다.
-     * 2) 도구를 안 불렀으면 그 응답이 최종 답변이므로 그대로 흘려보낸다.
-     * 3) 도구를 불렀으면 전부 실행해 결과를 이어붙이고, 이번엔 tools 없이 최종 답변만 스트리밍한다.
+     * 1) tools를 포함해 스트리밍으로 호출한다. 도구를 안 부르는 질문(인사·잡담)이 대부분인데,
+     *    예전엔 이 호출만 비스트리밍이라 그런 질문은 생성이 끝날 때까지 화면이 비어 있었다.
+     * 2) 도구를 불렀으면 전부 실행해 결과를 이어붙이고, tools 없이 한 번 더 스트리밍한다.
+     *
+     * 모델이 본문을 조금 흘린 뒤에 도구를 부르는 경우(드묾)에는 그 앞부분이 화면에 남은 채
+     * 최종 답변이 이어진다. 매 응답을 도구 호출 여부가 확정될 때까지 붙잡아두면 스트리밍을
+     * 하는 의미가 없어지므로, 흔한 경우(도구 호출은 본문 없이 옴)를 우선했다.
      *
      * 순차적으로 여러 번 도구를 불러야 하는 질문은 지원하지 않는다(이 앱의 도구는 한 라운드에서
      * 병렬 호출로 충분함). tools를 뺀 마지막 호출이라 모델은 반드시 텍스트로 답한다.
      */
     private void resolveToolsThenStream(User user, List<OllamaMessage> messages, Consumer<String> onDelta) {
-        OllamaMessage first = chatCompletion(messages, true);
+        StreamResult first = chatCompletionStream(messages, true, onDelta);
 
-        if (first.tool_calls() == null || first.tool_calls().isEmpty()) {
-            if (first.content() != null) {
-                onDelta.accept(first.content());
-            }
+        if (first.toolCalls().isEmpty()) {
             return;
         }
 
-        messages.add(first);
-        for (OllamaMessage.ToolCall call : first.tool_calls()) {
+        messages.add(new OllamaMessage("assistant", first.content(), first.toolCalls(), null));
+        for (OllamaMessage.ToolCall call : first.toolCalls()) {
             String result = executeTool(user, call.function().name(), call.function().arguments());
             messages.add(OllamaMessage.tool(result, call.id()));
         }
 
-        chatCompletionStream(messages, onDelta);
+        chatCompletionStream(messages, false, onDelta);
     }
 
     private String executeTool(User user, String name, Map<String, Object> arguments) {
@@ -253,7 +307,22 @@ public class ChatService {
                 ))
                 .toList();
 
-        return toJson(Map.of("date", date.toString(), "meals", simplified));
+        if (simplified.isEmpty()) {
+            // 빈 배열만 돌려주면 모델이 그걸 무시하고 식단을 지어낸다. 문장으로 못 박아준다
+            return toJson(Map.of("date", date.toString(), "meals", List.of(),
+                    "note", date + "에 기록된 식사가 없습니다. 없다고만 답하고 식단을 지어내지 마세요."));
+        }
+        // 합계를 같이 넘긴다 - 없으면 모델이 끼니별 칼로리를 직접 더하다 틀린다(실제로 재현됨).
+        // 더할 일 자체를 없애는 게 프롬프트로 금지하는 것보다 확실하다
+        long totalKcal = meals.stream()
+                .map(m -> m.get("kcal"))
+                .filter(Number.class::isInstance)
+                .mapToLong(k -> ((Number) k).longValue())
+                .sum();
+        // 숫자로 주면 모델이 한국어로 읽어내다 표기를 섞어버리는 경우가 있어(실제로 재현됨),
+        // 그대로 복사해 쓰면 되는 완성된 문자열로 넘긴다
+        return toJson(Map.of("date", date.toString(), "meals", simplified,
+                "totalKcal", String.format("%,dkcal", totalKcal)));
     }
 
     private String toolGetDailyTotal(Long userId, Map<String, Object> args) {
@@ -267,6 +336,9 @@ public class ChatService {
         result.put("totalCarbsG", total.totalCarbsG());
         result.put("totalFatG", total.totalFatG());
         result.put("mealCount", total.mealCount());
+        if (total.mealCount() == 0) {
+            result.put("note", date + "에 기록된 식사가 없습니다. 없다고만 답하고 수치를 지어내지 마세요.");
+        }
         return toJson(result);
     }
 
@@ -392,12 +464,18 @@ public class ChatService {
         requestBody.put("model", model);
         requestBody.put("stream", stream);
         requestBody.put("messages", messages);
+        // Ollama는 마지막 요청 후 5분이 지나면 모델(4.7GB)을 메모리에서 내린다. 챗봇은 띄엄띄엄
+        // 쓰이므로 그대로 두면 사용자가 거의 매번 재적재(20초 안팎)를 기다리게 된다.
+        // GPU 인스턴스 환경변수를 건드리지 않고 요청마다 상주 시간을 지정해 그 비용을 없앤다.
+        requestBody.put("keep_alive", "24h");
         // temperature 미지정 시 Ollama 기본값(0.8)이 적용되던 걸 명시적으로 낮춤.
-        // num_ctx는 시스템 프롬프트 + 최근 이력 12개 + 툴 스키마 + 답변이 들어갈 만큼만.
-        // 크게 잡을수록 KV 캐시가 커지고 프리필이 느려짐.
+        // num_ctx: 시스템 프롬프트(약 1000토큰) + 툴 스키마(약 800) + 이력 8건 + 답변 384가
+        // 4096을 넘길 수 있었다. 넘치면 Ollama가 앞쪽부터 버려서 시스템 프롬프트가 날아간다.
+        // *** FoodParsingService와 값이 반드시 같아야 함 *** - 같은 모델을 쓰는데 num_ctx가
+        // 다르면 Ollama가 요청마다 모델을 내렸다 다시 올린다(4.7GB 재적재 = 20초).
         requestBody.put("options", Map.of(
                 "temperature", 0.4,
-                "num_ctx", 4096,
+                "num_ctx", 8192,
                 "num_predict", 384
         ));
         if (includeTools) {
@@ -441,15 +519,23 @@ public class ChatService {
         return response.message();
     }
 
+    /** 스트리밍 한 번의 결과 - 흘려보낸 본문과, 모델이 요청한 도구 호출 목록 */
+    private record StreamResult(String content, List<OllamaMessage.ToolCall> toolCalls) {}
+
     /**
      * Ollama /api/chat 를 stream 모드로 호출해서, 응답으로 오는 NDJSON 각 줄의
-     * message.content 조각을 받는 대로 {@code onDelta}에 넘긴다. tools 없이만 호출한다.
+     * message.content 조각을 받는 대로 {@code onDelta}에 넘긴다.
+     * tools를 포함해 호출한 경우 도중에 오는 message.tool_calls를 모아서 돌려준다.
      */
-    private void chatCompletionStream(List<OllamaMessage> messages, Consumer<String> onDelta) {
+    private StreamResult chatCompletionStream(
+            List<OllamaMessage> messages, boolean includeTools, Consumer<String> onDelta
+    ) {
+        StringBuilder content = new StringBuilder();
+        List<OllamaMessage.ToolCall> toolCalls = new ArrayList<>();
         try {
             ollamaRestClient.post()
                     .uri("/api/chat")
-                    .body(buildRequestBody(messages, false, true))
+                    .body(buildRequestBody(messages, includeTools, true))
                     .exchange((request, response) -> {
                         try (BufferedReader reader = new BufferedReader(
                                 new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
@@ -459,10 +545,15 @@ public class ChatService {
                                     continue;
                                 }
                                 JsonNode node = objectMapper.readTree(line);
-                                String delta = node.path("message").path("content").asText("");
+                                JsonNode message = node.path("message");
+
+                                String delta = message.path("content").asText("");
                                 if (!delta.isEmpty()) {
+                                    content.append(delta);
                                     onDelta.accept(delta);
                                 }
+                                collectToolCalls(message, toolCalls);
+
                                 if (node.path("done").asBoolean(false)) {
                                     break;
                                 }
@@ -474,6 +565,24 @@ public class ChatService {
                     });
         } catch (RestClientException | UncheckedIOException e) {
             throw aiUnavailable(e);
+        }
+        return new StreamResult(content.toString(), toolCalls);
+    }
+
+    /** 스트림 조각에 들어있는 tool_calls를 자바 객체로 옮겨 담는다 (없으면 아무것도 안 함) */
+    private void collectToolCalls(JsonNode message, List<OllamaMessage.ToolCall> into) {
+        JsonNode calls = message.path("tool_calls");
+        if (!calls.isArray()) {
+            return;
+        }
+        for (JsonNode call : calls) {
+            JsonNode function = call.path("function");
+            Map<String, Object> arguments = objectMapper.convertValue(
+                    function.path("arguments"), new TypeReference<Map<String, Object>>() {});
+            into.add(new OllamaMessage.ToolCall(
+                    call.path("id").asText(null),
+                    new OllamaMessage.FunctionCall(function.path("name").asText(), arguments)
+            ));
         }
     }
 

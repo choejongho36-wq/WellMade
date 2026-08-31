@@ -242,6 +242,11 @@ function useAuthState() {
   const getChatHistory = () =>
     authJson('/api/users/me/chat/history', {}, '대화 이력을 불러오지 못했어요')
 
+  const clearChatHistory = () =>
+    authFetch('/api/users/me/chat/history', { method: 'DELETE' }).then((res) => {
+      if (!res.ok) throw new Error('대화 기록을 지우지 못했어요')
+    })
+
   const getNutrientAdvice = () =>
     authJson('/api/users/me/chat/nutrient-advice', { method: 'POST' }, '분석을 받지 못했어요')
       .then((data) => data.content)
@@ -327,6 +332,6 @@ function useAuthState() {
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
     logManualMeal,
     updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
-    sendChat, getChatHistory, getNutrientAdvice,
+    sendChat, getChatHistory, clearChatHistory, getNutrientAdvice,
   }
 }
