@@ -4,8 +4,12 @@
 
 ## 평소 배포
 
+서버 접속은 SSM Session Manager로 한다 (SSH 포트 안 씀).
+
 ```bash
-ssh <서버>
+aws ssm start-session --target i-033f1166c97c824aa --region ap-northeast-2
+# 콘솔로 붙어도 된다: EC2 -> 인스턴스 선택 -> 연결 -> Session Manager
+
 cd ~/WellMade
 ./deploy/deploy.sh
 ```
