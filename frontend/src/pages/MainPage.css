@@ -65,7 +65,7 @@
   top: 38%;
   transform: translateY(-50%);
   height: 34vh;
-  background: #da291c;
+  background: linear-gradient(90deg, #da291c 0%, #e2564a 55%, #ef8b81 100%);
   clip-path: polygon(0% 0%, 12% 0%, 40% 95%, 50% 0%, 100% 0%, 100% 100%, 0% 100%);
 }
 .hero-tagline-lines {
