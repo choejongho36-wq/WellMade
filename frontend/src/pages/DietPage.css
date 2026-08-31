@@ -21,6 +21,16 @@
 .diet-log-form .chat-input {
   width: 100%;
 }
+/* 오늘이 아닌 날짜를 선택했을 때 어느 날짜로 저장되는지 알려주는 안내 */
+.diet-log-date-notice {
+  background: #f2f1ec;
+  border-left: 3px solid #da291c;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #55534d;
+}
 .diet-log-form .chat-send-btn {
   width: 100%;
   padding: 12px 0;
@@ -215,13 +225,19 @@
 }
 .diet-item-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   padding: 8px 12px;
   background: #f9f8f5;
   border: 1px solid #e5e3dd;
   border-radius: 8px;
   font-size: 12.5px;
+}
+.diet-item-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .diet-item-name {
   flex: 1;
@@ -277,4 +293,87 @@
 .diet-item-unit {
   flex: none;
   color: #9b9a96;
+}
+
+/* 매칭 신뢰도 배지 (item 2: 매칭 단계 표시 / item 3: 후보 선택) */
+.diet-item-confidence {
+  font-size: 11px;
+  line-height: 1.5;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.diet-item-confidence-low {
+  background: #fdf2f0;
+  color: #b3392c;
+  border: 1px solid #f3d4cf;
+}
+.diet-item-confidence-mid {
+  background: #f5f4f0;
+  color: #8c8b88;
+}
+.diet-item-confidence-mid summary {
+  cursor: pointer;
+}
+.diet-item-candidates {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.diet-item-candidate-btn {
+  background: #fff;
+  border: 1px solid #da291c;
+  color: #da291c;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: Archivo, 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.diet-item-candidate-btn:hover:not(:disabled) {
+  background: #da291c;
+  color: #fff;
+}
+.diet-item-candidate-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ============ 모바일 (~768px) ============ */
+@media (max-width: 768px) {
+  /* 달력 | 기록목록 2단을 세로로 */
+  .diet-split {
+    flex-direction: column;
+    gap: 28px;
+  }
+  /* 타임라인 왼쪽 끼니 라벨 칸을 좁힘 */
+  .diet-row {
+    gap: 12px;
+  }
+  .diet-time {
+    width: 34px;
+    font-size: 11px;
+  }
+  .diet-meal-inner {
+    padding: 14px;
+    gap: 10px;
+  }
+  .diet-meal-title {
+    font-size: 13.5px;
+  }
+  /* 이름/그램/칼로리/수정이 한 줄에 다 안 들어감 */
+  .diet-item-row-main {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .diet-item-name {
+    flex: 1 1 100%;
+    white-space: normal;
+  }
+  .diet-item-edit {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
 }

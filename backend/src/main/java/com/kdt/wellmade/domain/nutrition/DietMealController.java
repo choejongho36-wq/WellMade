@@ -27,6 +27,9 @@ import java.util.Map;
  *   5. PUT  /api/diet/meals/{id} - 끼니 종류/메뉴명/칼로리 직접 수정 (본인 소유만)
  *   6. PATCH /api/diet/meals/{id}/items/{itemIndex} - food_items 배열의 특정 항목 그램 수만 수정
  *      (해당 음식을 새 그램 수로 다시 조회해서 끼니 전체 합계까지 재계산함, 본인 소유만)
+ *   6-1. PATCH /api/diet/meals/{id}/items/{itemIndex}/match - 매칭이 불확실한 항목에 대해
+ *      사용자가 후보(candidates) 중 하나를 직접 선택 - 이 선택은 기억해뒀다가 다음에 같은
+ *      표현이 나오면 자동으로 적용됨
  *   7. DELETE /api/diet/meals/{id} - 기록 삭제 (본인 소유만)
  *   8. GET  /api/diet/meals/target - 하루 목표 섭취량 (직접 수정한 값이 있으면 그 값, 없으면 목표+인바디 기반 추천값. 계산 불가하면 204)
  *   9. PUT  /api/diet/meals/target - 목표 섭취량 직접 수정
@@ -58,7 +61,11 @@ public class DietMealController {
 
     @PostMapping
     public MealLoggingService.MealLogResult logMeal(@AuthenticationPrincipal Long userId, @RequestBody LogMealRequest request) {
-        return mealLoggingService.logMeal(userId, request.message(), request.mealType());
+        LocalDate date = request.date();
+        if (date != null && date.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("아직 오지 않은 날짜에는 기록할 수 없어요.");
+        }
+        return mealLoggingService.logMeal(userId, request.message(), request.mealType(), date);
     }
 
     @GetMapping("/today")
@@ -105,6 +112,17 @@ public class DietMealController {
         return mealLoggingService.updateMealItemAmount(userId, id, itemIndex, request.amountG());
     }
 
+    /** 매칭이 불확실한(matchTier=FUZZY) 항목에 대해 사용자가 후보 중 하나를 직접 선택했을 때 */
+    @PatchMapping("/{id}/items/{itemIndex}/match")
+    public MealLoggingService.MealItemUpdateResult resolveMealItemMatch(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long id,
+            @PathVariable int itemIndex,
+            @RequestBody ResolveMealItemMatchRequest request
+    ) {
+        return mealLoggingService.resolveMealItemMatch(userId, id, itemIndex, request.resolvedFoodName());
+    }
+
     @DeleteMapping("/{id}")
     public void deleteMeal(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
         mealLoggingService.deleteMeal(userId, id);
@@ -134,7 +152,7 @@ public class DietMealController {
             return ResponseEntity.noContent().build();
         }
 
-        NutrientTarget recommended = nutrientTargetCalculator.calculate(inbody, profile.getGoal());
+        NutrientTarget recommended = nutrientTargetCalculator.calculate(inbody, profile);
         return ResponseEntity.ok(new TargetResponse(
                 recommended.kcal(), recommended.proteinG(), recommended.carbsG(), recommended.fatG(), false
         ));
@@ -162,9 +180,12 @@ public class DietMealController {
         }
     }
 
-    public record LogMealRequest(String message, String mealType) {}
+    // date는 생략 가능 - 없으면 오늘로 기록된다
+    public record LogMealRequest(String message, String mealType,
+                                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {}
     public record UpdateMealRequest(String mealType, String menuName, double kcal) {}
     public record UpdateMealItemRequest(double amountG) {}
+    public record ResolveMealItemMatchRequest(String resolvedFoodName) {}
     public record TargetResponse(double kcal, double proteinG, double carbsG, double fatG, boolean custom) {}
     public record UpdateTargetRequest(double kcal, double proteinG, double carbsG, double fatG) {}
 }

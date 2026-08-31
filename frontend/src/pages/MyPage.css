@@ -33,10 +33,17 @@
   height: 64px;
   border-radius: 50%;
   flex: none;
-  background: #da291c;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.mp-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .mp-profile-name-row {
   display: flex;
@@ -134,6 +141,140 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* 인바디 추이 그래프 */
+.mp-trend {
+  margin-top: 14px;
+}
+.mp-trend-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mp-trend-tab {
+  padding: 5px 12px;
+  border: 1px solid #e5e3dd;
+  border-radius: 999px;
+  background: #f9f8f5;
+  color: #77767c;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mp-trend-tab:hover {
+  border-color: #da291c;
+}
+.mp-trend-tab.active {
+  border-color: #da291c;
+  background: #da291c;
+  color: #fff;
+}
+.mp-trend-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.mp-mini {
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+}
+.mp-mini-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
+.mp-mini-label {
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  color: #77767c;
+}
+.mp-mini-delta {
+  font: 700 11px Archivo, sans-serif;
+  color: #9b9a96;
+}
+.mp-mini-delta.up {
+  color: #da291c;
+}
+.mp-mini-delta.down {
+  color: #2f7d3a;
+}
+.mp-mini-value {
+  margin-top: 2px;
+  font: 800 18px Archivo, sans-serif;
+  color: #111;
+}
+.mp-mini-unit {
+  margin-left: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9b9a96;
+}
+.mp-spark {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin-top: 6px;
+}
+.mp-spark-line {
+  fill: none;
+  stroke: #da291c;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.mp-spark-dot {
+  fill: #da291c;
+}
+.mp-mini-empty {
+  height: 40px;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: #b3b2ae;
+}
+
+/* 신체 정보(성별/키/출생연도) 안내 + 입력 */
+.mp-body-prompt {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 20px;
+  border: 1px solid #da291c;
+  border-radius: 10px;
+  background: #fff5f4;
+}
+.mp-body-prompt .mp-profile-sub {
+  max-width: 46ch;
+}
+.mp-body-prompt .mp-inbody-btn {
+  flex: none;
+  margin-top: 0;
+}
+.mp-body-edit {
+  margin-left: 8px;
+  font-size: 11.5px;
+}
+.mp-body-field {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mp-body-label {
+  font-size: 13px;
+  color: #77767c;
+}
+.mp-body-genders {
+  display: flex;
+  gap: 6px;
 }
 
 /* 목표 설정 모달 */
@@ -308,4 +449,43 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ============ 모바일 (~768px) ============ */
+@media (max-width: 768px) {
+  /* 아바타 + 이름/목표 + 탈퇴버튼이 한 줄에 안 들어감 */
+  .mp-profile-row {
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 24px;
+    padding-bottom: 24px;
+  }
+  .mp-avatar-lg {
+    width: 52px;
+    height: 52px;
+  }
+  .mp-withdraw-btn {
+    margin-left: auto;
+  }
+  .mp-profile-name-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .mp-profile-sub {
+    word-break: keep-all;
+  }
+  .mp-body-prompt,
+  .mp-inbody-empty {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 20px;
+  }
+  /* 추이 미니카드는 auto-fit(150px)이라 폰에서 1열로 떨어짐 - 2열 유지 */
+  .mp-trend-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .mp-trend-tabs {
+    flex-wrap: wrap;
+  }
 }

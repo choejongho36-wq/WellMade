@@ -33,7 +33,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String providerId = extractProviderId(provider, attributes);
         String email = extractEmail(provider, attributes);
 
-        User user = userService.loginOrRegister(provider, providerId, email);
+        User user = userService.loginOrRegister(provider, providerId, email,
+            userRequest.getAccessToken().getTokenValue());
         return new CustomOAuth2User(user.getId(), attributes, nameAttributeKey(provider));
     }
 

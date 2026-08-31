@@ -122,15 +122,56 @@
   filter: grayscale(1) contrast(1.1);
   opacity: 0.45;
 }
-.hero-photo-index {
+/* --- 히어로 사진 자세 측정 오버레이 --- */
+.hero-pose-overlay {
   position: absolute;
-  top: calc(50% - 42vh + 14px);
-  right: 24px;
-  writing-mode: vertical-rl;
-  font: 600 11px ui-monospace, monospace;
-  color: rgba(255, 255, 255, 0.85);
-  letter-spacing: 0.1em;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(8deg);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.1s ease 1s;
 }
+.hero.revealed .hero-pose-overlay {
+  opacity: 1;
+}
+.hero-pose-overlay .pose-bone {
+  fill: none;
+  stroke: #da291c;
+  stroke-width: 6;
+  stroke-linecap: round;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+.hero-pose-overlay .pose-kp {
+  fill: #fff;
+  stroke: #da291c;
+  stroke-width: 4;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.4));
+}
+.hero-pose-overlay .pose-angle-ring {
+  fill: none;
+  stroke: rgba(218, 41, 28, 0.55);
+  stroke-width: 4;
+  stroke-dasharray: 10 12;
+}
+.hero-pose-overlay .pose-angle-text {
+  font: 700 44px ui-monospace, 'SFMono-Regular', monospace;
+  fill: #da291c;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+/* 뼈 선(빨강)과 겹쳐서 안 보이는 자리용 흰색 버전 */
+.hero-pose-overlay .pose-angle-ring-light {
+  stroke: rgba(255, 255, 255, 0.85);
+}
+.hero-pose-overlay .pose-angle-text-light {
+  fill: #fff;
+  stroke: none;
+}
+
 .hero-title {
   font-family: 'Archivo Black', sans-serif;
   font-size: clamp(48px, 16vw, 240px);
@@ -168,5 +209,68 @@
   }
   50% {
     opacity: 1;
+  }
+}
+
+/* ============ 모바일 (~768px) ============
+   히어로 패널은 [180px 네비 | 세로선 | 비주얼] 2단이라 폰에서는 네비가 화면을 다 먹는다.
+   네비를 위로 올리고 비주얼(장식)은 아래 남는 공간만 차지하게 한다. */
+@media (max-width: 768px) {
+  .hero {
+    padding: 16px;
+  }
+  .hero-panel {
+    padding: 0 20px;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+  }
+  .hero-nav {
+    width: 100%;
+    align-self: auto;
+    flex: none;
+    padding: 24px 0 16px;
+  }
+  .hero-visual {
+    flex: 1;
+    min-height: 200px;
+    border-left: none;
+    border-top: 1px solid #da291c;
+    --band-bottom: calc(24% + 9vh);
+    /* 데스크톱의 3.8vw는 폰에서 clamp 하한(34px)에 걸려 사진 위로 넘쳐 안 읽힌다 */
+    --tomorrow-fs: clamp(22px, 7vw, 34px);
+  }
+  /* 데스크톱 기준(-64px, 155vh)이면 폰에서 화면 밖으로 크게 넘친다 */
+  .hero-red-band {
+    right: -20px;
+    top: 24%;
+    height: 20vh;
+  }
+  .hero-tagline-lines {
+    font-size: clamp(15px, 4.6vw, 22px);
+  }
+  /* 데스크톱은 두 줄을 10px 겹쳐 붙이는 디자인인데, 폰의 작은 글자에서는
+     그 10px이 글자 높이의 절반이라 두 줄이 서로 뭉갠다 */
+  .hero-tagline-big {
+    top: calc(var(--band-bottom) + 3px);
+  }
+  .hero-photo-wrap {
+    right: -24px;
+    height: 78vh;
+    margin-top: -22vh;
+  }
+  .hero-title {
+    letter-spacing: -1px;
+  }
+}
+
+/* 가로가 아주 좁으면 장식 사진이 네비 글씨를 가려서 더 흐리게 */
+@media (max-width: 480px) {
+  .hero-photo-base {
+    opacity: 0.25;
+  }
+  .hero-photo-tint {
+    opacity: 0.55;
   }
 }

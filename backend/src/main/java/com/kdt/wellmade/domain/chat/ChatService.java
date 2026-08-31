@@ -1,5 +1,9 @@
 package com.kdt.wellmade.domain.chat;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -7,18 +11,22 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
 import com.kdt.wellmade.domain.inbody.InbodyService;
+import com.kdt.wellmade.domain.mapage.Gender;
 import com.kdt.wellmade.domain.mapage.Goal;
 import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileService;
@@ -46,15 +54,12 @@ public class ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
 
-    // Ollama에 보낼 컨텍스트로 불러올 최근 이력 개수 (너무 많으면 num_ctx를 넘겨서 앞부분이 잘림)
-    private static final int CONTEXT_HISTORY_LIMIT = 30;
+    // Ollama에 보낼 컨텍스트로 불러올 최근 이력 개수. 매 턴 이만큼을 프리필하므로 응답 속도에 직결됨
+    // (T4 기준 30개는 프리필만 10초 넘게 걸림). 6번 주고받은 맥락이면 대부분의 상담엔 충분함.
+    private static final int CONTEXT_HISTORY_LIMIT = 12;
     // 프론트에 "이전 대화 이어서 보기"용으로 내려줄 이력 개수
     private static final int DISPLAY_HISTORY_LIMIT = 100;
     private static final int MAX_CONTENT_LENGTH = 2000;
-
-    // 모델이 도구 호출을 계속 이어가며 끝내지 않는 경우를 대비한 상한.
-    // 이 라운드를 다 쓰면 마지막엔 tools 없이 강제로 마무리 답변을 받음.
-    private static final int MAX_TOOL_ROUNDS = 3;
 
     private static final String SYSTEM_PROMPT =
             "당신은 인바디 측정 수치와 사용자 목표를 바탕으로 식단과 운동을 추천하는 헬스케어 AI 어시스턴트입니다. "
@@ -142,9 +147,11 @@ public class ChatService {
 
     /**
      * 새 사용자 메시지 하나를 받아서, DB에 저장된 최근 이력 + 이번 메시지로 컨텍스트를 구성하고
-     * 응답을 받은 뒤 이번 턴(사용자 메시지 + 어시스턴트 응답)을 저장함.
+     * 최종 답변을 토큰 단위로 {@code onDelta}에 흘려보낸다. 스트림이 끝나면 이번 턴을 저장한다.
+     *
+     * 도구 호출이 필요한 질문은 먼저 (비스트리밍) 도구를 해소한 뒤 최종 답변만 스트리밍한다.
      */
-    public String reply(User user, String rawMessage) {
+    public void replyStream(User user, String rawMessage, Consumer<String> onDelta) {
         String userMessage = validateAndTrim(rawMessage);
 
         List<OllamaMessage> messages = new ArrayList<>();
@@ -154,14 +161,16 @@ public class ChatService {
         }
         messages.add(OllamaMessage.user(userMessage));
 
-        String reply = converseWithTools(user, messages);
+        StringBuilder full = new StringBuilder();
+        resolveToolsThenStream(user, messages, delta -> {
+            full.append(delta);
+            onDelta.accept(delta);
+        });
 
         // Ollama 호출(느릴 수 있음)이 끝난 뒤에 저장함 - 트랜잭션을 외부 HTTP 호출 동안 붙잡고
         // 있지 않으려는 의도. 두 저장 사이에 실패가 나도 사용자 메시지 한 줄만 남는 정도라 치명적이지 않음.
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(userMessage).build());
-        chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(reply).build());
-
-        return reply;
+        chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(full.toString()).build());
     }
 
     /** 프론트에서 드로어를 열 때 "이전 대화 이어보기"용으로 내려줄 이력 (오래된 순) */
@@ -191,31 +200,30 @@ public class ChatService {
     }
 
     /**
-     * 모델이 도구 호출을 요청하면 실행하고 결과를 대화에 이어붙여서 다시 물어보는 루프.
-     * 도구 호출이 없는 응답이 오면 그게 최종 답변.
+     * 1) tools를 포함해 한 번 (비스트리밍) 호출해서 모델이 도구를 부르는지 본다.
+     * 2) 도구를 안 불렀으면 그 응답이 최종 답변이므로 그대로 흘려보낸다.
+     * 3) 도구를 불렀으면 전부 실행해 결과를 이어붙이고, 이번엔 tools 없이 최종 답변만 스트리밍한다.
+     *
+     * 순차적으로 여러 번 도구를 불러야 하는 질문은 지원하지 않는다(이 앱의 도구는 한 라운드에서
+     * 병렬 호출로 충분함). tools를 뺀 마지막 호출이라 모델은 반드시 텍스트로 답한다.
      */
-    private String converseWithTools(User user, List<OllamaMessage> messages) {
-        for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
-            OllamaMessage assistantMsg = chatCompletion(messages, true);
+    private void resolveToolsThenStream(User user, List<OllamaMessage> messages, Consumer<String> onDelta) {
+        OllamaMessage first = chatCompletion(messages, true);
 
-            if (assistantMsg.tool_calls() == null || assistantMsg.tool_calls().isEmpty()) {
-                return assistantMsg.content();
+        if (first.tool_calls() == null || first.tool_calls().isEmpty()) {
+            if (first.content() != null) {
+                onDelta.accept(first.content());
             }
-
-            messages.add(assistantMsg);
-            for (OllamaMessage.ToolCall call : assistantMsg.tool_calls()) {
-                String result = executeTool(user, call.function().name(), call.function().arguments());
-                messages.add(OllamaMessage.tool(result, call.id()));
-            }
+            return;
         }
 
-        // 라운드를 다 썼는데도 계속 도구를 부르면, 이번엔 tools 없이 마지막으로 한 번 더 요청해서
-        // 지금까지 모은 도구 결과만으로라도 답변을 강제로 마무리시킴 (무한 루프 방지).
-        log.warn("도구 호출이 {}라운드를 초과해서 강제로 마무리함. userId={}", MAX_TOOL_ROUNDS, user.getId());
-        OllamaMessage finalMsg = chatCompletion(messages, false);
-        return finalMsg.content() != null && !finalMsg.content().isBlank()
-                ? finalMsg.content()
-                : "요청하신 내용을 정리하는 데 문제가 있었어요. 다시 한 번 물어봐 주세요.";
+        messages.add(first);
+        for (OllamaMessage.ToolCall call : first.tool_calls()) {
+            String result = executeTool(user, call.function().name(), call.function().arguments());
+            messages.add(OllamaMessage.tool(result, call.id()));
+        }
+
+        chatCompletionStream(messages, onDelta);
     }
 
     private String executeTool(User user, String name, Map<String, Object> arguments) {
@@ -298,7 +306,7 @@ public class ChatService {
             return toJson(Map.of("error", "인바디 정보가 없어서 목표 섭취량을 계산할 수 없어요."));
         }
 
-        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, profile.getGoal());
+        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, profile);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("goal", GOAL_LABEL.get(profile.getGoal()));
@@ -364,7 +372,7 @@ public class ChatService {
         }
 
         Goal goal = profile.getGoal();
-        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, goal);
+        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, profile);
 
         List<OllamaMessage> messages = new ArrayList<>();
         messages.add(OllamaMessage.system(buildSystemPrompt(user) + "\n\n" + buildAdviceContext(goal, target, actual)));
@@ -379,41 +387,94 @@ public class ChatService {
         return reply;
     }
 
-    private OllamaMessage chatCompletion(List<OllamaMessage> messages, boolean includeTools) {
+    private Map<String, Object> buildRequestBody(List<OllamaMessage> messages, boolean includeTools, boolean stream) {
         Map<String, Object> requestBody = new LinkedHashMap<>();
         requestBody.put("model", model);
-        requestBody.put("stream", false);
+        requestBody.put("stream", stream);
         requestBody.put("messages", messages);
         // temperature 미지정 시 Ollama 기본값(0.8)이 적용되던 걸 명시적으로 낮춤.
-        // num_ctx를 안 주면 대화가 길어질 때 앞부분(시스템 프롬프트=인바디 수치 등)이
-        // 조용히 잘려나갈 수 있어서 같이 지정.
+        // num_ctx는 시스템 프롬프트 + 최근 이력 12개 + 툴 스키마 + 답변이 들어갈 만큼만.
+        // 크게 잡을수록 KV 캐시가 커지고 프리필이 느려짐.
         requestBody.put("options", Map.of(
                 "temperature", 0.4,
-                "num_ctx", 8192,
-                "num_predict", 512
+                "num_ctx", 4096,
+                "num_predict", 384
         ));
         if (includeTools) {
             requestBody.put("tools", TOOLS);
         }
+        return requestBody;
+    }
 
+    private static final String AI_UNAVAILABLE_MSG = "AI 챗봇은 지금 준비 중이에요. 잠시 후 다시 시도해 주세요.";
+
+    /**
+     * Ollama 호출 실패를 사용자向 예외로 변환한다. Ollama(GPU 인스턴스)는 평소 꺼져 있는 게 정상이라,
+     * 연결 자체가 안 되는 경우({@link ResourceAccessException} - ConnectException/타임아웃)는
+     * 스택트레이스 없이 INFO로만 남긴다. 그 외(5xx 응답 등)만 ERROR.
+     */
+    private ExternalServiceException aiUnavailable(Exception e) {
+        if (e instanceof ResourceAccessException) {
+            log.info("Ollama에 연결할 수 없음 (GPU 인스턴스 중지 상태로 추정): {}", e.getMessage());
+        } else {
+            log.error("Ollama 호출 실패", e);
+        }
+        return new ExternalServiceException(AI_UNAVAILABLE_MSG, e);
+    }
+
+    private OllamaMessage chatCompletion(List<OllamaMessage> messages, boolean includeTools) {
         OllamaChatResponse response;
         try {
             response = ollamaRestClient.post()
                     .uri("/api/chat")
-                    .body(requestBody)
+                    .body(buildRequestBody(messages, includeTools, false))
                     .retrieve()
                     .body(OllamaChatResponse.class);
         } catch (RestClientException e) {
-            // 원인(연결 실패/타임아웃 등)은 로그에만 남기고, 사용자에게는 안전한 메시지만 노출
-            log.error("Ollama 채팅 호출 실패", e);
-            throw new ExternalServiceException("지금은 챗봇 응답을 받을 수 없어요. 잠시 후 다시 시도해주세요.", e);
+            throw aiUnavailable(e);
         }
 
         if (response == null || response.message() == null) {
             log.error("Ollama 채팅 응답이 비어있습니다.");
-            throw new ExternalServiceException("지금은 챗봇 응답을 받을 수 없어요. 잠시 후 다시 시도해주세요.");
+            throw new ExternalServiceException(AI_UNAVAILABLE_MSG);
         }
         return response.message();
+    }
+
+    /**
+     * Ollama /api/chat 를 stream 모드로 호출해서, 응답으로 오는 NDJSON 각 줄의
+     * message.content 조각을 받는 대로 {@code onDelta}에 넘긴다. tools 없이만 호출한다.
+     */
+    private void chatCompletionStream(List<OllamaMessage> messages, Consumer<String> onDelta) {
+        try {
+            ollamaRestClient.post()
+                    .uri("/api/chat")
+                    .body(buildRequestBody(messages, false, true))
+                    .exchange((request, response) -> {
+                        try (BufferedReader reader = new BufferedReader(
+                                new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                if (line.isBlank()) {
+                                    continue;
+                                }
+                                JsonNode node = objectMapper.readTree(line);
+                                String delta = node.path("message").path("content").asText("");
+                                if (!delta.isEmpty()) {
+                                    onDelta.accept(delta);
+                                }
+                                if (node.path("done").asBoolean(false)) {
+                                    break;
+                                }
+                            }
+                        } catch (java.io.IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        return null;
+                    });
+        } catch (RestClientException | UncheckedIOException e) {
+            throw aiUnavailable(e);
+        }
     }
 
     private String buildAdviceContext(Goal goal, NutrientTarget target, MealLoggingService.DailyTotal actual) {
@@ -445,6 +506,16 @@ public class ChatService {
         sb.append("\n\n사용자 정보:");
         if (hasGoal) {
             sb.append("\n- 목표: ").append(GOAL_LABEL.get(profile.getGoal()));
+        }
+        // 체지방률 정상범위·권장 섭취량이 성별에 따라 다르므로 모델에게 같이 알려줌
+        if (profile != null) {
+            List<String> body = new ArrayList<>();
+            if (profile.getGender() != null) body.add(profile.getGender() == Gender.MALE ? "남성" : "여성");
+            if (profile.getHeightCm() != null) body.add("키 " + profile.getHeightCm() + "cm");
+            if (profile.getBirthYear() != null) body.add("만 " + (LocalDate.now().getYear() - profile.getBirthYear()) + "세");
+            if (!body.isEmpty()) {
+                sb.append("\n- 신체 정보: ").append(String.join(", ", body));
+            }
         }
         if (inbody != null) {
             List<String> parts = new ArrayList<>();

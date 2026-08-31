@@ -13,6 +13,7 @@ import com.kdt.wellmade.domain.user.User;
 import com.kdt.wellmade.domain.user.UserService;
 
 import java.io.IOException;
+import java.util.List;
 
 
 @RestController
@@ -49,6 +50,14 @@ public class InbodyController {
                                                  @RequestBody InbodyConfirmRequest request) {
         User user = userService.getUser(userId);
         return InbodyRecordResponse.from(inbodyService.save(user, request));
+    }
+
+    @GetMapping("/api/users/me/inbody/history")
+    public List<InbodyRecordResponse> getMyInbodyHistory(@AuthenticationPrincipal Long userId) {
+        User user = userService.getUser(userId);
+        return inbodyService.getAllHistory(user).stream()
+                .map(InbodyRecordResponse::from)
+                .toList();
     }
 
     @GetMapping("/api/users/me/inbody/latest")

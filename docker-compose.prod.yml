@@ -1,0 +1,64 @@
+# 서버 배포용. 로컬 개발은 backend/docker-compose.yml(MySQL만) 사용.
+#
+#   cp .env.example .env && nano .env
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# .env(루트)는 compose가 자동으로 읽는다. Ollama(챗봇 LLM)는 여기 없음 -
+# 별도 GPU 인스턴스에 두고 .env 의 OLLAMA_BASE_URL 로 가리킴.
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    command: --default-time-zone=+09:00
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      # nginx(HTTPS) 뒤에 있으므로 OAuth 콜백 URL이 외부 도메인으로 만들어지도록
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+    expose:
+      - "8080"
+
+  ai:
+    build: ./ai
+    restart: unless-stopped
+    env_file: .env
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE: ${VITE_API_BASE}
+        VITE_AI_BASE: ${VITE_AI_BASE}
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - ai
+    ports:
+      - "80:80"
+
+volumes:
+  mysql_data:

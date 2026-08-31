@@ -11,7 +11,7 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
 필드가 없다.
 """
 
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -120,11 +120,12 @@ class AngleFrame(BaseModel):
     knee_over_toe_ratio: Optional[float] = Field(
         None,
         description="무릎이 발끝보다 앞으로 나간 정도(app/pose/angles.py의 "
-        "get_knee_over_toe_ratio 참고). 필드명은 '_ratio'지만 발 길이로 정규화한 비율이 아니라 "
-        "원시 좌표 거리(facing_direction 방향 보정만 반영)다 — 필드명은 기존 API 호환을 위해 "
-        "유지, 자세한 배경은 angles.py 주석 참고. heel_lift_ratio와 동일하게 측면 랜드마크 "
-        "기준이라 프론트가 매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면 이 검사를 "
-        "건너뛴다(하위 호환).",
+        "get_knee_over_toe_ratio 참고) — 무릎-발끝 거리를 허벅지(엉덩이-무릎) 길이로 나눈 "
+        "비율이다. (2026-08-27 변경) 예전에는 정규화 없는 원시 좌표 거리였는데, 발이 "
+        "스탠스 때문에 바깥으로 돌아가면(외회전) 발 길이 자체가 줄어들어 자로 쓰기 "
+        "불안정하다는 게 확인돼(자세한 배경은 checklist 2026-08-27 addendum 참고) 허벅지 "
+        "길이 기준으로 바꿨다. heel_lift_ratio와 동일하게 측면 랜드마크 기준이라 프론트가 "
+        "매 프레임 직접 계산해서 보낸다. 선택 필드 — 없으면 이 검사를 건너뛴다(하위 호환).",
     )
     torso_length_ratio: Optional[float] = Field(
         None,
@@ -132,6 +133,19 @@ class AngleFrame(BaseModel):
         "get_torso_length_ratio 참고). hip_calibration에 standing_shoulder_hip_ratio가 함께 "
         "있을 때만 '등이 둥글게 말렸는지' 판정에 쓰인다(기준값 없이는 이 숫자 하나만으로는 "
         "판단 불가). 선택 필드 — 없으면 등 굽음 검사를 건너뛴다(하위 호환).",
+    )
+    torso_shin_lean_gap_deg: Optional[float] = Field(
+        None,
+        description="상체(어깨-엉덩이)와 정강이(무릎-발목)가 각각 수직선 대비 얼마나 기울었는지의 "
+        "차이(app/pose/angles.py의 get_torso_shin_lean_gap_deg 참고) — 무게중심이 지지기반(발) "
+        "뒤쪽에 남는 자세('앞에 반대 방향 무게가 없으면 뒤로 넘어갈 것 같은' 자세)를 잡기 위한 "
+        "신호다. (2026-08-27 추가) '무게중심이 무너진 것 같다'고 지적된 실제 사진 2장에서 "
+        "27.2도·28.9도가 나왔고, 확인된 정상 사진 10장은 -2.0~23.3도 사이였다 — 상체·정강이 "
+        "절대 기울기는 체형에 따라 개별적으로는 편차가 컸지만 그 차이값은 정상군과 갈렸다 "
+        "(자세한 배경은 checklist 2026-08-27 addendum 8번 참고). 측면 랜드마크만으로 계산 "
+        "가능한 값이라 heel_lift_ratio/knee_over_toe_ratio와 동일하게 프론트가 매 프레임 직접 "
+        "계산해서 보낸다. 선택 필드 — 없으면 이 검사를 건너뛴다(하위 호환). "
+        "TODO: 팀 확정 필요(중요) — 나쁜 사례 표본이 아직 2건뿐이라 임계값 검증이 매우 약하다.",
     )
 
 
@@ -148,6 +162,14 @@ class CoachingFrameRequest(BaseModel):
     hip_calibration: Optional[HipFlexibilityCalibration] = Field(
         None, description="개인별 고관절 유연성 캘리브레이션 결과. 없으면 고정 NORMAL_RANGES로 판정."
     )
+    pending_llm_job_id: Optional[str] = Field(
+        None,
+        description="이전 응답(CoachingFrameResponse.pending_llm_job_id)에서 받은 고관절 "
+        "과신전 LLM 2차 확인 job id. 프론트는 이 값을 그대로 다음 호출들에 실어 보낸다 — "
+        "서버는 세션을 기억하지 않고(무상태 설계 유지), 이 id로 job이 끝났는지만 그때그때 "
+        "조회한다(app/coaching/hyperextension_llm_check.py 참고). 대기 중인 job이 없으면 "
+        "생략한다.",
+    )
 
 
 class CoachingFrameResponse(BaseModel):
@@ -155,6 +177,16 @@ class CoachingFrameResponse(BaseModel):
     is_normal: bool
     confidence: float
     issues: List[PoseIssue]
+    pending_llm_job_id: Optional[str] = Field(
+        None,
+        description="지금 프론트가 계속 기다려야 할 고관절 과신전 LLM 2차 확인 job id. "
+        "이번 렙이 새로 애매한 구간(rules.py DTW_AMBIGUOUS_LOWER_DISTANCE~"
+        "DTW_AMBIGUOUS_UPPER_DISTANCE)에 걸려 새로 시작한 job일 수도 있고, 이전 요청에서 "
+        "받아 아직 안 끝난 job을 그대로 돌려준 것일 수도 있다 — 어느 쪽이든 프론트는 이 "
+        "값을 저장해뒀다가 다음 호출들의 요청에 그대로 실어 보내면 된다. None이면 지금 "
+        "기다릴 job이 없다는 뜻(방금 결과를 이슈로 받았거나, 애초에 없었음)이라 프론트가 "
+        "들고 있던 이전 job id는 지워도 된다.",
+    )
 
 
 # ---- 세션 종료 조건 판단 (AI-13) ----
@@ -404,3 +436,46 @@ class SessionReportResponse(BaseModel):
     generation_source: Literal["llm", "fallback"] = Field(
         ..., description="LLM이 summary_message를 직접 생성했는지, 규칙기반 템플릿 문구로 대체했는지"
     )
+
+
+# ---- LLM 모델 비교 테스트(/ai/dev/llm-model-compare, 2026-08-28 추가) ----
+# 실제 서비스 판정 경로(CoachingFrameRequest 등)와 무관한 개발/테스트 전용 스키마다.
+# app/coaching/llm_model_compare.py 모듈 docstring 참고 — "6랩 블라인드 테스트"를 여러
+# Bedrock 모델(Claude/Nova/Llama/Mistral 등)로 동시에 재현해 정확도/지연시간을 비교한다.
+
+
+class ModelCompareRepInput(BaseModel):
+    """비교 테스트에 넣을 렙 1개. AngleFrame을 그대로 재사용하지 않고 별도 모델로 둔 이유는
+    여기서는 "실시간 스트림 중 최근 N프레임"이 아니라 "렙 하나 전체"를 통째로 보내는 다른
+    형태의 입력이라, 필드 구성이 겹치더라도 의미가 다르기 때문(id/true_label 등 이 기능
+    전용 필드도 필요)."""
+
+    id: str = Field(..., description="렙 식별자(결과 매칭용). 예: '우혁_과신전'")
+    true_label: Optional[Literal["과신전", "정상"]] = Field(
+        None, description="정답 라벨(있으면 정확도 계산에 사용). 없으면 그 렙은 정확도 집계에서 제외."
+    )
+    frames: List[AngleFrame] = Field(..., min_length=1, description="렙 1개 동안의 관절각도 시계열(프레임 순서대로)")
+
+
+class ModelCompareRequest(BaseModel):
+    reps: List[ModelCompareRepInput] = Field(..., min_length=1)
+    model_ids: List[str] = Field(..., min_length=1, description="비교할 Bedrock 모델 ID 목록(예: 'anthropic.claude-haiku-4-5-20251001-v1:0', 'amazon.nova-pro-v1:0')")
+    region: Optional[str] = Field(None, description="Bedrock 리전. 없으면 서버 환경변수(AWS_BEDROCK_REGION)를 사용하고, 그것도 없으면 에러를 반환한다.")
+
+
+class ModelCompareVerdict(BaseModel):
+    verdict: Optional[Literal["과신전_의심", "정상"]] = None
+    confidence: Optional[Literal["상", "중", "하"]] = None
+    reasoning: Optional[str] = None
+    latency_ms: Optional[int] = None
+    error: Optional[str] = Field(None, description="이 모델·렙 조합 호출이 실패했다면 사유(예: 모델 접근권한 미승인).")
+
+
+class ModelCompareResponse(BaseModel):
+    results: Dict[str, Dict[str, ModelCompareVerdict]] = Field(
+        ..., description="model_id -> rep_id -> 판정 결과"
+    )
+    accuracy: Dict[str, Optional[float]] = Field(
+        ..., description="model_id -> true_label이 있는 렙 기준 정확도(0~1). true_label이 하나도 없으면 None."
+    )
+    error: Optional[str] = Field(None, description="비교 자체가 시작도 못 했을 때의 사유(예: boto3 미설치, 자격증명 없음).")

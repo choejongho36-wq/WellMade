@@ -1,0 +1,13 @@
+build/
+.gradle/
+bin/
+out/
+*.log
+.idea/
+.vscode/
+src/test/
+docker-compose.yml
+Dockerfile
+.dockerignore
+# 시크릿은 이미지에 넣지 않음 - 런타임 env로만 주입
+src/main/resources/application-local.yml

@@ -10,6 +10,7 @@ import com.kdt.wellmade.domain.inbody.InbodyRecordRepository;
 import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileRepository;
 import com.kdt.wellmade.domain.nutrition.MealLoggingService;
+import com.kdt.wellmade.global.security.SocialUnlinkClient;
 
 import lombok.RequiredArgsConstructor;
 
@@ -21,6 +22,7 @@ public class UserService {
     private final ChatMessageRepository chatMessageRepository;
     private final InbodyRecordRepository inbodyRecordRepository;
     private final MealLoggingService mealLoggingService;
+    private final SocialUnlinkClient socialUnlinkClient;
 
     private static final String[] ADJECTIVES = {
         "행복한", "용감한", "귀여운", "든든한", "씩씩한", "차분한", "활발한", "느긋한"
@@ -30,8 +32,8 @@ public class UserService {
     };
 
     @Transactional
-    public User loginOrRegister(Provider provider, String providerId, String email){
-        return userRepository.findByProviderAndProviderId(provider, providerId)
+    public User loginOrRegister(Provider provider, String providerId, String email, String socialAccessToken){
+        User user = userRepository.findByProviderAndProviderId(provider, providerId)
                .orElseGet(() -> {
                   User saved = userRepository.save(
                     User.builder()
@@ -46,6 +48,8 @@ public class UserService {
                             .build());
                     return saved;
     });
+        user.updateSocialAccessToken(socialAccessToken); // 매 로그인마다 갱신 - 탈퇴 시 unlink에 사용
+        return user;
     }
 
     @Transactional(readOnly = true)
@@ -71,6 +75,7 @@ public class UserService {
     @Transactional
     public void withdraw(Long userId) {
         User user = getUser(userId);
+        socialUnlinkClient.unlink(user.getProvider(), user.getSocialAccessToken());
         mealLoggingService.deleteAllForUser(userId);
         chatMessageRepository.deleteByUser(user);
         inbodyRecordRepository.deleteByUser(user);

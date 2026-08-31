@@ -100,3 +100,45 @@
   object-fit: contain;
   flex: none;
 }
+
+/* ============ 모바일 (~768px) ============
+   세로 목록 + margin-left:-64px(페이지 패딩까지 파고드는 풀블리드)를 폰에서는
+   가로로 감기는 알약 버튼 줄로 바꾼다. */
+@media (max-width: 768px) {
+  .nav-logo {
+    font-size: 18px;
+    margin-bottom: 14px;
+  }
+  .nav-menu {
+    width: auto;
+    margin-left: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    border-top: none;
+  }
+  .nav-btn {
+    padding: 9px 14px;
+    font-size: 12.5px;
+    border: 1px solid #da291c;
+    border-radius: 999px;
+  }
+  .nav-logout {
+    width: auto;
+    margin-left: 0;
+    margin-top: 10px;
+    align-self: flex-start;
+    padding: 9px 14px;
+    border: 1px solid #d8d6d0;
+    border-radius: 999px;
+  }
+  .nav-social {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .social-btn {
+    flex: 1 1 45%;
+    justify-content: center;
+    min-width: 140px;
+  }
+}

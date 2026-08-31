@@ -33,12 +33,12 @@ public class FoodParsingService {
     private static final Logger log = LoggerFactory.getLogger(FoodParsingService.class);
  
     private static final String SYSTEM_PROMPT = """
-            당신은 사용자가 말한 식사 메시지에서 음식 항목과 추정 섭취량(그램)을 추출하는 도구입니다.
+            당신은 사용자가 말한 식사 메시지에서 음식 항목과 섭취량을 추출하는 도구입니다.
             반드시 {"items": [...]} 형태의 JSON 객체로만 답하세요. 다른 설명이나 마크다운 코드블록 없이 순수 JSON만 출력하세요.
             (Ollama의 JSON 모드는 최상위가 객체여야만 하므로, 배열을 바로 반환하지 말고 반드시 items 키로 감쌀 것)
 
             규칙:
-            - items 배열의 각 항목은 {"foodName": "기록에 남길 이름", "searchName": "DB 검색용 기본 제품명", "amountG": 숫자} 형태
+            - items 배열의 각 항목은 {"foodName": "기록에 남길 이름", "searchName": "DB 검색용 기본 제품명", "amountG": 숫자 또는 null, "servings": 숫자} 형태
             - 집밥/조리음식처럼 통칭이 있는 음식은 foodName/searchName 둘 다 검색하기 쉬운 일반적인 명칭으로 정규화하세요 (예: "김치찌개", "흰쌀밥")
             - 과자, 음료, 라면 등 마트/편의점에서 그대로 사서 먹는 포장 가공식품은 브랜드/제품명을 그대로 유지하세요.
               절대 더 넓은 카테고리 명칭으로 뭉뚱그리지 마세요 (정답: "포카칩", 오답: "감자칩")
@@ -51,34 +51,41 @@ public class FoodParsingService {
               foodName에는 그 표현까지 그대로 포함하고(예: "포카칩 큰 봉지"),
               searchName에는 DB 검색에 쓸 기본 제품명만 넣으세요(예: "포카칩").
               용량 표현이 없으면 foodName과 searchName은 같은 값입니다.
-            - amountG은 일반적인 1인분/1봉지 기준으로 상식적으로 추정하세요 (모르면 표준량 사용).
-              "큰 봉지"처럼 더 큰 용량이면 그에 맞게 amountG도 늘려서 추정하세요.
-            - "한공기", "한그릇" 같은 표현은 일반적인 그램수로 환산하세요 (밥 한공기 ≈ 210g)
-            - 가공식품은 실제 판매 포장 단위를 기준으로 추정하세요 (과자 한봉지 ≈ 60~70g, 큰 봉지 ≈ 130~140g)
-            - "밥", "흰쌀밥", "쌀밥"처럼 찰기 없는 일반 쌀밥을 가리키면 foodName은 그대로 두되
-              searchName은 "멥쌀밥"으로 쓰세요 (DB에는 "흰쌀밥"이 아니라 "멥쌀밥"이라는 명칭으로 들어있음).
-              찹쌀로 지은 밥이면 searchName을 "찹쌀밥"으로 쓰세요.
+
+            *** amountG / servings 판단 기준 - 그램수는 최대한 직접 추정하지 말고 DB의 표준중량에 맡길 것 ***
+            - 사용자가 그램/ml 숫자를 명시적으로 말한 경우에만("200g", "300그램", "500ml") amountG에 그 숫자를 넣고 servings는 1로 두세요.
+              이 경우엔 DB 표준중량을 무시하고 사용자가 말한 그램을 그대로 씁니다.
+            - 그 외 모든 경우(수량/인분수만 말했거나 아무 표현이 없는 경우)는 amountG를 null로 두고 servings에 인분수를 넣으세요.
+              DB에 저장된 1인분 기준중량 × servings로 서버가 그램을 계산합니다 - 그램수를 스스로 추정하지 마세요.
+              - "1인분", "한그릇", "한공기"처럼 명시가 없거나 기본 단위 하나면 servings: 1
+              - "2인분", "라면 2개", "계란후라이 2개"처럼 개수/인분이 명시되면 그 숫자를 servings에
+              - "큰 봉지", "패밀리사이즈", "라지"처럼 용량이 커지는 표현은 기본 크기 대비 대략 몇 배인지
+                상식적으로 판단해서 servings를 늘리세요 (예: 큰 봉지 ≈ 보통 대비 2배 -> servings: 2)
+            - "한공기", "한그릇" 같은 표현은 servings 1로 두면 됩니다 (그램 환산은 DB 표준중량이 담당)
 
             예시 입력: "점심에 김치찌개랑 밥 한공기 먹었어요"
-            예시 출력: {"items": [{"foodName": "김치찌개", "searchName": "김치찌개", "amountG": 400}, {"foodName": "흰쌀밥", "searchName": "멥쌀밥", "amountG": 210}]}
+            예시 출력: {"items": [{"foodName": "김치찌개", "searchName": "김치찌개", "amountG": null, "servings": 1}, {"foodName": "흰쌀밥", "searchName": "멥쌀밥", "amountG": null, "servings": 1}]}
 
             예시 입력: "아침에 계란후라이 2개랑 식빵 두쪽 먹음"
-            예시 출력: {"items": [{"foodName": "계란후라이", "searchName": "계란후라이", "amountG": 100}, {"foodName": "식빵", "searchName": "식빵", "amountG": 70}]}
+            예시 출력: {"items": [{"foodName": "계란후라이", "searchName": "계란후라이", "amountG": null, "servings": 2}, {"foodName": "식빵", "searchName": "식빵", "amountG": null, "servings": 2}]}
 
             예시 입력: "간식으로 포카칩 한봉지 먹었어요"
-            예시 출력: {"items": [{"foodName": "포카칩", "searchName": "포카칩", "amountG": 66}]}
+            예시 출력: {"items": [{"foodName": "포카칩", "searchName": "포카칩", "amountG": null, "servings": 1}]}
 
             예시 입력: "포카칩 큰 봉지 하나 다 먹었어요"
-            예시 출력: {"items": [{"foodName": "포카칩 큰 봉지", "searchName": "포카칩", "amountG": 135}]}
+            예시 출력: {"items": [{"foodName": "포카칩 큰 봉지", "searchName": "포카칩", "amountG": null, "servings": 2}]}
 
             예시 입력: "엽기떡볶이 2인분 먹었어"
-            예시 출력: {"items": [{"foodName": "엽기떡볶이", "searchName": "떡볶이", "amountG": 400}]}
+            예시 출력: {"items": [{"foodName": "엽기떡볶이", "searchName": "떡볶이", "amountG": null, "servings": 2}]}
 
             예시 입력: "샐러디 탄단지 샐러드 먹었어"
-            예시 출력: {"items": [{"foodName": "샐러디 탄단지 샐러드", "searchName": "닭가슴살 샐러드", "amountG": 350}]}
+            예시 출력: {"items": [{"foodName": "샐러디 탄단지 샐러드", "searchName": "닭가슴살 샐러드", "amountG": null, "servings": 1}]}
 
             예시 입력: "파리바게트 초코소라빵 먹었어"
-            예시 출력: {"items": [{"foodName": "파리바게트 초코소라빵", "searchName": "초코소라빵", "amountG": 90}]}
+            예시 출력: {"items": [{"foodName": "파리바게트 초코소라빵", "searchName": "초코소라빵", "amountG": null, "servings": 1}]}
+
+            예시 입력: "닭가슴살 200g 먹었어"
+            예시 출력: {"items": [{"foodName": "닭가슴살", "searchName": "닭가슴살", "amountG": 200, "servings": 1}]}
             """;
  
     /**
@@ -171,8 +178,13 @@ public class FoodParsingService {
             for (JsonNode item : itemsArray) {
                 String name = item.path("foodName").asText();
                 String searchName = item.path("searchName").asText("");
-                double amount = item.path("amountG").asDouble();
-                items.add(new FoodItem(name, searchName.isBlank() ? name : searchName, amount));
+                JsonNode amountNode = item.path("amountG");
+                Double amountG = (amountNode.isMissingNode() || amountNode.isNull()) ? null : amountNode.asDouble();
+                double servings = item.path("servings").asDouble(1.0);
+                if (servings <= 0) {
+                    servings = 1.0;
+                }
+                items.add(new FoodItem(name, searchName.isBlank() ? name : searchName, amountG, servings));
             }
             return items;
         } catch (Exception e) {
@@ -185,7 +197,9 @@ public class FoodParsingService {
     /**
      * foodName: 기록에 남기는 이름 (사용자가 말한 그대로, 예: "포카칩 큰 봉지")
      * searchName: DB 검색에 쓰는 기본 제품명 (용량 표현 제거, 예: "포카칩")
+     * amountG: 사용자가 그램/ml을 직접 말했을 때만 값이 있음(null이면 미지정) - 있으면 이 값을 그대로 씀
+     * servings: 인분수/개수 (amountG가 null일 때만 의미 있음) - DB 표준중량과 곱해서 그램 환산
      */
-    public record FoodItem(String foodName, String searchName, double amountG) {}
+    public record FoodItem(String foodName, String searchName, Double amountG, double servings) {}
 }
  

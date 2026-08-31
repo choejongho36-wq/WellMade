@@ -29,6 +29,12 @@ public class UserProfileService {
         profile.update(name, profileImageUrl, goal);
     }
 
+    /** 성별/키/출생연도 수정. null인 항목은 기존 값 유지 */
+    @Transactional
+    public void updateBody(User user, Gender gender, Double heightCm, Integer birthYear) {
+        getProfile(user).updateBody(gender, heightCm, birthYear);
+    }
+
     /** 목표 섭취량 직접 수정. 전부 null로 넘기면 추천값 자동계산으로 되돌림 */
     @Transactional
     public void updateTarget(User user, Double kcal, Double proteinG, Double carbsG, Double fatG) {

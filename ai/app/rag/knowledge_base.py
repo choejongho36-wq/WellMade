@@ -37,11 +37,12 @@ Cleveland Clinic, IJSPT)를 참고해 직접 작성한 문서다. 원문을 그�
 
 from app.pose.coaching_messages import (
     ASYMMETRY_MESSAGE,
+    BACK_ROUNDED_MESSAGE,
+    GAZE_FORWARD_MESSAGE,
     HEEL_LIFT_MESSAGE,
     KNEE_OVER_TOE_MESSAGE,
     KNEE_VALGUS_MESSAGE,
     SHALLOW_SQUAT_MESSAGE,
-    SHOULDER_FORWARD_LEAN_MESSAGE,
 )
 
 # 이슈 종류(issue_type)/part/ML 라벨명 등 이 프로젝트 여기저기서 쓰이는 여러 표현이
@@ -69,9 +70,23 @@ KNOWLEDGE_BASE = [
             "다만 이 현상이 아주 가끔 한두 번 보이는 것과, 반복적으로 계속 나타나는 것은 "
             "구분해서 봐야 한다. 반복적으로 나타난다면 단순히 주의력 문제가 아니라 특정 근육의 "
             "약화나 좌우 불균형이 원인일 수 있으므로, 통증이 동반되면 트레이너나 물리치료사 "
-            "상담을 권장한다."
+            "상담을 권장한다.\n\n"
+            "(2026-08-27 추가) 여기서 주의할 점은, 무릎 모임은 무릎이 발목보다 '좁아지는' "
+            "방향(valgus)에서만 문제가 된다는 것이다. 반대로 무릎이 발목보다 '넓어지는' "
+            "방향(varus)은 다른 문제이며, 오히려 스쿼트가 깊어질수록 자연스럽게 나타나는 "
+            "정상적인 패턴이다. 스탠스 너비·발 각도가 무릎 정렬에 미치는 영향을 실측한 "
+            "연구(BMC Sports Science, 2018)는 무릎의 정면 변위(다리 길이 대비 정규화, "
+            "음수=valgus/양수=varus)를 측정했는데, 권장되는 스탠스 조건들도 스쿼트 하단부에서는 "
+            "varus 방향으로 다리 길이의 15~17%까지 커지는 것으로 나타났다 — 즉 '무릎이 발목보다 "
+            "넓게 벌어지는 것'은 결함이 아니라 딥스쿼트에서 흔히 관찰되는 안전한 범위다. 이 "
+            "연구가 실제로 경계하는 건 오직 valgus(무릎이 좁아지며 안쪽으로 쏠리는) 방향이고, "
+            "'무릎-발목이 완벽히 일직선이어야 한다'는 주장도 이 연구의 결론은 아니다(연구는 "
+            "극단적인 스탠스·발각도 조합만 피하라고 권고한다)."
         ),
-        "source": "NASM (National Academy of Sports Medicine)",
+        "source": "NASM (National Academy of Sports Medicine); Lorenzetti et al., "
+        "\"How to squat? Effects of various stance widths, foot placement angles and "
+        "level of experience on knee, hip and trunk motion and loading\", BMC Sports "
+        "Science, Medicine and Rehabilitation (2018)",
         "source_url": "https://blog.nasm.org/training-benefits/lunge-effective-lower-body-training-exercise",
         "source_date": "2026-08",
     },
@@ -134,17 +149,19 @@ KNOWLEDGE_BASE = [
         "source_date": "2026-08",
     },
     {
-        "id": "shoulder_rounding",
-        "title": "어깨 말림(라운드 숄더) 교정",
-        "tags": ["shoulder_rounding", "어깨 말림", "라운드 숄더", "shoulder", "굽은 어깨"],
-        # single source of truth 원칙에 따라 하드코딩 대신 coaching_messages.py의
-        # 상수를 그대로 가져다 쓴다.
-        "short_message": SHOULDER_FORWARD_LEAN_MESSAGE,
+        "id": "back_rounded",
+        "title": "등 굽음/어깨 말림(라운드 숄더) 교정",
+        "tags": ["back_rounded", "등 굽음", "척추 굴곡", "어깨 말림", "라운드 숄더", "shoulder", "굽은 어깨"],
+        # 이 서비스는 어깨 말림을 등 굽음과 별개 원인으로 보지 않고 "등이 굽었다"로 하나로
+        # 판정한다(judge_realtime_coaching의 back_rounded 항목 참고) — single source of
+        # truth 원칙에 따라 하드코딩 대신 coaching_messages.py의 상수를 그대로 가져다 쓴다.
+        "short_message": BACK_ROUNDED_MESSAGE,
         "body": (
             "스쿼트 중 어깨가 앞으로 말리는 것은 흉추(등 윗부분)가 과도하게 굽거나, "
             "가슴 근육이 상대적으로 긴장돼 어깨가 앞으로 당겨지기 때문인 경우가 많다고 "
             "설명된다. NASM의 오버헤드 스쿼트 평가 항목에서도 '가슴을 펴고 흉추를 살짝 편 "
-            "상태 유지'를 정상 자세의 기준 중 하나로 본다.\n\n"
+            "상태 유지'를 정상 자세의 기준 중 하나로 본다 — 즉 어깨가 말리는 것과 등(흉추)이 "
+            "굽는 것은 같은 문제의 다른 표현이라고 볼 수 있다.\n\n"
             "교정 큐로는 '가슴을 펴고 어깨뼈를 뒤/아래로 가볍게 모은다'는 감각을 의식하도록 "
             "안내하는 것이 일반적이다. 준비 운동으로 가슴 스트레칭(도어웨이 스트레치 등)이나 "
             "등 상부를 강화하는 보조 운동(밴드 로우 등)을 함께 안내하는 경우가 많다."
@@ -157,10 +174,10 @@ KNOWLEDGE_BASE = [
         "id": "gaze_forward",
         "title": "시선/고개 위치가 중요한 이유",
         "tags": ["gaze_forward", "시선", "고개", "목", "head position", "forward head", "neck"],
-        # shoulder_rounding과 같은 이유(single source of truth)로 coaching_messages.py의
-        # 상수를 재사용한다 — get_shoulder_forward_lean_deg()가 목과 어깨 말림을 같은
-        # 지표로 감지해서, 판정 로직상 두 이슈가 같은 메시지를 쓴다.
-        "short_message": SHOULDER_FORWARD_LEAN_MESSAGE,
+        # single source of truth 원칙에 따라 coaching_messages.py의 상수를 그대로 가져다 쓴다
+        # — judge_realtime_coaching의 "gaze" 항목(get_shoulder_forward_lean_deg 기반, 어깨
+        # 말림과는 별개로 분리된 독립 지표)이 실제로 반환하는 메시지와 동일하다.
+        "short_message": GAZE_FORWARD_MESSAGE,
         "body": (
             "목과 고개는 척추 정렬에서 분리된 부위가 아니라 'neutral spine'의 일부로 다뤄진다. "
             "목이 과도하게 젖혀지거나(신전) 과도하게 숙여지면(굴곡), 이는 흉추(등 윗부분) "
