@@ -11,7 +11,7 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
 필드가 없다.
 """
 
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
