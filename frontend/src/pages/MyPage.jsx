@@ -4,7 +4,7 @@ import './MyPage.css'
 import { useAuth } from '../lib/auth.js'
 import PageShell from '../components/PageShell.jsx'
 import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
-import profileImg from '../assets/profile.png'
+import profileImg from '../assets/profile.webp'
 import { getBmiInsight } from '../lib/aiApi.js'
 
 const GOAL_LABEL = {

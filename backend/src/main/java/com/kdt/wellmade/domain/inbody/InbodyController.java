@@ -27,15 +27,6 @@ public class InbodyController {
         this.userService = userService;
     }
 
-    @PostMapping("/api/test/ocr")
-    public InbodyResult testOcr(@RequestParam("image") MultipartFile image) {
-        try {
-            return inbodyService.extract(image);
-        } catch (IOException e) {
-            throw new RuntimeException("OCR 실패: " + e.getMessage(), e);
-        }
-    }
-
     @PostMapping("/api/users/me/inbody/extract")
     public InbodyResult extractMyInbody(@RequestParam("image") MultipartFile image) {
         try {

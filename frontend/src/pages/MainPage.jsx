@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './MainPage.css'
-import heroPhoto from '../assets/pngwing.com.png'
-import heroBg from '../assets/hero-bg.png'
+import heroPhoto from '../assets/hero-photo.webp'
+import heroBg from '../assets/hero-bg.webp'
 import { useAuth } from '../lib/auth.js'
 import SiteNav from '../components/SiteNav.jsx'
 
@@ -13,7 +13,7 @@ function wasRecentlyRevealed() {
   return Boolean(lastRevealedAt) && Date.now() - lastRevealedAt < HERO_REVEAL_TTL_MS
 }
 
-// 히어로 사진(pngwing.com.png, 2370x3397) 위에 얹는 자세 측정 오버레이.
+// 히어로 사진(hero-photo.webp, 2370x3397) 위에 얹는 자세 측정 오버레이.
 // 좌표는 이 사진을 usePoseLandmarker와 같은 MediaPipe PoseLandmarker(pose_landmarker_full)로
 // 실제 검출해서 나온 33개 관절 좌표를 옮긴 값 — F/B는 사진 속 앞으로 뻗은 다리·팔(front)과
 // 뒤로 뻗은 다리·팔(back)을 뜻함. neck/hip은 MediaPipe에 없는 관절이라 양쪽 어깨/골반의

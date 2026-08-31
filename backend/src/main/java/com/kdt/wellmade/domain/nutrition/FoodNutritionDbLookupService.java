@@ -11,8 +11,6 @@ import java.util.regex.Pattern;
 
 /**
  * DB에 적재된 식약처 표준데이터로 음식명을 검색해서 영양성분을 계산하는 서비스.
- * MockFoodNutritionLookupService를 대체함 - FoodNutritionLookupService 인터페이스는 동일하므로
- * 이 코드를 쓰는 다른 클래스(MealParsingTestController 등)는 수정할 필요 없음.
  *
  * 매칭 전략 (위에서부터 순서대로 시도, 먼저 맞는 게 있으면 그걸 채택):
  *   1. 요리(data_type='음식')에서 food_name 정확일치                          -> EXACT_PRODUCT
