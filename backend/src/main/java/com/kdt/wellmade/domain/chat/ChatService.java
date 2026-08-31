@@ -23,6 +23,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
@@ -252,30 +253,31 @@ public class ChatService {
     }
 
     /**
-     * 1) tools를 포함해 한 번 (비스트리밍) 호출해서 모델이 도구를 부르는지 본다.
-     * 2) 도구를 안 불렀으면 그 응답이 최종 답변이므로 그대로 흘려보낸다.
-     * 3) 도구를 불렀으면 전부 실행해 결과를 이어붙이고, 이번엔 tools 없이 최종 답변만 스트리밍한다.
+     * 1) tools를 포함해 스트리밍으로 호출한다. 도구를 안 부르는 질문(인사·잡담)이 대부분인데,
+     *    예전엔 이 호출만 비스트리밍이라 그런 질문은 생성이 끝날 때까지 화면이 비어 있었다.
+     * 2) 도구를 불렀으면 전부 실행해 결과를 이어붙이고, tools 없이 한 번 더 스트리밍한다.
+     *
+     * 모델이 본문을 조금 흘린 뒤에 도구를 부르는 경우(드묾)에는 그 앞부분이 화면에 남은 채
+     * 최종 답변이 이어진다. 매 응답을 도구 호출 여부가 확정될 때까지 붙잡아두면 스트리밍을
+     * 하는 의미가 없어지므로, 흔한 경우(도구 호출은 본문 없이 옴)를 우선했다.
      *
      * 순차적으로 여러 번 도구를 불러야 하는 질문은 지원하지 않는다(이 앱의 도구는 한 라운드에서
      * 병렬 호출로 충분함). tools를 뺀 마지막 호출이라 모델은 반드시 텍스트로 답한다.
      */
     private void resolveToolsThenStream(User user, List<OllamaMessage> messages, Consumer<String> onDelta) {
-        OllamaMessage first = chatCompletion(messages, true);
+        StreamResult first = chatCompletionStream(messages, true, onDelta);
 
-        if (first.tool_calls() == null || first.tool_calls().isEmpty()) {
-            if (first.content() != null) {
-                onDelta.accept(first.content());
-            }
+        if (first.toolCalls().isEmpty()) {
             return;
         }
 
-        messages.add(first);
-        for (OllamaMessage.ToolCall call : first.tool_calls()) {
+        messages.add(new OllamaMessage("assistant", first.content(), first.toolCalls(), null));
+        for (OllamaMessage.ToolCall call : first.toolCalls()) {
             String result = executeTool(user, call.function().name(), call.function().arguments());
             messages.add(OllamaMessage.tool(result, call.id()));
         }
 
-        chatCompletionStream(messages, onDelta);
+        chatCompletionStream(messages, false, onDelta);
     }
 
     private String executeTool(User user, String name, Map<String, Object> arguments) {
@@ -517,15 +519,23 @@ public class ChatService {
         return response.message();
     }
 
+    /** 스트리밍 한 번의 결과 - 흘려보낸 본문과, 모델이 요청한 도구 호출 목록 */
+    private record StreamResult(String content, List<OllamaMessage.ToolCall> toolCalls) {}
+
     /**
      * Ollama /api/chat 를 stream 모드로 호출해서, 응답으로 오는 NDJSON 각 줄의
-     * message.content 조각을 받는 대로 {@code onDelta}에 넘긴다. tools 없이만 호출한다.
+     * message.content 조각을 받는 대로 {@code onDelta}에 넘긴다.
+     * tools를 포함해 호출한 경우 도중에 오는 message.tool_calls를 모아서 돌려준다.
      */
-    private void chatCompletionStream(List<OllamaMessage> messages, Consumer<String> onDelta) {
+    private StreamResult chatCompletionStream(
+            List<OllamaMessage> messages, boolean includeTools, Consumer<String> onDelta
+    ) {
+        StringBuilder content = new StringBuilder();
+        List<OllamaMessage.ToolCall> toolCalls = new ArrayList<>();
         try {
             ollamaRestClient.post()
                     .uri("/api/chat")
-                    .body(buildRequestBody(messages, false, true))
+                    .body(buildRequestBody(messages, includeTools, true))
                     .exchange((request, response) -> {
                         try (BufferedReader reader = new BufferedReader(
                                 new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
@@ -535,10 +545,15 @@ public class ChatService {
                                     continue;
                                 }
                                 JsonNode node = objectMapper.readTree(line);
-                                String delta = node.path("message").path("content").asText("");
+                                JsonNode message = node.path("message");
+
+                                String delta = message.path("content").asText("");
                                 if (!delta.isEmpty()) {
+                                    content.append(delta);
                                     onDelta.accept(delta);
                                 }
+                                collectToolCalls(message, toolCalls);
+
                                 if (node.path("done").asBoolean(false)) {
                                     break;
                                 }
@@ -550,6 +565,24 @@ public class ChatService {
                     });
         } catch (RestClientException | UncheckedIOException e) {
             throw aiUnavailable(e);
+        }
+        return new StreamResult(content.toString(), toolCalls);
+    }
+
+    /** 스트림 조각에 들어있는 tool_calls를 자바 객체로 옮겨 담는다 (없으면 아무것도 안 함) */
+    private void collectToolCalls(JsonNode message, List<OllamaMessage.ToolCall> into) {
+        JsonNode calls = message.path("tool_calls");
+        if (!calls.isArray()) {
+            return;
+        }
+        for (JsonNode call : calls) {
+            JsonNode function = call.path("function");
+            Map<String, Object> arguments = objectMapper.convertValue(
+                    function.path("arguments"), new TypeReference<Map<String, Object>>() {});
+            into.add(new OllamaMessage.ToolCall(
+                    call.path("id").asText(null),
+                    new OllamaMessage.FunctionCall(function.path("name").asText(), arguments)
+            ));
         }
     }
 

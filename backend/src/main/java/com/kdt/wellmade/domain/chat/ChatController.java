@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
 import org.slf4j.Logger;
@@ -43,6 +45,13 @@ public class ChatController {
     // 이 프로젝트는 starter-web을 안 써서 ObjectMapper 자동 빈이 없음(ChatService도 직접 생성해 씀)
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * 답변을 만들고 있는 사용자 목록. 프론트에는 전송 중 버튼을 막는 가드가 있지만 API를 직접
+     * 호출하면 소용없고, 요청 하나가 GPU를 한동안 붙잡으므로 서버에서도 사용자당 1건으로 막는다.
+     * (분산 배포로 가면 이 방식으로는 부족하니 그때는 공유 저장소 기반으로 옮겨야 함)
+     */
+    private final Set<Long> generating = ConcurrentHashMap.newKeySet();
+
     private final ChatService chatService;
     private final UserService userService;
     private final ExecutorService chatStreamExecutor;
@@ -51,6 +60,12 @@ public class ChatController {
     public SseEmitter chat(@AuthenticationPrincipal Long userId, @RequestBody ChatRequest request) {
         User user = userService.getUser(userId);
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
+
+        if (!generating.add(userId)) {
+            sendJsonQuietly(emitter, Map.of("error", "아직 이전 질문에 답하고 있어요. 잠시만 기다려 주세요."));
+            emitter.complete();
+            return emitter;
+        }
 
         chatStreamExecutor.execute(() -> {
             try {
@@ -61,6 +76,8 @@ public class ChatController {
             } catch (Exception e) {
                 log.warn("챗봇 스트리밍 실패 userId={}", userId, e);
                 sendJsonQuietly(emitter, Map.of("error", "답변을 받지 못했어요. 잠시 후 다시 시도해 주세요."));
+            } finally {
+                generating.remove(userId);
             }
             emitter.complete();
         });
@@ -82,9 +99,16 @@ public class ChatController {
 
     @PostMapping("/nutrient-advice")
     public ChatResponse nutrientAdvice(@AuthenticationPrincipal Long userId) {
-        User user = userService.getUser(userId);
-        String reply = chatService.nutrientAdvice(user, userId);
-        return new ChatResponse(reply);
+        // 이 경로도 같은 모델을 쓰므로 채팅과 같은 가드를 건다
+        if (!generating.add(userId)) {
+            return new ChatResponse("아직 이전 질문에 답하고 있어요. 잠시만 기다려 주세요.");
+        }
+        try {
+            User user = userService.getUser(userId);
+            return new ChatResponse(chatService.nutrientAdvice(user, userId));
+        } finally {
+            generating.remove(userId);
+        }
     }
 
     private void sendJson(SseEmitter emitter, Map<String, String> payload) {
