@@ -448,3 +448,24 @@ def llm_model_compare(
     )
 
     return ModelCompareResponse(**result)
+
+@app.post(
+    "/ai/session/report",
+    response_model=SessionReportResponse,
+)
+def session_report(
+    request: SessionReportRequest,
+):
+    result = generate_session_report(
+        frame_history=[
+            frame.model_dump()
+            for frame in request.frame_history
+        ],
+        session_duration_sec=request.session_duration_sec,
+        previous_sessions=[
+            previous.model_dump()
+            for previous in request.previous_sessions
+        ],
+    )
+
+    return SessionReportResponse(**result)
