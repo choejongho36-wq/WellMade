@@ -11,7 +11,7 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
 필드가 없다.
 """
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -589,36 +589,5 @@ class SessionGuideResponse(BaseModel):
     stage: SessionStage
     camera_view: CameraView | None = None
     message: str | None = None
-    
-    
-class SessionReportRequest(BaseModel):
-    frame_history: list[dict[str, Any]]
-    session_duration_sec: float
-    previous_sessions: list[dict[str, Any]] = Field(
-        default_factory=list
-    )
-
-
-class SessionReportStatistics(BaseModel):
-    total_reps: int
-    normal_reps: int
-    abnormal_reps: int
-
-    normal_ratio: float
-
-    previous_normal_ratio: float | None = None
-    normal_ratio_delta: float | None = None
-
-    issue_counts: dict[str, int]
-
-    most_frequent_issue: str | None = None
-
-    rep_timeline: list[dict[str, Any]]
-
-
-class SessionReportResponse(BaseModel):
-    session_duration_sec: float
-
-    statistics: SessionReportStatistics
 
     coaching_summary: str
