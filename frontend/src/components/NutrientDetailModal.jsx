@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getNutritionPeerCompare } from '../lib/aiApi.js'
 import { useAuth } from '../lib/auth.js'
 import Modal from './Modal.jsx'
 import './NutrientDetailModal.css'
@@ -155,7 +156,19 @@ function TargetEditForm({ target, onSaved, onCancel }) {
 }
 
 function NutrientDetailModal({ summary, target, onClose, onTargetChange, title = '오늘 영양소' }) {
+  const { profile } = useAuth()
   const [editing, setEditing] = useState(false)
+  const [peer, setPeer] = useState(null)
+
+  // 같은 성별·연령대 평균과 비교(AI 서버). 프로필이 없거나 AI 서버가 꺼져 있으면
+  // null이 와서 아래 섹션이 안 보일 뿐, 영양소 화면 자체는 그대로 동작한다
+  useEffect(() => {
+    getNutritionPeerCompare({
+      total: summary,
+      gender: profile?.gender,
+      birthYear: profile?.birthYear,
+    }).then(setPeer)
+  }, [summary, profile?.gender, profile?.birthYear])
 
   const handleSaved = (newTarget) => {
     onTargetChange?.(newTarget)
@@ -220,6 +233,27 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
                 <OverArrow />
                 초과 섭취 주의 · {overLabels.join(', ')} — 목표치를 넘었어요
               </p>
+            )}
+
+            {/* 또래 비교 - 목표 대비(위 게이지)와 다른 축의 정보다.
+                목표를 안 정한 사용자에게도 "많이 먹었나 적게 먹었나" 감각을 준다 */}
+            {peer && peer.comparisons.length > 0 && (
+              <div className="nutrient-peer">
+                <div className="nutrient-peer-head">
+                  같은 {peer.age_bracket}세 평균과 비교
+                  {peer.low_sample_warning && ' (표본이 적어 참고용)'}
+                </div>
+                {peer.comparisons.map((c) => (
+                  <div className="nutrient-peer-row" key={c.nutrient}>
+                    <span className="nutrient-peer-label">{c.nutrient}</span>
+                    <span className="nutrient-peer-value">
+                      {c.my_value}{c.unit} <span className="nutrient-peer-mean">/ 평균 {c.peer_mean}{c.unit}</span>
+                    </span>
+                    <span className="nutrient-peer-pct">{c.percent_of_peer}%</span>
+                  </div>
+                ))}
+                <div className="nutrient-peer-source">{peer.source}</div>
+              </div>
             )}
 
             {!target && (

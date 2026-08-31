@@ -115,6 +115,24 @@
   letter-spacing: 0.02em;
 }
 
+/* 인바디 태그 아래 붙는 BMI 또래 비교 한 줄 */
+.mp-bmi-insight {
+  margin-top: 12px;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #55534d;
+}
+.mp-bmi-source {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #9b9a96;
+}
+
 .mp-inbody-empty {
   margin-top: 14px;
   transform: skewX(-4deg);

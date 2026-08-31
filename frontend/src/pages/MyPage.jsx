@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth.js'
 import PageShell from '../components/PageShell.jsx'
 import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
 import profileImg from '../assets/profile.png'
+import { getBmiInsight } from '../lib/aiApi.js'
 
 const GOAL_LABEL = {
   LOSE: '체중 감량',
@@ -364,6 +365,7 @@ function GoalPickerModal({ current, onClose, onSelect }) {
 }
 
 function MyPage() {
+  const [bmiInsight, setBmiInsight] = useState(null)
   const { user, profile, inbody, updateGoal, updateName, updateBody, extractInbody, confirmInbody, getInbodyHistory, getTodayTotal, getNutrientTarget, deleteAccount } = useAuth()
   const navigate = useNavigate()
   const [inbodyHistory, setInbodyHistory] = useState([])
@@ -393,6 +395,16 @@ function MyPage() {
   useEffect(() => {
     if (user) getInbodyHistory().then(setInbodyHistory).catch(() => {})
   }, [user, inbody])
+
+  // BMI 또래 비교(AI 서버). 성별·출생년도가 없으면 비교 자체가 불가능해서 건너뛴다.
+  // 실패하면 null이 와서 아래 섹션이 그냥 안 보인다 - 인바디 화면 자체는 영향받지 않는다
+  useEffect(() => {
+    getBmiInsight({
+      bmi: inbody?.bmi,
+      gender: profile?.gender,
+      birthYear: profile?.birthYear,
+    }).then(setBmiInsight)
+  }, [inbody?.bmi, profile?.gender, profile?.birthYear])
 
   const startEditName = () => {
     setNameDraft(profile?.name ?? '')
@@ -535,17 +547,30 @@ function MyPage() {
           </div>
 
           {inbody ? (
-            <div className="tag-strip">
-              {INBODY_FIELDS.map(({ key, label, unit }) => (
-                <div className="tag" key={key}>
-                  <div className="tag-label"><span>{label}</span></div>
-                  <div className="tag-inner">
-                    <div className="tag-value">{inbody[key] != null ? inbody[key] : '-'}</div>
-                    {unit && <div className="tag-unit">{unit}</div>}
+            <>
+              <div className="tag-strip">
+                {INBODY_FIELDS.map(({ key, label, unit }) => (
+                  <div className="tag" key={key}>
+                    <div className="tag-label"><span>{label}</span></div>
+                    <div className="tag-inner">
+                      <div className="tag-value">{inbody[key] != null ? inbody[key] : '-'}</div>
+                      {unit && <div className="tag-unit">{unit}</div>}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              {/* BMI 또래 비교 - 분류만 보면 "나만 그런가?"를, 백분위만 보면
+                  "또래도 다 그러니 괜찮다"를 오해하게 되어 둘을 같이 보여준다 */}
+              {bmiInsight && (
+                <p className="mp-bmi-insight">
+                  {bmiInsight.message}
+                  <span className="mp-bmi-source">
+                    {bmiInsight.source} 기준 · 대한비만학회 분류
+                  </span>
+                </p>
+              )}
+            </>
           ) : (
             <div className="mp-inbody-empty">
               <div className="mp-inbody-empty-inner">
