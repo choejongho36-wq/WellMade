@@ -21,6 +21,7 @@ import java.util.Map;
  *
  * 사용 흐름:
  *   1. POST /api/diet/meals - 오늘 먹은 거 기록 (mealType 미지정 시 현재 시각으로 자동 추정)
+ *   1-1. POST /api/diet/meals/manual - DB에 없는 음식을 칼로리만 직접 적어서 기록
  *   2. GET  /api/diet/meals/today?date=yyyy-MM-dd - 해당 날짜 기록 목록 (date 생략 시 오늘, food_items에 항목별 그램/칼로리 포함)
  *   3. GET  /api/diet/meals/today/total?date=yyyy-MM-dd - 해당 날짜 합계 (date 생략 시 오늘)
  *   4. GET  /api/diet/meals/month?year=&month= - 해당 월의 날짜별 칼로리 합계 (달력 칸 표시용)
@@ -66,6 +67,18 @@ public class DietMealController {
             throw new IllegalArgumentException("아직 오지 않은 날짜에는 기록할 수 없어요.");
         }
         return mealLoggingService.logMeal(userId, request.message(), request.mealType(), date);
+    }
+
+    /** 표준 식품 DB에 없는 음식을 사용자가 칼로리만 직접 적어서 기록 */
+    @PostMapping("/manual")
+    public MealLoggingService.MealLogResult logManualMeal(
+            @AuthenticationPrincipal Long userId, @RequestBody LogManualMealRequest request
+    ) {
+        LocalDate date = request.date();
+        if (date != null && date.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("아직 오지 않은 날짜에는 기록할 수 없어요.");
+        }
+        return mealLoggingService.logManualMeal(userId, request.foodName(), request.kcal(), request.mealType(), date);
     }
 
     @GetMapping("/today")
@@ -183,6 +196,8 @@ public class DietMealController {
     // date는 생략 가능 - 없으면 오늘로 기록된다
     public record LogMealRequest(String message, String mealType,
                                  @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {}
+    public record LogManualMealRequest(String foodName, double kcal, String mealType,
+                                       @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {}
     public record UpdateMealRequest(String mealType, String menuName, double kcal) {}
     public record UpdateMealItemRequest(double amountG) {}
     public record ResolveMealItemMatchRequest(String resolvedFoodName) {}
