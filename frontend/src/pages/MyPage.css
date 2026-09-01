@@ -126,6 +126,12 @@
   line-height: 1.6;
   color: #55534d;
 }
+.mp-measured-at {
+  margin-left: 8px;
+  font: 500 11.5px 'Noto Sans KR', sans-serif;
+  color: #9b9a96;
+}
+
 .mp-bmi-source {
   display: block;
   margin-top: 6px;
@@ -161,10 +167,261 @@
   cursor: pointer;
 }
 
-/* 인바디 추이 그래프 */
-.mp-trend {
+/* 인바디 히어로 + 오늘 식단을 반반으로 - 몸 상태와 오늘 입력을 한 줄에서 같이 본다 */
+.mp-overview {
   margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: stretch;
 }
+
+/* 인바디 대표 지표 히어로 - 검정 블록은 박스 끝까지 붙이고(시안 그대로),
+   제목·측정일·액션은 오른쪽 그래프 칸 위에 얹어 박스 안으로 넣었다 */
+.mp-hero {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #f9f8f5;
+}
+.mp-hero-head {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.mp-hero-title {
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.1em;
+  color: #77767c;
+}
+.mp-hero-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.mp-hero-delete {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: 700 12.5px Archivo, 'Noto Sans KR', sans-serif;
+  color: #9b9a96;
+}
+.mp-hero-delete:hover {
+  color: #da291c;
+}
+.mp-hero-main {
+  flex: none;
+  width: 208px;
+  padding: 20px 22px;
+  background: #111;
+  color: #fff;
+}
+.mp-hero-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.1em;
+  color: #b6b3ac;
+}
+.mp-hero-num {
+  margin-top: 4px;
+  font: 400 44px/1 'Archivo Black', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.mp-hero-num small {
+  margin-left: 4px;
+  font: 800 15px Archivo, sans-serif;
+}
+.mp-hero-sub {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: #b6b3ac;
+}
+/* 검정 바탕에서는 본문 레드(#da291c)가 죽어서 한 톤 밝은 레드를 쓴다 */
+.mp-hero-sub .up {
+  color: #ff6b5e;
+}
+.mp-hero-sub .down {
+  color: #7fd68d;
+}
+/* 목표는 레드 뱃지로 - 지표 이름과 색·형태가 달라서 "체중 체중유지"로 붙어 읽히지 않는다 */
+.mp-hero-goal {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #da291c;
+  font: 700 10px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+.mp-hero-chart {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mp-hero-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: #9b9a96;
+}
+
+/* 히어로 옆 오늘 식단 카드 */
+.mp-diet-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  background: #fff;
+}
+.mp-diet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mp-diet-label {
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.1em;
+  color: #77767c;
+}
+.mp-diet-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mp-diet-ring {
+  position: relative;
+  flex: none;
+  width: 80px;
+  height: 80px;
+}
+.mp-diet-ring svg {
+  width: 80px;
+  height: 80px;
+}
+.mp-diet-ring-bg {
+  fill: none;
+  stroke: #e5e3dd;
+  stroke-width: 8;
+}
+.mp-diet-ring-fg {
+  fill: none;
+  stroke: #da291c;
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+.mp-diet-ring-fg.over {
+  stroke: #111;
+}
+.mp-diet-ring-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.mp-diet-ring-num b {
+  font: 400 17px 'Archivo Black', sans-serif;
+  color: #111;
+  font-variant-numeric: tabular-nums;
+}
+.mp-diet-ring-num span {
+  font-size: 9.5px;
+  color: #9b9a96;
+}
+.mp-diet-figures {
+  min-width: 0;
+}
+.mp-diet-kcal {
+  font: 800 20px Archivo, sans-serif;
+  color: #111;
+  font-variant-numeric: tabular-nums;
+}
+.mp-diet-goal {
+  color: #9b9a96;
+  font-size: 15px;
+}
+.mp-diet-unit {
+  margin-left: 3px;
+  font-size: 11px;
+  color: #9b9a96;
+}
+.mp-diet-left {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #77767c;
+}
+.mp-diet-macros {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11.5px;
+  color: #9b9a96;
+}
+.mp-diet-macros b {
+  color: #55534d;
+  font-variant-numeric: tabular-nums;
+}
+.mp-diet-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #9b9a96;
+}
+
+/* 나머지 지표 펼치기 */
+.mp-detail-toggle {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid #e5e3dd;
+  border-radius: 999px;
+  background: #fff;
+  color: #77767c;
+  font: 700 12px Archivo, 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+}
+.mp-detail-toggle:hover {
+  border-color: #da291c;
+  color: #da291c;
+}
+.mp-detail-caret {
+  transition: transform 0.15s ease;
+}
+.mp-detail-caret.open {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-detail-caret {
+    transition: none;
+  }
+}
+
+/* 인바디 추이 그래프 */
 .mp-trend-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -200,6 +457,15 @@
   background: #fff;
   padding: 10px 12px;
 }
+.mp-mini-axis {
+  margin-top: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 10.5px;
+  color: #9b9a96;
+  font-variant-numeric: tabular-nums;
+}
 .mp-mini-head {
   display: flex;
   justify-content: space-between;
@@ -222,6 +488,7 @@
 }
 .mp-mini-value {
   margin-top: 2px;
+  font-variant-numeric: tabular-nums;
   font: 800 18px Archivo, sans-serif;
   color: #111;
 }
@@ -246,6 +513,17 @@
 }
 .mp-spark-dot {
   fill: #da291c;
+}
+.mp-spark-lg {
+  height: 64px;
+}
+.mp-spark-grid {
+  stroke: #e5e3dd;
+  stroke-width: 1;
+}
+.mp-spark-fill {
+  fill: url(#mp-spark-grad);
+  stroke: none;
 }
 .mp-mini-empty {
   height: 40px;
@@ -498,6 +776,16 @@
     align-items: flex-start;
     gap: 14px;
     padding: 20px;
+  }
+  .mp-overview {
+    grid-template-columns: 1fr;
+  }
+  /* 검정 블록 + 그래프가 한 줄에 안 들어감 */
+  .mp-hero {
+    flex-direction: column;
+  }
+  .mp-hero-main {
+    width: 100%;
   }
   /* 추이 미니카드는 auto-fit(150px)이라 폰에서 1열로 떨어짐 - 2열 유지 */
   .mp-trend-grid {

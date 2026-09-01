@@ -5,6 +5,7 @@ import './index.css'
 import { AuthProvider, useAuth } from './lib/auth.js'
 import ChatWidget from './components/ChatWidget.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import SessionExpiredModal from './components/SessionExpiredModal.jsx'
 import MainPage from './pages/MainPage.jsx'
 import MyPage from './pages/MyPage.jsx'
 import DietPage from './pages/DietPage.jsx'
@@ -29,6 +30,7 @@ function AppRoutes() {
         </Routes>
       </Suspense>
 
+      <SessionExpiredModal />
       <ChatWidget loggedIn={Boolean(user)} sendChat={sendChat} getChatHistory={getChatHistory} clearChatHistory={clearChatHistory} getNutrientAdvice={getNutrientAdvice} userName={profile?.name} />
     </>
   )
