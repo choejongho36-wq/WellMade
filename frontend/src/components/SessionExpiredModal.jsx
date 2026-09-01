@@ -11,7 +11,7 @@ function SessionExpiredModal() {
   if (!sessionExpired) return null
 
   return (
-    <div className="modal-backdrop" onClick={dismissSessionExpired}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={dismissSessionExpired} aria-label="닫기">×</button>
         <div className="modal-title">로그인이 만료됐어요</div>

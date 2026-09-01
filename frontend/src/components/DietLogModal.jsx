@@ -125,28 +125,28 @@ function DietLogModal({ selectedDate, isToday, mealType, onMealTypeChange, onClo
 
   return (
     <Modal className="diet-log-modal" onClose={close}>
-      <div className="diet-log-modal-head">
-        <div className="modal-title">식단 기록하기</div>
-        <button
-          className="diet-log-help-btn"
-          onClick={() => setShowTips((v) => !v)}
-          aria-label="입력 안내"
-          aria-expanded={showTips}
-        >
-          ?
-        </button>
-      </div>
+      <div className="modal-title">식단 기록하기</div>
 
       {showTips && (
-        <ul className="diet-log-tips">
-          <li><strong>몇 인분</strong>인지 같이 적어주세요. (예: 김치찌개 1인분, 밥 한공기)</li>
-          <li><strong>그램 수</strong>를 적으면 그대로 계산돼요. (예: 닭가슴살 150g)</li>
-          <li>양을 안 적으면 표준 식품 DB에 등록된 <strong>1인분 중량</strong>으로 계산해요.
-            중량이 등록돼 있지 않은 음식(주로 생재료)은 100g으로 넣어두니, 기록 후 항목별 그램 수를 고치면 돼요.</li>
-          <li>여러 음식은 한 번에 적어도 돼요. (예: 밥과 불고기 1인분랑 계란후라이 2개)</li>
-          <li>표준 식품 DB에 없는 이름은 영양성분을 못 가져와요. 더 일반적인 메뉴 이름으로 바꾸거나,
-            칼로리를 직접 적어서 그대로 기록할 수 있어요.</li>
-        </ul>
+        <div className="diet-log-tips">
+          <div className="diet-log-tips-group">
+            <div className="diet-log-tips-eyebrow">이렇게 적어보세요</div>
+            <div className="diet-log-tips-examples">
+              <div className="diet-log-tips-ex">"김치찌개 1인분, 밥 한공기"</div>
+              <div className="diet-log-tips-ex">"닭가슴살 150g"</div>
+              <div className="diet-log-tips-ex">"밥과 불고기 1인분이랑 계란후라이 2개"</div>
+            </div>
+          </div>
+          <div className="diet-log-tips-group">
+            <div className="diet-log-tips-eyebrow">알아두면 좋은 것</div>
+            <ul className="diet-log-tips-rules">
+              <li>양을 안 적으면 표준 식품 DB의 1인분 중량으로 계산해요. 중량이 없는 음식(주로 생재료)은
+                100g으로 넣어두니, 기록 후 항목별 그램 수를 고치면 돼요.</li>
+              <li>표준 식품 DB에 없는 이름은 영양성분을 못 가져와요. 더 일반적인 메뉴 이름으로 바꾸거나,
+                칼로리를 직접 적어서 그대로 기록할 수 있어요.</li>
+            </ul>
+          </div>
+        </div>
       )}
 
       <div className="diet-log-form">
@@ -198,9 +198,10 @@ function DietLogModal({ selectedDate, isToday, mealType, onMealTypeChange, onClo
                 <input
                   className="diet-item-amount-input"
                   type="number"
+                  min="0"
                   placeholder="칼로리"
                   value={manualKcal[food] ?? ''}
-                  onChange={(e) => setManualKcal((prev) => ({ ...prev, [food]: e.target.value }))}
+                  onChange={(e) => setManualKcal((prev) => ({ ...prev, [food]: e.target.value.replace(/-/g, '') }))}
                   disabled={manualSaving === food}
                 />
                 <span className="diet-item-unit">kcal</span>
@@ -225,38 +226,42 @@ function DietLogModal({ selectedDate, isToday, mealType, onMealTypeChange, onClo
                 <div className="diet-log-result-line">
                   <span className="diet-log-result-name">
                     {it.foodName}{it.servings > 1 && ` ×${it.servings}`}
+                    {it.matchTier === 'FUZZY' && otherCandidates(it).length > 0 && (
+                      <span className="diet-item-badge-fuzzy">비슷한 이름으로 추정</span>
+                    )}
                   </span>
                   <span className="diet-log-result-meta">
                     {it.amountG}g · {Math.round(it.calories)}kcal
                   </span>
                 </div>
-                {otherCandidates(it).length > 0 && (
-                  <>
-                    <span className="diet-log-result-hint">
-                      {it.matchTier === 'FUZZY'
-                        ? '⚠️ 비슷한 이름으로 추정했어요. 다른 음식이면 골라주세요'
-                        : '다른 음식이면 골라주세요'}
-                    </span>
-                    <CandidateButtons
-                      item={it}
-                      onPick={(candidate) => pickCandidate(idx, candidate)}
-                      changing={changingIndex === idx}
-                    />
-                  </>
-                )}
+                <CandidateButtons
+                  item={it}
+                  onPick={(candidate) => pickCandidate(idx, candidate)}
+                  changing={changingIndex === idx}
+                />
               </div>
             ))}
             <button className="modal-btn" onClick={close}>확인</button>
           </div>
         )}
 
-        <button
-          className="chat-send-btn"
-          onClick={handleLog}
-          disabled={loading || !input.trim() || (!isToday && !mealType)}
-        >
-          {loading ? '기록 중...' : '기록하기'}
-        </button>
+        <div className="diet-log-submit-row">
+          <button
+            className="chat-send-btn"
+            onClick={handleLog}
+            disabled={loading || !input.trim() || (!isToday && !mealType)}
+          >
+            {loading ? '기록 중...' : '기록하기'}
+          </button>
+          <button
+            className="diet-log-help-btn"
+            onClick={() => setShowTips((v) => !v)}
+            aria-label="입력 안내"
+            aria-expanded={showTips}
+          >
+            ?
+          </button>
+        </div>
       </div>
     </Modal>
   )

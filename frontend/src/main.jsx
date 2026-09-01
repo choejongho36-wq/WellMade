@@ -15,7 +15,7 @@ import NotFoundPage from './pages/NotFoundPage.jsx'
 const MlTestPage = lazy(() => import('./pages/MlTestPage.jsx'))
 
 function AppRoutes() {
-  const { user, profile, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice } = useAuth()
+  const { user, profile, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu } = useAuth()
 
   return (
     <>
@@ -31,7 +31,7 @@ function AppRoutes() {
       </Suspense>
 
       <SessionExpiredModal />
-      <ChatWidget loggedIn={Boolean(user)} sendChat={sendChat} getChatHistory={getChatHistory} clearChatHistory={clearChatHistory} getNutrientAdvice={getNutrientAdvice} userName={profile?.name} />
+      <ChatWidget loggedIn={Boolean(user)} sendChat={sendChat} getChatHistory={getChatHistory} clearChatHistory={clearChatHistory} getNutrientAdvice={getNutrientAdvice} sendChatMenu={sendChatMenu} userName={profile?.name} />
     </>
   )
 }

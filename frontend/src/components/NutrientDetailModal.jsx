@@ -90,7 +90,7 @@ function TargetEditForm({ target, onSaved, onCancel }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const setField = (field) => (e) => setDraft((d) => ({ ...d, [field]: e.target.value }))
+  const setField = (field) => (e) => setDraft((d) => ({ ...d, [field]: e.target.value.replace(/-/g, '') }))
 
   const handleSave = () => {
     const parsed = {
@@ -184,12 +184,7 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
 
   return (
     <Modal className="nutrient-modal" onClose={onClose}>
-        <div className="nutrient-modal-head">
-          <div className="modal-title">{title}</div>
-          {target && !editing && (
-            <button className="link-btn" onClick={() => setEditing(true)}>목표 수정</button>
-          )}
-        </div>
+        <div className="modal-title">{title}</div>
 
         {editing ? (
           <div className="nutrient-edit-wrap">
@@ -198,8 +193,13 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
         ) : (
           <>
             <div className="nutrient-hero">
-              <div className="nutrient-hero-label">
-                총 섭취 칼로리{isOver(calories, targetKcal) && <OverArrow />}
+              <div className="nutrient-hero-top">
+                <div className="nutrient-hero-label">
+                  총 섭취 칼로리{isOver(calories, targetKcal) && <OverArrow />}
+                </div>
+                {target && (
+                  <button className="nutrient-target-edit" onClick={() => setEditing(true)}>목표 수정</button>
+                )}
               </div>
               <div className="nutrient-hero-values">
                 <div className="nutrient-hero-value">

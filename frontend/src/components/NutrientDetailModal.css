@@ -5,21 +5,43 @@
   overflow: hidden;
   text-align: left;
 }
-.nutrient-modal-head {
+/* 다른 모달과 같은 티켓 헤더(검정 밴드 + 레드 스트라이프 + 절취선)를 그대로 쓴다.
+   공용 .modal-title은 부모의 28px 패딩을 음수 마진으로 되밀어 가장자리까지 채우는데,
+   .nutrient-modal은 padding:0 이라 그대로 두면 오히려 밖으로 삐져나간다 - 마진을 지우고
+   좌우 여백만 직접 준다 */
+.nutrient-modal .modal-title {
+  margin: 0;
+  padding: 22px 24px 20px;
+}
+/* "목표 수정"은 레드 밴드 안 라벨 오른쪽에 둔다. 검정 밴드에 넣으면 우상단 × 버튼·레드
+   스트라이프와 겹치고, 밴드 사이에 두면 검정과 레드 사이에 흰 띠가 생긴다 */
+.nutrient-hero-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 22px 44px 0 24px;
 }
-.nutrient-modal-head .modal-title {
-  margin-bottom: 0;
+.nutrient-target-edit {
+  flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font: 700 10.5px 'Noto Sans KR', sans-serif;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.nutrient-target-edit:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 /* 칼로리 히어로 밴드 - 히어로 배너의 대각선 레드 밴드 DNA를 그대로 확장 */
 .nutrient-hero {
-  margin-top: 18px;
-  background: #da291c;
+  /* 위는 밝게, 아래로 갈수록 진하게. 색상(hue)·채도는 브랜드 레드에 고정하고 명도만 움직여서
+     #ed3021(밝게) -> #da291c(브랜드 레드) -> #a81f14(어둡게) 로 이어붙였다.
+     브랜드 색을 가운데 두면 밴드 전체의 인상은 그대로 #da291c로 읽힌다 */
+  background: linear-gradient(180deg, #ed3021 0%, #da291c 45%, #a81f14 100%);
   padding: 26px 24px 44px;
   clip-path: polygon(0 0, 100% 0, 100% 100%, 0 88%);
 }

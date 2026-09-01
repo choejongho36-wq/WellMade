@@ -6,6 +6,7 @@ import PageShell from '../components/PageShell.jsx'
 import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
 import profileImg from '../assets/profile.webp'
 import { getBmiInsight } from '../lib/aiApi.js'
+import { MEAL_TYPE_LABEL } from '../lib/mealTypes.js'
 
 const GOAL_LABEL = {
   LOSE: '체중 감량',
@@ -28,11 +29,9 @@ const INBODY_FIELDS = [
 ]
 
 const DIET_HEADLINE_FIELD = { key: 'totalCalories', unit: 'kcal' }
-const MACRO_FIELDS = [
-  { key: 'totalCarbsG', label: '탄수', unit: 'g' },
-  { key: 'totalProteinG', label: '단백', unit: 'g' },
-  { key: 'totalFatG', label: '지방', unit: 'g' },
-]
+// 마이페이지 카드에는 아침/점심/저녁만 세 칸으로 - 간식까지 넣으면 칸이 늘어져서
+// 전체 타임라인(식단 기록 페이지)에서 보게 두고 여기선 뺐다
+const MEAL_SLOTS = ['BREAKFAST', 'LUNCH', 'DINNER']
 
 // 히어로에 크게 띄우는 대표 지표 - 나머지는 "자세히 보기"를 눌러야 펼쳐진다
 const HERO_METRIC = { key: 'weightKg', label: '체중', unit: 'kg' }
@@ -65,23 +64,31 @@ function Sparkline({ points, area }) {
   const last = points[points.length - 1]
 
   return (
-    <svg className={`mp-spark${area ? ' mp-spark-lg' : ''}`} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-      {area && (
-        <>
-          <defs>
-            <linearGradient id="mp-spark-grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#da291c" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="#da291c" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <line className="mp-spark-grid" x1="0" y1={h * 0.28} x2={w} y2={h * 0.28} />
-          <line className="mp-spark-grid" x1="0" y1={h * 0.64} x2={w} y2={h * 0.64} />
-          <path className="mp-spark-fill" d={`${d} L${sx(maxX).toFixed(1)} ${h} L${sx(minX).toFixed(1)} ${h} Z`} />
-        </>
-      )}
-      <path className="mp-spark-line" d={d} vectorEffect="non-scaling-stroke" />
-      <circle className="mp-spark-dot" cx={sx(last.t)} cy={sy(last.v)} r={3} vectorEffect="non-scaling-stroke" />
-    </svg>
+    // 선/면은 가로로 늘려야 해서 preserveAspectRatio="none"을 쓰는데, 그러면 SVG 안의 원이
+    // 가로세로 다른 배율로 눌려 타원이 된다. 마지막 점만 SVG 밖 HTML로 얹어 정원을 유지한다
+    // (컨테이너 폭이 유동적이라 뷰박스 안에서는 보정할 배율을 알 수 없음).
+    <div className="mp-spark-wrap">
+      <svg className={`mp-spark${area ? ' mp-spark-lg' : ''}`} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+        {area && (
+          <>
+            <defs>
+              <linearGradient id="mp-spark-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#da291c" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#da291c" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <line className="mp-spark-grid" x1="0" y1={h * 0.28} x2={w} y2={h * 0.28} />
+            <line className="mp-spark-grid" x1="0" y1={h * 0.64} x2={w} y2={h * 0.64} />
+            <path className="mp-spark-fill" d={`${d} L${sx(maxX).toFixed(1)} ${h} L${sx(minX).toFixed(1)} ${h} Z`} />
+          </>
+        )}
+        <path className="mp-spark-line" d={d} vectorEffect="non-scaling-stroke" />
+      </svg>
+      <span
+        className="mp-spark-dot"
+        style={{ left: `${(sx(last.t) / w) * 100}%`, top: `${(sy(last.v) / h) * 100}%` }}
+      />
+    </div>
   )
 }
 
@@ -134,9 +141,9 @@ function shortDate(t) {
   return `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
-// 오늘 먹은 칼로리를 목표 대비 링으로 - 인바디(몸) 옆에 식단(입력)을 나란히 두면
-// 마이페이지 첫 화면에서 "오늘 어떤 상태인가"가 한 줄로 읽힌다
-function DietTodayCard({ summary, target, onOpenDetail }) {
+// 목표 대비 원(클릭하면 영양소 상세 모달) + 아침/점심/저녁 세 칸 - 탄단지 수치는
+// 이미 상세 모달에 다 있어서 여기서는 "오늘 뭘 먹었나"만 한눈에 보여준다
+function DietTodayCard({ summary, meals, target, onOpenDetail }) {
   const kcal = summary ? Math.round(summary[DIET_HEADLINE_FIELD.key]) : null
   const goal = target?.kcal ? Math.round(target.kcal) : null
   const percent = kcal != null && goal ? Math.min(999, Math.round((kcal / goal) * 100)) : null
@@ -152,50 +159,49 @@ function DietTodayCard({ summary, target, onOpenDetail }) {
         <Link className="link-btn" to="/mealplan">기록하러 가기</Link>
       </div>
 
-      {kcal == null ? (
-        <div className="mp-diet-empty">
-          아직 오늘 기록이 없어요.<br />먹은 걸 등록하면 목표 대비 섭취량이 여기에 보여요.
+      <button className="mp-diet-ring-row" onClick={onOpenDetail} disabled={kcal == null}>
+        <div className="mp-diet-ring">
+          <svg viewBox="0 0 80 80" aria-hidden="true">
+            <circle cx="40" cy="40" r="32" className="mp-diet-ring-bg" />
+            <circle
+              cx="40" cy="40" r="32"
+              className={`mp-diet-ring-fg${left != null && left < 0 ? ' over' : ''}`}
+              strokeDasharray={dash}
+              strokeDashoffset={offset}
+              transform="rotate(-90 40 40)"
+            />
+          </svg>
+          <div className="mp-diet-ring-num">
+            <b>{percent != null ? `${percent}%` : '-'}</b>
+            <span>목표 대비</span>
+          </div>
         </div>
-      ) : (
-        <button className="mp-diet-body" onClick={onOpenDetail}>
-          <div className="mp-diet-ring">
-            <svg viewBox="0 0 80 80" aria-hidden="true">
-              <circle cx="40" cy="40" r="32" className="mp-diet-ring-bg" />
-              <circle
-                cx="40" cy="40" r="32"
-                className={`mp-diet-ring-fg${left != null && left < 0 ? ' over' : ''}`}
-                strokeDasharray={dash}
-                strokeDashoffset={offset}
-                transform="rotate(-90 40 40)"
-              />
-            </svg>
-            <div className="mp-diet-ring-num">
-              <b>{percent != null ? `${percent}%` : '-'}</b>
-              <span>목표 대비</span>
-            </div>
-          </div>
+        <div className="mp-diet-ring-caption">
+          {kcal != null
+            ? <>{kcal.toLocaleString()}{goal && ` / ${goal.toLocaleString()}`}kcal</>
+            : '아직 오늘 기록이 없어요'}
+        </div>
+      </button>
 
-          <div className="mp-diet-figures">
-            <div className="mp-diet-kcal">
-              {kcal.toLocaleString()}
-              {goal && <span className="mp-diet-goal"> / {goal.toLocaleString()}</span>}
-              <span className="mp-diet-unit">kcal</span>
+      <div className="mp-diet-slots">
+        {MEAL_SLOTS.map((type) => {
+          const items = meals.filter((m) => m.meal_type === type)
+          return (
+            <div className={`mp-diet-slot${items.length ? '' : ' empty'}`} key={type}>
+              <div className="mp-diet-slot-label">{MEAL_TYPE_LABEL[type]}</div>
+              {items.length ? (
+                <div className="mp-diet-slot-items">
+                  {items.map((m) => (
+                    <div className="mp-diet-slot-item" key={m.id}>{m.menu_name}</div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mp-diet-slot-empty" aria-label="기록 없음">–</div>
+              )}
             </div>
-            {left != null && (
-              <div className="mp-diet-left">
-                {left >= 0 ? `${left.toLocaleString()}kcal 남았어요` : `${Math.abs(left).toLocaleString()}kcal 초과`}
-              </div>
-            )}
-            <div className="mp-diet-macros">
-              {MACRO_FIELDS.map(({ key, label, unit }) => (
-                <span key={key}>
-                  {label} <b>{Math.round(summary[key] ?? 0)}{unit}</b>
-                </span>
-              ))}
-            </div>
-          </div>
-        </button>
-      )}
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -247,8 +253,11 @@ function InbodyPanel({ inbody, history, aside, goalLabel, onEdit, onDelete }) {
             <div className="mp-hero-head">
               
               {inbody.measuredAt && <span className="mp-measured-at">{measuredDate(inbody.measuredAt)} 측정</span>}
+              {/* "다시 입력" 하나로 두 가지를 다 하고 있어서 뜻이 애매했다 - 새 측정을 추가하는
+                  것과, 잘못 올린 사진을 바로잡는 것은 추이 그래프에 미치는 영향이 정반대라 나눈다 */}
               <span className="mp-hero-actions">
-                <button className="link-btn" onClick={onEdit}>다시 입력</button>
+                <button className="link-btn" onClick={() => onEdit(false)}>새 측정 추가</button>
+                <button className="link-btn" onClick={() => onEdit(true)}>이 기록 고치기</button>
                 <button className="mp-hero-delete" onClick={onDelete}>삭제</button>
               </span>
             </div>
@@ -307,7 +316,7 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function InbodyUploadModal({ onClose, onExtract, onConfirm }) {
+function InbodyUploadModal({ replaceLatest, onClose, onExtract, onConfirm }) {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -358,11 +367,15 @@ function InbodyUploadModal({ onClose, onExtract, onConfirm }) {
 
   if (extracted) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-backdrop">
         <div className="modal" onClick={(e) => e.stopPropagation()}>
           <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
           <div className="modal-title">인식 결과 확인</div>
-          <div className="modal-sub">사진에서 읽은 값이 맞는지 확인해주세요</div>
+          <div className="modal-sub">
+            {replaceLatest
+              ? '사진에서 읽은 값이 맞는지 확인해주세요. 저장하면 최근 기록이 이 값으로 바뀌어요'
+              : '사진에서 읽은 값이 맞는지 확인해주세요. 저장하면 오늘 날짜로 새 기록이 추가돼요'}
+          </div>
 
           <div className="modal-review-list">
             {INBODY_FIELDS.map(({ key, label, unit, step }) => (
@@ -371,12 +384,13 @@ function InbodyUploadModal({ onClose, onExtract, onConfirm }) {
                 <span className="modal-review-input-wrap">
                   <input
                     type="number"
+                    min="0"
                     step={step}
                     className="modal-review-input"
                     placeholder="인식 안 됨"
                     value={extracted[key] ?? ''}
                     onChange={(e) => {
-                      const v = e.target.value
+                      const v = e.target.value.replace(/-/g, '')
                       setExtracted((prev) => ({ ...prev, [key]: v === '' ? null : Number(v) }))
                     }}
                   />
@@ -401,11 +415,15 @@ function InbodyUploadModal({ onClose, onExtract, onConfirm }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
-        <div className="modal-title">인바디 등록</div>
-        <div className="modal-sub">인바디 측정지 사진을 올려주세요</div>
+        <div className="modal-title">{replaceLatest ? '이 기록 고치기' : '새 측정 추가'}</div>
+        <div className="modal-sub">
+          {replaceLatest
+            ? '잘못 올린 사진을 바로잡아요. 새 기록이 생기지 않고 최근 기록이 교체됩니다'
+            : '오늘 측정한 인바디 측정지 사진을 올려주세요. 추이 그래프에 점이 하나 늘어나요'}
+        </div>
 
         <label className="modal-upload" htmlFor="inbody-file">
           {preview ? (
@@ -461,7 +479,7 @@ function BodyInfoModal({ profile, onClose, onSave }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
         <div className="modal-title">신체 정보</div>
@@ -489,10 +507,11 @@ function BodyInfoModal({ profile, onClose, onSave }) {
           <span className="modal-review-input-wrap">
             <input
               type="number"
+              min="0"
               step="0.1"
               className="modal-review-input"
               value={heightCm}
-              onChange={(e) => setHeightCm(e.target.value)}
+              onChange={(e) => setHeightCm(e.target.value.replace(/-/g, ''))}
             />
             <span className="modal-review-unit">cm</span>
           </span>
@@ -503,10 +522,11 @@ function BodyInfoModal({ profile, onClose, onSave }) {
           <span className="modal-review-input-wrap">
             <input
               type="number"
+              min="0"
               step="1"
               className="modal-review-input"
               value={birthYear}
-              onChange={(e) => setBirthYear(e.target.value)}
+              onChange={(e) => setBirthYear(e.target.value.replace(/-/g, ''))}
             />
             <span className="modal-review-unit">년</span>
           </span>
@@ -523,7 +543,7 @@ function BodyInfoModal({ profile, onClose, onSave }) {
 
 function GoalPickerModal({ current, onClose, onSelect }) {
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
         <div className="modal-title">목표 설정</div>
@@ -545,15 +565,17 @@ function GoalPickerModal({ current, onClose, onSelect }) {
 
 function MyPage() {
   const [bmiInsight, setBmiInsight] = useState(null)
-  const { user, profile, inbody, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory, getTodayTotal, getNutrientTarget, deleteAccount } = useAuth()
+  const { user, profile, inbody, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory, getTodayTotal, getTodayMeals, getNutrientTarget, deleteAccount } = useAuth()
   const navigate = useNavigate()
   const [inbodyHistory, setInbodyHistory] = useState([])
   const [bodyModalOpen, setBodyModalOpen] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
+  // null이면 닫힘. { replaceLatest } 를 담아서 "새 측정 추가"와 "이 기록 고치기"를 구분한다
+  const [uploadMode, setUploadMode] = useState(null)
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
   const [nameError, setNameError] = useState('')
   const [todaySummary, setTodaySummary] = useState(null)
+  const [todayMeals, setTodayMeals] = useState([])
   const [nutrientTarget, setNutrientTarget] = useState(null)
   const [nutrientModalOpen, setNutrientModalOpen] = useState(false)
   const [goalModalOpen, setGoalModalOpen] = useState(false)
@@ -567,6 +589,10 @@ function MyPage() {
 
   useEffect(() => {
     if (user) getTodayTotal(todayStr()).then(setTodaySummary).catch(() => {})
+  }, [user])
+
+  useEffect(() => {
+    if (user) getTodayMeals(todayStr()).then(setTodayMeals).catch(() => {})
   }, [user])
 
   useEffect(() => {
@@ -624,8 +650,10 @@ function MyPage() {
   // 첫 등록이면 추이 그래프가 왜 아직 안 보이는지 알려준다 (두 개부터 그려짐).
   // inbody는 등록 전 값이라 여기서 판단할 수 있음 - confirmInbody가 성공한 뒤 갱신된다
   const handleConfirmInbody = (values) => {
-    const isFirst = !inbody
-    return confirmInbody(values).then((data) => {
+    const replaceLatest = Boolean(uploadMode?.replaceLatest)
+    // 교체는 기록 수를 늘리지 않으므로 "첫 인바디가 등록됐어요" 안내 대상이 아니다
+    const isFirst = !inbody && !replaceLatest
+    return confirmInbody({ ...values, replaceLatest }).then((data) => {
       if (isFirst) setFirstInbodyGuide(true)
       return data
     })
@@ -664,18 +692,23 @@ function MyPage() {
             <div>
               <div className="mp-profile-name-row">
                 {editingName ? (
-                  <input
-                    className="mp-name-input"
-                    value={nameDraft}
-                    autoFocus
-                    maxLength={50}
-                    onChange={(e) => setNameDraft(e.target.value)}
-                    onBlur={submitName}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') submitName()
-                      if (e.key === 'Escape') setEditingName(false)
-                    }}
-                  />
+                  // onBlur로 저장하던 걸 뗐다 - 확인/취소 버튼을 누르는 순간 blur가 먼저 나서
+                  // "취소를 눌렀는데 저장되는" 동작이 된다. 저장 시점은 버튼과 Enter로만 둔다.
+                  <span className="mp-name-edit">
+                    <input
+                      className="mp-name-input"
+                      value={nameDraft}
+                      autoFocus
+                      maxLength={50}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitName()
+                        if (e.key === 'Escape') setEditingName(false)
+                      }}
+                    />
+                    <button className="link-btn" onClick={submitName}>확인</button>
+                    <button className="link-btn mp-name-cancel" onClick={() => setEditingName(false)}>취소</button>
+                  </span>
                 ) : (
                   <>
                     <span className="mp-profile-name">{profile?.name ?? '이름 미설정'}</span>
@@ -734,11 +767,12 @@ function MyPage() {
                 inbody={inbody}
                 history={inbodyHistory}
                 goalLabel={GOAL_LABEL[profile?.goal]}
-                onEdit={() => setModalOpen(true)}
+                onEdit={(replaceLatest) => setUploadMode({ replaceLatest })}
                 onDelete={() => { setDeleteError(''); setDeleteModalOpen(true) }}
                 aside={
                   <DietTodayCard
                     summary={todaySummary}
+                    meals={todayMeals}
                     target={nutrientTarget}
                     onOpenDetail={() => setNutrientModalOpen(true)}
                   />
@@ -763,7 +797,8 @@ function MyPage() {
                 <p className="mp-profile-sub">
                   인바디 측정지 사진을 등록하면 체중·골격근량·체지방률을 자동으로 불러와요.
                 </p>
-                <button className="mp-inbody-btn" onClick={() => setModalOpen(true)}>
+                {/* 기록이 하나도 없는 상태라 교체할 대상이 없다 - 항상 새 기록으로 추가 */}
+                <button className="mp-inbody-btn" onClick={() => setUploadMode({ replaceLatest: false })}>
                   인바디 등록하기
                 </button>
               </div>
@@ -775,15 +810,16 @@ function MyPage() {
         <p className="pcard-desc">로그인 후 프로필을 확인할 수 있습니다.</p>
       )}
 
-      {modalOpen && (
+      {uploadMode && (
         <InbodyUploadModal
-          onClose={() => setModalOpen(false)}
+          replaceLatest={uploadMode.replaceLatest}
+          onClose={() => setUploadMode(null)}
           onExtract={extractInbody}
           onConfirm={handleConfirmInbody}
         />
       )}
       {firstInbodyGuide && (
-        <div className="modal-backdrop" onClick={() => setFirstInbodyGuide(false)}>
+        <div className="modal-backdrop">
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setFirstInbodyGuide(false)} aria-label="닫기">×</button>
             <div className="modal-title">첫 인바디가 등록됐어요</div>
@@ -792,7 +828,7 @@ function MyPage() {
             </div>
             <p className="pcard-desc">
               변화 추이 그래프는 기록이 <strong>두 개 이상</strong>일 때부터 그려져요.
-              다음에 인바디를 측정하면 "다시 입력"으로 등록해주세요 — 그때부터 체중과 근육량이
+              다음에 인바디를 측정하면 "새 측정 추가"로 등록해주세요 — 그때부터 체중과 근육량이
               어떻게 변했는지 한눈에 볼 수 있어요.
             </p>
             <button className="modal-btn" onClick={() => setFirstInbodyGuide(false)}>확인했어요</button>
@@ -800,7 +836,7 @@ function MyPage() {
         </div>
       )}
       {deleteModalOpen && (
-        <div className="modal-backdrop" onClick={() => !deleting && setDeleteModalOpen(false)}>
+        <div className="modal-backdrop">
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <button
               className="modal-close"
@@ -853,7 +889,7 @@ function MyPage() {
         />
       )}
       {withdrawModalOpen && (
-        <div className="modal-backdrop" onClick={() => !withdrawing && setWithdrawModalOpen(false)}>
+        <div className="modal-backdrop">
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <button
               className="modal-close"
