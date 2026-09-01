@@ -65,6 +65,8 @@ public class ChatService {
     // 프론트에 "이전 대화 이어서 보기"용으로 내려줄 이력 개수
     private static final int DISPLAY_HISTORY_LIMIT = 100;
     private static final int MAX_CONTENT_LENGTH = 2000;
+    // 1라운드 본문을 사용자에게 흘리기 전에 도구 호출 텍스트인지 판별할 만큼만 붙잡아두는 길이
+    private static final int TOOLCALL_SNIFF_CHARS = 48;
 
     // 예전 프롬프트는 역할을 "식단과 운동을 추천하는 어시스턴트"로 정의해서, 모델이 묻지도 않은
     // 추천을 매번 덧붙였다("안녕" -> 하루 식단표). 또 기록이 없을 때 어떻게 답할지 정해두지 않아
@@ -85,6 +87,7 @@ public class ChatService {
             데이터 규칙:
             7. 식사 기록, 섭취량, 목표 섭취량, 인바디 수치는 절대 추측하거나 암산하지 말고,
                제공된 도구를 호출해 실제 값을 확인한 뒤 그 값을 인용해서 답하세요.
+               "확인해볼게요", "불러오는 중입니다" 같은 예고만 쓰고 끝내지 말고 도구를 실제로 호출하세요.
             8. 도구 결과가 비어 있으면 "기록이 없다"고만 답하세요. 없는 기록을 지어내거나,
                대신 식단을 만들어 제안하지 마세요.
             9. 숫자를 직접 더하지 마세요. 합계는 도구가 돌려준 값(totalKcal, totalCalories 등)을
@@ -132,6 +135,25 @@ public class ChatService {
                     List.of()
             ),
             toolDef(
+                    "get_bmi_peer_comparison",
+                    "사용자의 최근 BMI가 같은 성별·연령대(국민건강통계) 안에서 어디쯤인지 백분위와 비만도 "
+                  + "분류를 가져온다. '내 BMI 또래보다 높아?', '남들이랑 비교하면 어때?'처럼 또래 비교를 "
+                  + "물어볼 때 쓸 것 - 절대 추측하지 말 것.",
+                    Map.of(),
+                    List.of()
+            ),
+            toolDef(
+                    "get_nutrition_peer_comparison",
+                    "특정 날짜의 섭취량이 같은 성별·연령대 평균(국민건강통계) 대비 몇 %인지 가져온다. "
+                  + "'또래보다 많이 먹었나', '남들 평균이랑 비교해줘' 같은 질문에 쓸 것. 목표 대비 비교는 "
+                  + "calculate_nutrient_target이고, 이 도구는 또래 대비 비교라 서로 다르다.",
+                    Map.of("date", Map.of(
+                            "type", "string",
+                            "description", "조회할 날짜, yyyy-MM-dd 형식. 생략하면 오늘."
+                    )),
+                    List.of()
+            ),
+            toolDef(
                     "calculate_nutrient_target",
                     "사용자의 목표와 최근 인바디 수치를 바탕으로 하루 목표 칼로리/단백질/탄수화물/지방을 "
                   + "계산한다. 목표 섭취량을 묻는 질문에는 반드시 이 도구로 계산된 값을 인용할 것 - 직접 "
@@ -147,6 +169,7 @@ public class ChatService {
     private final ChatMessageRepository chatMessageRepository;
     private final NutrientTargetCalculator nutrientTargetCalculator;
     private final RestClient ollamaRestClient;
+    private final RestClient aiRestClient;
     private final String model;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -157,6 +180,7 @@ public class ChatService {
             ChatMessageRepository chatMessageRepository,
             NutrientTargetCalculator nutrientTargetCalculator,
             RestClient ollamaRestClient,
+            RestClient aiRestClient,
             @Value("${ollama.model}") String model
     ) {
         this.userProfileService = userProfileService;
@@ -165,6 +189,7 @@ public class ChatService {
         this.chatMessageRepository = chatMessageRepository;
         this.nutrientTargetCalculator = nutrientTargetCalculator;
         this.ollamaRestClient = ollamaRestClient;
+        this.aiRestClient = aiRestClient;
         this.model = model;
     }
 
@@ -202,6 +227,93 @@ public class ChatService {
         // 있지 않으려는 의도. 두 저장 사이에 실패가 나도 사용자 메시지 한 줄만 남는 정도라 치명적이지 않음.
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(userMessage).build());
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(full.toString()).build());
+    }
+
+    /**
+     * 메뉴 버튼 하나가 서버에서 대신 호출할 도구. 사용자가 버튼으로 의도를 이미 골랐는데 그걸
+     * 자연어 문장으로 바꿔 모델에게 던지고 모델이 다시 도구를 고르게 하면, 그 "고르기" 단계에서
+     * 확률적으로 실패한다(툴콜을 텍스트로 흘리거나 아예 안 부름 - 실측됨). 메뉴에서는 그 단계를
+     * 통째로 없앤다.
+     *
+     * userLabel은 이력에 남길 사용자 문장이다 - 프론트가 낙관적으로 먼저 그리는 말풍선
+     * (ChatDrawer.jsx의 CHAT_MENU_ITEMS.send)과 문구를 맞춰야 새로고침 후에도 같아 보인다.
+     */
+    private record MenuTool(String userLabel, String toolName, Map<String, Object> arguments) {}
+
+    private MenuTool menuTool(String menuId) {
+        LocalDate today = LocalDate.now();
+        return switch (menuId) {
+            case "meals-today" -> new MenuTool(
+                    "오늘 뭐 먹었지?", "get_meals_for_date", Map.of("date", today.toString()));
+            case "meals-yesterday" -> new MenuTool(
+                    "어제 먹은 거 보여줘", "get_meals_for_date", Map.of("date", today.minusDays(1).toString()));
+            case "total-today" -> new MenuTool(
+                    "오늘 총 섭취량 알려줘", "get_daily_total", Map.of("date", today.toString()));
+            case "target" -> new MenuTool(
+                    "내 목표 섭취량 알려줘", "calculate_nutrient_target", Map.of());
+            case "inbody-trend" -> new MenuTool(
+                    "요즘 체중 변화 어때?", "get_inbody_history", Map.of("limit", 5));
+            default -> null;
+        };
+    }
+
+    /**
+     * 메뉴 버튼 답변. 서버가 도구를 직접 실행하고, LLM은 그 결과를 문장으로 옮기는 일만 한다.
+     *
+     * 기록이 없으면 LLM을 아예 부르지 않는다 - 지어낼 여지가 구조적으로 없어지고, 응답도 즉시 나간다.
+     * (도구가 돌려주는 note/error는 그래서 사람이 읽는 문장으로 쓰고, 모델에게만 필요한 지시는
+     * instruction 키로 따로 뺐다.)
+     */
+    public String menuReply(User user, Long userId, String menuId) {
+        MenuTool menu = menuTool(menuId);
+        if (menu == null) {
+            throw new IllegalArgumentException("알 수 없는 메뉴입니다: " + menuId);
+        }
+
+        String toolResult = executeTool(user, menu.toolName(), menu.arguments());
+        String reply = emptyResultMessage(toolResult);
+        if (reply == null) {
+            reply = phraseToolResult(user, menu, toolResult);
+        }
+
+        chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(menu.userLabel()).build());
+        chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(reply).build());
+        return reply;
+    }
+
+    /** 도구 결과가 "데이터 없음"이면 사용자에게 그대로 보여줄 문구, 데이터가 있으면 null */
+    String emptyResultMessage(String toolResult) {
+        try {
+            JsonNode node = objectMapper.readTree(toolResult);
+            for (String key : new String[] {"error", "note"}) {
+                JsonNode value = node.get(key);
+                if (value != null && !value.asText("").isBlank()) {
+                    return value.asText();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("메뉴 도구 결과를 읽지 못함", e);
+        }
+        return null;
+    }
+
+    /**
+     * 도구 결과를 문장으로만 옮기게 한다. 모델이 도구를 호출한 뒤와 똑같은 형태의 컨텍스트를
+     * 만들어 주므로(assistant tool_calls + tool 결과), 일반 대화의 마지막 라운드와 같은 경로다.
+     */
+    private String phraseToolResult(User user, MenuTool menu, String toolResult) {
+        String callId = "menu-" + menu.toolName();
+        List<OllamaMessage> messages = new ArrayList<>();
+        messages.add(OllamaMessage.system(buildSystemPrompt(user)));
+        messages.add(OllamaMessage.user(menu.userLabel()));
+        messages.add(new OllamaMessage("assistant", "", List.of(new OllamaMessage.ToolCall(
+                callId, new OllamaMessage.FunctionCall(menu.toolName(), menu.arguments()))), null));
+        messages.add(OllamaMessage.tool(toolResult, callId));
+
+        String reply = chatCompletion(messages, false).content();
+        return reply == null || reply.isBlank()
+                ? "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요."
+                : reply;
     }
 
     /**
@@ -265,19 +377,74 @@ public class ChatService {
      * 병렬 호출로 충분함). tools를 뺀 마지막 호출이라 모델은 반드시 텍스트로 답한다.
      */
     private void resolveToolsThenStream(User user, List<OllamaMessage> messages, Consumer<String> onDelta) {
-        StreamResult first = chatCompletionStream(messages, true, onDelta);
+        // 1라운드 본문은 앞부분만 붙잡아두고 흘린다. Qwen이 도구 호출을 구조화된 tool_calls 대신
+        // <tool_call>{"name":...} 텍스트로 흘리는 턴이 있는데(재현됨), 그대로 스트리밍하면 화면에
+        // JSON이 뜬다. 도구를 부를지는 본문 앞부분만 보면 판별돼서, 홀드 비용은 몇 백 ms 수준이다.
+        StringBuilder held = new StringBuilder();
+        boolean[] releasedToUser = {false};
+        StreamResult first = chatCompletionStream(messages, true, delta -> {
+            if (releasedToUser[0]) {
+                onDelta.accept(delta);
+                return;
+            }
+            held.append(delta);
+            if (held.length() >= TOOLCALL_SNIFF_CHARS && !looksLikeToolCallText(held.toString())) {
+                releasedToUser[0] = true;
+                onDelta.accept(held.toString());
+            }
+        });
 
-        if (first.toolCalls().isEmpty()) {
+        List<OllamaMessage.ToolCall> toolCalls = first.toolCalls().isEmpty()
+                ? parseToolCallsFromText(first.content())
+                : first.toolCalls();
+
+        if (toolCalls.isEmpty()) {
+            // 도구 없이 답한 턴(인사·잡담). 짧아서 아직 못 내보낸 앞부분을 마저 흘린다.
+            if (!releasedToUser[0]) {
+                onDelta.accept(held.toString());
+            }
             return;
         }
 
-        messages.add(new OllamaMessage("assistant", first.content(), first.toolCalls(), null));
-        for (OllamaMessage.ToolCall call : first.toolCalls()) {
+        // 도구를 부르는 턴이면 홀드분(툴콜 텍스트나 "확인해볼게요" 예고)은 화면에도 컨텍스트에도 넣지 않는다.
+        messages.add(new OllamaMessage("assistant", releasedToUser[0] ? first.content() : "", toolCalls, null));
+        for (OllamaMessage.ToolCall call : toolCalls) {
             String result = executeTool(user, call.function().name(), call.function().arguments());
             messages.add(OllamaMessage.tool(result, call.id()));
         }
 
         chatCompletionStream(messages, false, onDelta);
+    }
+
+    /** 홀드 중인 본문이 모델이 텍스트로 흘린 도구 호출인지. 정상 답변이 이렇게 시작할 일은 없다. */
+    boolean looksLikeToolCallText(String content) {
+        return content.contains("<tool_call>") || content.contains("\"name\"");
+    }
+
+    /**
+     * Ollama가 파싱하지 못하고 본문으로 흘려보낸 도구 호출을 회수한다. 앞뒤에 잡토큰(`leton`,
+     * `</tool_call>`)이 붙어 나오므로 첫 '{'부터 마지막 '}'까지만 떼어 파싱한다.
+     * 실패하면 빈 목록 - 그냥 도구 없이 답한 턴으로 처리된다.
+     */
+    List<OllamaMessage.ToolCall> parseToolCallsFromText(String content) {
+        int start = content.indexOf('{');
+        int end = content.lastIndexOf('}');
+        if (start < 0 || end <= start) {
+            return List.of();
+        }
+        try {
+            JsonNode node = objectMapper.readTree(content.substring(start, end + 1));
+            String name = node.path("name").asText("");
+            if (name.isEmpty()) {
+                return List.of();
+            }
+            Map<String, Object> arguments = objectMapper.convertValue(
+                    node.path("arguments"), new TypeReference<Map<String, Object>>() {});
+            log.warn("모델이 도구 호출을 본문 텍스트로 흘려서 회수함: {}", name);
+            return List.of(new OllamaMessage.ToolCall(null, new OllamaMessage.FunctionCall(name, arguments)));
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     private String executeTool(User user, String name, Map<String, Object> arguments) {
@@ -286,6 +453,8 @@ public class ChatService {
                 case "get_meals_for_date" -> toolGetMealsForDate(user.getId(), arguments);
                 case "get_daily_total" -> toolGetDailyTotal(user.getId(), arguments);
                 case "get_inbody_history" -> toolGetInbodyHistory(user, arguments);
+                case "get_bmi_peer_comparison" -> toolGetBmiPeerComparison(user);
+                case "get_nutrition_peer_comparison" -> toolGetNutritionPeerComparison(user, user.getId(), arguments);
                 case "calculate_nutrient_target" -> toolCalculateNutrientTarget(user);
                 default -> toJson(Map.of("error", "알 수 없는 도구입니다: " + name));
             };
@@ -310,7 +479,8 @@ public class ChatService {
         if (simplified.isEmpty()) {
             // 빈 배열만 돌려주면 모델이 그걸 무시하고 식단을 지어낸다. 문장으로 못 박아준다
             return toJson(Map.of("date", date.toString(), "meals", List.of(),
-                    "note", date + "에 기록된 식사가 없습니다. 없다고만 답하고 식단을 지어내지 마세요."));
+                    "note", date + "에 기록된 식사가 없어요.",
+                    "instruction", "없다고만 답하고 식단을 지어내지 마세요."));
         }
         // 합계를 같이 넘긴다 - 없으면 모델이 끼니별 칼로리를 직접 더하다 틀린다(실제로 재현됨).
         // 더할 일 자체를 없애는 게 프롬프트로 금지하는 것보다 확실하다
@@ -337,7 +507,8 @@ public class ChatService {
         result.put("totalFatG", total.totalFatG());
         result.put("mealCount", total.mealCount());
         if (total.mealCount() == 0) {
-            result.put("note", date + "에 기록된 식사가 없습니다. 없다고만 답하고 수치를 지어내지 마세요.");
+            result.put("note", date + "에 기록된 식사가 없어요.");
+            result.put("instruction", "없다고만 답하고 수치를 지어내지 마세요.");
         }
         return toJson(result);
     }
@@ -364,7 +535,114 @@ public class ChatService {
                 })
                 .toList();
 
-        return toJson(Map.of("records", records));
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("records", records);
+        // 개수를 명시하지 않으면 모델이 자기가 넘긴 limit(기본 5)을 결과 개수로 착각한다
+        result.put("recordCount", records.size());
+
+        Double first = history.get(history.size() - 1).getWeightKg();
+        Double last = history.get(0).getWeightKg();
+        if (records.size() == 1) {
+            // 1건인데도 "최근 몇 번의 측정 결과는 변함이 없네요"처럼 비교를 지어낸다(실측 8/8).
+            // 추세를 말할 수 없다는 걸 문장으로 못 박는다 - 메뉴 경로에서는 이 note가 LLM 없이 그대로 답이 된다.
+            result.put("note", last == null
+                    ? "인바디 기록이 1건뿐이라 체중 추세는 아직 알 수 없어요."
+                    : "인바디 기록이 1건뿐이라 체중 추세는 아직 알 수 없어요. 최근 측정값은 " + last + "kg입니다.");
+        } else if (first != null && last != null) {
+            // 변화량을 안 주면 모델이 첫 값과 끝 값을 직접 빼서 답한다(실측됨). totalKcal을 미리 계산해
+            // 넘기는 것과 같은 이유로, 뺄셈할 일 자체를 없앤다. 부호를 잘못 읽는 것도 막으려고
+            // 그대로 복사해 쓰면 되는 완성된 문자열로 넘긴다.
+            double change = last - first;
+            result.put("weightChange", String.format("%s%.1fkg (%.1fkg -> %.1fkg)",
+                    change > 0 ? "+" : "", change, first, last));
+        }
+        return toJson(result);
+    }
+
+    private String toolGetBmiPeerComparison(User user) {
+        UserProfile profile = getProfileOrNull(user);
+        String peerError = peerProfileError(profile);
+        if (peerError != null) {
+            return toJson(Map.of("error", peerError));
+        }
+
+        InbodyRecord inbody = inbodyService.getLatest(user).orElse(null);
+        if (inbody == null || inbody.getBmi() == null) {
+            return toJson(Map.of("error", "인바디 기록이 없어서 또래 비교를 할 수 없어요."));
+        }
+
+        return callAiServer("/ai/inbody/bmi-insight", Map.of(
+                "bmi", inbody.getBmi(),
+                "gender", referenceGender(profile.getGender()),
+                "birth_year", profile.getBirthYear()
+        ), "category", "percentile", "peer_mean", "age_bracket", "message", "source");
+    }
+
+    private String toolGetNutritionPeerComparison(User user, Long userId, Map<String, Object> args) {
+        UserProfile profile = getProfileOrNull(user);
+        String peerError = peerProfileError(profile);
+        if (peerError != null) {
+            return toJson(Map.of("error", peerError));
+        }
+
+        LocalDate date = parseDateArgOrToday(args);
+        MealLoggingService.DailyTotal total = mealLoggingService.getTotalForDate(userId, date);
+        if (total.mealCount() == 0) {
+            return toJson(Map.of("date", date.toString(),
+                    "note", date + "에 기록된 식사가 없어서 또래 비교를 할 수 없어요.",
+                    "instruction", "없다고만 답하고 수치를 지어내지 마세요."));
+        }
+
+        return callAiServer("/ai/nutrition/peer-compare", Map.of(
+                "gender", referenceGender(profile.getGender()),
+                "birth_year", profile.getBirthYear(),
+                "energy_kcal", total.totalCalories(),
+                "protein_g", total.totalProteinG(),
+                "carbs_g", total.totalCarbsG(),
+                "fat_g", total.totalFatG()
+        ), "age_bracket", "message", "source");
+    }
+
+    /** 또래 비교는 성별×연령대 통계라 둘 중 하나만 없어도 비교 자체가 불가능하다. */
+    private String peerProfileError(UserProfile profile) {
+        if (profile == null || profile.getGender() == null || profile.getBirthYear() == null) {
+            return "성별과 출생연도가 있어야 또래 비교를 할 수 있어요. 마이페이지에서 프로필을 먼저 채워주세요.";
+        }
+        return null;
+    }
+
+    /** 프로필의 MALE/FEMALE을 AI 서버 참조 통계 표기(M/F)로 (frontend/src/lib/aiApi.js와 같은 규칙) */
+    private String referenceGender(Gender gender) {
+        return gender == Gender.MALE ? "M" : "F";
+    }
+
+    /**
+     * 또래 비교 계산을 담당하는 AI 서버(FastAPI)를 부르고, 응답에서 {@code keep}에 적힌 필드만 남긴다.
+     * 응답 전체(끼니별 비교 배열 등)를 그대로 넘기면 같은 내용이 message와 중복돼 컨텍스트만 잡아먹는다.
+     *
+     * AI 서버는 평소 꺼져 있을 수 있고 또래 비교는 부가 정보라, 실패해도 대화 전체를 끊지 않고
+     * 도구 결과를 error로 돌려준다 - 모델이 "지금은 확인이 안 된다"고 답하게 된다.
+     */
+    private String callAiServer(String path, Map<String, Object> body, String... keep) {
+        JsonNode response;
+        try {
+            response = aiRestClient.post().uri(path).body(body).retrieve().body(JsonNode.class);
+        } catch (RestClientException e) {
+            log.info("AI 서버 또래 비교 호출 실패 ({}): {}", path, e.getMessage());
+            return toJson(Map.of("error", "또래 비교 데이터를 지금 가져올 수 없어요."));
+        }
+        if (response == null) {
+            return toJson(Map.of("error", "또래 비교 데이터를 지금 가져올 수 없어요."));
+        }
+
+        Map<String, Object> trimmed = new LinkedHashMap<>();
+        for (String field : keep) {
+            JsonNode value = response.get(field);
+            if (value != null && !value.isNull()) {
+                trimmed.put(field, objectMapper.convertValue(value, Object.class));
+            }
+        }
+        return toJson(trimmed);
     }
 
     private String toolCalculateNutrientTarget(User user) {
@@ -473,8 +751,11 @@ public class ChatService {
         // 4096을 넘길 수 있었다. 넘치면 Ollama가 앞쪽부터 버려서 시스템 프롬프트가 날아간다.
         // *** FoodParsingService와 값이 반드시 같아야 함 *** - 같은 모델을 쓰는데 num_ctx가
         // 다르면 Ollama가 요청마다 모델을 내렸다 다시 올린다(4.7GB 재적재 = 20초).
+        // temperature 0.4에서는 모델이 도구를 부르는 대신 예고 문장만 쓰거나 tool_call을 텍스트로
+        // 흘리는 턴이 나온다(재현: 12회 중 1회). 도구가 안 돌면 검증 없는 답이 그대로 나가고
+        // 그게 이력에 남아 다음 턴부터 증폭되므로, 다양성보다 툴콜 신뢰도를 택한다.
         requestBody.put("options", Map.of(
-                "temperature", 0.4,
+                "temperature", 0.2,
                 "num_ctx", 8192,
                 "num_predict", 384
         ));

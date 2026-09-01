@@ -18,4 +18,7 @@ public interface InbodyRecordRepository extends JpaRepository<InbodyRecord, Long
     List<InbodyRecord> findByUserOrderByCreatedAtAsc(User user);
 
     void deleteByUser(User user);
+
+    // 남의 기록 id를 넣어도 0건이 지워지도록 user 조건을 같이 건다
+    long deleteByIdAndUser(Long id, User user);
 }

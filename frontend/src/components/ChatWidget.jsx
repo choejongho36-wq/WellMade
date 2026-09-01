@@ -3,7 +3,7 @@ import ChatDrawer from './ChatDrawer.jsx'
 import chatbotIcon from '../assets/Wellmade chatbot.png'
 import './ChatWidget.css'
 
-function ChatWidget({ loggedIn, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, userName }) {
+function ChatWidget({ loggedIn, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu, userName }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -19,6 +19,7 @@ function ChatWidget({ loggedIn, sendChat, getChatHistory, clearChatHistory, getN
         getChatHistory={getChatHistory}
         clearChatHistory={clearChatHistory}
         getNutrientAdvice={getNutrientAdvice}
+        sendChatMenu={sendChatMenu}
         userName={userName}
       />
     </>

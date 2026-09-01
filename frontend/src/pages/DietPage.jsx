@@ -30,7 +30,7 @@ const SUMMARY_HEADLINE_FIELD = { key: 'totalCalories', unit: 'kcal' }
 const DIET_DISCLAIMER_KEY = 'dietDisclaimerSeen'
 
 function DietPage() {
-  const { user, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, deleteMeal } = useAuth()
+  const { user, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, deleteMeal, getWorkoutMemo, saveWorkoutMemo, getWorkoutMemoMonth } = useAuth()
 
   // --- 화면 데이터 (선택 날짜 기준으로 서버에서 받아옴) ---
   const [selectedDate, setSelectedDate] = useState(todayStr)
@@ -47,6 +47,14 @@ function DietPage() {
   const [deletingId, setDeletingId] = useState(null)
   const [notice, setNotice] = useState('')                   // 공용 에러 알림 모달 (모든 실패 메시지가 여기로)
   const [showDisclaimer, setShowDisclaimer] = useState(() => !localStorage.getItem(DIET_DISCLAIMER_KEY))
+
+  // --- 메모 (선택 날짜 기준) ---
+  const [memo, setMemo] = useState('')
+  const [savedMemo, setSavedMemo] = useState('')   // 서버에 저장된 값 - 변경 여부 판단용
+  const [memoSaving, setMemoSaving] = useState(false)
+  const [memoSaved, setMemoSaved] = useState(false)   // 저장 직후 확인 표시
+  // 캘린더는 자기 안에서 월 데이터를 불러오므로, 저장 후 다시 읽게 하려면 신호가 필요하다
+  const [calendarKey, setCalendarKey] = useState(0)
 
   const isToday = selectedDate === todayStr()
 
@@ -80,6 +88,40 @@ function DietPage() {
     if (user) getNutrientTarget().then(setNutrientTarget).catch(() => {})
   }, [user])
 
+  // 날짜를 바꾸면 그 날 메모를 다시 읽는다. 못 읽어도 화면을 막지 않고 빈 칸으로 둔다 -
+  // 메모는 부가 기능이라 실패가 식단 기록까지 가리면 안 된다.
+  useEffect(() => {
+    if (!user) return
+    let stale = false
+    getWorkoutMemo(selectedDate)
+      .then((content) => {
+        if (stale) return
+        setMemo(content)
+        setSavedMemo(content)
+        setMemoSaved(false)
+      })
+      .catch(() => {
+        if (stale) return
+        setMemo('')
+        setSavedMemo('')
+      })
+    // 날짜를 빠르게 넘기면 늦게 온 응답이 최신 날짜의 메모를 덮어쓸 수 있어 무효화한다
+    return () => { stale = true }
+  }, [user, selectedDate])
+
+  const handleSaveMemo = () => {
+    setMemoSaving(true)
+    saveWorkoutMemo(selectedDate, memo)
+      .then((content) => {
+        setMemo(content)
+        setSavedMemo(content)
+        setMemoSaved(true)
+        setCalendarKey((k) => k + 1)   // 캘린더의 "메모 있는 날" 점을 바로 반영
+      })
+      .catch((e) => setNotice(e.message || '메모를 저장하지 못했어요'))
+      .finally(() => setMemoSaving(false))
+  }
+
   /* ===== 삭제 ===== */
 
   const handleDelete = (id) => {
@@ -94,7 +136,7 @@ function DietPage() {
   return (
     <PageShell>
       <div className="page-eyebrow-row">
-        <div className="page-index-tag">Meal plan</div>
+        <div className="page-index-tag">Calendar</div>
       </div>
 
       {user ? (
@@ -107,7 +149,46 @@ function DietPage() {
               maxDateStr={todayStr()}
               getMonthCalories={getMonthCalories}
               getHolidays={getHolidays}
+              getWorkoutMemoMonth={getWorkoutMemoMonth}
+              refreshKey={calendarKey}
             />
+
+            {/* 운동이든 컨디션이든 자유롭게 적는 칸. 식단처럼 구조화하지 않은 이유는
+                WorkoutMemo 엔티티 주석 참고 */}
+            <div className="diet-memo">
+              <div className="diet-memo-head">
+                <span className="diet-memo-title">메모</span>
+                {memo !== savedMemo
+                  ? <span className="diet-memo-dirty">저장 안 됨</span>
+                  : memoSaved && <span className="diet-memo-saved">저장됨 · 캘린더에 점으로 표시돼요</span>}
+              </div>
+              <textarea
+                className="diet-memo-input"
+                value={memo}
+                maxLength={1000}
+                placeholder={`${isToday ? '오늘' : '이 날'} 기록을 남겨보세요. 예) 하체 - 스쿼트 60kg 5x5, 런닝 20분`}
+                onChange={(e) => { setMemo(e.target.value); setMemoSaved(false) }}
+              />
+              <div className="diet-memo-foot">
+                <span className="diet-memo-count">{memo.length}/1000</span>
+                <button
+                  className="diet-memo-save"
+                  onClick={handleSaveMemo}
+                  disabled={memoSaving || memo === savedMemo}
+                >
+                  {memoSaving ? '저장 중...' : '저장'}
+                </button>
+              </div>
+            </div>
+
+            {/* 저장된 내용을 그대로 보여주는 칸. 입력 칸은 고치는 곳이고 여기는 "지금 저장돼 있는 것"이라,
+                캘린더에서 점 찍힌 날을 누르면 그 날 메모가 여기 펼쳐진다 */}
+            {savedMemo && (
+              <div className="diet-memo-view">
+                <div className="diet-memo-view-head">{selectedDate.replace(/-/g, '.')} 메모</div>
+                <p className="diet-memo-view-body">{savedMemo}</p>
+              </div>
+            )}
           </div>
 
           {/* ===== 오른쪽: 총 섭취 요약 + 끼니 타임라인 ===== */}

@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -95,6 +96,24 @@ public class ChatController {
     @DeleteMapping("/history")
     public void clearHistory(@AuthenticationPrincipal Long userId) {
         chatService.clearHistory(userService.getUser(userId));
+    }
+
+    /**
+     * 메뉴 버튼 답변. 어떤 데이터를 볼지는 사용자가 이미 골랐으므로 모델에게 도구를 고르게 하지 않고
+     * 서버가 직접 조회한다(ChatService.menuReply). 기록이 없으면 LLM을 아예 안 부르므로 즉시 응답한다.
+     */
+    @PostMapping("/menu/{menuId}")
+    public ChatResponse menu(@AuthenticationPrincipal Long userId, @PathVariable String menuId) {
+        // 이 경로도 같은 모델을 쓰므로 채팅과 같은 가드를 건다
+        if (!generating.add(userId)) {
+            return new ChatResponse("아직 이전 질문에 답하고 있어요. 잠시만 기다려 주세요.");
+        }
+        try {
+            User user = userService.getUser(userId);
+            return new ChatResponse(chatService.menuReply(user, userId, menuId));
+        } finally {
+            generating.remove(userId);
+        }
     }
 
     @PostMapping("/nutrient-advice")

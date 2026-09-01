@@ -3,31 +3,29 @@ import { useNavigate } from 'react-router-dom'
 import chatbotIcon from '../assets/Wellmade chatbot.png'
 import './ChatDrawer.css'
 
-// 챗봇이 실제로 가진 도구(ChatService의 TOOLS)에 1:1로 대응하는 바로가기.
-// label을 그대로 사용자 메시지로 보내면 모델이 해당 도구를 호출하게 된다 -
-// 도구가 없는 질문을 넣으면 모델이 지어내려 하므로, 여기 항목은 도구와 맞춰서 유지할 것.
-// label은 버튼에 보이는 짧은 이름, send는 실제로 모델에게 보내는 문장이다.
-// 버튼을 짧게 줄이면 도구 호출이 약해질 수 있어서 보내는 문장은 온전하게 유지한다.
+// 예전에는 send 문장을 그대로 모델에게 보내고 모델이 알아서 도구를 고르길 기대했는데, 그 "고르기"가
+// 확률적으로 실패했다(툴콜을 텍스트로 흘리거나 아예 안 부르고 지어냄). 버튼을 누른 시점에 이미 어떤
+// 데이터를 볼지는 정해져 있으므로, 이제 menu:true 항목은 id를 서버로 보내고 서버가 도구를 직접 실행한다
+// (ChatService.menuReply). 모델은 결과를 문장으로 옮기는 일만 하고, 기록이 없으면 아예 호출되지 않는다.
+//
+// label은 버튼에 보이는 짧은 이름, send는 화면에 먼저 그릴 사용자 말풍선 문구다.
+// send는 서버가 이력에 저장하는 문구(ChatService.menuTool의 userLabel)와 맞춰야 새로고침 후에도 같아 보인다.
 const CHAT_MENU_ITEMS = [
-  // get_meals_for_date
-  { id: 'meals-today', label: '오늘 식단', send: '오늘 뭐 먹었지?' },
-  { id: 'meals-yesterday', label: '어제 식단', send: '어제 먹은 거 보여줘' },
-  // get_daily_total
-  { id: 'total-today', label: '오늘 섭취량', send: '오늘 총 섭취량 알려줘' },
-  // calculate_nutrient_target
-  { id: 'target', label: '목표 섭취량', send: '내 목표 섭취량 알려줘' },
-  // get_inbody_history
-  { id: 'inbody-trend', label: '체중 추세', send: '요즘 체중 변화 어때?' },
-  // 도구가 아니라 전용 API(/nutrient-advice) - 목표 대비 분석을 서버가 계산해서 넘긴다
+  { id: 'meals-today', label: '오늘 식단', send: '오늘 뭐 먹었지?', menu: true },
+  { id: 'meals-yesterday', label: '어제 식단', send: '어제 먹은 거 보여줘', menu: true },
+  { id: 'total-today', label: '오늘 섭취량', send: '오늘 총 섭취량 알려줘', menu: true },
+  { id: 'target', label: '목표 섭취량', send: '내 목표 섭취량 알려줘', menu: true },
+  { id: 'inbody-trend', label: '체중 추세', send: '요즘 체중 변화 어때?', menu: true },
+  // 전용 API(/nutrient-advice) - 목표 대비 분석을 서버가 계산해서 넘긴다
   { id: 'nutrient-advice', label: '영양소 분석', action: 'nutrient-advice' },
-  { id: 'diet-manage', label: '식단 기록', path: '/mealplan' },
+  { id: 'diet-manage', label: '캘린더', path: '/mealplan' },
 ]
 
 // 로딩 인디케이터: 글자 -> 점 순서로 물결이 흐르도록 한 칸씩 지연을 준다
 const THINKING_TEXT = [...'생각하는 중']
 const TYPING_STEP_SEC = 0.09
 
-function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, userName }) {
+function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu, userName }) {
   const navigate = useNavigate()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -122,6 +120,19 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
     if (item.path) {
       onClose()
       navigate(item.path)
+      return
+    }
+
+    if (item.menu) {
+      setMessages((prev) => [...prev, { role: 'user', content: item.send ?? item.label }])
+      setLoading(true)
+      setError('')
+      sendChatMenu(item.id)
+        .then((reply) => {
+          setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+        })
+        .catch((e) => setError(e.message || '답변을 받지 못했어요. 잠시 후 다시 시도해주세요.'))
+        .finally(() => setLoading(false))
       return
     }
 
