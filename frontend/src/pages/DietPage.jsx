@@ -108,10 +108,6 @@ function DietPage() {
               getMonthCalories={getMonthCalories}
               getHolidays={getHolidays}
             />
-
-            <button className="diet-log-open-btn" onClick={() => setLogModalOpen(true)}>
-              + 식단 기록하기
-            </button>
           </div>
 
           {/* ===== 오른쪽: 총 섭취 요약 + 끼니 타임라인 ===== */}
@@ -140,9 +136,6 @@ function DietPage() {
             </div>
 
             <div className="diet-timeline" style={{ marginTop: 14 }}>
-              {meals.length === 0 && (
-                <p className="pcard-desc">{isToday ? '오늘' : '이 날'} 기록된 식사가 없어요.</p>
-              )}
               {meals.map((meal, index) => (
                 <MealRow
                   key={meal.id}
@@ -158,6 +151,11 @@ function DietPage() {
                 />
               ))}
             </div>
+
+            {/* 기록이 없는 날엔 이 버튼이 "기록된 식사가 없어요" 자리를 그대로 차지한다 */}
+            <button className="diet-log-open-btn" onClick={() => setLogModalOpen(true)}>
+              + {isToday ? '오늘' : '이 날'} 식단 기록하기
+            </button>
           </div>
         </div>
       ) : (

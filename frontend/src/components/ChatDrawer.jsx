@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import RobotIcon from './RobotIcon.jsx'
+import chatbotIcon from '../assets/Wellmade chatbot.png'
 import './ChatDrawer.css'
 
 // 챗봇이 실제로 가진 도구(ChatService의 TOOLS)에 1:1로 대응하는 바로가기.
@@ -206,10 +206,10 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
           {/* 비로그인 상태에서는 아래 내용을 통째로 덮고, inert로 클릭·탭 이동까지 막는다 */}
           {!loggedIn && (
             <div className="chat-login-overlay">
-              <RobotIcon size={40} color="#111" />
+              <img className="chat-login-overlay-icon" src={chatbotIcon} alt="" />
               <p className="chat-login-overlay-title">로그인이 필요해요</p>
               <p className="chat-login-overlay-sub">
-                로그인하시면 목표와 인바디 수치에 맞춘 식단·운동 코칭을 받을 수 있어요.
+                
               </p>
             </div>
           )}
@@ -220,7 +220,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
                 <>
                   <div className="chat-greeting-row">
                     <div className="chat-greeting-avatar">
-                      <RobotIcon size={36} />
+                      <img className="chat-bot-img" src={chatbotIcon} alt="" />
                     </div>
                     <p className="chat-drawer-hint">
                       안녕하세요, <span className="chat-greeting-name">{userName ?? '회원'}</span>님 반갑습니다.
@@ -235,7 +235,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
                       같은 화자가 연달아 말하면 첫 줄에만 아이콘을 두고 나머지는 자리만 비운다 */}
                   {m.role === 'assistant' && (
                     <div className="chat-bubble-avatar">
-                      {messages[i - 1]?.role !== 'assistant' && <RobotIcon size={22} color="#fff" />}
+                      {messages[i - 1]?.role !== 'assistant' && <img className="chat-bot-img" src={chatbotIcon} alt="" />}
                     </div>
                   )}
                   <div className="chat-bubble">{m.display ?? m.content}</div>
@@ -244,7 +244,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
               {loading && !messages[messages.length - 1]?.streaming && (
                 <div className="chat-bubble-row assistant">
                   <div className="chat-bubble-avatar">
-                    {messages[messages.length - 1]?.role !== 'assistant' && <RobotIcon size={22} color="#fff" />}
+                    {messages[messages.length - 1]?.role !== 'assistant' && <img className="chat-bot-img" src={chatbotIcon} alt="" />}
                   </div>
                   {/* 글자 대신 점 세 개가 차례로 튀는 타이핑 인디케이터.
                       스크린리더는 aria-label로 상태를 읽고, 점 자체는 aria-hidden으로 숨긴다 */}
@@ -279,20 +279,6 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
 
             {error && <p className="chat-drawer-error">{error}</p>}
 
-            {/* 대화 중에도 계속 보이는 바로가기. 가로 스크롤이라 항목이 늘어도 입력창을 밀지 않는다 */}
-            <div className="chat-quick-menu">
-              {CHAT_MENU_ITEMS.map((item) => (
-                <button
-                  key={item.id}
-                  className="chat-quick-btn"
-                  onClick={() => handleMenuClick(item)}
-                  disabled={loading}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
             <div className="chat-input-row">
               <textarea
                 className="chat-input"
@@ -306,6 +292,20 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
               <button className="chat-send-btn" onClick={handleSend} disabled={loading || !input.trim()}>
                 전송
               </button>
+            </div>
+            {/* 대화 중에도 계속 보이는 바로가기. 누르면 그대로 내 메시지가 되므로
+                사용자 말풍선과 같은 모양(레드·우하단 각)으로 두고 입력창 아래에 붙인다 */}
+            <div className="chat-quick-menu">
+              {CHAT_MENU_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  className="chat-quick-btn"
+                  onClick={() => handleMenuClick(item)}
+                  disabled={loading}
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>

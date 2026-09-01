@@ -28,11 +28,18 @@ const INBODY_FIELDS = [
 ]
 
 const DIET_HEADLINE_FIELD = { key: 'totalCalories', unit: 'kcal' }
+const MACRO_FIELDS = [
+  { key: 'totalCarbsG', label: '탄수', unit: 'g' },
+  { key: 'totalProteinG', label: '단백', unit: 'g' },
+  { key: 'totalFatG', label: '지방', unit: 'g' },
+]
 
-const TREND_METRICS = [
-  { key: 'weightKg', label: '체중', unit: 'kg' },
+// 히어로에 크게 띄우는 대표 지표 - 나머지는 "자세히 보기"를 눌러야 펼쳐진다
+const HERO_METRIC = { key: 'weightKg', label: '체중', unit: 'kg' }
+const DETAIL_METRICS = [
   { key: 'skeletalMuscleMassKg', label: '골격근량', unit: 'kg' },
   { key: 'bodyFatPercentage', label: '체지방률', unit: '%' },
+  { key: 'basalMetabolicRateKcal', label: '기초대사량', unit: 'kcal' },
   { key: 'bmi', label: 'BMI', unit: '' },
 ]
 const TREND_PERIODS = [
@@ -42,7 +49,7 @@ const TREND_PERIODS = [
   { label: '전체', months: null },
 ]
 
-function Sparkline({ points }) {
+function Sparkline({ points, area }) {
   const w = 240
   const h = 52
   const pad = 5
@@ -58,16 +65,29 @@ function Sparkline({ points }) {
   const last = points[points.length - 1]
 
   return (
-    <svg className="mp-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+    <svg className={`mp-spark${area ? ' mp-spark-lg' : ''}`} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      {area && (
+        <>
+          <defs>
+            <linearGradient id="mp-spark-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#da291c" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#da291c" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <line className="mp-spark-grid" x1="0" y1={h * 0.28} x2={w} y2={h * 0.28} />
+          <line className="mp-spark-grid" x1="0" y1={h * 0.64} x2={w} y2={h * 0.64} />
+          <path className="mp-spark-fill" d={`${d} L${sx(maxX).toFixed(1)} ${h} L${sx(minX).toFixed(1)} ${h} Z`} />
+        </>
+      )}
       <path className="mp-spark-line" d={d} vectorEffect="non-scaling-stroke" />
       <circle className="mp-spark-dot" cx={sx(last.t)} cy={sy(last.v)} r={3} vectorEffect="non-scaling-stroke" />
     </svg>
   )
 }
 
-function MiniTrend({ metric, points }) {
-  const latest = points.length ? points[points.length - 1].v : null
-  const delta = points.length >= 2 ? latest - points[0].v : null
+function MiniTrend({ metric, points, fallback }) {
+  const latest = points.length ? points[points.length - 1].v : fallback ?? null
+  const delta = points.length >= 2 ? points[points.length - 1].v - points[0].v : null
 
   return (
     <div className="mp-mini">
@@ -84,42 +104,201 @@ function MiniTrend({ metric, points }) {
         {metric.unit && <span className="mp-mini-unit">{metric.unit}</span>}
       </div>
       {points.length >= 2 ? (
-        <Sparkline points={points} />
+        <>
+          <Sparkline points={points} />
+          <div className="mp-mini-axis">
+            <span>{shortDate(points[0].t)}</span>
+            <span>{shortDate(points[points.length - 1].t)}</span>
+          </div>
+        </>
       ) : (
-        <div className="mp-mini-empty">기록 부족</div>
+        <div className="mp-mini-empty">다음 측정부터 추이가 그려져요</div>
       )}
     </div>
   )
 }
 
-function InbodyTrendChart({ history }) {
+// LocalDateTime이 타임존 없이 "2026-08-30T09:12:00"으로 오므로 Date 파싱 없이 문자열을 자른다
+function measuredDate(iso) {
+  return iso ? iso.slice(0, 10).replace(/-/g, '.') : ''
+}
+
+// 처음·중간·마지막 3개만 - 점이 많아도 축이 빽빽해지지 않는다
+function axisTicks(points) {
+  if (points.length < 3) return points.map((p) => p.t)
+  return [points[0].t, points[Math.floor(points.length / 2)].t, points[points.length - 1].t]
+}
+
+function shortDate(t) {
+  const d = new Date(t)
+  return `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+}
+
+// 오늘 먹은 칼로리를 목표 대비 링으로 - 인바디(몸) 옆에 식단(입력)을 나란히 두면
+// 마이페이지 첫 화면에서 "오늘 어떤 상태인가"가 한 줄로 읽힌다
+function DietTodayCard({ summary, target, onOpenDetail }) {
+  const kcal = summary ? Math.round(summary[DIET_HEADLINE_FIELD.key]) : null
+  const goal = target?.kcal ? Math.round(target.kcal) : null
+  const percent = kcal != null && goal ? Math.min(999, Math.round((kcal / goal) * 100)) : null
+  const left = kcal != null && goal ? goal - kcal : null
+  // r=32 원 둘레 201.06 - 채운 만큼만 남기고 나머지를 offset으로 밀어낸다
+  const dash = 201.06
+  const offset = percent != null ? dash * (1 - Math.min(percent, 100) / 100) : dash
+
+  return (
+    <div className="mp-diet-card">
+      <div className="mp-diet-head">
+        <span className="mp-diet-label">오늘 식단</span>
+        <Link className="link-btn" to="/mealplan">기록하러 가기</Link>
+      </div>
+
+      {kcal == null ? (
+        <div className="mp-diet-empty">
+          아직 오늘 기록이 없어요.<br />먹은 걸 등록하면 목표 대비 섭취량이 여기에 보여요.
+        </div>
+      ) : (
+        <button className="mp-diet-body" onClick={onOpenDetail}>
+          <div className="mp-diet-ring">
+            <svg viewBox="0 0 80 80" aria-hidden="true">
+              <circle cx="40" cy="40" r="32" className="mp-diet-ring-bg" />
+              <circle
+                cx="40" cy="40" r="32"
+                className={`mp-diet-ring-fg${left != null && left < 0 ? ' over' : ''}`}
+                strokeDasharray={dash}
+                strokeDashoffset={offset}
+                transform="rotate(-90 40 40)"
+              />
+            </svg>
+            <div className="mp-diet-ring-num">
+              <b>{percent != null ? `${percent}%` : '-'}</b>
+              <span>목표 대비</span>
+            </div>
+          </div>
+
+          <div className="mp-diet-figures">
+            <div className="mp-diet-kcal">
+              {kcal.toLocaleString()}
+              {goal && <span className="mp-diet-goal"> / {goal.toLocaleString()}</span>}
+              <span className="mp-diet-unit">kcal</span>
+            </div>
+            {left != null && (
+              <div className="mp-diet-left">
+                {left >= 0 ? `${left.toLocaleString()}kcal 남았어요` : `${Math.abs(left).toLocaleString()}kcal 초과`}
+              </div>
+            )}
+            <div className="mp-diet-macros">
+              {MACRO_FIELDS.map(({ key, label, unit }) => (
+                <span key={key}>
+                  {label} <b>{Math.round(summary[key] ?? 0)}{unit}</b>
+                </span>
+              ))}
+            </div>
+          </div>
+        </button>
+      )}
+    </div>
+  )
+}
+
+// 대표 지표(체중)는 항상 크게, 나머지 지표는 접어둔다 - 마이페이지에서 제일 자주 보는 건
+// "지난번보다 빠졌나"지 다섯 개 숫자 전부가 아니다
+function InbodyPanel({ inbody, history, aside, goalLabel, onEdit, onDelete }) {
   const [months, setMonths] = useState(3)
+  const [detailOpen, setDetailOpen] = useState(false)
 
   const cutoff = months ? Date.now() - months * 30 * 24 * 3600 * 1000 : 0
   const inRange = history.filter((r) => new Date(r.measuredAt).getTime() >= cutoff)
+  const pointsOf = (key) =>
+    inRange.filter((r) => r[key] != null).map((r) => ({ t: new Date(r.measuredAt).getTime(), v: r[key] }))
+
+  const heroPoints = pointsOf(HERO_METRIC.key)
+  const heroValue = inbody[HERO_METRIC.key]
+  const heroDelta = heroPoints.length >= 2 ? heroPoints[heroPoints.length - 1].v - heroPoints[0].v : null
+  const periodLabel = months ? `${TREND_PERIODS.find((p) => p.months === months).label} 전` : '첫 기록'
 
   return (
-    <div className="mp-trend">
-      <div className="mp-trend-tabs">
-        {TREND_PERIODS.map((p) => (
-          <button
-            key={p.label}
-            className={`mp-trend-tab${p.months === months ? ' active' : ''}`}
-            onClick={() => setMonths(p.months)}
-          >
-            {p.label}
-          </button>
-        ))}
+    <>
+      <div className="mp-overview">
+        <div className="mp-hero">
+          <div className="mp-hero-main">
+            <div className="mp-hero-label">
+              {HERO_METRIC.label}
+              {goalLabel && <span className="mp-hero-goal">{goalLabel}</span>}
+            </div>
+            <div className="mp-hero-num">
+              {heroValue != null ? heroValue : '-'}
+              <small>{HERO_METRIC.unit}</small>
+            </div>
+            <div className="mp-hero-sub">
+              {heroDelta != null ? (
+                <>
+                  {periodLabel} {heroPoints[0].v}{HERO_METRIC.unit} ·{' '}
+                  <b className={heroDelta > 0 ? 'up' : heroDelta < 0 ? 'down' : ''}>
+                    {heroDelta > 0 ? '+' : ''}{heroDelta.toFixed(1)}{HERO_METRIC.unit}
+                  </b>
+                </>
+              ) : (
+                `${measuredDate(inbody.measuredAt)} 측정`
+              )}
+            </div>
+          </div>
+
+          <div className="mp-hero-chart">
+            <div className="mp-hero-head">
+              
+              {inbody.measuredAt && <span className="mp-measured-at">{measuredDate(inbody.measuredAt)} 측정</span>}
+              <span className="mp-hero-actions">
+                <button className="link-btn" onClick={onEdit}>다시 입력</button>
+                <button className="mp-hero-delete" onClick={onDelete}>삭제</button>
+              </span>
+            </div>
+            <div className="mp-trend-tabs">
+              {TREND_PERIODS.map((p) => (
+                <button
+                  key={p.label}
+                  className={`mp-trend-tab${p.months === months ? ' active' : ''}`}
+                  onClick={() => setMonths(p.months)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {heroPoints.length >= 2 ? (
+              <>
+                <Sparkline points={heroPoints} area />
+                <div className="mp-mini-axis">
+                  {axisTicks(heroPoints).map((t) => (
+                    <span key={t}>{shortDate(t)}</span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="mp-hero-empty">
+                이 기간에는 기록이 {heroPoints.length}개예요. 두 번째 측정부터 그래프가 그려져요.
+              </div>
+            )}
+          </div>
+        </div>
+        {aside}
       </div>
-      <div className="mp-trend-grid">
-        {TREND_METRICS.map((m) => {
-          const points = inRange
-            .filter((r) => r[m.key] != null)
-            .map((r) => ({ t: new Date(r.measuredAt).getTime(), v: r[m.key] }))
-          return <MiniTrend key={m.key} metric={m} points={points} />
-        })}
-      </div>
-    </div>
+
+      <button
+        className="mp-detail-toggle"
+        onClick={() => setDetailOpen((o) => !o)}
+        aria-expanded={detailOpen}
+      >
+        {detailOpen ? '접기' : '자세히 보기'}
+        <span className={`mp-detail-caret${detailOpen ? ' open' : ''}`} aria-hidden="true">▾</span>
+      </button>
+
+      {detailOpen && (
+        <div className="mp-trend-grid">
+          {DETAIL_METRICS.map((m) => (
+            <MiniTrend key={m.key} metric={m} points={pointsOf(m.key)} fallback={inbody[m.key]} />
+          ))}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -366,7 +545,7 @@ function GoalPickerModal({ current, onClose, onSelect }) {
 
 function MyPage() {
   const [bmiInsight, setBmiInsight] = useState(null)
-  const { user, profile, inbody, updateGoal, updateName, updateBody, extractInbody, confirmInbody, getInbodyHistory, getTodayTotal, getNutrientTarget, deleteAccount } = useAuth()
+  const { user, profile, inbody, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory, getTodayTotal, getNutrientTarget, deleteAccount } = useAuth()
   const navigate = useNavigate()
   const [inbodyHistory, setInbodyHistory] = useState([])
   const [bodyModalOpen, setBodyModalOpen] = useState(false)
@@ -382,6 +561,9 @@ function MyPage() {
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawError, setWithdrawError] = useState('')
   const [firstInbodyGuide, setFirstInbodyGuide] = useState(false)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     if (user) getTodayTotal(todayStr()).then(setTodaySummary).catch(() => {})
@@ -447,6 +629,15 @@ function MyPage() {
       if (isFirst) setFirstInbodyGuide(true)
       return data
     })
+  }
+
+  const handleDeleteInbody = () => {
+    setDeleting(true)
+    setDeleteError('')
+    deleteInbody(inbody.id)
+      .then(() => setDeleteModalOpen(false))
+      .catch((e) => setDeleteError(e.message || '삭제에 실패했어요'))
+      .finally(() => setDeleting(false))
   }
 
   const handleWithdraw = () => {
@@ -537,28 +728,22 @@ function MyPage() {
             </div>
           )}
 
-          <div className="section-head">
-            <div className="section-title">인바디</div>
-            {inbody && (
-              <button className="link-btn" onClick={() => setModalOpen(true)}>
-                다시 입력
-              </button>
-            )}
-          </div>
-
           {inbody ? (
             <>
-              <div className="tag-strip">
-                {INBODY_FIELDS.map(({ key, label, unit }) => (
-                  <div className="tag" key={key}>
-                    <div className="tag-label"><span>{label}</span></div>
-                    <div className="tag-inner">
-                      <div className="tag-value">{inbody[key] != null ? inbody[key] : '-'}</div>
-                      {unit && <div className="tag-unit">{unit}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <InbodyPanel
+                inbody={inbody}
+                history={inbodyHistory}
+                goalLabel={GOAL_LABEL[profile?.goal]}
+                onEdit={() => setModalOpen(true)}
+                onDelete={() => { setDeleteError(''); setDeleteModalOpen(true) }}
+                aside={
+                  <DietTodayCard
+                    summary={todaySummary}
+                    target={nutrientTarget}
+                    onOpenDetail={() => setNutrientModalOpen(true)}
+                  />
+                }
+              />
 
               {/* BMI 또래 비교 - 분류만 보면 "나만 그런가?"를, 백분위만 보면
                   "또래도 다 그러니 괜찮다"를 오해하게 되어 둘을 같이 보여준다 */}
@@ -585,32 +770,6 @@ function MyPage() {
             </div>
           )}
 
-          {inbodyHistory.length >= 2 && (
-            <>
-              <div className="section-head">
-                <div className="section-title">인바디 추이</div>
-              </div>
-              <InbodyTrendChart history={inbodyHistory} />
-            </>
-          )}
-
-          <div className="section-head">
-            <div className="section-title">오늘 식단</div>
-            <Link className="link-btn" to="/mealplan">식단 기록으로 이동</Link>
-          </div>
-          {todaySummary && (
-            <div className="summary-row">
-              <span className="summary-row-label">총 섭취</span>
-              <div className="tag-strip">
-                <button className="tag tag-clickable" onClick={() => setNutrientModalOpen(true)}>
-                  <div className="tag-inner">
-                    <div className="tag-value">{Math.round(todaySummary[DIET_HEADLINE_FIELD.key])}</div>
-                    <div className="tag-unit">{DIET_HEADLINE_FIELD.unit}</div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
         </>
       ) : (
         <p className="pcard-desc">로그인 후 프로필을 확인할 수 있습니다.</p>
@@ -637,6 +796,37 @@ function MyPage() {
               어떻게 변했는지 한눈에 볼 수 있어요.
             </p>
             <button className="modal-btn" onClick={() => setFirstInbodyGuide(false)}>확인했어요</button>
+          </div>
+        </div>
+      )}
+      {deleteModalOpen && (
+        <div className="modal-backdrop" onClick={() => !deleting && setDeleteModalOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="modal-close"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={deleting}
+              aria-label="닫기"
+            >
+              ×
+            </button>
+            <div className="modal-title">이 기록을 삭제할까요?</div>
+            <div className="modal-sub">
+              {measuredDate(inbody?.measuredAt)} 측정 기록이 지워져요. 추이 그래프에서도 함께 빠집니다.
+            </div>
+            {deleteError && <p className="mp-name-error">{deleteError}</p>}
+            <div className="modal-btn-row">
+              <button
+                className="modal-btn-secondary"
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={deleting}
+              >
+                취소
+              </button>
+              <button className="modal-btn" onClick={handleDeleteInbody} disabled={deleting}>
+                {deleting ? '삭제 중...' : '삭제하기'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -26,7 +26,7 @@ export const NAV_ITEMS = [
   { label: '마이페이지', path: '/mypage' },
   { label: '자세 측정', path: '/ml-test' },
   { label: '식단 기록', path: '/mealplan' },
-  { label: '운동 추천' },
+  { label: '고객센터' },
 ]
 
 // 로그인 상태와 API 호출 함수를 트리 전체가 공유한다. 예전에는 useAuth()를 호출하는
@@ -47,6 +47,7 @@ function useAuthState() {
   const [user, setUser] = useState(readCachedUser)
   const [profile, setProfile] = useState(null)
   const [inbody, setInbody] = useState(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
   const codeExchanged = useRef(false)
   const navigate = useNavigate()
 
@@ -79,6 +80,7 @@ function useAuthState() {
     const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
     if (res.status === 401) {
       handleLogout()
+      setSessionExpired(true)
       throw new Error('로그인이 만료됐어요. 다시 로그인해주세요')
     }
     return res
@@ -159,6 +161,16 @@ function useAuthState() {
         setInbody(data)
         return data
       })
+
+  // 잘못 등록한 기록 삭제. 지운 게 최신 기록이면 화면의 인바디도 이전 기록으로 되돌아가야 해서
+  // 삭제 후 latest를 다시 읽어온다 (이력 재조회는 MyPage가 inbody 변화를 보고 알아서 함)
+  const deleteInbody = (id) =>
+    authFetch(`/api/users/me/inbody/${id}`, { method: 'DELETE' }).then((res) => {
+      if (!res.ok) throw new Error('삭제에 실패했어요')
+      return authFetch('/api/users/me/inbody/latest')
+        .then((r) => (r.status === 200 ? r.json() : null))
+        .then(setInbody)
+    })
 
   const getInbodyHistory = () =>
     authJson('/api/users/me/inbody/history', {}, '인바디 이력을 불러오지 못했어요')
@@ -328,7 +340,9 @@ function useAuthState() {
     })
 
   return {
-    user, profile, inbody, handleLogout, deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, getInbodyHistory,
+    user, profile, inbody, handleLogout,
+    sessionExpired, dismissSessionExpired: () => setSessionExpired(false),
+    deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory,
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
     logManualMeal,
     updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
