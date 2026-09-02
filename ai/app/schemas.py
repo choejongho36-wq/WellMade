@@ -183,6 +183,34 @@ class CoachingFrameResponse(BaseModel):
     )
 
 
+# ---- 사진 코칭 "분석 결과" 자연어 요약 (app/coaching/photo_summary_llm.py, 2026-09-02) ----
+# 판정 자체는 여전히 규칙 기반(judge_realtime_coaching 또는 정면 사진만 있을 때 프론트가
+# 직접 하는 무릎모임 판정)이 담당하고, 이 API는 그 판정 결과를 문장으로 정리만 한다.
+
+
+class PhotoSummaryRequest(BaseModel):
+    is_normal: bool = Field(..., description="규칙 기반 판정 결과 — 전체 정상 여부.")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="규칙 기반 판정의 신뢰도(0~1).")
+    issues: List[PoseIssue] = Field(
+        default_factory=list, description="규칙 기반 판정에서 발견된 이상 소견 목록. 정상이면 빈 배열."
+    )
+    metrics: Dict[str, Optional[float]] = Field(
+        default_factory=dict,
+        description="판정에 쓰인 원본 각도·비율 수치(예: knee_angle, knee_valgus_ratio). "
+        "LLM이 근거로 삼을 참고 수치일 뿐 판정 자체를 다시 계산하지 않는다.",
+    )
+    has_side_photo: bool = Field(
+        ..., description="측면 사진이 함께 있었는지(선택 업로드) — 정면 사진만으로 분석한 경우 " "문장에 그 한계를 자연스럽게 반영하도록 LLM에 알려준다."
+    )
+
+
+class PhotoSummaryResponse(BaseModel):
+    summary_message: str = Field(..., description="분석 결과를 정리한 한국어 문장(4~6문장).")
+    generation_source: Literal["llm", "fallback"] = Field(
+        ..., description="LLM이 직접 생성했는지, 규칙 기반 템플릿 문구로 대체했는지."
+    )
+
+
 # ---- 세션 종료 조건 판단 (AI-13) ----
 
 
