@@ -49,7 +49,7 @@ const SQUAT_STEPS = [
 
 function ExerciseGuideModal({ onClose }) {
   return (
-    <Modal onClose={onClose} className="exercise-guide-modal">
+    <Modal onClose={onClose} className="exercise-guide-modal" closeOnBackdropClick>
       <div className="guide-modal-body">
         <div className="guide-modal-photo">
           <img src={squatGuideReference} alt="스쿼트 앉은 자세에서 관절 좌표를 표시한 참고 사진" />

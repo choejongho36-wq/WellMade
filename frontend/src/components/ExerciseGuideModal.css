@@ -30,6 +30,14 @@
   padding: 28px 28px 28px;
 }
 
+/* 공용 .modal-close는 흰색(어두운 title bar 위 배치용) — 이 모달은 밝은 배경이라 검정으로 덮어씀 */
+.exercise-guide-modal .modal-close {
+  color: rgba(0, 0, 0, 0.55);
+}
+.exercise-guide-modal .modal-close:hover {
+  color: #000;
+}
+
 .guide-modal-eyebrow {
   font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
   letter-spacing: 0.1em;
