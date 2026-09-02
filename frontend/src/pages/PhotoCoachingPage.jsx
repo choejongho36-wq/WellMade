@@ -7,9 +7,10 @@
  *    (추가 요청) 페이지에 처음 들어왔을 때 모달로 보여주는 방식으로 다시 변경. 공용
  *    Modal.jsx(ExerciseGuideModal과 동일 패턴)를 그대로 쓰고, 상태 초깃값을 true로 둬서
  *    PhotoCoachingPage가 마운트될 때(=이 페이지에 들어올 때마다) 자동으로 열린다.
- * 2. 사진 미리보기를 정면(선택)/측면(필수) 2장으로 분리 — 측면 없이는 분석 불가
+ * 2. 사진 미리보기를 측면(필수)/정면(선택) 2장으로 분리 — 측면 없이는 분석 불가
  *    (AI-06의 실제 판정이 측면 값을 필요로 함), 정면은 "선택" 배지로 표시(2026-09-02
  *    정정: 처음엔 정면을 필수로 뒀었는데, 실제 판정의 핵심이 측면이라 서로 바꿨다).
+ *    화면 배치도 측면이 왼쪽, 정면이 오른쪽에 오도록 순서를 맞췄다(2026-09-02 추가 요청).
  * 3. "분석 결과" 패널을 2단 그리드가 아니라 그 아래(전체 폭)로 내림.
  * 4. 각 미리보기는 드래그로 옮길 수 있는 분홍/파랑 좌표 점 오버레이(PhotoLandmarkEditor)로
  *    표시 — 좌표를 옮겨도 즉시 재계산하지 않고, "분석하기" 버튼을 눌렀을 때만 그 시점의
@@ -18,10 +19,11 @@
  *    결과를 LLM(Nova, app/coaching/photo_summary_llm.py)이 정리한 문장으로 보여준다 —
  *    판정 자체는 여전히 규칙 기반이고 문장만 LLM이 담당.
  * 6. 미리보기 박스를 3:4로 고정하고(어떤 크기 사진을 올리든 항상 동일한 크기로 표시),
- *    사진은 object-fit: cover로 박스를 꽉 채우도록 표시 — 박스 비율과 안 맞는 만큼은
- *    잘려나간다(squatPose.js의 PHOTO_BOX_ASPECT_RATIO/imageToBoxPoint 참고, 2026-09-02
- *    추가 피드백: 처음엔 안 잘리게 여백을 두는 방식이었다가 "최대한 채워달라"는 요청으로
- *    크롭 방식으로 변경). 박스 자체 크기도 칸 너비의 절반으로 줄였다
+ *    사진은 object-fit: contain으로 잘리지 않고 전체가 다 보이도록 표시 — 박스 비율과
+ *    안 맞는 나머지 공간은 여백으로 남는다(squatPose.js의 PHOTO_BOX_ASPECT_RATIO/
+ *    imageToBoxPoint 참고, 2026-09-02 정정: 한때 cover(크롭) 방식으로 바꿨었는데, "사진
+ *    자르지 말고 세로든 가로든 박스 안에 꽉 차게 보이게 해달라"는 요청으로 다시
+ *    contain(여백) 방식으로 되돌림). 박스 자체 크기는 칸 너비의 절반으로 줄였다
  *    (.preview-photo-box max-width:50%).
  * 7. 무릎모임(knee_valgus) 판정은 실제로 정면처럼 보이는 사진일 때만 나온다 — 측면 사진을
  *    정면 칸에 올렸을 때 잘못 판정되던 문제를 squatPose.js의 어깨 폭 검증으로 수정.
@@ -190,8 +192,8 @@ function PhotoCoachingPage() {
       </div>
 
       <div className="photo-upload-row">
-        <PhotoSlotPanel slot={session.front} label="정면" required={false} alt="업로드한 정면 스쿼트 자세" />
         <PhotoSlotPanel slot={session.side} label="측면" required alt="업로드한 측면 스쿼트 자세" />
+        <PhotoSlotPanel slot={session.front} label="정면" required={false} alt="업로드한 정면 스쿼트 자세" />
       </div>
 
       <div className="photo-analyze-row">
