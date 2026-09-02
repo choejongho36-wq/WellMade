@@ -386,19 +386,22 @@ export function editablePointsToLandmarksArray(points) {
 }
 
 // 사진 미리보기 박스를 3:4(세로)로 고정할 때 쓰는 비율(2026-09-02, "사진 크기를 어떤
-// 사진을 넣든 일정하게, 잘리지 않고 여백이 보이도록" 요청 반영) — object-fit: contain과
-// 동일하게 사진 전체를 박스 안에 그대로 보여주고 남는 공간은 여백으로 둔다.
+// 사진을 넣든 일정하게" 요청 반영) — object-fit: cover와 동일하게 박스를 사진으로 꽉
+// 채우고, 박스 비율과 안 맞는 만큼은 잘라낸다(2026-09-02 추가 피드백: 처음엔 안 잘리게
+// 여백을 두는 방식이었는데, "여백 대신 최대한 채워달라"는 요청으로 cover 방식으로 변경 —
+// 사용자가 크롭 방식을 명시적으로 선택함).
 export const PHOTO_BOX_ASPECT_RATIO = 3 / 4 // 가로 / 세로
 
 // 원본 사진 기준 정규화 좌표(0~1) → 3:4 박스 기준 정규화 좌표(0~1)로 변환한다.
 // imageAspect(사진의 가로/세로 비율)에 따라 박스 안에서 사진이 위아래 또는 좌우 중 어느
-// 쪽에 여백이 생기는지가 달라지므로 사진마다 다시 계산해야 한다 — object-fit: contain을
+// 쪽이 얼마나 잘리는지가 달라지므로 사진마다 다시 계산해야 한다 — object-fit: cover를
 // CSS가 아니라 직접 계산하는 이유는, 그 위에 겹치는 좌표 점/스켈레톤 선(PhotoLandmarkEditor의
-// SVG)도 같은 여백만큼 보정해야 정확한 관절 위치에 찍히기 때문이다. imageAspect를 아직
-// 모르면(로딩 중 등) 보정 없이 그대로 반환한다.
+// SVG)도 같은 만큼 보정해야 정확한 관절 위치에 찍히기 때문이다. 잘려나간 부분에 있던 점은
+// 계산 결과가 0~1 범위를 벗어나므로(박스 바깥) 화면에도 자연스럽게 안 보이게 된다.
+// imageAspect를 아직 모르면(로딩 중 등) 보정 없이 그대로 반환한다.
 export function imageToBoxPoint(nx, ny, imageAspect, boxAspect = PHOTO_BOX_ASPECT_RATIO) {
   if (!imageAspect) return { x: nx, y: ny }
-  const scale = Math.min(boxAspect / imageAspect, 1)
+  const scale = Math.max(boxAspect / imageAspect, 1)
   const displayedW = imageAspect * scale
   const displayedH = scale
   const offsetX = (boxAspect - displayedW) / 2
@@ -410,11 +413,12 @@ export function imageToBoxPoint(nx, ny, imageAspect, boxAspect = PHOTO_BOX_ASPEC
 }
 
 // imageToBoxPoint의 역변환 — 드래그 중인 포인터가 박스 안 어디를 가리키는지(0~1, 박스
-// 기준)를 원본 사진 기준 좌표로 되돌린다. 사진 바깥 여백(레터박스) 위를 드래그하면 사진
-// 가장자리로 스냅되도록 0~1 범위로 잘라낸다(clamp).
+// 기준)를 원본 사진 기준 좌표로 되돌린다. cover 방식이라 박스 전체가 항상 사진으로 채워져
+// 있으므로 박스 안 어디를 드래그해도 사진 위 어떤 지점으로는 매핑되지만, 부동소수점 오차
+// 방지용으로 0~1 범위를 벗어나지 않게 잘라낸다(clamp).
 export function boxToImagePoint(bx, by, imageAspect, boxAspect = PHOTO_BOX_ASPECT_RATIO) {
   if (!imageAspect) return { x: bx, y: by }
-  const scale = Math.min(boxAspect / imageAspect, 1)
+  const scale = Math.max(boxAspect / imageAspect, 1)
   const displayedW = imageAspect * scale
   const displayedH = scale
   const offsetX = (boxAspect - displayedW) / 2

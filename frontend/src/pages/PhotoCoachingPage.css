@@ -136,9 +136,12 @@
   margin: 0 0 16px;
 }
 /* 사진 미리보기 상자 — 3:4로 고정해서 어떤 크기의 사진을 올려도 항상 같은 크기로 보이게
-   한다(2026-09-02). object-fit: contain(PhotoLandmarkEditor.css)으로 사진 전체를 잘리지
-   않게 보여주므로, 사진 비율에 따라 위아래 또는 좌우로 이 배경색이 여백으로 비친다.
-   max-width:50%로 칸 너비의 절반 크기로 줄이고 가운데 정렬한다(2026-09-02 추가 요청). */
+   한다(2026-09-02). object-fit: cover(PhotoLandmarkEditor.css)로 박스를 사진으로 꽉
+   채우고 남는 부분은 잘라낸다(2026-09-02 추가 요청 — "여백 대신 최대한 채워달라").
+   max-width:50%로 칸 너비의 절반 크기로 줄이고 가운데 정렬한다. overflow:hidden은
+   잘려나간 부분에 있던 좌표 점/스켈레톤 선이 박스 밖으로 삐져나오지 않게 막는다 —
+   img 자체는 cover가 이미 박스 크기로 잘라 보여주지만, 점(버튼)은 별도 절대위치
+   엘리먼트라 이게 없으면 박스 밖으로 튀어나와 보인다. */
 .preview-photo-box {
   position: relative;
   width: 100%;
@@ -146,6 +149,7 @@
   margin: 0 auto;
   aspect-ratio: 3 / 4;
   background: #f4f3ef;
+  overflow: hidden;
 }
 .preview-placeholder {
   position: absolute;

@@ -17,9 +17,11 @@
  *    결과를 LLM(Nova, app/coaching/photo_summary_llm.py)이 정리한 문장으로 보여준다 —
  *    판정 자체는 여전히 규칙 기반이고 문장만 LLM이 담당.
  * 6. 미리보기 박스를 3:4로 고정하고(어떤 크기 사진을 올리든 항상 동일한 크기로 표시),
- *    사진은 잘리지 않게(object-fit: contain) 전체가 보이도록 표시 — 남는 공간은 여백으로
- *    둔다(squatPose.js의 PHOTO_BOX_ASPECT_RATIO/imageToBoxPoint 참고). 박스 자체 크기도
- *    칸 너비의 절반으로 줄였다(.preview-photo-box max-width:50%).
+ *    사진은 object-fit: cover로 박스를 꽉 채우도록 표시 — 박스 비율과 안 맞는 만큼은
+ *    잘려나간다(squatPose.js의 PHOTO_BOX_ASPECT_RATIO/imageToBoxPoint 참고, 2026-09-02
+ *    추가 피드백: 처음엔 안 잘리게 여백을 두는 방식이었다가 "최대한 채워달라"는 요청으로
+ *    크롭 방식으로 변경). 박스 자체 크기도 칸 너비의 절반으로 줄였다
+ *    (.preview-photo-box max-width:50%).
  * 7. 무릎모임(knee_valgus) 판정은 실제로 정면처럼 보이는 사진일 때만 나온다 — 측면 사진을
  *    정면 칸에 올렸을 때 잘못 판정되던 문제를 squatPose.js의 어깨 폭 검증으로 수정.
  *
@@ -100,10 +102,18 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
             <span>
               <i className="legend-dot" style={{ background: PHOTO_DOT_RIGHT_COLOR }} />오른쪽 관절
             </span>
-            <span>신뢰도 {Math.round(slot.avgVisibility * 100)}% · 점을 드래그해 위치를 고칠 수 있어요</span>
+            <span>
+              신뢰도 {Math.round(slot.avgVisibility * 100)}% · 점을 드래그해 위치를 고칠 수 있어요
+              {slot.fileName && ` · ${slot.fileName}`}
+            </span>
           </div>
         )}
-        {slot.fileName && <p className="preview-filename">{slot.fileName}</p>}
+        {/* ready 상태(위 legend)가 아닐 때만 파일명을 따로 보여준다 — ready일 때는 위
+            legend 줄에 이미 파일명이 같이 표시된다(2026-09-02, "파일명을 드래그 안내
+            문구 줄에 있게 해달라"는 요청 반영). */}
+        {!(slot.phase === 'ready' && slot.avgVisibility != null) && slot.fileName && (
+          <p className="preview-filename">{slot.fileName}</p>
+        )}
       </div>
 
       {slot.fileError && <p className="squat-error">{slot.fileError}</p>}
