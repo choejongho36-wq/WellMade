@@ -184,8 +184,9 @@ class CoachingFrameResponse(BaseModel):
 
 
 # ---- 사진 코칭 "분석 결과" 자연어 요약 (app/coaching/photo_summary_llm.py, 2026-09-02) ----
-# 판정 자체는 여전히 규칙 기반(judge_realtime_coaching 또는 정면 사진만 있을 때 프론트가
-# 직접 하는 무릎모임 판정)이 담당하고, 이 API는 그 판정 결과를 문장으로 정리만 한다.
+# 판정 자체는 여전히 규칙 기반(judge_realtime_coaching)이 담당하고, 이 API는 그 판정
+# 결과를 문장으로 정리만 한다. 측면 사진이 필수(정면은 선택)라 AI-06은 항상 호출된다 —
+# 정면 사진이 있으면 무릎모임 판정이 같이 얹혀서 넘어온다.
 
 
 class PhotoSummaryRequest(BaseModel):
@@ -199,8 +200,8 @@ class PhotoSummaryRequest(BaseModel):
         description="판정에 쓰인 원본 각도·비율 수치(예: knee_angle, knee_valgus_ratio). "
         "LLM이 근거로 삼을 참고 수치일 뿐 판정 자체를 다시 계산하지 않는다.",
     )
-    has_side_photo: bool = Field(
-        ..., description="측면 사진이 함께 있었는지(선택 업로드) — 정면 사진만으로 분석한 경우 " "문장에 그 한계를 자연스럽게 반영하도록 LLM에 알려준다."
+    has_front_photo: bool = Field(
+        ..., description="정면 사진이 함께 있었는지(선택 업로드, 2026-09-02: 측면이 필수로 바뀌면서 " "이 필드도 측면→정면 포함 여부로 바뀜) — 정면이 없으면 무릎모임 판정이 같이 없었다는 " "뜻이므로 문장에 그 한계를 자연스럽게 반영하도록 LLM에 알려준다."
     )
 
 

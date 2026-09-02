@@ -172,8 +172,7 @@ def coaching_photo_summary(request: PhotoSummaryRequest) -> PhotoSummaryResponse
     """
     사진 코칭 "분석 결과" 자연어 요약 API.
 
-    /ai/coaching/frame(AI-06)이 이미 내린 규칙 기반 판정 결과(또는 정면 사진만 있어
-    AI-06을 호출하지 않고 프론트가 직접 계산한 무릎모임 판정)를 받아, 그 결과를 사람이
+    /ai/coaching/frame(AI-06)이 이미 내린 규칙 기반 판정 결과를 받아, 그 결과를 사람이
     읽기 편한 한국어 문장으로 정리해 돌려준다. 판정 자체(정상/이상 여부)는 이 API가
     새로 계산하지 않는다 — 이미 결정된 판정을 설명만 한다.
     """
@@ -183,7 +182,7 @@ def coaching_photo_summary(request: PhotoSummaryRequest) -> PhotoSummaryResponse
         confidence=request.confidence,
         issues=[issue.model_dump() for issue in request.issues],
         metrics=request.metrics,
-        has_side_photo=request.has_side_photo,
+        has_front_photo=request.has_front_photo,
     )
 
     return PhotoSummaryResponse(**result)

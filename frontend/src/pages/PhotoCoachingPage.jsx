@@ -7,8 +7,9 @@
  *    (추가 요청) 페이지에 처음 들어왔을 때 모달로 보여주는 방식으로 다시 변경. 공용
  *    Modal.jsx(ExerciseGuideModal과 동일 패턴)를 그대로 쓰고, 상태 초깃값을 true로 둬서
  *    PhotoCoachingPage가 마운트될 때(=이 페이지에 들어올 때마다) 자동으로 열린다.
- * 2. 사진 미리보기를 정면(필수)/측면(선택) 2장으로 분리 — 정면 없이는 분석 불가,
- *    측면은 "선택" 배지로 표시.
+ * 2. 사진 미리보기를 정면(선택)/측면(필수) 2장으로 분리 — 측면 없이는 분석 불가
+ *    (AI-06의 실제 판정이 측면 값을 필요로 함), 정면은 "선택" 배지로 표시(2026-09-02
+ *    정정: 처음엔 정면을 필수로 뒀었는데, 실제 판정의 핵심이 측면이라 서로 바꿨다).
  * 3. "분석 결과" 패널을 2단 그리드가 아니라 그 아래(전체 폭)로 내림.
  * 4. 각 미리보기는 드래그로 옮길 수 있는 분홍/파랑 좌표 점 오버레이(PhotoLandmarkEditor)로
  *    표시 — 좌표를 옮겨도 즉시 재계산하지 않고, "분석하기" 버튼을 눌렀을 때만 그 시점의
@@ -27,8 +28,8 @@
  *
  * AI-06(judge_realtime_coaching)은 사진 한 장(측면)의 값을 타임스탬프만 다르게 3프레임
  * 복제해 보내면 "정지" 상태로 인식해 실제 임계값 비교를 그대로 적용해준다는 점은 이전과
- * 동일 — 측면 사진이 없으면 AI-06 자체를 호출하지 않고 정면만으로 계산 가능한 무릎 모임을
- * 프론트가 직접 판정한다.
+ * 동일 — 측면 사진은 항상 있으므로 AI-06은 매번 호출되고, 정면 사진이 있으면 무릎 모임
+ * 값을 추가로 얹어 보낸다.
  */
 
 import { useState } from 'react'
@@ -136,10 +137,10 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
 }
 
 function AnalysisPanel({ session }) {
-  const { front, analyzing, judgeResult, judgeError, summary, summaryError } = session
+  const { side, analyzing, judgeResult, judgeError, summary, summaryError } = session
 
-  if (front.phase !== 'ready') {
-    return <div className="analysis-empty">정면 사진을 올리고 "분석하기"를 누르면 결과가 이 자리에 표시돼요.</div>
+  if (side.phase !== 'ready') {
+    return <div className="analysis-empty">측면 사진을 올리고 "분석하기"를 누르면 결과가 이 자리에 표시돼요.</div>
   }
   if (analyzing) {
     return <div className="analysis-empty">AI가 자세를 분석하고 있어요...</div>
@@ -189,8 +190,8 @@ function PhotoCoachingPage() {
       </div>
 
       <div className="photo-upload-row">
-        <PhotoSlotPanel slot={session.front} label="정면" required alt="업로드한 정면 스쿼트 자세" />
-        <PhotoSlotPanel slot={session.side} label="측면" required={false} alt="업로드한 측면 스쿼트 자세" />
+        <PhotoSlotPanel slot={session.front} label="정면" required={false} alt="업로드한 정면 스쿼트 자세" />
+        <PhotoSlotPanel slot={session.side} label="측면" required alt="업로드한 측면 스쿼트 자세" />
       </div>
 
       <div className="photo-analyze-row">
@@ -202,7 +203,7 @@ function PhotoCoachingPage() {
         >
           {session.analyzing ? '분석 중...' : '분석하기'}
         </button>
-        {session.front.phase !== 'ready' && <p className="photo-analyze-hint">정면 사진을 먼저 올려주세요. 측면 사진은 선택이에요.</p>}
+        {session.side.phase !== 'ready' && <p className="photo-analyze-hint">측면 사진을 먼저 올려주세요. 정면 사진은 선택이에요.</p>}
       </div>
 
       <div className="squat-card photo-panel photo-panel-full">

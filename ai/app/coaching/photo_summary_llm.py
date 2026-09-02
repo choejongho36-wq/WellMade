@@ -6,16 +6,21 @@
 Nova Micro)이 문장으로 정리해서 보여주는 방식으로 바꿨다.
 
 중요: 판정 자체(정상/이상 여부, 어떤 부위가 이상인지)는 여전히 규칙 기반
-(pose/rules.py 임곗값 비교, coaching/realtime.py의 judge_realtime_coaching 또는 사진
-코칭이 정면 사진만 있을 때 쓰는 프론트엔드 자체 무릎모임 판정)이 그대로 담당한다. 이
-모듈은 그 판정 결과(정상/이상 여부 + 부위별 메시지 + 원본 각도·비율 수치)를 받아 문장으로
-"정리"만 한다 — session/report.py의 세션 리포트 요약(AI-12)과 정확히 같은 패턴이다
-(규칙 기반 집계 → LLM 요약 시도 → 실패 시 규칙 기반 폴백 문구). 다른 세 LLM 모듈
+(pose/rules.py 임곗값 비교, coaching/realtime.py의 judge_realtime_coaching)이 그대로
+담당한다. 이 모듈은 그 판정 결과(정상/이상 여부 + 부위별 메시지 + 원본 각도·비율 수치)를
+받아 문장으로 "정리"만 한다 — session/report.py의 세션 리포트 요약(AI-12)과 정확히 같은
+패턴이다(규칙 기반 집계 → LLM 요약 시도 → 실패 시 규칙 기반 폴백 문구). 다른 세 LLM 모듈
 (session/report.py, coaching/hyperextension_llm_check.py)과 마찬가지로 모델 ID를
 독립된 환경변수로 분리해서, 이 기능만 따로 모델을 바꿔 실험할 수 있게 했다.
 
 LLM이 이미 준 판정 결과를 새로 "재판단"하지 않도록(=규칙 기반 판정과 LLM 설명이 서로
 어긋나는 사고를 막기 위해) 프롬프트에서 "판정 자체를 바꾸지 말라"고 명시한다.
+
+2026-09-02 정정: 사진 코칭이 처음엔 "정면 필수 + 측면 선택"이었다가, 실제 AI-06 판정의
+핵심 값(무릎/엉덩이 각도 등)이 전부 측면 사진에서 나온다는 걸 반영해 "측면 필수 + 정면
+선택"으로 바뀌었다. 그래서 이 모듈이 받는 플래그도 has_side_photo(측면 포함 여부)에서
+has_front_photo(정면 포함 여부)로 바뀌었다 — 이제 측면은 항상 있어서 "포함 여부"를 LLM에
+알려줄 의미가 없고, 대신 정면 포함 여부(무릎모임 판정이 같이 있었는지)가 문장에 영향을 준다.
 """
 
 from __future__ import annotations
@@ -96,7 +101,7 @@ def _generate_llm_summary(
     confidence: float,
     issues: list[dict],
     metrics: dict[str, Optional[float]],
-    has_side_photo: bool,
+    has_front_photo: bool,
     client,
 ) -> Optional[str]:
     """규칙 기반 판정 결과를 Bedrock LLM에 전달해 자연어 분석 결과 문장을 생성한다.
@@ -140,7 +145,7 @@ def _generate_llm_summary(
         "[규칙 기반 판정 결과]\n"
         f"- 전체 판정: {'정상' if is_normal else '이상 있음'}\n"
         f"- 신뢰도: {confidence * 100:.0f}%\n"
-        f"- 측면 사진 포함 여부: {'포함' if has_side_photo else '미포함(정면 사진만 분석)'}\n"
+        f"- 정면 사진 포함 여부: {'포함(무릎 모임 여부도 같이 판정)' if has_front_photo else '미포함(측면 사진만 분석)'}\n"
         f"[이상 소견]\n{issue_lines}\n"
         f"[원본 수치]\n{metric_lines}"
     )
@@ -174,7 +179,7 @@ def summarize_photo_analysis(
     confidence: float,
     issues: list[dict],
     metrics: dict[str, Optional[float]],
-    has_side_photo: bool,
+    has_front_photo: bool,
     client: Any = None,
 ) -> dict:
     """사진 코칭 판정 결과 → 자연어 분석 결과 요약. 메인 진입점.
@@ -195,7 +200,7 @@ def summarize_photo_analysis(
             confidence=confidence,
             issues=issues,
             metrics=metrics,
-            has_side_photo=has_side_photo,
+            has_front_photo=has_front_photo,
             client=active_client,
         )
         if generated:
