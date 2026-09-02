@@ -33,6 +33,10 @@ from app.schemas import (
     NutritionPeerCompareResponse,
     PostureInsightRequest,
     PostureInsightResponse,
+    RagGuideRequest,
+    RagGuideResponse,
+    RagQnaRequest,
+    RagQnaResponse,
     SessionEndCheckRequest,
     SessionEndCheckResponse,
     SessionGuideRequest,
@@ -56,6 +60,7 @@ from app.pose.angles import (
     get_pelvis_tilt_angle,
     get_shoulder_tilt_angle,
 )
+from app.rag.generation import generate_guide, generate_qna
 from app.session.guide import get_next_guide
 from app.session.report import generate_session_report
 from app.session.termination import judge_session_end
@@ -424,6 +429,55 @@ def orchestrate(
         source=result["source"],
         fallback_reason=result.get("fallback_reason"),
     )
+
+
+# ===========================================================================
+# AI-09. RAG Guide
+# ===========================================================================
+
+
+@app.post(
+    "/ai/rag/guide",
+    response_model=RagGuideResponse,
+)
+def rag_guide(
+    request: RagGuideRequest,
+):
+    """
+    지시형 RAG 가이드 API (AI-09).
+
+    하네스가 trigger_rag_search를 선택했을 때 전달한
+    검색 질의를 기반으로 지식베이스를 검색하고,
+    근거 기반 코칭 문구를 생성한다.
+    """
+
+    result = generate_guide(request.query)
+
+    return RagGuideResponse(**result)
+
+
+# ===========================================================================
+# AI-14. RAG Q&A
+# ===========================================================================
+
+
+@app.post(
+    "/ai/rag/qna",
+    response_model=RagQnaResponse,
+)
+def rag_qna(
+    request: RagQnaRequest,
+):
+    """
+    설명형 RAG Q&A API (AI-14).
+
+    사용자의 자유 질문을 받아 관련 문서를 검색하고
+    근거 기반 답변을 생성한다.
+    """
+
+    result = generate_qna(request.question)
+
+    return RagQnaResponse(**result)
 
 
 # ===========================================================================

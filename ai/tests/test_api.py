@@ -20,7 +20,9 @@ from app.main import app
 from app.pose.rules import personalized_hip_range, HEEL_LIFT_RATIO_THRESHOLD
 from app.schemas import AngleFrame, HipFlexibilityCalibration
 from app.orchestration.harness import decide_next_action
-from app.session.report import generate_session_report, aggregate_session_stats, AWS_REGION_ENV_VAR, MODEL_ENV_VAR as REPORT_MODEL_ENV_VAR
+from app.rag.retrieval import search as rag_search
+from app.rag.generation import generate_guide, generate_qna, AWS_REGION_ENV_VAR, MODEL_ENV_VAR as RAG_MODEL_ENV_VAR
+from app.session.report import generate_session_report, aggregate_session_stats, MODEL_ENV_VAR as REPORT_MODEL_ENV_VAR
 
 client = TestClient(app)
 
@@ -358,7 +360,7 @@ def _without_llm_env(fn):
     (2026-08-31) 하네스는 더 이상 LLM을 호출하지 않으므로 여기서 관리할 필요가 없어졌다 —
     RAG 생성·세션 리포트 두 모듈만 남았다."""
     saved = {}
-    for key in (AWS_REGION_ENV_VAR, REPORT_MODEL_ENV_VAR):
+    for key in (AWS_REGION_ENV_VAR, RAG_MODEL_ENV_VAR, REPORT_MODEL_ENV_VAR):
         saved[key] = os.environ.pop(key, None)
     try:
         return fn()
@@ -470,6 +472,106 @@ def test_harness_decide_next_action_ignores_env_vars():
         os.environ.pop("AWS_BEDROCK_REGION", None)
 
 
+def test_rag_search_finds_relevant_document():
+    # "무릎 모임"으로 검색하면 knee_valgus 문서가 최상위로 나와야 한다.
+    results = rag_search("무릎 모임", top_k=3)
+    print("rag_search(무릎 모임):", [(r["doc_id"], round(r["score"], 3)) for r in results])
+    assert results
+    assert results[0]["doc_id"] == "knee_valgus"
+
+
+def test_rag_search_unrelated_query_returns_empty():
+    # 전혀 무관한 문장은 검색 결과가 없어야 한다(MIN_SIMILARITY_SCORE 미만).
+    results = rag_search("오늘 저녁 뭐 먹지", top_k=3)
+    print("rag_search(무관한 문장):", results)
+    assert results == []
+
+
+def test_rag_guide_fallback_matched():
+    def run():
+        result = generate_guide("무릎 모임")
+        print("generate_guide(무릎 모임, fallback):", result)
+        assert result["matched"] is True
+        assert result["generation_source"] == "fallback"
+        assert result["guidance_message"] == SQUAT_COACHING_MESSAGES_KNEE_VALGUS
+        # (2026-08-27) knee_valgus 문서의 source가 NASM 인용에 Lorenzetti et al.
+        # (2018) 인용이 추가되며 길어졌다 — 정확 일치 대신 두 출처가 모두 포함됐는지만 확인.
+        assert "NASM" in result["sources"][0]["source"]
+        assert "Lorenzetti" in result["sources"][0]["source"]
+
+    _without_llm_env(run)
+
+
+def test_rag_guide_fallback_no_match_uses_generic_message():
+    def run():
+        result = generate_guide("완전히 무관한 검색어 아무말")
+        print("generate_guide(무관, fallback):", result)
+        assert result["matched"] is False
+        assert result["sources"] == []
+
+    _without_llm_env(run)
+
+
+def test_rag_qna_fallback_matched():
+    def run():
+        result = generate_qna("스쿼트 할 때 무릎이 안쪽으로 모여요 어떻게 하죠")
+        print("generate_qna(fallback):", result)
+        assert result["matched"] is True
+        assert result["generation_source"] == "fallback"
+        assert len(result["sources"]) > 0
+
+    _without_llm_env(run)
+
+
+def test_rag_qna_fallback_no_match():
+    def run():
+        result = generate_qna("오늘 저녁 뭐 먹지")
+        print("generate_qna(무관, fallback):", result)
+        assert result["matched"] is False
+        assert result["answer"] == NO_MATCH_QNA_MESSAGE
+
+    _without_llm_env(run)
+
+
+def test_rag_guide_llm_path_uses_generated_text():
+    os.environ[RAG_MODEL_ENV_VAR] = "fake-model-for-test"
+    try:
+        block = _text_block("무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요.")
+        fake_client = _FakeBedrockClient(content_blocks=[block])
+        result = generate_guide("무릎 모임", client=fake_client)
+        print("generate_guide(llm path):", result)
+        assert result["generation_source"] == "llm"
+        assert result["guidance_message"] == "무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요."
+        assert result["matched"] is True
+    finally:
+        os.environ.pop(RAG_MODEL_ENV_VAR, None)
+
+
+def test_rag_guide_llm_failure_falls_back_to_short_message():
+    os.environ[RAG_MODEL_ENV_VAR] = "fake-model-for-test"
+    try:
+        fake_client = _FakeBedrockClient(exc=RuntimeError("network down"))
+        result = generate_guide("무릎 모임", client=fake_client)
+        print("generate_guide(llm failure -> fallback):", result)
+        assert result["generation_source"] == "fallback"
+        assert result["matched"] is True
+    finally:
+        os.environ.pop(RAG_MODEL_ENV_VAR, None)
+
+
+def test_rag_guide_endpoint_returns_valid_response():
+    def run():
+        res = client.post("/ai/rag/guide", json={"query": "무릎 모임"})
+        print("POST /ai/rag/guide:", res.status_code, res.json())
+        assert res.status_code == 200
+        data = res.json()
+        assert data["matched"] is True
+        assert data["generation_source"] == "fallback"
+        assert len(data["sources"]) > 0
+
+    _without_llm_env(run)
+
+
 def make_frame_history(normal_count, abnormal_count, part="knee", deviation_deg=15.0):
     """정상 프레임과 이상 프레임(지정한 부위/편차로)을 섞은 세션 리포트용 프레임 이력."""
     history = [{"timestamp": float(i), "is_normal": True, "issues": []} for i in range(normal_count)]
@@ -566,6 +668,18 @@ def test_session_report_endpoint_returns_valid_response():
     _without_llm_env(run)
 
 
+def test_rag_qna_endpoint_returns_valid_response():
+    def run():
+        res = client.post("/ai/rag/qna", json={"question": "스쿼트할 때 무릎이 발끝을 넘어가요"})
+        print("POST /ai/rag/qna:", res.status_code, res.json())
+        assert res.status_code == 200
+        data = res.json()
+        assert data["matched"] is True
+        assert isinstance(data["answer"], str) and len(data["answer"]) > 0
+
+    _without_llm_env(run)
+
+
 def _text_block(text):
     """Converse API 응답의 text 블록(dict)을 흉내 낸다."""
     return {"text": text}
@@ -574,6 +688,7 @@ def _text_block(text):
 # knowledge_base.py가 coaching_messages.py의 문구를 그대로 재사용하므로, 테스트에서도 같은
 # 상수를 참조해 "문구가 우연히 같다"가 아니라 "의도적으로 같은 출처를 쓴다"를 검증한다.
 from app.pose.coaching_messages import KNEE_VALGUS_MESSAGE
+from app.rag.generation import NO_MATCH_QNA_MESSAGE
 
 SQUAT_COACHING_MESSAGES_KNEE_VALGUS = KNEE_VALGUS_MESSAGE
 
@@ -1350,8 +1465,18 @@ if __name__ == "__main__":
     test_orchestrate_fallback_low_visibility_requests_retake()
     test_orchestrate_fallback_user_requested_end_wins_over_low_confidence()
     test_orchestrate_fallback_repeated_issue_triggers_rag()
-    test_harness_decide_next_action_is_pure_rule_based()
-    test_harness_decide_next_action_ignores_env_vars()
+    test_harness_llm_path_parses_tool_use_response()
+    test_harness_llm_failure_falls_back()
+    test_rag_search_finds_relevant_document()
+    test_rag_search_unrelated_query_returns_empty()
+    test_rag_guide_fallback_matched()
+    test_rag_guide_fallback_no_match_uses_generic_message()
+    test_rag_qna_fallback_matched()
+    test_rag_qna_fallback_no_match()
+    test_rag_guide_llm_path_uses_generated_text()
+    test_rag_guide_llm_failure_falls_back_to_short_message()
+    test_rag_guide_endpoint_returns_valid_response()
+    test_rag_qna_endpoint_returns_valid_response()
     test_aggregate_session_stats_basic()
     test_aggregate_session_stats_issue_counts_by_part_multiple_parts()
     test_aggregate_session_stats_improvement_vs_previous()
