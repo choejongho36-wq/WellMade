@@ -73,32 +73,17 @@
   color: #da291c;
 }
 
-/* ---- 업로드 안내 문구: 헤더 바로 아래, 페이지 상단 중앙 ---- */
-.photo-warning-box {
-  margin-bottom: 14px;
-  padding: 14px 16px;
-  background: #fff8e6;
-  border: 1px solid #f0dca0;
-  border-radius: 10px;
-  font-size: 12.5px;
-  line-height: 1.7;
-  color: #7a5f10;
+/* ---- 업로드 전 확인해 주세요 모달(UploadNoticeModal) ---- */
+/* Modal.jsx 기본 .modal-title(검정 배너)을 그대로 쓰고, 본문 목록만 여기서 스타일링한다. */
+.upload-notice-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #55534d;
 }
-.photo-warning-box b {
-  color: #5c4700;
-}
-.photo-warning-box ul {
-  margin: 6px 0 0;
-  padding-left: 16px;
-}
-.photo-warning-box-top {
-  max-width: 560px;
-  margin: 20px auto 0;
-  text-align: center;
-}
-.photo-warning-box-top ul {
-  text-align: left;
-  display: inline-block;
+.upload-notice-list li + li {
+  margin-top: 6px;
 }
 
 /* ---- 사진 미리보기: 정면(필수) / 측면(선택) 2단 ---- */
@@ -146,10 +131,13 @@
 }
 /* 사진 미리보기 상자 — 3:4로 고정해서 어떤 크기의 사진을 올려도 항상 같은 크기로 보이게
    한다(2026-09-02). object-fit: contain(PhotoLandmarkEditor.css)으로 사진 전체를 잘리지
-   않게 보여주므로, 사진 비율에 따라 위아래 또는 좌우로 이 배경색이 여백으로 비친다. */
+   않게 보여주므로, 사진 비율에 따라 위아래 또는 좌우로 이 배경색이 여백으로 비친다.
+   max-width:50%로 칸 너비의 절반 크기로 줄이고 가운데 정렬한다(2026-09-02 추가 요청). */
 .preview-photo-box {
   position: relative;
   width: 100%;
+  max-width: 50%;
+  margin: 0 auto;
   aspect-ratio: 3 / 4;
   background: #f4f3ef;
 }

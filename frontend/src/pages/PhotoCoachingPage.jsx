@@ -3,7 +3,10 @@
  * 오는 화면.
  *
  * 2026-09-02 대규모 개편(사용자 피드백 반영):
- * 1. 업로드 안내 문구를 헤더(PHOTO COACHING 행) 바로 아래, 페이지 맨 위로 올림.
+ * 1. 업로드 안내 문구를 헤더(PHOTO COACHING 행) 바로 아래, 페이지 맨 위로 올림 →
+ *    (추가 요청) 페이지에 처음 들어왔을 때 모달로 보여주는 방식으로 다시 변경. 공용
+ *    Modal.jsx(ExerciseGuideModal과 동일 패턴)를 그대로 쓰고, 상태 초깃값을 true로 둬서
+ *    PhotoCoachingPage가 마운트될 때(=이 페이지에 들어올 때마다) 자동으로 열린다.
  * 2. 사진 미리보기를 정면(필수)/측면(선택) 2장으로 분리 — 정면 없이는 분석 불가,
  *    측면은 "선택" 배지로 표시.
  * 3. "분석 결과" 패널을 2단 그리드가 아니라 그 아래(전체 폭)로 내림.
@@ -15,7 +18,8 @@
  *    판정 자체는 여전히 규칙 기반이고 문장만 LLM이 담당.
  * 6. 미리보기 박스를 3:4로 고정하고(어떤 크기 사진을 올리든 항상 동일한 크기로 표시),
  *    사진은 잘리지 않게(object-fit: contain) 전체가 보이도록 표시 — 남는 공간은 여백으로
- *    둔다(squatPose.js의 PHOTO_BOX_ASPECT_RATIO/imageToBoxPoint 참고).
+ *    둔다(squatPose.js의 PHOTO_BOX_ASPECT_RATIO/imageToBoxPoint 참고). 박스 자체 크기도
+ *    칸 너비의 절반으로 줄였다(.preview-photo-box max-width:50%).
  * 7. 무릎모임(knee_valgus) 판정은 실제로 정면처럼 보이는 사진일 때만 나온다 — 측면 사진을
  *    정면 칸에 올렸을 때 잘못 판정되던 문제를 squatPose.js의 어깨 폭 검증으로 수정.
  *
@@ -28,6 +32,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import PageShell from '../components/PageShell.jsx'
+import Modal from '../components/Modal.jsx'
 import ExerciseGuideModal from '../components/ExerciseGuideModal.jsx'
 import ExerciseSelectDropdown from '../components/ExerciseSelectDropdown.jsx'
 import PhotoLandmarkEditor from '../components/PhotoLandmarkEditor.jsx'
@@ -35,6 +40,21 @@ import { usePhotoCoachingSession } from '../hooks/usePhotoCoachingSession.js'
 import { PHOTO_DOT_LEFT_COLOR, PHOTO_DOT_RIGHT_COLOR } from '../lib/squatPose.js'
 import './squatShared.css'
 import './PhotoCoachingPage.css'
+
+// 업로드 전 확인해 주세요 — 공용 Modal.jsx를 그대로 쓴다(ExerciseGuideModal과 동일
+// 패턴). 안내성 모달이라 바깥 클릭으로도 닫히게(closeOnBackdropClick) 한다.
+function UploadNoticeModal({ onClose }) {
+  return (
+    <Modal onClose={onClose} closeOnBackdropClick>
+      <div className="modal-title">업로드 전 확인해 주세요</div>
+      <ul className="upload-notice-list">
+        <li>전신이 옆모습(측면)으로 잘 보이는 사진을 올려주세요.</li>
+        <li>사진이 흐리거나 신체 일부가 가려지면 분석이 부정확하거나 실패할 수 있어요.</li>
+        <li>이 분석 결과는 참고용이에요. 통증이 있다면 무리하지 말고 전문가와 상담해주세요.</li>
+      </ul>
+    </Modal>
+  )
+}
 
 function PhotoSlotPanel({ slot, label, required, alt }) {
   return (
@@ -137,6 +157,8 @@ function AnalysisPanel({ session }) {
 function PhotoCoachingPage() {
   const session = usePhotoCoachingSession()
   const [guideOpen, setGuideOpen] = useState(false)
+  // 초깃값 true — 이 페이지에 들어올 때마다(컴포넌트가 새로 마운트될 때) 자동으로 뜬다.
+  const [noticeOpen, setNoticeOpen] = useState(true)
 
   return (
     <PageShell>
@@ -148,15 +170,6 @@ function PhotoCoachingPage() {
             운동방법
           </button>
         </div>
-      </div>
-
-      <div className="photo-warning-box photo-warning-box-top">
-        <b>업로드 전 확인해 주세요.</b>
-        <ul>
-          <li>전신이 옆모습(측면)으로 잘 보이는 사진을 올려주세요.</li>
-          <li>사진이 흐리거나 신체 일부가 가려지면 분석이 부정확하거나 실패할 수 있어요.</li>
-          <li>이 분석 결과는 참고용이에요. 통증이 있다면 무리하지 말고 전문가와 상담해주세요.</li>
-        </ul>
       </div>
 
       <div className="section-head">
@@ -190,6 +203,7 @@ function PhotoCoachingPage() {
       </p>
 
       {guideOpen && <ExerciseGuideModal onClose={() => setGuideOpen(false)} />}
+      {noticeOpen && <UploadNoticeModal onClose={() => setNoticeOpen(false)} />}
     </PageShell>
   )
 }
