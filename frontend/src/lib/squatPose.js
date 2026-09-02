@@ -37,6 +37,12 @@ const MIN_RELIABLE_FOOT_LENGTH = 0.03
 // 잠정 적용한 값이다 (ai/app 쪽 동일 TODO와 같은 배경).
 const MIN_RELIABLE_THIGH_LENGTH = 0.03
 
+// 어깨 사이 가로 거리가 이보다 좁으면(정면이 아니라 측면에 가까운 각도로 찍힌 사진) "정면
+// 사진"으로 보지 않고 무릎모임(valgus) 판정을 건너뛴다 — 측면 사진에서는 카메라 각도상
+// 양 어깨가 거의 겹쳐 보여 이 거리가 아주 작게 나온다(2026-09-02, 측면 사진을 정면 칸에
+// 올렸을 때 무릎모임이 잘못 표시되던 문제 수정 — 사용자 피드백 반영).
+const MIN_FRONTAL_SHOULDER_WIDTH = 0.1
+
 export const KEY_LANDMARKS = {
   leftEar: LEFT_EAR,
   rightEar: RIGHT_EAR,
@@ -332,7 +338,14 @@ export function buildSideMetrics(landmarks) {
 // 무릎 사이 너비 / 발목 사이 너비. ai/app/pose/angles.py의 get_knee_valgus_ratio와 동일한
 // 정의 — 정면(전신이 카메라를 보는) 랜드마크가 있어야 의미 있는 값이다. 값이
 // KNEE_VALGUS_RATIO_THRESHOLD보다 작으면 무릎이 안쪽으로 모인 것으로 본다.
+//
+// (2026-09-02) 어깨 사이 거리로 "정면 사진이 맞는지" 먼저 확인한다 — 측면(옆모습)
+// 사진에서는 카메라 각도상 무릎/발목도 거의 겹쳐 보여 비율이 구조적으로 낮게 나오기 때문에,
+// 검증 없이 그대로 계산하면 측면 사진에서도 거의 항상 "무릎모임"으로 오탐된다. 정면 사진이
+// 아니라고 판단되면(어깨 폭이 너무 좁으면) null을 돌려줘 판정 자체를 건너뛴다.
 function getKneeValgusRatio(landmarks) {
+  const shoulderWidth = Math.abs(landmarks[LEFT_SHOULDER].x - landmarks[RIGHT_SHOULDER].x)
+  if (shoulderWidth < MIN_FRONTAL_SHOULDER_WIDTH) return null
   const kneeWidth = Math.abs(landmarks[LEFT_KNEE].x - landmarks[RIGHT_KNEE].x)
   const ankleWidth = Math.abs(landmarks[LEFT_ANKLE].x - landmarks[RIGHT_ANKLE].x)
   if (ankleWidth < MIN_RELIABLE_FOOT_LENGTH) return null
@@ -342,6 +355,7 @@ function getKneeValgusRatio(landmarks) {
 // 정면 랜드마크 1세트에서 뽑아낼 수 있는 필드(2026-09-02, 정면 사진 업로드 추가) —
 // knee_valgus_ratio는 AI-06의 AngleFrame에도 그대로 실어 보낼 수 있는 선택 필드다
 // (측면 사진이 함께 있을 때). 측면 사진이 없으면 이 값만으로 프론트가 직접 판정한다.
+// 값이 null이면(정면 사진처럼 보이지 않을 때 포함) 무릎모임 판정 자체를 하지 않는다.
 export function buildFrontMetrics(landmarks) {
   return {
     knee_valgus_ratio: getKneeValgusRatio(landmarks),
@@ -369,6 +383,48 @@ export function editablePointsToLandmarksArray(points) {
     if (points[name]) landmarks[idx] = points[name]
   }
   return landmarks
+}
+
+// 사진 미리보기 박스를 3:4(세로)로 고정할 때 쓰는 비율(2026-09-02, "사진 크기를 어떤
+// 사진을 넣든 일정하게, 잘리지 않고 여백이 보이도록" 요청 반영) — object-fit: contain과
+// 동일하게 사진 전체를 박스 안에 그대로 보여주고 남는 공간은 여백으로 둔다.
+export const PHOTO_BOX_ASPECT_RATIO = 3 / 4 // 가로 / 세로
+
+// 원본 사진 기준 정규화 좌표(0~1) → 3:4 박스 기준 정규화 좌표(0~1)로 변환한다.
+// imageAspect(사진의 가로/세로 비율)에 따라 박스 안에서 사진이 위아래 또는 좌우 중 어느
+// 쪽에 여백이 생기는지가 달라지므로 사진마다 다시 계산해야 한다 — object-fit: contain을
+// CSS가 아니라 직접 계산하는 이유는, 그 위에 겹치는 좌표 점/스켈레톤 선(PhotoLandmarkEditor의
+// SVG)도 같은 여백만큼 보정해야 정확한 관절 위치에 찍히기 때문이다. imageAspect를 아직
+// 모르면(로딩 중 등) 보정 없이 그대로 반환한다.
+export function imageToBoxPoint(nx, ny, imageAspect, boxAspect = PHOTO_BOX_ASPECT_RATIO) {
+  if (!imageAspect) return { x: nx, y: ny }
+  const scale = Math.min(boxAspect / imageAspect, 1)
+  const displayedW = imageAspect * scale
+  const displayedH = scale
+  const offsetX = (boxAspect - displayedW) / 2
+  const offsetY = (1 - displayedH) / 2
+  return {
+    x: (offsetX + nx * displayedW) / boxAspect,
+    y: offsetY + ny * displayedH,
+  }
+}
+
+// imageToBoxPoint의 역변환 — 드래그 중인 포인터가 박스 안 어디를 가리키는지(0~1, 박스
+// 기준)를 원본 사진 기준 좌표로 되돌린다. 사진 바깥 여백(레터박스) 위를 드래그하면 사진
+// 가장자리로 스냅되도록 0~1 범위로 잘라낸다(clamp).
+export function boxToImagePoint(bx, by, imageAspect, boxAspect = PHOTO_BOX_ASPECT_RATIO) {
+  if (!imageAspect) return { x: bx, y: by }
+  const scale = Math.min(boxAspect / imageAspect, 1)
+  const displayedW = imageAspect * scale
+  const displayedH = scale
+  const offsetX = (boxAspect - displayedW) / 2
+  const offsetY = (1 - displayedH) / 2
+  const nx = (bx * boxAspect - offsetX) / displayedW
+  const ny = (by - offsetY) / displayedH
+  return {
+    x: Math.max(0, Math.min(1, nx)),
+    y: Math.max(0, Math.min(1, ny)),
+  }
 }
 
 // 33개 랜드마크 중 핵심 관절만 웹캠 화면 위에 스켈레톤으로 그린다(디버그용 라벨 없이,

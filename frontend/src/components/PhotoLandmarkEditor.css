@@ -1,13 +1,16 @@
 .landmark-editor {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  line-height: 0;
+  height: 100%;
   user-select: none;
   touch-action: none;
 }
 .landmark-editor-img {
   width: 100%;
+  height: 100%;
   display: block;
+  object-fit: contain;
 }
 .landmark-editor-lines {
   position: absolute;

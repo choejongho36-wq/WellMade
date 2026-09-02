@@ -144,19 +144,32 @@
   border: 1px solid #e5e3dd;
   margin: 0 0 16px;
 }
-.preview-placeholder {
+/* 사진 미리보기 상자 — 3:4로 고정해서 어떤 크기의 사진을 올려도 항상 같은 크기로 보이게
+   한다(2026-09-02). object-fit: contain(PhotoLandmarkEditor.css)으로 사진 전체를 잘리지
+   않게 보여주므로, 사진 비율에 따라 위아래 또는 좌우로 이 배경색이 여백으로 비친다. */
+.preview-photo-box {
+  position: relative;
   width: 100%;
-  min-height: 260px;
+  aspect-ratio: 3 / 4;
+  background: #f4f3ef;
+}
+.preview-placeholder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 10px;
+  padding: 20px;
   background: #fff;
   border: none;
   color: #8c8b88;
   font-size: 13px;
   font-weight: 700;
+  text-align: center;
   cursor: pointer;
 }
 .preview-placeholder-icon {
@@ -165,10 +178,6 @@
 .preview-loading {
   cursor: default;
   color: #da291c;
-}
-.preview-img {
-  width: 100%;
-  display: block;
 }
 .preview-legend {
   display: flex;

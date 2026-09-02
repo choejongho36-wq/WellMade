@@ -13,6 +13,11 @@
  * 5. "분석 결과"의 각도 숫자 막대(예전 ANALYSIS_METRICS)는 없애고, 규칙 기반 판정
  *    결과를 LLM(Nova, app/coaching/photo_summary_llm.py)이 정리한 문장으로 보여준다 —
  *    판정 자체는 여전히 규칙 기반이고 문장만 LLM이 담당.
+ * 6. 미리보기 박스를 3:4로 고정하고(어떤 크기 사진을 올리든 항상 동일한 크기로 표시),
+ *    사진은 잘리지 않게(object-fit: contain) 전체가 보이도록 표시 — 남는 공간은 여백으로
+ *    둔다(squatPose.js의 PHOTO_BOX_ASPECT_RATIO/imageToBoxPoint 참고).
+ * 7. 무릎모임(knee_valgus) 판정은 실제로 정면처럼 보이는 사진일 때만 나온다 — 측면 사진을
+ *    정면 칸에 올렸을 때 잘못 판정되던 문제를 squatPose.js의 어깨 폭 검증으로 수정.
  *
  * AI-06(judge_realtime_coaching)은 사진 한 장(측면)의 값을 타임스탬프만 다르게 3프레임
  * 복제해 보내면 "정지" 상태로 인식해 실제 임계값 비교를 그대로 적용해준다는 점은 이전과
@@ -40,41 +45,43 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
       </div>
 
       <div className="preview-frame">
-        {slot.phase === 'idle' && (
-          <button type="button" className="preview-placeholder" onClick={slot.openFilePicker}>
-            <span className="preview-placeholder-icon">📷</span>
-            {label} 사진을 업로드해주세요
-          </button>
-        )}
-        {slot.phase === 'analyzing' && <div className="preview-placeholder preview-loading">자세 인식 중...</div>}
-        {slot.phase === 'error' && (
-          <button type="button" className="preview-placeholder" onClick={slot.openFilePicker}>
-            <span className="preview-placeholder-icon">⚠️</span>
-            {slot.poseError || '다시 시도해주세요'}
-          </button>
-        )}
-        {slot.phase === 'ready' && slot.photoUrl && slot.points && (
-          <>
+        <div className="preview-photo-box">
+          {slot.phase === 'idle' && (
+            <button type="button" className="preview-placeholder" onClick={slot.openFilePicker}>
+              <span className="preview-placeholder-icon">📷</span>
+              {label} 사진을 업로드해주세요
+            </button>
+          )}
+          {slot.phase === 'analyzing' && <div className="preview-placeholder preview-loading">자세 인식 중...</div>}
+          {slot.phase === 'error' && (
+            <button type="button" className="preview-placeholder" onClick={slot.openFilePicker}>
+              <span className="preview-placeholder-icon">⚠️</span>
+              {slot.poseError || '다시 시도해주세요'}
+            </button>
+          )}
+          {slot.phase === 'ready' && slot.photoUrl && slot.points && (
             <PhotoLandmarkEditor
               photoUrl={slot.photoUrl}
               alt={alt}
               points={slot.points}
+              imageAspect={slot.imageAspect}
               onPointsChange={slot.setPoints}
               leftColor={PHOTO_DOT_LEFT_COLOR}
               rightColor={PHOTO_DOT_RIGHT_COLOR}
             />
-            {slot.avgVisibility != null && (
-              <div className="preview-legend">
-                <span>
-                  <i className="legend-dot" style={{ background: PHOTO_DOT_LEFT_COLOR }} />왼쪽 관절
-                </span>
-                <span>
-                  <i className="legend-dot" style={{ background: PHOTO_DOT_RIGHT_COLOR }} />오른쪽 관절
-                </span>
-                <span>신뢰도 {Math.round(slot.avgVisibility * 100)}% · 점을 드래그해 위치를 고칠 수 있어요</span>
-              </div>
-            )}
-          </>
+          )}
+        </div>
+
+        {slot.phase === 'ready' && slot.avgVisibility != null && (
+          <div className="preview-legend">
+            <span>
+              <i className="legend-dot" style={{ background: PHOTO_DOT_LEFT_COLOR }} />왼쪽 관절
+            </span>
+            <span>
+              <i className="legend-dot" style={{ background: PHOTO_DOT_RIGHT_COLOR }} />오른쪽 관절
+            </span>
+            <span>신뢰도 {Math.round(slot.avgVisibility * 100)}% · 점을 드래그해 위치를 고칠 수 있어요</span>
+          </div>
         )}
         {slot.fileName && <p className="preview-filename">{slot.fileName}</p>}
       </div>
