@@ -17,7 +17,7 @@ RAG 청킹 (AI-08, 요구사항 정의서 "3.RAG파이프라인" 시트 ② 단�
 
 import re
 
-# TODO: 팀 확정 필요 — 요구사항 정의서 예시값(200~400)을 그대로 썼다.
+# NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.
 TARGET_MIN_TOKENS = 200
 TARGET_MAX_TOKENS = 400
 

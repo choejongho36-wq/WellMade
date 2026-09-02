@@ -41,7 +41,7 @@ from app.rag.chunking import build_chunks
 # 오탐(false positive) 상당수를 걸러내지만, "얕게 앉는다는 게 무슨 뜻이에요"처럼 짧고
 # 간접적인 진짜 질문(0.067) 몇 개는 함께 걸러진다 — 관련 문서 없음으로 처리되는 게
 # 엉뚱한 문서를 근거랍시고 들이대는 것보다 안전하다고 판단해 보수적인 쪽을 택했다.
-# TODO: 팀 확정 필요 — 실제 질의 로그가 쌓인 뒤 조정.
+# NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.
 MIN_SIMILARITY_SCORE = 0.12
 
 DEFAULT_TOP_K = 3

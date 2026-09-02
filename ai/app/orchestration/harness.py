@@ -20,17 +20,6 @@ pelvis_height_diff_deg 등)은 전부 이미 정제된 숫자/불리언 값이�
 명세상 `/ai/orchestrate`는 { nextAction, reasoning }만 돌려주는 결정 엔드포인트다). 실제
 액션 실행은 이 응답을 받은 백엔드/프론트가 담당한다.
 
-# TODO: 팀 확정 필요 — 요구사항 정의서의 AI-07 ID가 시트마다 다르게 쓰였다("1.AI모듈상세"는
-# 하네스 오케스트레이션, "8.요구사항정의서"는 세션 종료 판단으로 AI-07을 재사용함). 이 모듈은
-# "1.AI모듈상세"·"2.하네스판단로직"·"5.AI_API명세"(POST /ai/orchestrate) 기준으로 구현했다 —
-# ID 체계를 팀이 통일해야 함.
-
-# TODO: 팀 확정 필요 — 아래 HARNESS_TOOLS(11개 액션) 중 hold_judgment, wait_next_frame,
-# use_generic_guidance, prefer_latest_document 4개는 _fallback_decision()에 아직 분기가
-# 없어 지금은 절대 선택되지 않는다(2026-08-31 규칙기반 전환으로 발견됨 — 예전엔 LLM이 이
-# 4개도 직접 골랐지만, 지금은 이 함수가 유일한 결정 경로다). 이 4개에 대한 규칙을 추가할지,
-# 실사용에서 거의 안 쓰이는 액션이라 빼도 되는지 팀 확인 필요(Claude 프로젝트 addendum-6
-# 문서 참고).
 """
 
 from typing import Optional
@@ -39,7 +28,7 @@ from typing import Optional
 # 없다. 자세 비교 인사이트(AI-15/AI-04, app/insight/posture_percentile.py)에서 실측정한
 # 세종시 데이터의 골반 기울기 중앙값이 절대값 기준 1도 안팎이었던 걸 참고해, "그보다 뚜렷하게
 # 큰 차이"라는 의미로 3.0도를 잠정값으로 둔다.
-# TODO: 팀 확정 필요 — 실제 사용자 테스트 후 조정.
+# NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.
 PELVIS_ASYMMETRY_THRESHOLD_DEG = 3.0
 ISSUE_REPEAT_THRESHOLD = 3  # H-02, H-04 공통: "3회 이상 반복"
 

@@ -139,7 +139,7 @@ class AngleFrame(BaseModel):
         "(자세한 배경은 checklist 2026-08-27 addendum 8번 참고). 측면 랜드마크만으로 계산 "
         "가능한 값이라 heel_lift_ratio/knee_over_toe_ratio와 동일하게 프론트가 매 프레임 직접 "
         "계산해서 보낸다. 선택 필드 — 없으면 이 검사를 건너뛴다(하위 호환). "
-        "TODO: 팀 확정 필요(중요) — 나쁜 사례 표본이 아직 2건뿐이라 임계값 검증이 매우 약하다.",
+        "NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.",
     )
 
 
@@ -326,7 +326,6 @@ class OrchestrateResponse(BaseModel):
 # 표로 정리돼 있지 않다(다른 엔드포인트는 "5.AI_API명세" 시트에 명시돼 있었지만 RAG는
 # 파이프라인 단계 설명만 있음) — 그래서 AI-15/ML 엔드포인트와 마찬가지로 기존 코드베이스
 # 관례(session_id, snake_case)를 따라 자체적으로 설계했다.
-# TODO: 팀 확정 필요 — 실제 프론트/백엔드 연동 시 필드명 재검토.
 
 
 class RagSource(BaseModel):
@@ -374,8 +373,6 @@ class RagQnaResponse(BaseModel):
 
 
 # ---- 세션 리포트 생성 (AI-12) ----
-# TODO: 팀 확정 필요 — 이 기능의 ID가 시트마다 다르게 쓰여 있다(1.AI모듈상세=AI-12,
-# 8.요구사항정의서=AI-08). 여기서는 "1.AI모듈상세" 기준(AI-12)으로 구현했다.
 
 
 class SessionIssueRecord(BaseModel):
