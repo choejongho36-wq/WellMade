@@ -73,8 +73,36 @@
   color: #da291c;
 }
 
-/* ---- 2단 레이아웃: 사진 미리보기 / 분석 결과 ---- */
-.photo-coaching-grid {
+/* ---- 업로드 안내 문구: 헤더 바로 아래, 페이지 상단 중앙 ---- */
+.photo-warning-box {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  background: #fff8e6;
+  border: 1px solid #f0dca0;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #7a5f10;
+}
+.photo-warning-box b {
+  color: #5c4700;
+}
+.photo-warning-box ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+.photo-warning-box-top {
+  max-width: 560px;
+  margin: 20px auto 0;
+  text-align: center;
+}
+.photo-warning-box-top ul {
+  text-align: left;
+  display: inline-block;
+}
+
+/* ---- 사진 미리보기: 정면(필수) / 측면(선택) 2단 ---- */
+.photo-upload-row {
   margin-top: 20px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -85,20 +113,36 @@
   max-width: none;
 }
 .photo-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 14px;
   font-weight: 800;
   color: #111;
   margin-bottom: 14px;
 }
+.photo-req-badge,
+.photo-optional-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.photo-req-badge {
+  background: #fdeceb;
+  color: #da291c;
+}
+.photo-optional-badge {
+  background: #f2f1ee;
+  color: #8c8b88;
+}
 
-/* ---- 좌측: 사진 미리보기 ---- */
 .preview-frame {
   border-radius: 14px;
   overflow: hidden;
   background: #fff;
   border: 1px solid #e5e3dd;
-  margin: 0 auto 16px;
-  max-width: 50%;
+  margin: 0 0 16px;
 }
 .preview-placeholder {
   width: 100%;
@@ -143,44 +187,10 @@
   border-radius: 50%;
   margin-right: 5px;
 }
-.legend-dot-left {
-  background: #00b894;
-}
-.legend-dot-right {
-  background: #e6432b;
-}
 .preview-filename {
   margin: 8px 2px 0;
   font-size: 11.5px;
   color: #9b9a96;
-}
-
-.photo-warning-box {
-  margin-bottom: 14px;
-  padding: 14px 16px;
-  background: #fff8e6;
-  border: 1px solid #f0dca0;
-  border-radius: 10px;
-  font-size: 12.5px;
-  line-height: 1.7;
-  color: #7a5f10;
-}
-.photo-warning-box b {
-  color: #5c4700;
-}
-.photo-warning-box ul {
-  margin: 6px 0 0;
-  padding-left: 16px;
-}
-/* 페이지 상단 중앙에 두는 버전 — 2단 그리드 위, 텍스트도 가운데 정렬 */
-.photo-warning-box-top {
-  max-width: 560px;
-  margin: 20px auto 0;
-  text-align: center;
-}
-.photo-warning-box-top ul {
-  text-align: left;
-  display: inline-block;
 }
 
 .photo-file-input {
@@ -192,9 +202,37 @@
   color: #9b9a96;
 }
 
-/* ---- 우측: 분석 결과 ---- */
+/* ---- 분석하기 버튼 행 ---- */
+.photo-analyze-row {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.photo-analyze-btn {
+  min-width: 200px;
+  padding: 13px 28px;
+  font-size: 14px;
+}
+.photo-analyze-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.photo-analyze-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #9b9a96;
+}
+
+/* ---- 분석 결과: 업로드 행 아래, 전체 폭 ---- */
+.photo-panel-full {
+  margin-top: 22px;
+}
+
 .analysis-empty {
-  min-height: 200px;
+  min-height: 160px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -225,97 +263,14 @@
   font-weight: 700;
   color: #9b9a96;
 }
-
-.metric-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.metric-row {
-  background: #fff;
-  border: 1px solid #e5e3dd;
-  border-radius: 10px;
-  padding: 12px 14px;
-}
-.metric-row-top {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.metric-label {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #111;
-}
-.metric-value {
-  font-size: 13px;
-  font-weight: 800;
-  color: #111;
-}
-.metric-badge {
-  margin-left: auto;
-  font-size: 10.5px;
-  font-weight: 800;
-  border-radius: 999px;
-  padding: 3px 10px;
-}
-.metric-badge-ok {
-  background: #e8f8f0;
-  color: #1f9d63;
-}
-.metric-badge-warn {
-  background: #fdeceb;
-  color: #da291c;
-}
-.metric-badge-pending {
-  background: #f2f1ee;
-  color: #8c8b88;
-}
-
-.metric-bar {
-  position: relative;
-  height: 6px;
-  border-radius: 999px;
-  background: #f0efe9;
-  margin-bottom: 8px;
-}
-.metric-bar-ok {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: #cdeee0;
-  border-radius: 999px;
-}
-.metric-bar-marker {
-  position: absolute;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #da291c;
-  border: 2px solid #fff;
-  box-shadow: 0 0 0 1px #da291c;
-  transform: translate(-50%, -50%);
-}
-.metric-note {
+.analysis-summary-text {
   margin: 0;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: #8c8b88;
-}
-.metric-warn .metric-note {
-  color: #da291c;
-}
-
-.analysis-scope-note {
-  margin-top: 16px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   background: #f9f8f5;
   border-radius: 10px;
-  font-size: 11.5px;
-  line-height: 1.7;
-  color: #8c8b88;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #33322f;
 }
 
 /* ---- 공통 ---- */
@@ -326,13 +281,6 @@
 .photo-warn {
   color: #da291c;
   font-weight: 700;
-}
-
-.photo-issue-list {
-  margin-top: 12px;
-  font-size: 12.5px;
-  color: #55534d;
-  line-height: 1.8;
 }
 
 .photo-back-link {
@@ -354,7 +302,7 @@
     flex-wrap: wrap;
     gap: 10px;
   }
-  .photo-coaching-grid {
+  .photo-upload-row {
     grid-template-columns: 1fr;
   }
 }

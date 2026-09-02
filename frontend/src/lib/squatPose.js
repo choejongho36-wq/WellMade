@@ -72,6 +72,12 @@ export const SKELETON_CONNECTIONS = [
 export const LEFT_COLOR = '#00b894'
 export const RIGHT_COLOR = '#e6432b'
 
+// 사진 코칭 "정면/측면 사진 미리보기"의 드래그 가능한 좌표 점 색상(2026-09-02) — 실시간
+// 코칭(LEFT_COLOR/RIGHT_COLOR, 웹캠 스켈레톤)과는 별도 용도라 색을 공유하지 않는다.
+// 사용자가 이전에 받아본 관절 좌표 시각화 사진과 동일하게 분홍/파랑으로 맞췄다.
+export const PHOTO_DOT_LEFT_COLOR = '#ec1e7a'
+export const PHOTO_DOT_RIGHT_COLOR = '#2678eb'
+
 // 코칭 판정에서 issue.part로 오는 영어 키를 화면에 보여줄 한국어 이름으로 바꾼다.
 export const PART_LABELS = {
   knee: '무릎',
@@ -93,6 +99,16 @@ export const PART_LABELS = {
 // 검사를 건너뛴다(목/시선 검사는 예외 — 앉은 정도와 무관하게 항상 확인한다). 프론트도 같은
 // 기준으로 "판정 보류"를 표시하기 위해 값을 그대로 미러링해뒀다 — 서버 값이 바뀌면 같이 바꿔야 한다.
 export const STANDING_KNEE_ANGLE_MIN = 150.0
+
+// ai/app/pose/rules.py의 KNEE_VALGUS_RATIO_THRESHOLD(0.8)와 동일한 기준 — 무릎 사이
+// 너비/발목 사이 너비 비율이 이보다 작으면 무릎 모임(valgus)으로 본다. 정면 사진만
+// 올라와 AI-06(judge_realtime_coaching)을 호출하지 않는 경우, 프론트가 직접 이 기준으로
+// 판정한다(getKneeValgusRatio/buildFrontMetrics 참고) — 서버 값이 바뀌면 같이 바꿔야 한다.
+export const KNEE_VALGUS_RATIO_THRESHOLD = 0.8
+
+// ai/app/pose/coaching_messages.py의 KNEE_VALGUS_MESSAGE와 동일한 문구 — 정면 사진
+// 단독(측면 없음) 판정일 때 프론트가 서버를 거치지 않고 직접 issue를 만들 때 쓴다.
+export const KNEE_VALGUS_MESSAGE = '무릎이 안쪽으로 모이고 있어요. 무릎이 발끝과 같은 방향을 향하도록 밀어주세요.'
 
 // 사진 코칭 "분석 결과" 패널에 보여줄 지표 정의 — ai/app/pose/rules.py의 NORMAL_RANGES와
 // 각 임곗값(threshold) 상수를 그대로 미러링한 표시용 설정이다.
@@ -311,6 +327,48 @@ export function buildSideMetrics(landmarks) {
     knee_over_toe_ratio: getKneeOverToeRatio(landmarks),
     torso_shin_lean_gap_deg: getTorsoShinLeanGapDeg(landmarks),
   }
+}
+
+// 무릎 사이 너비 / 발목 사이 너비. ai/app/pose/angles.py의 get_knee_valgus_ratio와 동일한
+// 정의 — 정면(전신이 카메라를 보는) 랜드마크가 있어야 의미 있는 값이다. 값이
+// KNEE_VALGUS_RATIO_THRESHOLD보다 작으면 무릎이 안쪽으로 모인 것으로 본다.
+function getKneeValgusRatio(landmarks) {
+  const kneeWidth = Math.abs(landmarks[LEFT_KNEE].x - landmarks[RIGHT_KNEE].x)
+  const ankleWidth = Math.abs(landmarks[LEFT_ANKLE].x - landmarks[RIGHT_ANKLE].x)
+  if (ankleWidth < MIN_RELIABLE_FOOT_LENGTH) return null
+  return kneeWidth / ankleWidth
+}
+
+// 정면 랜드마크 1세트에서 뽑아낼 수 있는 필드(2026-09-02, 정면 사진 업로드 추가) —
+// knee_valgus_ratio는 AI-06의 AngleFrame에도 그대로 실어 보낼 수 있는 선택 필드다
+// (측면 사진이 함께 있을 때). 측면 사진이 없으면 이 값만으로 프론트가 직접 판정한다.
+export function buildFrontMetrics(landmarks) {
+  return {
+    knee_valgus_ratio: getKneeValgusRatio(landmarks),
+  }
+}
+
+// MediaPipe 원본 랜드마크 배열(33개, 인덱스 기반) → 화면에서 드래그로 옮길 수 있는
+// "이름 기반" 좌표 객체로 변환한다(KEY_LANDMARKS의 14개 관절만). 사진 코칭의 드래그 가능한
+// 좌표 편집기(PhotoLandmarkEditor)가 렌더링/드래그에 이 형태를 쓴다.
+export function landmarksToEditablePoints(landmarks) {
+  const points = {}
+  for (const [name, idx] of Object.entries(KEY_LANDMARKS)) {
+    const lm = landmarks[idx]
+    if (!lm) continue
+    points[name] = { x: lm.x, y: lm.y, visibility: lm.visibility ?? 1 }
+  }
+  return points
+}
+
+// landmarksToEditablePoints의 역변환 — 사용자가 드래그로 수정했을 수 있는 좌표 객체를
+// buildSideMetrics/buildFrontMetrics가 기대하는 인덱스 기반 형태로 되돌린다(재분석 시 사용).
+export function editablePointsToLandmarksArray(points) {
+  const landmarks = {}
+  for (const [name, idx] of Object.entries(KEY_LANDMARKS)) {
+    if (points[name]) landmarks[idx] = points[name]
+  }
+  return landmarks
 }
 
 // 33개 랜드마크 중 핵심 관절만 웹캠 화면 위에 스켈레톤으로 그린다(디버그용 라벨 없이,
