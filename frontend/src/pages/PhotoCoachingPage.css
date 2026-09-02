@@ -97,7 +97,8 @@
   overflow: hidden;
   background: #fff;
   border: 1px solid #e5e3dd;
-  margin-bottom: 16px;
+  margin: 0 auto 16px;
+  max-width: 50%;
 }
 .preview-placeholder {
   width: 100%;
@@ -170,6 +171,16 @@
 .photo-warning-box ul {
   margin: 6px 0 0;
   padding-left: 16px;
+}
+/* 페이지 상단 중앙에 두는 버전 — 2단 그리드 위, 텍스트도 가운데 정렬 */
+.photo-warning-box-top {
+  max-width: 560px;
+  margin: 20px auto 0;
+  text-align: center;
+}
+.photo-warning-box-top ul {
+  text-align: left;
+  display: inline-block;
 }
 
 .photo-file-input {

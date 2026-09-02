@@ -189,19 +189,19 @@ function PhotoCoachingPage() {
         <div className="section-title">사진 코칭</div>
       </div>
 
+      <div className="photo-warning-box photo-warning-box-top">
+        <b>업로드 전 확인해 주세요.</b>
+        <ul>
+          <li>전신이 옆모습(측면)으로 잘 보이는 사진을 올려주세요.</li>
+          <li>사진이 흐리거나 신체 일부가 가려지면 분석이 부정확하거나 실패할 수 있어요.</li>
+          <li>이 분석 결과는 참고용이에요. 통증이 있다면 무리하지 말고 전문가와 상담해주세요.</li>
+        </ul>
+      </div>
+
       <div className="photo-coaching-grid">
         <div className="squat-card photo-panel">
           <div className="photo-panel-head">사진 미리보기</div>
           <PhotoPreviewPanel session={session} />
-
-          <div className="photo-warning-box">
-            <b>업로드 전 확인해 주세요.</b>
-            <ul>
-              <li>전신이 옆모습(측면)으로 잘 보이는 사진을 올려주세요.</li>
-              <li>사진이 흐리거나 신체 일부가 가려지면 분석이 부정확하거나 실패할 수 있어요.</li>
-              <li>이 분석 결과는 참고용이에요. 통증이 있다면 무리하지 말고 전문가와 상담해주세요.</li>
-            </ul>
-          </div>
 
           {session.fileError && <p className="squat-error">{session.fileError}</p>}
 
