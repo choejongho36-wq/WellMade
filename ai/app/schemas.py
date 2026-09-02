@@ -388,6 +388,9 @@ class OrchestrateResponse(BaseModel):
 
 
 # ---- 세션 리포트 생성 (AI-12) ----
+# ID 표기 확정(2026-09-02): 요구사항정의서 "1.AI모듈상세" 시트 기준 AI-12로 쓴다.
+# "8.요구사항정의서" 시트가 같은 번호를 세션 종료 판단(AI-13)에 재사용하는 건 그 시트
+# 쪽 오기로 보고 따르지 않는다 — 이 기능은 앞으로도 계속 AI-12로 표기한다.
 
 
 class SessionIssueRecord(BaseModel):
