@@ -26,12 +26,8 @@
   border-left: 1px solid #da291c;
 }
 /* showNav={false}일 때(예: ml-test) — 사이드바가 없으니 구분선/왼쪽 여백도 같이 뺀다 */
-.page-shell-content--full {
-  padding-left: 0;
-  border-left: none;
-}
-
-/* shared modal shell (인바디 등록, 영양소 상세 등) */
+/* shared modal shell (인바디 등록, 영양소 상세 등) - 티켓 스텁 느낌:
+   제목이 검정 헤더 블록으로 빠지고, 오른쪽에 레드 스큐 스트라이프, 헤더 아래엔 절취선. */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -45,27 +41,57 @@
   position: relative;
   width: 320px;
   background: #fff;
-  border: 1px solid #e5e3dd;
   border-radius: 16px;
-  padding: 32px 28px;
-  text-align: center;
+  overflow: hidden;
+  padding: 0 28px 28px;
+  text-align: left;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
 }
 .modal-close {
   position: absolute;
-  top: 12px;
-  right: 14px;
+  top: 14px;
+  right: 16px;
+  z-index: 1;
   background: none;
   border: none;
-  color: #8c8b88;
+  color: rgba(255, 255, 255, 0.75);
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
 }
+.modal-close:hover {
+  color: #fff;
+}
 .modal-title {
-  font-size: 18px;
-  font-weight: 800;
-  color: #111;
-  margin-bottom: 6px;
+  position: relative;
+  margin: 0 -28px 20px;
+  padding: 22px 28px 20px;
+  background: #111;
+  color: #fff;
+  font: 400 21px/1.2 'Archivo Black', sans-serif;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+}
+/* 오른쪽 위로 삐져나오는 레드 스큐 스트라이프 - .modal의 overflow:hidden이 모서리를 잘라준다 */
+.modal-title::before {
+  content: '';
+  position: absolute;
+  top: -14px;
+  right: -30px;
+  width: 90px;
+  height: 150%;
+  background: #da291c;
+  transform: skewX(-12deg);
+  opacity: 0.9;
+}
+/* 절취선 - 흰/검정 경계에 딱 붙이면 어색해서 검정 영역 안쪽으로 살짝 올림 */
+.modal-title::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.22);
 }
 .modal-sub {
   font-size: 12.5px;
@@ -143,7 +169,6 @@
 }
 .tag {
   flex: 1;
-  transform: skewX(-6deg);
   background: #fff;
   border: 1px solid #da291c;
   border-radius: 8px;
@@ -160,7 +185,6 @@
 }
 .tag-label span {
   display: inline-block;
-  transform: skewX(6deg);
   color: #fff;
   font: 800 14px Archivo, 'Noto Sans KR', sans-serif;
   letter-spacing: 0.02em;
@@ -168,7 +192,6 @@
 .tag-inner {
   flex: 1;
   min-width: 0;
-  transform: skewX(6deg);
   padding: 18px 0;
   display: flex;
   align-items: baseline;
@@ -215,13 +238,15 @@
     border-left: none;
     border-top: 1px solid #da291c;
   }
-  .page-shell-content--full {
-    border-top: none;
-  }
-
   .modal {
     width: min(320px, calc(100vw - 32px));
-    padding: 28px 20px;
+    padding: 0 20px 28px;
+  }
+  /* 데스크톱 헤더 블리드는 -28px(모달 좌우 패딩)에 맞춰져 있어서, 패딩이 20px로 좁아지는
+     여기서도 같이 맞춰야 헤더가 모달 폭을 벗어나거나 못 미치지 않는다 */
+  .modal-title {
+    margin: 0 -20px 20px;
+    padding: 22px 20px 20px;
   }
 
   .section-head {

@@ -5,6 +5,7 @@ import './index.css'
 import { AuthProvider, useAuth } from './lib/auth.js'
 import ChatWidget from './components/ChatWidget.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import SessionExpiredModal from './components/SessionExpiredModal.jsx'
 import MainPage from './pages/MainPage.jsx'
 import MyPage from './pages/MyPage.jsx'
 import DietPage from './pages/DietPage.jsx'
@@ -14,7 +15,7 @@ import NotFoundPage from './pages/NotFoundPage.jsx'
 const MlTestPage = lazy(() => import('./pages/MlTestPage.jsx'))
 
 function AppRoutes() {
-  const { user, profile, sendChat, getChatHistory, getNutrientAdvice } = useAuth()
+  const { user, profile, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu } = useAuth()
 
   return (
     <>
@@ -29,7 +30,8 @@ function AppRoutes() {
         </Routes>
       </Suspense>
 
-      <ChatWidget loggedIn={Boolean(user)} sendChat={sendChat} getChatHistory={getChatHistory} getNutrientAdvice={getNutrientAdvice} userName={profile?.name} />
+      <SessionExpiredModal />
+      <ChatWidget loggedIn={Boolean(user)} sendChat={sendChat} getChatHistory={getChatHistory} clearChatHistory={clearChatHistory} getNutrientAdvice={getNutrientAdvice} sendChatMenu={sendChatMenu} userName={profile?.name} />
     </>
   )
 }

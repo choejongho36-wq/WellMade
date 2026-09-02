@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
+import { getNutritionPeerCompare } from '../lib/aiApi.js'
 import { useAuth } from '../lib/auth.js'
+import Modal from './Modal.jsx'
 import './NutrientDetailModal.css'
 
 const HERO_GAUGE_SEGMENTS = 14
 const MACRO_GAUGE_SEGMENTS = 7
 
 const ROWS = [
-  { key: 'totalCalories', targetKey: 'kcal', label: '총 섭취 칼로리', unit: 'kcal' },
+  { key: 'totalCalories', targetKey: 'kcal', label: '총 섭취 칼로리', short: '칼로리', unit: 'kcal' },
   { key: 'totalProteinG', targetKey: 'proteinG', label: '단백질', unit: 'g' },
   { key: 'totalCarbsG', targetKey: 'carbsG', label: '탄수화물', unit: 'g' },
   { key: 'totalFatG', targetKey: 'fatG', label: '지방', unit: 'g' },
@@ -21,6 +23,16 @@ function gaugeFilledCount(value, targetValue, segments) {
   if (targetValue == null || targetValue <= 0) return 0
   const percent = Math.min(100, (value / targetValue) * 100)
   return Math.round((percent / 100) * segments)
+}
+
+/** 목표를 넘겼는지 - 목표가 없거나 0이면 판정하지 않음 */
+function isOver(value, targetValue) {
+  return targetValue != null && targetValue > 0 && value > targetValue
+}
+
+/** 초과 섭취 표시용 화살표 (위로 통통 튀는 애니메이션은 CSS에서) */
+function OverArrow() {
+  return <span className="nutrient-over-arrow" aria-hidden="true">▲</span>
 }
 
 function Gauge({ filled, total, tone }) {
@@ -49,10 +61,13 @@ function Gauge({ filled, total, tone }) {
 function MacroColumn({ label, unit, value, targetValue }) {
   const displayValue = formatValue(value, unit)
   const filled = gaugeFilledCount(value, targetValue, MACRO_GAUGE_SEGMENTS)
+  const over = isOver(value, targetValue)
 
   return (
     <div className="nutrient-macro-col">
-      <div className="nutrient-macro-label">{label}</div>
+      <div className={`nutrient-macro-label${over ? ' over' : ''}`}>
+        {label}{over && <OverArrow />}
+      </div>
       <div className="nutrient-macro-values">
         <span className="nutrient-macro-value">{displayValue}{unit}</span>
         {targetValue != null && (
@@ -75,7 +90,7 @@ function TargetEditForm({ target, onSaved, onCancel }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const setField = (field) => (e) => setDraft((d) => ({ ...d, [field]: e.target.value }))
+  const setField = (field) => (e) => setDraft((d) => ({ ...d, [field]: e.target.value.replace(/-/g, '') }))
 
   const handleSave = () => {
     const parsed = {
@@ -141,7 +156,19 @@ function TargetEditForm({ target, onSaved, onCancel }) {
 }
 
 function NutrientDetailModal({ summary, target, onClose, onTargetChange, title = '오늘 영양소' }) {
+  const { profile } = useAuth()
   const [editing, setEditing] = useState(false)
+  const [peer, setPeer] = useState(null)
+
+  // 같은 성별·연령대 평균과 비교(AI 서버). 프로필이 없거나 AI 서버가 꺼져 있으면
+  // null이 와서 아래 섹션이 안 보일 뿐, 영양소 화면 자체는 그대로 동작한다
+  useEffect(() => {
+    getNutritionPeerCompare({
+      total: summary,
+      gender: profile?.gender,
+      birthYear: profile?.birthYear,
+    }).then(setPeer)
+  }, [summary, profile?.gender, profile?.birthYear])
 
   const handleSaved = (newTarget) => {
     onTargetChange?.(newTarget)
@@ -151,18 +178,13 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
   const calories = summary.totalCalories ?? 0
   const targetKcal = target ? target.kcal : null
   const heroFilled = gaugeFilledCount(calories, targetKcal, HERO_GAUGE_SEGMENTS)
+  const overLabels = target
+    ? ROWS.filter((r) => isOver(summary[r.key] ?? 0, target[r.targetKey])).map((r) => r.short ?? r.label)
+    : []
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal nutrient-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
-
-        <div className="nutrient-modal-head">
-          <div className="modal-title">{title}</div>
-          {target && !editing && (
-            <button className="link-btn" onClick={() => setEditing(true)}>목표 수정</button>
-          )}
-        </div>
+    <Modal className="nutrient-modal" onClose={onClose}>
+        <div className="modal-title">{title}</div>
 
         {editing ? (
           <div className="nutrient-edit-wrap">
@@ -171,7 +193,14 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
         ) : (
           <>
             <div className="nutrient-hero">
-              <div className="nutrient-hero-label">총 섭취 칼로리</div>
+              <div className="nutrient-hero-top">
+                <div className="nutrient-hero-label">
+                  총 섭취 칼로리{isOver(calories, targetKcal) && <OverArrow />}
+                </div>
+                {target && (
+                  <button className="nutrient-target-edit" onClick={() => setEditing(true)}>목표 수정</button>
+                )}
+              </div>
               <div className="nutrient-hero-values">
                 <div className="nutrient-hero-value">
                   <span className="nutrient-hero-num">{Math.round(calories)}</span>
@@ -199,6 +228,34 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
               ))}
             </div>
 
+            {overLabels.length > 0 && (
+              <p className="nutrient-over-warning">
+                <OverArrow />
+                초과 섭취 주의 · {overLabels.join(', ')} — 목표치를 넘었어요
+              </p>
+            )}
+
+            {/* 또래 비교 - 목표 대비(위 게이지)와 다른 축의 정보다.
+                목표를 안 정한 사용자에게도 "많이 먹었나 적게 먹었나" 감각을 준다 */}
+            {peer && peer.comparisons.length > 0 && (
+              <div className="nutrient-peer">
+                <div className="nutrient-peer-head">
+                  같은 {peer.age_bracket}세 평균과 비교
+                  {peer.low_sample_warning && ' (표본이 적어 참고용)'}
+                </div>
+                {peer.comparisons.map((c) => (
+                  <div className="nutrient-peer-row" key={c.nutrient}>
+                    <span className="nutrient-peer-label">{c.nutrient}</span>
+                    <span className="nutrient-peer-value">
+                      {c.my_value}{c.unit} <span className="nutrient-peer-mean">/ 평균 {c.peer_mean}{c.unit}</span>
+                    </span>
+                    <span className="nutrient-peer-pct">{c.percent_of_peer}%</span>
+                  </div>
+                ))}
+                <div className="nutrient-peer-source">{peer.source}</div>
+              </div>
+            )}
+
             {!target && (
               <p className="nutrient-no-target">
                 목표와 인바디를 등록하면 목표 대비 섭취량을 함께 볼 수 있어요.
@@ -206,8 +263,7 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
             )}
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   )
 }
 

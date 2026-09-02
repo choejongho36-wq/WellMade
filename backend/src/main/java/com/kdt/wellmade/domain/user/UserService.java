@@ -9,6 +9,7 @@ import com.kdt.wellmade.domain.chat.ChatMessageRepository;
 import com.kdt.wellmade.domain.inbody.InbodyRecordRepository;
 import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileRepository;
+import com.kdt.wellmade.domain.workout.WorkoutMemoRepository;
 import com.kdt.wellmade.domain.nutrition.MealLoggingService;
 import com.kdt.wellmade.global.security.SocialUnlinkClient;
 
@@ -21,6 +22,7 @@ public class UserService {
     private final UserProfileRepository userProfileRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final InbodyRecordRepository inbodyRecordRepository;
+    private final WorkoutMemoRepository workoutMemoRepository;
     private final MealLoggingService mealLoggingService;
     private final SocialUnlinkClient socialUnlinkClient;
 
@@ -78,6 +80,7 @@ public class UserService {
         socialUnlinkClient.unlink(user.getProvider(), user.getSocialAccessToken());
         mealLoggingService.deleteAllForUser(userId);
         chatMessageRepository.deleteByUser(user);
+        workoutMemoRepository.deleteByUser(user);
         inbodyRecordRepository.deleteByUser(user);
         userProfileRepository.deleteByUser(user);
         userRepository.delete(user);

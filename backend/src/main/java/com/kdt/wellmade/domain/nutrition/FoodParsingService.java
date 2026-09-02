@@ -51,6 +51,9 @@ public class FoodParsingService {
               foodName에는 그 표현까지 그대로 포함하고(예: "포카칩 큰 봉지"),
               searchName에는 DB 검색에 쓸 기본 제품명만 넣으세요(예: "포카칩").
               용량 표현이 없으면 foodName과 searchName은 같은 값입니다.
+            - searchName은 foodName보다 더 구체적이면 안 됩니다. 사용자가 말하지 않은 단어를 붙여
+              제품을 특정하지 마세요 (오답: "토스트" -> "토스트칩", "빵" -> "식빵").
+              브랜드/용량 표현을 떼는 방향으로만 줄이고, 그 외에는 사용자가 말한 이름을 그대로 쓰세요.
 
             *** amountG / servings 판단 기준 - 그램수는 최대한 직접 추정하지 말고 DB의 표준중량에 맡길 것 ***
             - 사용자가 그램/ml 숫자를 명시적으로 말한 경우에만("200g", "300그램", "500ml") amountG에 그 숫자를 넣고 servings는 1로 두세요.
@@ -131,7 +134,12 @@ public class FoodParsingService {
                 // JSON 항목만 뽑아내는 작업인데 온도가 기본값(0.8)이라 형식이 흔들릴 여지가 컸음.
                 // format:"json"으로 출력 자체를 강제하고 temperature:0으로 결정적으로 만듦.
                 "format", "json",
-                "options", Map.of("temperature", 0, "num_ctx", 4096)
+                // keep_alive를 안 보내면 Ollama 기본값(5분)으로 되돌아가, 챗봇이 24h로 올려둔
+                // 상주 시간을 이 호출이 다시 깎아버린다. 같은 모델을 쓰므로 값을 맞춰둔다
+                "keep_alive", "24h",
+                // num_ctx는 ChatService와 반드시 같은 값 - 다르면 Ollama가 같은 모델을
+                // 요청마다 내렸다 올려서(4.7GB) 매번 20초씩 더 걸린다
+                "options", Map.of("temperature", 0, "num_ctx", 8192)
         );
  
         String responseJson;

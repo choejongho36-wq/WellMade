@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import './MlTestPage.css'
 import PageShell from '../components/PageShell.jsx'
 import { usePoseLandmarker } from '../hooks/usePoseLandmarker.js'
-import BLIND_TEST_REPS from '../data/blindTest6Reps.json'
 
 // (2026-08-24) 이 페이지는 원래 /ai/pose/analyze(AI-03, 정지 자세 1차 판정)를 호출해
 // "정상/이상" 결과까지 보여주는 통합 테스트 페이지였다. 사용자가 업로드한 서비스 흐름도를
@@ -35,35 +34,6 @@ import BLIND_TEST_REPS from '../data/blindTest6Reps.json'
 // auth.js 의 API_BASE 와 같은 방식 - 빌드 시 VITE_AI_BASE 로 주입, 없으면 로컬 기본값
 const AI_BASE = import.meta.env.VITE_AI_BASE || 'http://localhost:8000'
 
-// "6랩 블라인드 테스트" 비교 대상 후보 모델 — 실제로 판정 가능한지는 AWS Bedrock 콘솔에서
-// 계정이 해당 모델 접근권한(Model access)을 승인받았는지, 그리고 리전에서 온디맨드 호출을
-// 지원하는지에 달려있어, 여기 목록에 있다고 전부 바로 호출되는 건 아니다(승인 안 됐거나
-// 추론 프로필이 필요한 모델은 결과 셀에 오류로 표시됨).
-const CANDIDATE_MODELS = [
-  { id: 'apac.amazon.nova-micro-v1:0', label: 'Nova Micro', vendor: 'Amazon' },
-  { id: 'apac.amazon.nova-lite-v1:0', label: 'Nova Lite', vendor: 'Amazon' },
-  { id: 'apac.amazon.nova-pro-v1:0', label: 'Nova Pro', vendor: 'Amazon' },
-  { id: 'apac.anthropic.claude-3-5-sonnet-20240620-v1:0', label: 'Claude 3.5 Sonnet', vendor: 'Anthropic' },
-  { id: 'apac.anthropic.claude-3-haiku-20240307-v1:0', label: 'Claude 3 Haiku', vendor: 'Anthropic' },
-  { id: 'apac.anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Claude 3.5 Sonnet v2', vendor: 'Anthropic' },
-  { id: 'apac.anthropic.claude-sonnet-4-20250514-v1:0', label: 'Claude Sonnet 4', vendor: 'Anthropic' },
-  { id: 'global.anthropic.claude-haiku-4-5-20251001-v1:0', label: 'Claude Haiku 4.5', vendor: 'Anthropic' },
-  { id: 'global.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5', vendor: 'Anthropic' },
-]
-const DEFAULT_SELECTED_MODEL_IDS = [
-  'apac.amazon.nova-micro-v1:0',
-  'apac.amazon.nova-lite-v1:0',
-  'apac.amazon.nova-pro-v1:0',
-  'apac.anthropic.claude-3-5-sonnet-20240620-v1:0',
-  'apac.anthropic.claude-3-haiku-20240307-v1:0',
-  'apac.anthropic.claude-3-5-sonnet-20241022-v2:0',
-  'apac.anthropic.claude-sonnet-4-20250514-v1:0',
-  'global.anthropic.claude-haiku-4-5-20251001-v1:0',
-  'global.anthropic.claude-sonnet-4-5-20250929-v1:0',
-]
-
-const tableHeadStyle = { border: '1px solid #ddd', padding: '6px 8px', background: '#f7f7f7', textAlign: 'left', whiteSpace: 'nowrap' }
-const tableCellStyle = { border: '1px solid #ddd', padding: '6px 8px', verticalAlign: 'top' }
 const DRAG_HIT_RADIUS_PX = 16 // 이 거리(px) 안에 있는 핵심 관절점만 드래그로 잡을 수 있다.
 
 // MediaPipe Pose 33개 관절 좌표 중 각도/비율 계산에 실제로 쓰는 인덱스.
@@ -884,12 +854,6 @@ function MlTestPage() {
   const [repBottoms, setRepBottoms] = useState([])
   const [repResults, setRepResults] = useState([])
 
-  // ---- "6랩 블라인드 테스트" 모델 비교(개발용) 상태 ----
-  const [selectedModelIds, setSelectedModelIds] = useState(DEFAULT_SELECTED_MODEL_IDS)
-  const [customModelInput, setCustomModelInput] = useState('')
-  const [blindTestRunning, setBlindTestRunning] = useState(false)
-  const [blindTestResult, setBlindTestResult] = useState(null)
-  const [blindTestError, setBlindTestError] = useState('')
   const videoElRef = useRef(null)
   const videoCanvasRef = useRef(null)
 
@@ -897,6 +861,26 @@ function MlTestPage() {
   // liveFrames는 화면 표시(그래프 등)용 state. 판정 루프(liveTick)는 렌더 사이 stale
   // closure를 피하려고 liveFramesRef라는 별도 ref에 항상 최신 버퍼를 같이 들고 있다가
   // 그걸 기준으로 판단한다 — state만 쓰면 setInterval 콜백이 매번 최신값을 보장받지 못한다.
+  // ---- ① 캘리브레이션: 자세 진단 + 또래 비교 인사이트 (AI-15 /ai/onboarding/posture-insight) ----
+  // 정면 사진 랜드마크로 어깨/골반 좌우 기울기를 재고 공공데이터 참조분포와 비교한다.
+  // 성별/출생년도는 참조 그룹(성별×연령대)을 고르는 데만 쓰인다.
+  const [gender, setGender] = useState('M')
+  const [birthYear, setBirthYear] = useState('2000')
+  const [insight, setInsight] = useState(null)
+  const [insightError, setInsightError] = useState('')
+  const [insightLoading, setInsightLoading] = useState(false)
+
+  // ---- ②-B 실시간 세션: TTS 안내 / 종료 판정(AI-13) / 세션 리포트(AI-12) ----
+  // AI 서버는 세션 상태를 들고 있지 않는 무상태 설계라, 판정 이력은 프론트가 누적해뒀다가
+  // 종료 판정·리포트 요청 때 통째로 넘긴다.
+  const [ttsEnabled, setTtsEnabled] = useState(true)
+  const [endCheck, setEndCheck] = useState(null)
+  const [sessionReport, setSessionReport] = useState(null)
+  const [reportError, setReportError] = useState('')
+  const [reportLoading, setReportLoading] = useState(false)
+  const judgmentHistoryRef = useRef([])  // { timestamp, is_normal, issues[] }
+  const lastSpokenRef = useRef('')
+
   const [liveActive, setLiveActive] = useState(false)
   const [liveStatus, setLiveStatus] = useState('')
   const [liveFrames, setLiveFrames] = useState([])
@@ -1056,6 +1040,111 @@ function MlTestPage() {
     return frames.slice(start, idx + 1).map((f) => ({ timestamp: f.timestamp, ...f.metrics }))
   }
 
+  // ---- ① 캘리브레이션 진단 (AI-15) ----
+  // 어깨/골반 좌우 기울기는 관상면 값이라 "정면" 사진이 반드시 필요하다 (측면으로는 계산 불가).
+  const requestPostureInsight = async () => {
+    if (!frontLandmarks) return
+    setInsightLoading(true)
+    setInsightError('')
+    setInsight(null)
+    try {
+      const res = await fetch(`${AI_BASE}/ai/onboarding/posture-insight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          front_landmarks: frontLandmarks.map((lm) => ({
+            x: lm.x, y: lm.y, z: lm.z ?? 0, visibility: lm.visibility ?? 1,
+          })),
+          gender,
+          birth_year: Number(birthYear),
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setInsight(data)
+      speak(data.message)
+    } catch (err) {
+      setInsightError(`AI 서버 연결 실패: ${err.message} (AI 서버가 localhost:8000에서 실행 중인지 확인해주세요)`)
+    } finally {
+      setInsightLoading(false)
+    }
+  }
+
+  // ---- TTS: 브라우저 내장 SpeechSynthesis ----
+  // 판정이 프레임마다 나오므로 같은 문구를 계속 읽으면 시끄럽다. 직전에 읽은 문구를
+  // 기억해뒀다가 내용이 바뀔 때만 새로 읽는다.
+  const speak = (text) => {
+    if (!ttsEnabled || !text || text === lastSpokenRef.current) return
+    if (!('speechSynthesis' in window)) return
+    lastSpokenRef.current = text
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'ko-KR'
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(utterance)
+  }
+
+  const coachingText = (result) =>
+    result.is_normal ? '좋아요, 지금 자세를 유지하세요' : (result.issues?.[0]?.message ?? '자세를 확인해주세요')
+
+  // ---- ②-B 종료 조건 판단 (AI-13) ----
+  const checkSessionEnd = async (userRequested) => {
+    const history = judgmentHistoryRef.current
+    if (history.length === 0) return null
+    try {
+      const res = await fetch(`${AI_BASE}/ai/session/end-check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          judgment_history: history.map(({ timestamp, is_normal }) => ({ timestamp, is_normal })),
+          user_requested_end: userRequested,
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setEndCheck(data)
+      return data
+    } catch {
+      return null  // 종료 판정 실패는 세션을 막지 않는다 - 사용자가 직접 끝낼 수 있음
+    }
+  }
+
+  // ---- ③ 세션 종료 후 리포트 (AI-12) ----
+  const endSession = async (endReason) => {
+    stopLive()
+    const history = judgmentHistoryRef.current
+    if (history.length === 0) return
+
+    setReportLoading(true)
+    setReportError('')
+    setSessionReport(null)
+    try {
+      const res = await fetch(`${AI_BASE}/ai/session/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: `mltest-${Date.now()}`,
+          // 리포트는 편차 집계까지 하므로 issues의 part만 넘긴다 (SessionIssueRecord = part + deviation_deg)
+          frame_history: history.map(({ timestamp, is_normal, issues }) => ({
+            timestamp,
+            is_normal,
+            issues: (issues ?? []).map((issue) => ({ part: issue.part })),
+          })),
+          session_duration_sec: history[history.length - 1].timestamp,
+          previous_sessions: [],  // 이 페이지는 이력을 저장하지 않으므로 항상 첫 세션으로 처리
+          end_reason: endReason === 'user_requested' ? 'user_requested' : 'target_sustained',
+        }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setSessionReport(data)
+      speak(data.summary_message)
+    } catch (err) {
+      setReportError(`AI 서버 연결 실패: ${err.message} (AI 서버가 localhost:8000에서 실행 중인지 확인해주세요)`)
+    } finally {
+      setReportLoading(false)
+    }
+  }
+
   const callCoachingFrame = async (angle_history) => {
     const res = await fetch(`${AI_BASE}/ai/coaching/frame`, {
       method: 'POST',
@@ -1064,53 +1153,6 @@ function MlTestPage() {
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return res.json()
-  }
-
-  // ---- "6랩 블라인드 테스트" 모델 비교(개발용, /ai/dev/llm-model-compare) ----
-  const modelLabel = (id) => CANDIDATE_MODELS.find((m) => m.id === id)?.label ?? id
-
-  const toggleModelId = (id) => {
-    setSelectedModelIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-  }
-
-  const addCustomModelId = () => {
-    const id = customModelInput.trim()
-    if (!id) return
-    if (!selectedModelIds.includes(id)) {
-      setSelectedModelIds((prev) => [...prev, id])
-      if (!CANDIDATE_MODELS.some((m) => m.id === id)) {
-        CANDIDATE_MODELS.push({ id, label: id, vendor: '직접 추가' })
-      }
-    }
-    setCustomModelInput('')
-  }
-
-  const runBlindTest = async () => {
-    setBlindTestRunning(true)
-    setBlindTestError('')
-    setBlindTestResult(null)
-    try {
-      const reps = BLIND_TEST_REPS.map((rep) => ({
-        id: rep.id,
-        true_label: rep.true_label,
-        frames: rep.frames,
-      }))
-      const res = await fetch(`${AI_BASE}/ai/dev/llm-model-compare`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reps, model_ids: selectedModelIds }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      if (data.error) {
-        setBlindTestError(data.error)
-      }
-      setBlindTestResult(data)
-    } catch (err) {
-      setBlindTestError(`AI 서버 연결 실패: ${err.message} (AI 서버가 localhost:8000에서 실행 중인지 확인해주세요)`)
-    } finally {
-      setBlindTestRunning(false)
-    }
   }
 
   // detectRepBottoms가 찾아낸 저점들을 순서대로(직렬로) 서버에 판독 요청한다. 사람이
@@ -1288,6 +1330,19 @@ function MlTestPage() {
           const result = await callCoachingFrame(judgeWindow(next.length - 1, next))
           setLiveJudgeResult(result)
           setLiveJudgeError('')
+
+          // 판정 이력 누적 - 종료 판정(AI-13)과 리포트(AI-12)가 이걸 통째로 받는다
+          judgmentHistoryRef.current = [
+            ...judgmentHistoryRef.current,
+            { timestamp, is_normal: result.is_normal, issues: result.issues ?? [] },
+          ]
+          speak(coachingText(result))
+
+          // 종료 판정은 프레임마다 부를 필요가 없어 10프레임(약 2초)마다만 확인
+          if (judgmentHistoryRef.current.length % 10 === 0) {
+            const end = await checkSessionEnd(false)
+            if (end?.should_end) endSession(end.reason)
+          }
         } catch (err) {
           setLiveJudgeError(`AI 서버 연결 실패: ${err.message} (AI 서버가 localhost:8000에서 실행 중인지 확인해주세요)`)
         }
@@ -1303,6 +1358,11 @@ function MlTestPage() {
     setLiveJudgeResult(null)
     liveFramesRef.current = []
     setLiveFrames([])
+    judgmentHistoryRef.current = []
+    lastSpokenRef.current = ''
+    setEndCheck(null)
+    setSessionReport(null)
+    setReportError('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
       liveStreamRef.current = stream
@@ -1391,13 +1451,14 @@ function MlTestPage() {
   }
 
   return (
-    <PageShell showNav={false}>
+    <PageShell>
       <div className="page-eyebrow-row">
         <div className="page-index-tag">POSE TEST</div>
       </div>
 
+      {/* ===== ① 캘리브레이션 — 편한 자세 촬영 + 자세 진단 ===== */}
       <div className="section-head">
-        <div className="section-title">사진 측정 연습 페이지</div>
+        <div className="section-title">① 캘리브레이션 — 편한 자세 촬영 · 자세 진단</div>
       </div>
 
           <p className="pcard-desc" style={{ marginBottom: 12 }}>
@@ -1464,6 +1525,58 @@ function MlTestPage() {
             <FrontalMeasurementPanel landmarks={frontLandmarks} />
           </div>
 
+          {/* 진단 결과 + 또래 비교 인사이트 (AI-15). 정면 사진이 있어야 계산된다 */}
+          <div style={{ marginTop: 16, maxWidth: 620 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <select value={gender} onChange={(e) => setGender(e.target.value)}>
+                <option value="M">남성</option>
+                <option value="F">여성</option>
+              </select>
+              <input
+                type="number"
+                value={birthYear}
+                onChange={(e) => setBirthYear(e.target.value)}
+                placeholder="출생년도"
+                style={{ width: 100 }}
+              />
+              <button onClick={requestPostureInsight} disabled={!frontLandmarks || insightLoading}>
+                {insightLoading ? '진단 중...' : '자세 진단 + 또래 비교'}
+              </button>
+              {!frontLandmarks && (
+                <span className="pcard-desc">정면 사진을 올려야 어깨·골반 좌우 기울기를 잴 수 있어요.</span>
+              )}
+            </div>
+
+            {insightError && <p className="pcard-desc" style={{ marginTop: 8, color: '#c0392b' }}>{insightError}</p>}
+
+            {insight && (
+              <div style={{ marginTop: 12, border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  {insight.age_bracket}대 · 표본 {insight.sample_size}명
+                  {insight.low_sample_warning && ' (표본이 적어 참고용)'}
+                </div>
+                <p className="pcard-desc">
+                  어깨 기울기 {insight.shoulder_tilt_deg.toFixed(1)}° ({insight.shoulder_side})
+                  {insight.shoulder_percentile != null && ` · 상위 ${Math.round(insight.shoulder_percentile)}%`}
+                  <br />
+                  {insight.shoulder_message}
+                </p>
+                <p className="pcard-desc" style={{ marginTop: 6 }}>
+                  골반 기울기 {insight.pelvis_tilt_deg.toFixed(1)}° ({insight.pelvis_side})
+                  {insight.pelvis_percentile != null && ` · 상위 ${Math.round(insight.pelvis_percentile)}%`}
+                  <br />
+                  {insight.pelvis_message}
+                </p>
+                <p className="pcard-desc" style={{ marginTop: 8, fontWeight: 600 }}>{insight.message}</p>
+              </div>
+            )}
+          </div>
+
+          {/* ===== ②-A 사진 코칭 — 판정 + 교정 포인트 ===== */}
+          <div className="section-head" style={{ marginTop: 32 }}>
+            <div className="section-title">②-A 사진 코칭 — 자세 판정 · 교정 포인트</div>
+          </div>
+
           {(sideLandmarks || frontLandmarks) && (
             <button
               onClick={requestJudgment}
@@ -1483,7 +1596,7 @@ function MlTestPage() {
           </div>
 
       <div className="section-head" style={{ marginTop: 32 }}>
-        <div className="section-title">영상 측정 연습 페이지 (실험)</div>
+        <div className="section-title">영상 파일로 판정해보기 (실험 · 흐름도 밖)</div>
       </div>
 
           <p className="pcard-desc" style={{ marginBottom: 12 }}>
@@ -1591,7 +1704,7 @@ function MlTestPage() {
           </div>
 
       <div className="section-head" style={{ marginTop: 32 }}>
-        <div className="section-title">실시간 영상 측정 연습 페이지 (웹캠, 실험)</div>
+        <div className="section-title">②-B 실시간 코칭 — 웹캠 · TTS 안내 · 세션 종료</div>
       </div>
 
           <p className="pcard-desc" style={{ marginBottom: 12 }}>
@@ -1605,9 +1718,27 @@ function MlTestPage() {
           </p>
 
           <div style={{ maxWidth: 520 }}>
-            <button onClick={liveActive ? stopLive : startLive}>
-              {liveActive ? '실시간 중지' : '실시간 시작'}
-            </button>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button onClick={liveActive ? stopLive : startLive}>
+                {liveActive ? '실시간 중지' : '실시간 시작'}
+              </button>
+              {/* 흐름도의 "사용자 직접 종료" - 누르면 종료 판정을 건너뛰고 바로 리포트로 간다 */}
+              {liveActive && (
+                <button onClick={() => endSession('user_requested')}>운동 종료 · 리포트 보기</button>
+              )}
+              <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input type="checkbox" checked={ttsEnabled} onChange={(e) => setTtsEnabled(e.target.checked)} />
+                TTS 음성 안내
+              </label>
+            </div>
+
+            {/* 종료 조건 진행 상황 (AI-13) - 정상자세 비율이 목표에 도달하면 자동 종료된다 */}
+            {endCheck && (
+              <p className="pcard-desc" style={{ marginTop: 8 }}>
+                종료 판정: {endCheck.reason} · 최근 {endCheck.window_duration_sec.toFixed(1)}초 구간 정상비율{' '}
+                {Math.round(endCheck.normal_ratio * 100)}%
+              </p>
+            )}
             {liveStatus && <p className="pcard-desc" style={{ marginTop: 8 }}>{liveStatus}</p>}
 
             <div style={{ position: 'relative', marginTop: 12, display: liveActive ? 'block' : 'none' }}>
@@ -1646,129 +1777,38 @@ function MlTestPage() {
             )}
           </div>
 
+      {/* ===== ③ 세션 종료 후 — TTS 코칭 요약 · 세션 리포트 ===== */}
       <div className="section-head" style={{ marginTop: 32 }}>
-        <div className="section-title">6랩 블라인드 테스트 — LLM 모델 비교 (개발용)</div>
+        <div className="section-title">③ 세션 종료 후 — 코칭 요약 · 리포트</div>
       </div>
 
-      <div style={{ maxWidth: 760 }}>
-        <p className="pcard-desc" style={{ marginBottom: 12 }}>
-          claude/wellmade-ai-progress.md(2026-08-25/26)의 "블라인드 테스트(6/6, 100% 정확)"에 썼던
-          것과 같은 조합(우혁/주영/형준 각 과신전·정상 렙 1개씩, 총 6개)을 실제 관절각도 데이터로
-          미리 저장해뒀어요. 아래에서 비교할 모델을 고르고 버튼 한 번을 누르면, 6개 렙을 각 모델에
-          정답 없이(블라인드) 보내 판정시키고 정답과 비교해 모델별 정확도·확신도·지연시간을 한번에
-          보여줘요. 벤더가 다른 모델(Claude/Nova/Llama/Mistral)도 같은 Bedrock Converse API로 동일
-          조건에서 비교하는 구조라, 특정 벤더에 치우치지 않고 공정하게 비교할 수 있어요.
-        </p>
+      <div style={{ maxWidth: 620 }}>
+        {!sessionReport && !reportLoading && !reportError && (
+          <p className="pcard-desc">
+            실시간 코칭을 시작해서 판정이 쌓이면, 목표 시간을 채우거나 "운동 종료"를 눌렀을 때
+            이 자리에 세션 리포트(정상 비율, 평균 편차, 다음 권장 빈도)가 나와요.
+          </p>
+        )}
+        {reportLoading && <p className="pcard-desc">리포트 생성 중...</p>}
+        {reportError && <p className="pcard-desc" style={{ color: '#c0392b' }}>{reportError}</p>}
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginBottom: 12 }}>
-          {CANDIDATE_MODELS.map((m) => (
-            <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
-              <input
-                type="checkbox"
-                checked={selectedModelIds.includes(m.id)}
-                onChange={() => toggleModelId(m.id)}
-              />
-              {m.label} <span style={{ color: '#888', fontSize: 12 }}>({m.vendor})</span>
-            </label>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-          <input
-            type="text"
-            placeholder="직접 모델 ID 추가 (예: cohere.command-r-plus-v1:0)"
-            value={customModelInput}
-            onChange={(e) => setCustomModelInput(e.target.value)}
-            style={{ flex: 1, padding: '6px 8px' }}
-          />
-          <button onClick={addCustomModelId} disabled={!customModelInput.trim()}>
-            추가
-          </button>
-        </div>
-
-        <button onClick={runBlindTest} disabled={blindTestRunning || selectedModelIds.length === 0}>
-          {blindTestRunning
-            ? `실행 중... (${selectedModelIds.length}개 모델 × 6랩, 모델당 최대 40초 정도 걸릴 수 있어요)`
-            : `6랩 블라인드 테스트 실행 (선택된 모델 ${selectedModelIds.length}개)`}
-        </button>
-
-        {blindTestError && (
-          <p className="pcard-desc" style={{ marginTop: 8, color: '#c0392b' }}>{blindTestError}</p>
+        {sessionReport && (
+          <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+            <p className="pcard-desc">
+              정상 자세 비율 <b>{Math.round(sessionReport.normal_ratio * 100)}%</b>
+              {sessionReport.avg_deviation_deg != null && ` · 평균 편차 ${sessionReport.avg_deviation_deg.toFixed(1)}°`}
+              {sessionReport.most_frequent_issue_part && ` · 가장 잦은 부위 ${sessionReport.most_frequent_issue_part}`}
+              {sessionReport.improvement_vs_previous_pct != null &&
+                ` · 지난 세션 대비 ${sessionReport.improvement_vs_previous_pct > 0 ? '+' : ''}${sessionReport.improvement_vs_previous_pct.toFixed(1)}%p`}
+            </p>
+            <p className="pcard-desc" style={{ marginTop: 8 }}>{sessionReport.recommended_frequency_message}</p>
+            <p className="pcard-desc" style={{ marginTop: 8, fontWeight: 600 }}>{sessionReport.summary_message}</p>
+            <p className="pcard-desc" style={{ marginTop: 8, color: '#888', fontSize: 11 }}>
+              요약 문구 생성: {sessionReport.generation_source === 'llm' ? 'LLM' : '규칙기반 폴백'}
+            </p>
+          </div>
         )}
       </div>
-
-      {blindTestResult && (
-        // 선택한 모델이 많아지면 열이 늘어나 760px보다 훨씬 넓어질 수 있다. 위 설명/체크박스와
-        // 달리 이 테이블은 maxWidth:760 박스 밖에 둬서 페이지 본문의 실제 너비를 그대로 쓰고,
-        // 그래도 넘치는 경우에만 가로 스크롤되게 한다 — 스크롤 가능하다는 걸 시각적으로도 알 수
-        // 있게 테두리를 둔다(2026-08-31, "가로로 잘려서 나온다" 리포트 대응).
-        <div
-          style={{
-            marginTop: 16,
-            overflowX: 'auto',
-            WebkitOverflowScrolling: 'touch',
-            border: '1px solid #e5e3dd',
-            borderRadius: 10,
-          }}
-        >
-          <table style={{ borderCollapse: 'collapse', minWidth: '100%', fontSize: 13 }}>
-            <thead>
-              <tr>
-                <th style={tableHeadStyle}>렙 (정답)</th>
-                {selectedModelIds.map((id) => (
-                  <th key={id} style={tableHeadStyle}>{modelLabel(id)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {BLIND_TEST_REPS.map((rep) => (
-                <tr key={rep.id}>
-                  <td style={tableCellStyle}>
-                    {rep.person} · <strong>{rep.true_label}</strong>
-                    <div style={{ color: '#888', fontSize: 11 }}>{rep.frames.length}프레임</div>
-                  </td>
-                  {selectedModelIds.map((modelId) => {
-                    const cell = blindTestResult.results?.[modelId]?.[rep.id]
-                    if (!cell) return <td key={modelId} style={tableCellStyle}>—</td>
-                    if (cell.error) {
-                      return (
-                        <td key={modelId} style={{ ...tableCellStyle, color: '#c0392b' }}>
-                          오류: {cell.error}
-                        </td>
-                      )
-                    }
-                    const predictedLabel = cell.verdict === '과신전_의심' ? '과신전' : cell.verdict === '정상' ? '정상' : '?'
-                    const correct = predictedLabel === rep.true_label
-                    return (
-                      <td
-                        key={modelId}
-                        style={{
-                          ...tableCellStyle,
-                          background: correct ? '#eafaf1' : '#fdecea',
-                        }}
-                      >
-                        {predictedLabel} (확신도: {cell.confidence})
-                        <div style={{ color: '#888', fontSize: 11 }}>{cell.latency_ms}ms</div>
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-              <tr>
-                <td style={{ ...tableCellStyle, fontWeight: 'bold' }}>정확도</td>
-                {selectedModelIds.map((modelId) => {
-                  const acc = blindTestResult.accuracy?.[modelId]
-                  return (
-                    <td key={modelId} style={{ ...tableCellStyle, fontWeight: 'bold' }}>
-                      {acc === null || acc === undefined ? '—' : `${Math.round(acc * 100)}% (${Math.round(acc * 6)}/6)`}
-                    </td>
-                  )
-                })}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
 
     </PageShell>
   )

@@ -47,6 +47,23 @@
 .chat-drawer-title span {
   color: #da291c;
 }
+.chat-drawer-clear {
+  margin-left: auto;
+  margin-right: 8px;
+  background: none;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 4px 10px;
+  color: #8c8b88;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.chat-drawer-clear:hover:not(:disabled) {
+  border-color: #da291c;
+  color: #da291c;
+}
+
 .chat-drawer-close {
   background: none;
   border: none;
@@ -88,6 +105,11 @@
   background: rgba(242, 241, 236, 0.82);
   backdrop-filter: blur(2px);
 }
+.chat-login-overlay-icon {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
 .chat-login-overlay-title {
   font-size: 15px;
   font-weight: 700;
@@ -112,16 +134,21 @@
   align-items: flex-start;
   gap: 8px;
 }
+/* 챗봇 이미지가 흰 배경 위 라인아트라서, 원형 아바타 바탕도 흰색 + 얇은 테두리로 둔다
+   (예전 레드 원 + 흰 아이콘 조합이면 이미지 흰 배경이 그대로 사각형으로 비친다) */
 .chat-greeting-avatar {
   width: 44px;
   height: 44px;
   border-radius: 50%;
   flex: none;
-  background: #da291c;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+}
+.chat-bot-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .chat-drawer-hint {
   background: #f2f1ec;
@@ -133,28 +160,13 @@
   border-top-left-radius: 4px;
   white-space: pre-line;
 }
-.chat-starter-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-  margin-left: 34px;
+/* 인사말에서 닉네임만 구분. 브랜드 레드는 버튼·경고에 이미 쓰고 있어서
+   같은 화면에서 의미가 겹치지 않도록 딥 그린을 쓴다 */
+.chat-greeting-name {
+  color: #1f7a5a;
+  font-weight: 700;
 }
-.chat-starter-btn {
-  text-align: center;
-  padding: 14px 16px;
-  border: none;
-  border-radius: 10px;
-  background: #f2f1ec;
-  color: #111;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-.chat-starter-btn:hover {
-  background: #e7e5df;
-}
+
 .chat-drawer-error {
   color: #da291c;
   font-size: 12.5px;
@@ -162,6 +174,24 @@
 }
 .chat-bubble-row {
   display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+/* 챗봇 말풍선 옆 아이콘. 같은 화자가 이어 말할 때는 비어 있는 채로 자리만 잡아
+   말풍선 왼쪽 라인이 흐트러지지 않게 한다 */
+.chat-bubble-avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-bubble-avatar:not(:empty) {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e5e3dd;
 }
 .chat-bubble-row.user {
   justify-content: flex-end;
@@ -170,7 +200,7 @@
   justify-content: flex-start;
 }
 .chat-bubble {
-  max-width: 82%;
+  max-width: calc(82% - 40px);
   padding: 12px 16px;
   border-radius: 14px;
   font-size: 13.5px;
@@ -188,8 +218,104 @@
   border-bottom-left-radius: 4px;
 }
 .chat-bubble-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
   color: #8f8d85;
-  font-style: italic;
+}
+.chat-typing {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.chat-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #b6b3aa;
+  animation: chat-typing-bounce 1.2s ease-in-out infinite;
+}
+/* 지연(animation-delay)은 글자와 점을 한 줄로 잇기 위해 JSX에서 인라인으로 준다 */
+.chat-typing-text {
+  display: inline-flex;
+}
+.chat-typing-char {
+  display: inline-block;
+  animation: chat-typing-char-bounce 1.2s ease-in-out infinite;
+}
+@keyframes chat-typing-char-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    color: #8f8d85;
+  }
+  30% {
+    transform: translateY(-4px);
+    color: #da291c;
+  }
+}
+@keyframes chat-typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    background: #d6d3ca;
+  }
+  30% {
+    transform: translateY(-5px);
+    background: #da291c;
+  }
+}
+/* 반복 애니메이션에 민감한 사용자에게는 움직임 없이 점만 남긴다 */
+@media (prefers-reduced-motion: reduce) {
+  .chat-typing span,
+  .chat-typing-char {
+    animation: none;
+  }
+  .chat-typing span {
+    background: #b6b3aa;
+  }
+}
+
+/* 입력창 위에 상시 노출되는 바로가기 메뉴 */
+/* 입력창 아래 붙는 바로가기. 누르면 그대로 내 말풍선이 되는 문장이라 사용자 말풍선과
+   같은 레드·우하단 각을 쓰고 오른쪽으로 정렬한다 */
+.chat-quick-menu {
+  display: flex;
+  /* 가로 스크롤이면 오른쪽 항목이 잘려서 있는 줄도 모른다. 줄바꿈으로 전부 보여준다 */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 12px;
+}
+.chat-quick-btn {
+  flex: none;
+  max-width: 100%;
+  background: #da291c;
+  border: none;
+  border-radius: 14px 14px 4px 14px;
+  padding: 7px 13px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.chat-quick-btn:hover:not(:disabled) {
+  background: #b71f14;
+}
+/* 전송 중에는 색까지 빠져야 "누를 수 있는데 안 눌린다"로 안 보인다 */
+.chat-quick-btn:disabled {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px #da291c;
+  color: #da291c;
+  opacity: 0.5;
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-quick-btn {
+    transition: none;
+  }
 }
 
 /* 채팅형 입력창 (식단 기록 페이지의 식사 기록 입력에도 재사용됨) */
@@ -241,7 +367,4 @@
   .chat-bubble {
     max-width: 88%;
   }
-  .chat-starter-list {
-    margin-left: 0;
   }
-}

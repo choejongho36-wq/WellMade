@@ -25,8 +25,8 @@ export const SOCIAL_PROVIDERS = [
 export const NAV_ITEMS = [
   { label: '마이페이지', path: '/mypage' },
   { label: '자세 측정', path: '/ml-test' },
-  { label: '식단 기록', path: '/mealplan' },
-  { label: '운동 추천' },
+  { label: '캘린더', path: '/mealplan' },
+  { label: '고객센터' },
 ]
 
 // 로그인 상태와 API 호출 함수를 트리 전체가 공유한다. 예전에는 useAuth()를 호출하는
@@ -47,6 +47,7 @@ function useAuthState() {
   const [user, setUser] = useState(readCachedUser)
   const [profile, setProfile] = useState(null)
   const [inbody, setInbody] = useState(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
   const codeExchanged = useRef(false)
   const navigate = useNavigate()
 
@@ -79,6 +80,7 @@ function useAuthState() {
     const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
     if (res.status === 401) {
       handleLogout()
+      setSessionExpired(true)
       throw new Error('로그인이 만료됐어요. 다시 로그인해주세요')
     }
     return res
@@ -159,6 +161,16 @@ function useAuthState() {
         setInbody(data)
         return data
       })
+
+  // 잘못 등록한 기록 삭제. 지운 게 최신 기록이면 화면의 인바디도 이전 기록으로 되돌아가야 해서
+  // 삭제 후 latest를 다시 읽어온다 (이력 재조회는 MyPage가 inbody 변화를 보고 알아서 함)
+  const deleteInbody = (id) =>
+    authFetch(`/api/users/me/inbody/${id}`, { method: 'DELETE' }).then((res) => {
+      if (!res.ok) throw new Error('삭제에 실패했어요')
+      return authFetch('/api/users/me/inbody/latest')
+        .then((r) => (r.status === 200 ? r.json() : null))
+        .then(setInbody)
+    })
 
   const getInbodyHistory = () =>
     authJson('/api/users/me/inbody/history', {}, '인바디 이력을 불러오지 못했어요')
@@ -242,8 +254,34 @@ function useAuthState() {
   const getChatHistory = () =>
     authJson('/api/users/me/chat/history', {}, '대화 이력을 불러오지 못했어요')
 
+  const clearChatHistory = () =>
+    authFetch('/api/users/me/chat/history', { method: 'DELETE' }).then((res) => {
+      if (!res.ok) throw new Error('대화 기록을 지우지 못했어요')
+    })
+
   const getNutrientAdvice = () =>
     authJson('/api/users/me/chat/nutrient-advice', { method: 'POST' }, '분석을 받지 못했어요')
+      .then((data) => data.content)
+
+  // 날짜별 메모. 내용을 비워서 저장하면 서버가 그 날 메모를 지운다.
+  const getWorkoutMemo = (date) =>
+    authJson(`/api/users/me/workout-memos/${date}`, {}, '메모를 불러오지 못했어요')
+      .then((data) => data.content ?? '')
+
+  // 캘린더가 "메모 있는 날"을 표시하려고 한 달치를 한 번에 받는다 (날짜 -> 내용)
+  const getWorkoutMemoMonth = (year, month) =>
+    authJson(`/api/users/me/workout-memos?year=${year}&month=${month}`, {}, '메모를 불러오지 못했어요')
+
+  const saveWorkoutMemo = (date, content) =>
+    authJson(`/api/users/me/workout-memos/${date}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    }, '메모를 저장하지 못했어요').then((data) => data.content ?? '')
+
+  // 메뉴 버튼 답변. 자유 대화(sendChat)와 달리 서버가 도구를 직접 실행하므로 스트리밍이 아니다 -
+  // 대신 라운드가 하나 줄고, 기록이 없으면 LLM 없이 즉시 응답한다.
+  const sendChatMenu = (menuId) =>
+    authJson(`/api/users/me/chat/menu/${menuId}`, { method: 'POST' }, '답변을 받지 못했어요')
       .then((data) => data.content)
 
   // date를 넘기면 그 날짜로 기록된다(깜빡한 지난 끼니 채워넣기). 생략하면 서버가 오늘로 처리
@@ -252,6 +290,13 @@ function useAuthState() {
       method: 'POST',
       body: JSON.stringify({ message, mealType: mealType || null, date: date || null }),
     }, '식단 기록에 실패했어요')
+
+  // 표준 식품 DB에 없어서 자동 조회가 안 된 음식 - 사용자가 칼로리를 직접 적어 기록할 때
+  const logManualMeal = (foodName, kcal, mealType, date) =>
+    authJsonWithServerError('/api/diet/meals/manual', {
+      method: 'POST',
+      body: JSON.stringify({ foodName, kcal, mealType: mealType || null, date: date || null }),
+    }, '직접 기록에 실패했어요')
 
   const getTodayMeals = (date) =>
     authJson(`/api/diet/meals/today${date ? `?date=${date}` : ''}`, {}, '식단 기록을 불러오지 못했어요')
@@ -291,8 +336,9 @@ function useAuthState() {
     authFetch(`/api/diet/meals/${id}`, {
       method: 'PUT',
       body: JSON.stringify({ mealType, menuName, kcal }),
-    }).then((res) => {
-      if (!res.ok) throw new Error('수정에 실패했어요')
+    }).then(async (res) => {
+      // 이름을 바꾸면 서버가 그 음식으로 다시 조회하는데, 못 찾으면 이유를 그대로 보여줌
+      if (!res.ok) throw new Error((await res.text()) || '수정에 실패했어요')
     })
 
   const updateMealItemAmount = (mealId, itemIndex, amountG) =>
@@ -315,9 +361,13 @@ function useAuthState() {
     })
 
   return {
-    user, profile, inbody, handleLogout, deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, getInbodyHistory,
+    user, profile, inbody, handleLogout,
+    sessionExpired, dismissSessionExpired: () => setSessionExpired(false),
+    deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory,
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
+    logManualMeal,
     updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
-    sendChat, getChatHistory, getNutrientAdvice,
+    sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu,
+    getWorkoutMemo, saveWorkoutMemo, getWorkoutMemoMonth,
   }
 }

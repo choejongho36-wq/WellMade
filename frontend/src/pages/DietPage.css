@@ -12,6 +12,210 @@
   flex: 1;
   min-width: 0;
 }
+/* 총 섭취 칼로리 태그 오른쪽 빈 공간에 붙는 추정치 안내 */
+.diet-col-right .summary-row .tag-strip {
+  flex: 0 0 130px;
+}
+.diet-summary-note {
+  flex: 1;
+  min-width: 0;
+}
+
+.diet-log-notfound {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #fdf3f2;
+  border-left: 3px solid #da291c;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #55534d;
+}
+.diet-log-notfound strong {
+  font-size: 12.5px;
+  color: #da291c;
+}
+.diet-log-notfound-foods {
+  font-weight: 700;
+  color: #111;
+}
+
+.diet-item-servings {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #da291c;
+}
+
+/* 기록 직후 모달 안에서 인식 결과 확인 + 후보 교체 */
+.diet-log-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 12px;
+  color: #55534d;
+}
+.diet-log-result > strong {
+  font-size: 12.5px;
+  color: #111;
+}
+.diet-log-result-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.diet-log-result-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.diet-log-result-name {
+  font-weight: 700;
+  color: #111;
+}
+.diet-log-result-meta {
+  flex: none;
+  color: #8c8b88;
+}
+.diet-manual-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.diet-manual-row .diet-item-amount-input {
+  width: 80px;
+}
+
+.diet-meal-edit-hint {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #8c8b88;
+}
+
+.diet-source-note {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e3dd;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: #8c8b88;
+}
+.diet-source-note strong {
+  color: #55534d;
+}
+
+.diet-log-open-btn {
+  margin-top: 16px;
+  padding: 12px 22px;
+  background: #da291c;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.diet-log-open-btn:hover {
+  background: #c0241a;
+}
+
+/* 식단 기록 모달 - 공용 .modal은 320px/가운데 정렬이라 폼용으로 넓히고 왼쪽 정렬 */
+.diet-log-modal {
+  width: 420px;
+  text-align: left;
+}
+/* 도움말 버튼은 이제 기록하기 버튼 옆에 - 헤더는 다른 모달과 같은 공용 .modal-title을 그대로 씀 */
+.diet-log-submit-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.diet-log-submit-row .chat-send-btn {
+  flex: 1;
+}
+.diet-log-help-btn {
+  flex: none;
+  width: 44px;
+  background: #f2f1ec;
+  border: 1px solid #e5e3dd;
+  border-radius: 8px;
+  color: #55534d;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.diet-log-help-btn[aria-expanded='true'] {
+  background: #da291c;
+  border-color: #da291c;
+  color: #fff;
+}
+/* 도움말 - "이렇게 적어보세요" 예시 카드 + "알아두면 좋은 것" 규칙 두 구획으로 나눔 */
+.diet-log-tips {
+  margin: 0 0 4px;
+  padding: 14px 14px 2px;
+  background: #f9f8f5;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.diet-log-tips-group {
+  padding-bottom: 12px;
+}
+.diet-log-tips-group + .diet-log-tips-group {
+  border-top: 1px dashed #e5e3dd;
+  padding-top: 12px;
+}
+.diet-log-tips-eyebrow {
+  font: 800 10px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.08em;
+  color: #9b9a96;
+}
+.diet-log-tips-examples {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.diet-log-tips-ex {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: 700 12px Archivo, monospace;
+  color: #111;
+}
+.diet-log-tips-rules {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+}
+.diet-log-tips-rules li {
+  position: relative;
+  padding-left: 12px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #55534d;
+}
+.diet-log-tips-rules li::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  color: #da291c;
+  font-weight: 900;
+}
+
 .diet-log-form {
   margin-top: 16px;
   display: flex;
@@ -21,8 +225,9 @@
 .diet-log-form .chat-input {
   width: 100%;
 }
-/* 오늘이 아닌 날짜를 선택했을 때 어느 날짜로 저장되는지 알려주는 안내 */
-.diet-log-date-notice {
+/* 오늘이 아닌 날짜를 선택했을 때 어느 날짜로 저장되는지 알려주는 안내 + 총 섭취 옆 추정치 안내 */
+.diet-log-date-notice,
+.diet-summary-note {
   background: #f2f1ec;
   border-left: 3px solid #da291c;
   border-radius: 6px;
@@ -32,7 +237,6 @@
   color: #55534d;
 }
 .diet-log-form .chat-send-btn {
-  width: 100%;
   padding: 12px 0;
 }
 .diet-mealtype-select {
@@ -42,6 +246,7 @@
   border-radius: 10px;
   color: #111;
   font-size: 13.5px;
+  font-weight: 700;
   font-family: inherit;
   padding: 10px 12px;
 }
@@ -302,11 +507,6 @@
   border-radius: 6px;
   padding: 6px 8px;
 }
-.diet-item-confidence-low {
-  background: #fdf2f0;
-  color: #b3392c;
-  border: 1px solid #f3d4cf;
-}
 .diet-item-confidence-mid {
   background: #f5f4f0;
   color: #8c8b88;
@@ -320,29 +520,90 @@
   flex-wrap: wrap;
   gap: 6px;
 }
-.diet-item-candidate-btn {
+/* 후보 라디오 칩 - 지금 매칭된 이름도 목록 안에 넣고 레드로 채워서, 목록 밖 설명 문구 없이도
+   "지금 뭐가 선택돼있는지"가 바로 읽힌다 (목표 설정 모달의 .goal-option.selected와 같은 언어) */
+.diet-item-candidate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: #fff;
-  border: 1px solid #da291c;
-  color: #da291c;
+  border: 1px solid #e5e3dd;
+  color: #77767c;
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 5px 11px 5px 9px;
   font-size: 11px;
   font-weight: 700;
   font-family: Archivo, 'Noto Sans KR', sans-serif;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-.diet-item-candidate-btn:hover:not(:disabled) {
+.diet-item-candidate-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid #8c8b88;
+}
+.diet-item-candidate-chip.selected {
   background: #da291c;
+  border-color: #da291c;
   color: #fff;
-}
-.diet-item-candidate-btn:disabled {
-  opacity: 0.5;
   cursor: default;
+}
+.diet-item-candidate-chip.selected .diet-item-candidate-dot {
+  border-color: #fff;
+  background: #fff;
+}
+.diet-item-candidate-chip:hover:not(:disabled):not(.selected) {
+  border-color: #da291c;
+  color: #da291c;
+}
+.diet-item-candidate-chip:disabled {
+  opacity: 0.5;
+}
+.diet-item-candidate-chip.selected:disabled {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .diet-item-candidate-chip {
+    transition: none;
+  }
+}
+
+/* 매칭이 불확실할 때 음식 이름 옆에 붙는 배지 (본문 레드와 구별되는 주의색) */
+.diet-item-badge-fuzzy {
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fdf6e6;
+  color: #9a6b0a;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font: 700 10.5px Archivo, 'Noto Sans KR', sans-serif;
+  vertical-align: middle;
+}
+.diet-item-badge-fuzzy::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #9a6b0a;
 }
 
 /* ============ 모바일 (~768px) ============ */
 @media (max-width: 768px) {
+  /* 좁은 화면에선 안내문이 태그 옆에 끼면 두세 글자씩 끊기므로 아랫줄로 내림 */
+  .diet-col-right .summary-row {
+    flex-wrap: wrap;
+  }
+  .diet-summary-note {
+    flex-basis: 100%;
+  }
+  /* PageShell의 .modal 모바일 규칙(320px)보다 뒤에 오도록 여기서 다시 지정 */
+  .modal.diet-log-modal {
+    width: calc(100vw - 32px);
+  }
   /* 달력 | 기록목록 2단을 세로로 */
   .diet-split {
     flex-direction: column;
@@ -376,4 +637,110 @@
     flex: 1 1 100%;
     justify-content: flex-start;
   }
+}
+
+/* ============ 메모 (캘린더 아래) ============
+   캘린더와 같은 카드 문법을 쓰되, 캘린더가 주인공이므로 그림자는 빼고 한 단계 가볍게 둔다 */
+.diet-memo {
+  margin-top: 14px;
+  background: #f9f8f5;
+  border: 1px solid #d8d6cf;
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+.diet-memo-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.diet-memo-title {
+  font: 800 13px Archivo, 'Noto Sans KR', sans-serif;
+  color: #111;
+}
+/* 저장 안 한 변경이 있다는 표시 - 날짜를 옮기면 사라지므로 눈에 띄어야 한다 */
+.diet-memo-dirty {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #da291c;
+}
+/* 저장된 메모를 그대로 펼쳐 보여주는 칸. 입력 칸과 같은 카드 문법을 쓰되 읽기 전용이라
+   흰 바탕 대신 웜 오프화이트를 깔고 왼쪽에 레드 러그를 둬서 "결과물"로 읽히게 한다 */
+.diet-memo-view {
+  margin-top: 12px;
+  background: #f9f8f5;
+  border: 1px solid #d8d6cf;
+  border-left: 3px solid #da291c;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.diet-memo-view-head {
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.06em;
+  color: #77767c;
+  margin-bottom: 6px;
+}
+.diet-memo-view-body {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #111;
+  /* 줄바꿈을 그대로 살린다 - 여러 줄로 적은 메모가 한 줄로 뭉치면 못 읽는다 */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 저장됐다는 확인 - 어디에 남는지까지 같이 알려준다 */
+.diet-memo-saved {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #77767c;
+}
+.diet-memo-input {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  border: 1px solid #e5e3dd;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #111;
+  outline: none;
+}
+.diet-memo-input:focus {
+  border-color: #da291c;
+}
+.diet-memo-input::placeholder {
+  color: #b3b2ae;
+}
+.diet-memo-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.diet-memo-count {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #9b9a96;
+}
+.diet-memo-save {
+  border: none;
+  border-radius: 8px;
+  background: #da291c;
+  color: #fff;
+  font: 700 12px 'Noto Sans KR', sans-serif;
+  padding: 7px 18px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.diet-memo-save:hover:not(:disabled) {
+  background: #c0241a;
+}
+.diet-memo-save:disabled {
+  background: #d8d6cf;
+  cursor: default;
 }
