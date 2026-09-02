@@ -199,6 +199,11 @@
 .photo-file-input {
   display: none;
 }
+/* 업로드 버튼 + 캡션을 사진 박스(가운데 정렬, 반 폭)와 같은 중심선에 오도록 가운데
+   정렬한다(2026-09-02 추가 요청) — .squat-btn이 inline-block이라 text-align만으로 된다. */
+.photo-upload-actions {
+  text-align: center;
+}
 .photo-upload-caption {
   margin: 8px 2px 0;
   font-size: 11.5px;

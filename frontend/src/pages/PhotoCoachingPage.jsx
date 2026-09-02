@@ -115,10 +115,12 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
         className="photo-file-input"
         onChange={slot.onFileInputChange}
       />
-      <button type="button" className="squat-btn squat-btn-outline" onClick={slot.openFilePicker}>
-        {slot.phase === 'ready' ? '다른 사진 업로드' : '사진 업로드'}
-      </button>
-      <p className="photo-upload-caption">JPG · PNG · 최대 10MB</p>
+      <div className="photo-upload-actions">
+        <button type="button" className="squat-btn squat-btn-outline" onClick={slot.openFilePicker}>
+          {slot.phase === 'ready' ? '다른 사진 업로드' : '사진 업로드'}
+        </button>
+        <p className="photo-upload-caption">JPG · PNG · 최대 10MB</p>
+      </div>
     </div>
   )
 }
