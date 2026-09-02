@@ -7,6 +7,11 @@
  * 2단(사진/설명) 레이아웃이 필요해 className="exercise-guide-modal"로 폭만 오버라이드한다
  * (NutrientDetailModal.css가 같은 방식으로 .modal 기본값을 덮어쓰는 것과 동일한 패턴).
  *
+ * 좌측 참고 사진은 이 세션에서 실제로 뽑은 스쿼트 랜드마크 시각화 사진(2026-09-02, 사용자가
+ * 올린 사진을 640x640 JPEG로 축소해 assets에 넣었다 — lib/squatPose.js의 KEY_LANDMARKS와
+ * 동일한 관절을 pink/blue로 표시한 것)을 쓴다. 원래 있던 임시 막대인간 SVG
+ * 플레이스홀더(squat-guide-reference.svg)는 삭제하고 이걸로 교체했다.
+ *
  * 스텝 문구는 무릎 각도 등 AI 판정에 쓰이는 실제 임곗값(ai/app/pose/rules.py)과 다른
  * 숫자를 단정적으로 제시하지 않도록, "약 90도가 기준" 같은 구체적 판정 기준값 대신 일반적인
  * 스쿼트 자세 요령(무릎/발끝 방향, 발뒤꿈치, 허리, 시선)만 담았다 — 2026-09-02 검수 항목.
@@ -15,7 +20,7 @@
  */
 
 import Modal from './Modal.jsx'
-import squatGuideReference from '../assets/squat-guide-reference.svg'
+import squatGuideReference from '../assets/squat-guide-reference.jpg'
 import './ExerciseGuideModal.css'
 
 const SQUAT_STEPS = [
@@ -46,7 +51,7 @@ function ExerciseGuideModal({ onClose }) {
     <Modal onClose={onClose} className="exercise-guide-modal">
       <div className="guide-modal-body">
         <div className="guide-modal-photo">
-          <img src={squatGuideReference} alt="스쿼트 선 자세와 앉은 자세 참고 이미지" />
+          <img src={squatGuideReference} alt="스쿼트 앉은 자세에서 관절 좌표를 표시한 참고 사진" />
         </div>
         <div className="guide-modal-text">
           <div className="guide-modal-eyebrow">EXERCISE GUIDE</div>
