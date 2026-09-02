@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 640" role="img" aria-label="스쿼트 참고 사진 자리 — 위쪽 선 자세, 아래쪽 앉은 자세">
+  <!-- 실제 스쿼트 참고 사진이 나오기 전까지 쓰는 임시 플레이스홀더(2026-09-02). 나중에
+       실제 사진으로 바꿀 때는 이 파일을 통째로 교체하거나, import하는 쪽 경로만 바꾸면 된다.
+       위/아래 절반으로 나눠 "선 자세 → 앉은 자세"를 아주 단순한 옆모습 실루엣으로 표현했다. -->
+  <rect x="0" y="0" width="400" height="640" fill="#f0efe9" />
+  <line x1="24" y1="320" x2="376" y2="320" stroke="#d8d6cf" stroke-width="2" stroke-dasharray="6 6" />
+
+  <g fill="none" stroke="#b3b1ab" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 선 자세 -->
+    <circle cx="200" cy="62" r="18" />
+    <path d="M200 80 L204 190" />
+    <path d="M202 108 L178 150 L166 188" />
+    <path d="M204 190 L210 252 L202 302" />
+    <path d="M188 305 L230 305" />
+
+    <!-- 앉은 자세 -->
+    <circle cx="168" cy="400" r="18" />
+    <path d="M172 418 L214 500" />
+    <path d="M198 452 L138 476 L118 498" />
+    <path d="M214 500 L256 558 L236 614" />
+    <path d="M214 618 L260 618" />
+  </g>
+
+  <text x="200" y="30" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="700" fill="#8c8b88">① 선 자세</text>
+  <text x="200" y="350" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="700" fill="#8c8b88">② 앉은 자세(목표 깊이)</text>
+  <text x="200" y="600" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#9b9a96">실제 참고 사진 준비 중</text>
+</svg>

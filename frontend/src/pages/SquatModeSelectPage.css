@@ -1,0 +1,83 @@
+/* POSTURE COACHING 태그(page-eyebrow-row)는 다른 페이지와 같은 원래 자리(맨 위)에
+   그대로 두고 싶다는 피드백(2026-09-02: "포스쳐 코칭 빨간 글씨는 원래 자리에 유지해줘")에
+   따라, 세로 중앙 정렬 대상을 카드 줄(mode-select-center)로만 좁혔다. shell은 태그 높이를
+   뺀 나머지 공간을 카드 줄에 flex:1로 넘겨주는 역할만 한다. */
+.mode-select-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 112px);
+}
+
+.mode-select-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 카드 줄은 적당히 채우면서 가운데(가로/세로 모두) 오도록 폭을 넓혔다(2026-09-02 피드백:
+   "사이드바 제외하고 전체에 적당히 찼으면 좋겠고 중앙에 있었으면 좋겠다" /
+   "아래로도 중앙에 띄워줘"). */
+.mode-select-row {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 1080px;
+}
+
+.mode-card {
+  flex: 1;
+  min-width: 320px;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 16px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  text-decoration: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.mode-card:hover {
+  border-color: #da291c;
+  box-shadow: 0 6px 18px rgba(218, 41, 28, 0.12);
+  transform: translateY(-2px);
+}
+
+.mode-card-img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.mode-card-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 8px;
+}
+
+.mode-card-desc {
+  font-size: 13px;
+  line-height: 1.75;
+  color: #55534d;
+}
+
+/* ============ 모바일 (~768px) ============ */
+@media (max-width: 768px) {
+  .mode-select-shell {
+    min-height: 0;
+  }
+  .mode-select-row {
+    gap: 20px;
+  }
+  .mode-card {
+    min-width: 0;
+    flex-basis: 100%;
+    padding: 22px;
+  }
+}

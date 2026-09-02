@@ -1,0 +1,107 @@
+/* 운동방법 모달 — 공용 .modal(320px 고정폭)을 오버라이드해 2단(사진/설명) 레이아웃을 담는다. */
+.exercise-guide-modal {
+  width: min(880px, 92vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 28px 28px 28px;
+}
+
+.guide-modal-body {
+  display: flex;
+  gap: 28px;
+}
+
+.guide-modal-photo {
+  flex: none;
+  width: 260px;
+}
+.guide-modal-photo img {
+  width: 100%;
+  border-radius: 14px;
+  display: block;
+  border: 1px solid #e5e3dd;
+}
+
+.guide-modal-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.guide-modal-eyebrow {
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.1em;
+  color: #da291c;
+}
+.guide-modal-title {
+  margin: 6px 0 18px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #111;
+}
+
+.guide-modal-steps {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.guide-modal-steps li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.guide-step-num {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #da291c;
+  color: #fff;
+  font: 800 12px Archivo, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.guide-step-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 3px;
+}
+.guide-step-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #55534d;
+}
+
+.guide-modal-caution {
+  padding: 14px 16px;
+  background: #fff8e6;
+  border: 1px solid #f0dca0;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #7a5f10;
+}
+.guide-modal-caution b {
+  color: #5c4700;
+}
+
+/* ============ 모바일 (~768px) ============ */
+@media (max-width: 768px) {
+  .exercise-guide-modal {
+    width: min(420px, calc(100vw - 24px));
+    padding: 22px 18px;
+  }
+  .guide-modal-body {
+    flex-direction: column;
+  }
+  .guide-modal-photo {
+    width: 100%;
+    max-width: 220px;
+    margin: 0 auto;
+  }
+}
