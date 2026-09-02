@@ -60,10 +60,10 @@ function usePhotoSlot() {
   const [poseError, setPoseError] = useState('')
   const [photoUrl, setPhotoUrl] = useState('')
   const [points, setPoints] = useState(null)
-  // 업로드한 사진의 가로/세로 비율(naturalWidth/naturalHeight) — 미리보기 박스를 3:4로
-  // 고정하고 사진 전체를 잘리지 않게 보여줄 때(PHOTO_BOX_ASPECT_RATIO), 사진마다 다른
-  // 여백 위치를 계산하는 데 쓴다(PhotoLandmarkEditor 참고). 사진마다 값이 다르므로
-  // 업로드할 때 같이 저장해둔다.
+  // 업로드한 사진의 가로/세로 비율(naturalWidth/naturalHeight) — 미리보기 박스
+  // (.preview-photo-box)가 고정 비율 없이 이 값을 그대로 자기 비율로 쓰기 때문에
+  // (PhotoCoachingPage.jsx의 인라인 style), 사진마다 값이 다르므로 업로드할 때 같이
+  // 저장해둔다.
   const [imageAspect, setImageAspect] = useState(null)
   const [avgVisibility, setAvgVisibility] = useState(null)
 
