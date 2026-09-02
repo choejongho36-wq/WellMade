@@ -387,57 +387,6 @@ class OrchestrateResponse(BaseModel):
     )
 
 
-# ---- RAG 지식베이스 검색·생성 (AI-08/09/14) ----
-# 요구사항 정의서 "3.RAG파이프라인" 시트에는 이 두 엔드포인트의 정확한 요청/응답 필드명이
-# 표로 정리돼 있지 않다(다른 엔드포인트는 "5.AI_API명세" 시트에 명시돼 있었지만 RAG는
-# 파이프라인 단계 설명만 있음) — 그래서 AI-15/ML 엔드포인트와 마찬가지로 기존 코드베이스
-# 관례(session_id, snake_case)를 따라 자체적으로 설계했다.
-
-
-class RagSource(BaseModel):
-    """RAG 응답에 실리는 출처 정보 1건. 요구사항 정의서 ⑦ 출처 표기 단계에 대응."""
-
-    title: str
-    source: str = Field(..., description="출처 기관명 (예: NASM, Mayo Clinic)")
-    source_url: Optional[str] = None
-    source_date: Optional[str] = Field(None, description="지식베이스 문서 작성/확인 시점 (YYYY-MM). knowledge_base.py 주석 참고")
-
-
-class RagGuideRequest(BaseModel):
-    """지시형 RAG 가이드(/ai/rag/guide, AI-09) 요청.
-    하네스(AI-07)가 trigger_rag_search를 선택하며 돌려준 search_query를 그대로 받는
-    흐름을 전제로 한다 — 즉 이 엔드포인트는 하네스 응답을 받은 백엔드/프론트가 이어서
-    호출하는 것을 기대한다(harness.py 모듈 docstring의 "결정과 실행은 분리" 설명 참고)."""
-
-    query: str = Field(..., min_length=1, description="검색 쿼리 (예: 이슈 종류 '무릎 모임', 'knee_valgus')")
-    session_id: Optional[str] = None
-
-
-class RagGuideResponse(BaseModel):
-    guidance_message: str = Field(..., description="근거 문서 기반 코칭 문구 (TTS로 바로 읽을 수 있는 한국어 텍스트)")
-    sources: List[RagSource]
-    matched: bool = Field(..., description="관련 지식베이스 문서를 찾았는지 여부. False면 일반 안내로 대체됨")
-    generation_source: Literal["llm", "fallback"] = Field(
-        ..., description="LLM이 직접 문구를 생성했는지, 문서에 준비된 고정 문구(short_message)로 대체했는지"
-    )
-
-
-class RagQnaRequest(BaseModel):
-    """설명형 RAG Q&A(/ai/rag/qna, AI-14) 요청. 사용자가 자유 형식으로 입력하는 질문을 받는다."""
-
-    question: str = Field(..., min_length=1)
-    session_id: Optional[str] = None
-
-
-class RagQnaResponse(BaseModel):
-    answer: str = Field(..., description="근거 문서 기반 답변")
-    sources: List[RagSource]
-    matched: bool = Field(..., description="관련 지식베이스 문서를 찾았는지 여부")
-    generation_source: Literal["llm", "fallback"] = Field(
-        ..., description="LLM이 직접 답변을 생성했는지, 검색된 문서를 그대로 발췌해 답했는지"
-    )
-
-
 # ---- 세션 리포트 생성 (AI-12) ----
 
 

@@ -60,12 +60,12 @@ from app.pose.rules import LLM_HYPEREXTENSION_JOB_TTL_SECONDS
 from app.schemas import AngleFrame
 
 # AWS Bedrock 인증(boto3 bedrock-runtime, AWS SigV4 — requirements.txt 참고).
-# rag/generation.py/session/report.py도 같은 AWS_REGION_ENV_VAR을 공유한다 — 리전은 서버
-# 전체에서 하나면 되므로 모듈마다 따로 안 둔다. 모델 ID는 모듈별로 분리했다(이 모듈은
-# HYPEREXTENSION_BEDROCK_MODEL_ID, RAG 생성은 RAG_GENERATION_BEDROCK_MODEL_ID, 세션
-# 리포트는 SESSION_REPORT_BEDROCK_MODEL_ID — 2026-08-31, harness.py는 완전히 규칙기반으로
-# 바뀌어 이제 이 목록에서 빠졌다). 과신전 2차 확인은 다른 기능들과 별도로 모델을 바꿔
-# 실험할 여지를 남겨둔다.
+# session/report.py도 같은 AWS_REGION_ENV_VAR을 공유한다 — 리전은 서버 전체에서 하나면
+# 되므로 모듈마다 따로 안 둔다. 모델 ID는 모듈별로 분리했다(이 모듈은
+# HYPEREXTENSION_BEDROCK_MODEL_ID, 세션 리포트는 SESSION_REPORT_BEDROCK_MODEL_ID —
+# 2026-08-31 harness.py는 완전히 규칙기반으로 바뀌고 2026-09-02 RAG 생성(rag/generation.py)이
+# 이 스코프에서 삭제되며 이제 이 둘만 남았다). 과신전 2차 확인은 다른 기능들과 별도로
+# 모델을 바꿔 실험할 여지를 남겨둔다.
 AWS_REGION_ENV_VAR = "AWS_BEDROCK_REGION"
 BEDROCK_MODEL_ID_ENV_VAR = "HYPEREXTENSION_BEDROCK_MODEL_ID"
 

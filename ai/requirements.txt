@@ -16,11 +16,9 @@ httpx>=0.27              # FastAPI TestClient가 내부적으로 사용
 # --- 전통 ML 스쿼트/런지 분류기(app/ml/*_classifier.py, joblib>=1.3, numpy>=1.26 포함)는
 # 2026-08-21 삭제됐다 — 실제 사진 테스트에서 신뢰도 문제가 확인돼, 카메라 전제를 "측면
 # 단독"에서 "측면+정면 듀얼"로 바꾸며 규칙기반 판정으로 완전히 대체했다(자세한 배경은
-# claude/wellmade-ai-progress.md 참고). scikit-learn은 아래 RAG 검색(TF-IDF)에 여전히
-# 쓰이므로 남겨뒀지만, 더 이상 joblib으로 모델을 저장/로딩하지 않으므로(런타임에 메모리
-# 내에서만 벡터라이저를 만들고 캐싱함 — retrieval.py의 _build_index() 참고) 예전처럼 버전을
-# 엄격히 고정(==)해야 할 이유가 없어져 범위(>=)로 완화했다.
-scikit-learn>=1.4
+# claude/wellmade-ai-progress.md 참고). scikit-learn은 RAG 검색(TF-IDF)에만 쓰였는데
+# RAG 자체가 2026-09-02에 이 스코프에서 완전히 삭제되며 함께 제거했다(joblib으로 모델을
+# 저장/로딩하지도 않아 다른 용도로도 안 쓰인다 — sklearn 관련 코드는 더 이상 없음).
 pandas>=2.2   # prepare_posture_reference.py에서 CSV 로딩에 사용
 openpyxl>=3.1 # prepare_nutrition_reference.py에서 국민건강통계 엑셀 로딩에 사용
 # 위 둘은 ml_training/의 일회성 전처리 스크립트 전용이다 - 서버 런타임(app/)은 미리 만들어둔
@@ -38,30 +36,22 @@ openpyxl>=3.1 # prepare_nutrition_reference.py에서 국민건강통계 엑셀 �
 # Tools, Linux는 build-essential 등이 이미 있으면 추가 설치 없이 빌드된다.
 dtaidistance>=2.3,<3.0
 
-# --- LLM 호출 전체 (AI-07 하네스/AI-09·14 RAG 생성/AI-12 세션 리포트/고관절 과신전
-# LLM 2차 확인/"6랩 블라인드 테스트" 다중 벤더 비교 도구) ---
+# --- LLM 호출 전체 (AI-12 세션 리포트/고관절 과신전 LLM 2차 확인/"6랩 블라인드
+# 테스트" 다중 벤더 비교 도구) — 2026-08-31부터 하네스(AI-07)는 완전 규칙기반으로
+# 바뀌어 LLM을 호출하지 않고, RAG 생성(AI-09/14)은 2026-09-02에 이 스코프에서
+# 삭제됨. ---
 # 모든 LLM 호출은 boto3 bedrock-runtime 클라이언트의 Converse API(converse())를 직접
 # 쓴다 — 벤더 전용 SDK(Anthropic SDK 등)를 쓰면 그 벤더 모델만 호출할 수 있는데, Converse
 # API는 Anthropic/Amazon Nova/Meta Llama/Mistral 등 여러 벤더 모델에서 동일한 방식으로
 # 도구 사용(toolConfig)을 지원하는 통합 인터페이스라, 모델을 바꿀 때 코드가 아니라
 # 환경변수(각 모듈의 BEDROCK_MODEL_ID 계열 환경변수)만 바꾸면 된다.
-# 실행에는 AWS_BEDROCK_REGION과 모듈별 모델 ID 환경변수(HARNESS_BEDROCK_MODEL_ID —
-# harness.py/rag/generation.py/session/report.py가 공유, HYPEREXTENSION_BEDROCK_MODEL_ID
-# — hyperextension_llm_check.py), 그리고 AWS 자격증명(boto3 기본 체인 — 환경변수/
-# 프로파일/IAM 롤 중 하나)이 필요하다 — 없으면 모듈별 규칙기반 폴백으로 동작한다(각
-# 모듈의 _get_client() 참고).
+# 실행에는 AWS_BEDROCK_REGION과 모듈별 모델 ID 환경변수(SESSION_REPORT_BEDROCK_MODEL_ID
+# — session/report.py, HYPEREXTENSION_BEDROCK_MODEL_ID — hyperextension_llm_check.py),
+# 그리고 AWS 자격증명(boto3 기본 체인 — 환경변수/프로파일/IAM 롤 중 하나)이 필요하다 —
+# 없으면 모듈별 규칙기반 폴백으로 동작한다(각 모듈의 _get_client() 참고).
 #
 # (2026-08-28 추가) 같은 boto3를 app/pose/dtw_template_store.py도 재사용한다 — DTW
 # 템플릿 묶음을 S3에서 받아올 때 쓰는 별도 기능(DTW_TEMPLATES_S3_* 환경변수)으로, 위
 # Bedrock 용도와는 다른 AWS 리소스(S3 버킷)를 가리킨다. 이쪽도 환경변수가 없으면 조용히
 # 로컬 폴백(dtw_template_store.py 모듈 docstring 참고).
 boto3>=1.34
-
-# --- RAG 검색 (AI-08/09/14, app/rag/retrieval.py) ---
-# 요구사항 정의서는 벡터DB(Chroma)+임베딩 모델 조합을 제안하지만, 이 프로젝트는 대신
-# scikit-learn TF-IDF(문자 n-gram)+코사인 유사도를 채택했다. chromadb/sentence-transformers를
-# 새로 추가하지 않는 이유(비용, 딥러닝 프레임워크 배제 원칙, 기존 scikit-learn 재사용)는
-# app/rag/retrieval.py 모듈 docstring에 자세히 적어뒀다 — scikit-learn은 이미 위에서
-# 의존성에 포함돼 있어 이 섹션에 새로 추가할 패키지는 없다.
-# TODO: 팀 확정 필요 — 검색 품질이 부족하다고 판단되면 그때 chromadb/sentence-transformers
-# 도입을 재검토한다(retrieval.py의 search() 인터페이스는 그대로 유지한 채 내부만 교체 가능).
