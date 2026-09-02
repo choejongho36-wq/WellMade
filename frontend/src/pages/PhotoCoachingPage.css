@@ -74,7 +74,13 @@
 }
 
 /* ---- 업로드 전 확인해 주세요 모달(UploadNoticeModal) ---- */
-/* Modal.jsx 기본 .modal-title(검정 배너)을 그대로 쓰고, 본문 목록만 여기서 스타일링한다. */
+/* Modal.jsx 기본 .modal-title(검정 배너)을 그대로 쓰고, 본문 목록만 여기서 스타일링한다.
+   기본 .modal 폭(320px)이 목록 3줄엔 좁아서 옆으로 더 넓혔다(2026-09-02 추가 요청) —
+   .modal-backdrop가 이미 flex로 화면 정중앙에 배치하므로 폭만 늘려도 계속 가운데에 뜬다. */
+.upload-notice-modal {
+  width: 520px;
+  max-width: 90vw;
+}
 .upload-notice-list {
   margin: 0;
   padding-left: 18px;

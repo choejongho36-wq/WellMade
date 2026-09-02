@@ -45,7 +45,7 @@ import './PhotoCoachingPage.css'
 // 패턴). 안내성 모달이라 바깥 클릭으로도 닫히게(closeOnBackdropClick) 한다.
 function UploadNoticeModal({ onClose }) {
   return (
-    <Modal onClose={onClose} closeOnBackdropClick>
+    <Modal onClose={onClose} className="upload-notice-modal" closeOnBackdropClick>
       <div className="modal-title">업로드 전 확인해 주세요</div>
       <ul className="upload-notice-list">
         <li>전신이 옆모습(측면)으로 잘 보이는 사진을 올려주세요.</li>
