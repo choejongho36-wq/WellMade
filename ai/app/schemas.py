@@ -371,6 +371,33 @@ class BmiInsightResponse(BaseModel):
     source: str
 
 
+# ---- 운동 추천 v1 (챗봇 "운동 추천" 메뉴) ----
+
+
+class ExerciseRecommendRequest(BaseModel):
+    """운동 추천(/ai/exercise/recommend) 요청.
+
+    부위는 필수, 장비는 선택. 난이도·자유질문은 백엔드 챗봇이 생성 단계에서 참고하므로
+    이 요청으로는 넘기지 않는다(AI 서버는 후보 필터링만 담당)."""
+
+    body_part: str = Field(..., description="운동할 부위. 한국어('하체','가슴')나 영문 body_part 키 모두 허용")
+    equipment: Optional[str] = Field(None, description="장비/환경 힌트. '맨몸','덤벨' 등. 생략하면 부위 전체에서 뽑음")
+
+
+class ExerciseCandidate(BaseModel):
+    name: str
+    body_part: str
+    equipment: str
+    target: str
+
+
+class ExerciseRecommendResponse(BaseModel):
+    body_part: str = Field(..., description="필터에 사용한 영문 body_part (부위 매핑 실패 시 빈 문자열)")
+    matched: int = Field(..., description="조건에 맞은 운동 총 개수")
+    candidates: list[ExerciseCandidate]
+    note: Optional[str] = Field(None, description="후보가 없을 때 사용자에게 보여줄 안내 문구")
+
+
 # ---- 하네스 오케스트레이션 (AI-07) ----
 # LLM Tool Use 기반으로 "다음에 어떤 행동을 할지"를 동적으로 결정한다. 자세한 배경·판단
 # 규칙(H-01~H-06)은 app/orchestration/harness.py 주석 참고.

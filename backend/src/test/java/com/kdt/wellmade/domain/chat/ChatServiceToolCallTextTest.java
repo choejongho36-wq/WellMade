@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 class ChatServiceToolCallTextTest {
 
     // 생성자는 필드 대입만 하므로 파싱 로직만 보려면 이걸로 충분함
-    private final ChatService service = new ChatService(null, null, null, null, null, null, null, null);
+    private final ChatService service = new ChatService(null, null, null, null, null, null, null);
 
     // Ollama에서 실제로 관측된 형태 - 앞에 잡토큰, 뒤에 닫는 태그가 붙어서 온다
     private static final String LEAKED = """

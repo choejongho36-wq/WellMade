@@ -1,27 +1,17 @@
 package com.kdt.wellmade.domain.chat;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -36,10 +26,10 @@ import com.kdt.wellmade.domain.nutrition.MealLoggingService;
 import com.kdt.wellmade.domain.nutrition.NutrientTarget;
 import com.kdt.wellmade.domain.nutrition.NutrientTargetCalculator;
 import com.kdt.wellmade.domain.user.User;
-import com.kdt.wellmade.global.exception.ExternalServiceException;
 
 /**
- * 로컬 Ollama(Qwen2.5-7B-Instruct)에 사용자의 goal/인바디 값을 시스템 프롬프트로 얹어 채팅을 중계하는 서비스.
+ * 사용자의 goal/인바디 값을 시스템 프롬프트로 얹어 로컬 Ollama 채팅을 중계한다.
+ * Ollama 호출 자체는 {@link OllamaClient}, 툴콜링 도구 실행은 {@link ChatToolExecutor}에 있다.
  *
  * 대화 이력은 이제 DB(chat_messages)가 진실 소스임. 예전엔 프론트가 매 요청마다 전체 대화 배열을
  * 그대로 보내고 서버는 그걸 신뢰하는 구조였어서, role을 위조한 메시지를 끼워넣을 수 있었고
@@ -80,7 +70,7 @@ public class ChatService {
             1. 사용자가 물어본 것에만 답하세요. 묻지 않은 추천, 제안, 계획, 후속 질문을 덧붙이지 마세요.
             2. 식단이나 운동 추천은 사용자가 명시적으로 요청했을 때만 하세요.
             3. 답변은 2~4문장으로 짧게. 마크다운 헤더/표/목록/이모지 없이 대화체로 쓰세요.
-            4. 반드시 한국어로만 답하세요. 다른 언어를 섞지 마세요.
+            4. 반드시 한국어로만 답하세요. 영어 단어나 중국어·한자를 섞지 말고 문장 전체를 한국어로 쓰세요.
             5. 직전에 한 답변을 다시 반복하지 마세요.
             6. 인사에는 한 문장으로 인사만 하세요. 무엇을 확인할지 되묻거나 제안하지 마세요.
 
@@ -92,85 +82,21 @@ public class ChatService {
                대신 식단을 만들어 제안하지 마세요.
             9. 숫자를 직접 더하지 마세요. 합계는 도구가 돌려준 값(totalKcal, totalCalories 등)을
                그대로 인용하세요.
+            10. 운동 추천은 이렇게 처리하세요.
+                - 어느 부위를 원하는지 모를 때만 한 문장으로 물어보세요. 난이도는 묻지 마세요.
+                - 부위가 정해지면 recommend_exercises 도구를 호출하고, candidates 안의 운동만
+                  2~3개 골라 한국어로 추천하세요. 목록에 없는 운동은 지어내지 마세요.
+                - 사용자가 추천한 운동 중 하나를 지목하면(예: "플랭크") 도구를 다시 부르지 말고,
+                  그 운동 방법을 한국어로 2~3문장으로 간단히 설명하세요.
             """;
-
-    private static final Map<Goal, String> GOAL_LABEL = Map.of(
-            Goal.LOSE, "체중감량",
-            Goal.GAIN, "근성장(벌크업)",
-            Goal.MAINTAIN, "체형 유지/건강관리"
-    );
-
-    /** Ollama에 넘길 도구 스펙 (OpenAI function-calling 호환 형식). Qwen2.5-Instruct가 이 형식을 지원함. */
-    private static final List<Map<String, Object>> TOOLS = List.of(
-            toolDef(
-                    "get_meals_for_date",
-                    "특정 날짜에 사용자가 기록한 식사 목록(끼니 종류, 메뉴명, 칼로리)을 가져온다. "
-                  + "'어제 뭐 먹었지', '오늘 아침에 뭐 먹었더라' 같은 질문에는 반드시 이 도구로 실제 기록을 "
-                  + "확인하고 답할 것 - 절대 추측하지 말 것.",
-                    Map.of("date", Map.of(
-                            "type", "string",
-                            "description", "조회할 날짜, yyyy-MM-dd 형식. '어제'/'오늘'처럼 상대적인 표현은 "
-                                    + "시스템 프롬프트에 적힌 오늘 날짜를 기준으로 직접 계산해서 넣을 것."
-                    )),
-                    List.of("date")
-            ),
-            toolDef(
-                    "get_daily_total",
-                    "특정 날짜의 총 섭취 칼로리/단백질/탄수화물/지방 합계를 가져온다.",
-                    Map.of("date", Map.of(
-                            "type", "string",
-                            "description", "조회할 날짜, yyyy-MM-dd 형식."
-                    )),
-                    List.of("date")
-            ),
-            toolDef(
-                    "get_inbody_history",
-                    "최근 인바디 측정 기록을 오래된 순으로 여러 건 가져온다(체중/골격근량/체지방률/BMI). "
-                  + "'요즘 체중 변화 어때', '살 빠지고 있어?'처럼 추세를 물어볼 때 인바디 한 건(최신값)만으로 "
-                  + "답하지 말고 이 도구로 여러 건을 확인할 것.",
-                    Map.of("limit", Map.of(
-                            "type", "integer",
-                            "description", "가져올 기록 개수. 생략하면 5, 최대 10."
-                    )),
-                    List.of()
-            ),
-            toolDef(
-                    "get_bmi_peer_comparison",
-                    "사용자의 최근 BMI가 같은 성별·연령대(국민건강통계) 안에서 어디쯤인지 백분위와 비만도 "
-                  + "분류를 가져온다. '내 BMI 또래보다 높아?', '남들이랑 비교하면 어때?'처럼 또래 비교를 "
-                  + "물어볼 때 쓸 것 - 절대 추측하지 말 것.",
-                    Map.of(),
-                    List.of()
-            ),
-            toolDef(
-                    "get_nutrition_peer_comparison",
-                    "특정 날짜의 섭취량이 같은 성별·연령대 평균(국민건강통계) 대비 몇 %인지 가져온다. "
-                  + "'또래보다 많이 먹었나', '남들 평균이랑 비교해줘' 같은 질문에 쓸 것. 목표 대비 비교는 "
-                  + "calculate_nutrient_target이고, 이 도구는 또래 대비 비교라 서로 다르다.",
-                    Map.of("date", Map.of(
-                            "type", "string",
-                            "description", "조회할 날짜, yyyy-MM-dd 형식. 생략하면 오늘."
-                    )),
-                    List.of()
-            ),
-            toolDef(
-                    "calculate_nutrient_target",
-                    "사용자의 목표와 최근 인바디 수치를 바탕으로 하루 목표 칼로리/단백질/탄수화물/지방을 "
-                  + "계산한다. 목표 섭취량을 묻는 질문에는 반드시 이 도구로 계산된 값을 인용할 것 - 직접 "
-                  + "암산하지 말 것.",
-                    Map.of(),
-                    List.of()
-            )
-    );
 
     private final UserProfileService userProfileService;
     private final InbodyService inbodyService;
     private final MealLoggingService mealLoggingService;
     private final ChatMessageRepository chatMessageRepository;
     private final NutrientTargetCalculator nutrientTargetCalculator;
-    private final RestClient ollamaRestClient;
-    private final RestClient aiRestClient;
-    private final String model;
+    private final OllamaClient ollamaClient;
+    private final ChatToolExecutor toolExecutor;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ChatService(
@@ -179,18 +105,16 @@ public class ChatService {
             MealLoggingService mealLoggingService,
             ChatMessageRepository chatMessageRepository,
             NutrientTargetCalculator nutrientTargetCalculator,
-            RestClient ollamaRestClient,
-            RestClient aiRestClient,
-            @Value("${ollama.model}") String model
+            OllamaClient ollamaClient,
+            ChatToolExecutor toolExecutor
     ) {
         this.userProfileService = userProfileService;
         this.inbodyService = inbodyService;
         this.mealLoggingService = mealLoggingService;
         this.chatMessageRepository = chatMessageRepository;
         this.nutrientTargetCalculator = nutrientTargetCalculator;
-        this.ollamaRestClient = ollamaRestClient;
-        this.aiRestClient = aiRestClient;
-        this.model = model;
+        this.ollamaClient = ollamaClient;
+        this.toolExecutor = toolExecutor;
     }
 
     /**
@@ -270,7 +194,7 @@ public class ChatService {
             throw new IllegalArgumentException("알 수 없는 메뉴입니다: " + menuId);
         }
 
-        String toolResult = executeTool(user, menu.toolName(), menu.arguments());
+        String toolResult = toolExecutor.execute(user, menu.toolName(), menu.arguments());
         String reply = emptyResultMessage(toolResult);
         if (reply == null) {
             reply = phraseToolResult(user, menu, toolResult);
@@ -310,7 +234,7 @@ public class ChatService {
                 callId, new OllamaMessage.FunctionCall(menu.toolName(), menu.arguments()))), null));
         messages.add(OllamaMessage.tool(toolResult, callId));
 
-        String reply = chatCompletion(messages, false).content();
+        String reply = ollamaClient.chatCompletion(messages, false).content();
         return reply == null || reply.isBlank()
                 ? "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요."
                 : reply;
@@ -382,7 +306,7 @@ public class ChatService {
         // JSON이 뜬다. 도구를 부를지는 본문 앞부분만 보면 판별돼서, 홀드 비용은 몇 백 ms 수준이다.
         StringBuilder held = new StringBuilder();
         boolean[] releasedToUser = {false};
-        StreamResult first = chatCompletionStream(messages, true, delta -> {
+        var first = ollamaClient.chatCompletionStream(messages, true, delta -> {
             if (releasedToUser[0]) {
                 onDelta.accept(delta);
                 return;
@@ -409,11 +333,11 @@ public class ChatService {
         // 도구를 부르는 턴이면 홀드분(툴콜 텍스트나 "확인해볼게요" 예고)은 화면에도 컨텍스트에도 넣지 않는다.
         messages.add(new OllamaMessage("assistant", releasedToUser[0] ? first.content() : "", toolCalls, null));
         for (OllamaMessage.ToolCall call : toolCalls) {
-            String result = executeTool(user, call.function().name(), call.function().arguments());
+            String result = toolExecutor.execute(user, call.function().name(), call.function().arguments());
             messages.add(OllamaMessage.tool(result, call.id()));
         }
 
-        chatCompletionStream(messages, false, onDelta);
+        ollamaClient.chatCompletionStream(messages, false, onDelta);
     }
 
     /** 홀드 중인 본문이 모델이 텍스트로 흘린 도구 호출인지. 정상 답변이 이렇게 시작할 일은 없다. */
@@ -447,259 +371,6 @@ public class ChatService {
         }
     }
 
-    private String executeTool(User user, String name, Map<String, Object> arguments) {
-        try {
-            return switch (name) {
-                case "get_meals_for_date" -> toolGetMealsForDate(user.getId(), arguments);
-                case "get_daily_total" -> toolGetDailyTotal(user.getId(), arguments);
-                case "get_inbody_history" -> toolGetInbodyHistory(user, arguments);
-                case "get_bmi_peer_comparison" -> toolGetBmiPeerComparison(user);
-                case "get_nutrition_peer_comparison" -> toolGetNutritionPeerComparison(user, user.getId(), arguments);
-                case "calculate_nutrient_target" -> toolCalculateNutrientTarget(user);
-                default -> toJson(Map.of("error", "알 수 없는 도구입니다: " + name));
-            };
-        } catch (Exception e) {
-            log.error("도구 실행 실패: {}", name, e);
-            return toJson(Map.of("error", "도구 실행 중 문제가 발생했어요."));
-        }
-    }
-
-    private String toolGetMealsForDate(Long userId, Map<String, Object> args) {
-        LocalDate date = parseDateArgOrToday(args);
-        List<Map<String, Object>> meals = mealLoggingService.getMealsForDate(userId, date);
-
-        List<Map<String, Object>> simplified = meals.stream()
-                .map(m -> Map.<String, Object>of(
-                        "mealType", String.valueOf(m.get("meal_type")),
-                        "menuName", String.valueOf(m.get("menu_name")),
-                        "kcal", m.get("kcal")
-                ))
-                .toList();
-
-        if (simplified.isEmpty()) {
-            // 빈 배열만 돌려주면 모델이 그걸 무시하고 식단을 지어낸다. 문장으로 못 박아준다
-            return toJson(Map.of("date", date.toString(), "meals", List.of(),
-                    "note", date + "에 기록된 식사가 없어요.",
-                    "instruction", "없다고만 답하고 식단을 지어내지 마세요."));
-        }
-        // 합계를 같이 넘긴다 - 없으면 모델이 끼니별 칼로리를 직접 더하다 틀린다(실제로 재현됨).
-        // 더할 일 자체를 없애는 게 프롬프트로 금지하는 것보다 확실하다
-        long totalKcal = meals.stream()
-                .map(m -> m.get("kcal"))
-                .filter(Number.class::isInstance)
-                .mapToLong(k -> ((Number) k).longValue())
-                .sum();
-        // 숫자로 주면 모델이 한국어로 읽어내다 표기를 섞어버리는 경우가 있어(실제로 재현됨),
-        // 그대로 복사해 쓰면 되는 완성된 문자열로 넘긴다
-        return toJson(Map.of("date", date.toString(), "meals", simplified,
-                "totalKcal", String.format("%,dkcal", totalKcal)));
-    }
-
-    private String toolGetDailyTotal(Long userId, Map<String, Object> args) {
-        LocalDate date = parseDateArgOrToday(args);
-        MealLoggingService.DailyTotal total = mealLoggingService.getTotalForDate(userId, date);
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("date", date.toString());
-        result.put("totalCalories", total.totalCalories());
-        result.put("totalProteinG", total.totalProteinG());
-        result.put("totalCarbsG", total.totalCarbsG());
-        result.put("totalFatG", total.totalFatG());
-        result.put("mealCount", total.mealCount());
-        if (total.mealCount() == 0) {
-            result.put("note", date + "에 기록된 식사가 없어요.");
-            result.put("instruction", "없다고만 답하고 수치를 지어내지 마세요.");
-        }
-        return toJson(result);
-    }
-
-    private String toolGetInbodyHistory(User user, Map<String, Object> args) {
-        int limit = argInt(args, "limit", 5);
-        List<InbodyRecord> history = inbodyService.getHistory(user, limit);
-
-        if (history.isEmpty()) {
-            return toJson(Map.of("records", List.of(), "note", "등록된 인바디 기록이 없어요."));
-        }
-
-        List<Map<String, Object>> records = history.stream()
-                // 최신순으로 조회되므로, 추세를 시간 순서대로 읽기 쉽게 오래된 것부터 정렬해서 돌려줌
-                .sorted(Comparator.comparing(InbodyRecord::getCreatedAt))
-                .map(r -> {
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("date", r.getCreatedAt().toLocalDate().toString());
-                    m.put("weightKg", r.getWeightKg());
-                    m.put("skeletalMuscleMassKg", r.getSkeletalMuscleMassKg());
-                    m.put("bodyFatPercentage", r.getBodyFatPercentage());
-                    m.put("bmi", r.getBmi());
-                    return m;
-                })
-                .toList();
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("records", records);
-        // 개수를 명시하지 않으면 모델이 자기가 넘긴 limit(기본 5)을 결과 개수로 착각한다
-        result.put("recordCount", records.size());
-
-        Double first = history.get(history.size() - 1).getWeightKg();
-        Double last = history.get(0).getWeightKg();
-        if (records.size() == 1) {
-            // 1건인데도 "최근 몇 번의 측정 결과는 변함이 없네요"처럼 비교를 지어낸다(실측 8/8).
-            // 추세를 말할 수 없다는 걸 문장으로 못 박는다 - 메뉴 경로에서는 이 note가 LLM 없이 그대로 답이 된다.
-            result.put("note", last == null
-                    ? "인바디 기록이 1건뿐이라 체중 추세는 아직 알 수 없어요."
-                    : "인바디 기록이 1건뿐이라 체중 추세는 아직 알 수 없어요. 최근 측정값은 " + last + "kg입니다.");
-        } else if (first != null && last != null) {
-            // 변화량을 안 주면 모델이 첫 값과 끝 값을 직접 빼서 답한다(실측됨). totalKcal을 미리 계산해
-            // 넘기는 것과 같은 이유로, 뺄셈할 일 자체를 없앤다. 부호를 잘못 읽는 것도 막으려고
-            // 그대로 복사해 쓰면 되는 완성된 문자열로 넘긴다.
-            double change = last - first;
-            result.put("weightChange", String.format("%s%.1fkg (%.1fkg -> %.1fkg)",
-                    change > 0 ? "+" : "", change, first, last));
-        }
-        return toJson(result);
-    }
-
-    private String toolGetBmiPeerComparison(User user) {
-        UserProfile profile = getProfileOrNull(user);
-        String peerError = peerProfileError(profile);
-        if (peerError != null) {
-            return toJson(Map.of("error", peerError));
-        }
-
-        InbodyRecord inbody = inbodyService.getLatest(user).orElse(null);
-        if (inbody == null || inbody.getBmi() == null) {
-            return toJson(Map.of("error", "인바디 기록이 없어서 또래 비교를 할 수 없어요."));
-        }
-
-        return callAiServer("/ai/inbody/bmi-insight", Map.of(
-                "bmi", inbody.getBmi(),
-                "gender", referenceGender(profile.getGender()),
-                "birth_year", profile.getBirthYear()
-        ), "category", "percentile", "peer_mean", "age_bracket", "message", "source");
-    }
-
-    private String toolGetNutritionPeerComparison(User user, Long userId, Map<String, Object> args) {
-        UserProfile profile = getProfileOrNull(user);
-        String peerError = peerProfileError(profile);
-        if (peerError != null) {
-            return toJson(Map.of("error", peerError));
-        }
-
-        LocalDate date = parseDateArgOrToday(args);
-        MealLoggingService.DailyTotal total = mealLoggingService.getTotalForDate(userId, date);
-        if (total.mealCount() == 0) {
-            return toJson(Map.of("date", date.toString(),
-                    "note", date + "에 기록된 식사가 없어서 또래 비교를 할 수 없어요.",
-                    "instruction", "없다고만 답하고 수치를 지어내지 마세요."));
-        }
-
-        return callAiServer("/ai/nutrition/peer-compare", Map.of(
-                "gender", referenceGender(profile.getGender()),
-                "birth_year", profile.getBirthYear(),
-                "energy_kcal", total.totalCalories(),
-                "protein_g", total.totalProteinG(),
-                "carbs_g", total.totalCarbsG(),
-                "fat_g", total.totalFatG()
-        ), "age_bracket", "message", "source");
-    }
-
-    /** 또래 비교는 성별×연령대 통계라 둘 중 하나만 없어도 비교 자체가 불가능하다. */
-    private String peerProfileError(UserProfile profile) {
-        if (profile == null || profile.getGender() == null || profile.getBirthYear() == null) {
-            return "성별과 출생연도가 있어야 또래 비교를 할 수 있어요. 마이페이지에서 프로필을 먼저 채워주세요.";
-        }
-        return null;
-    }
-
-    /** 프로필의 MALE/FEMALE을 AI 서버 참조 통계 표기(M/F)로 (frontend/src/lib/aiApi.js와 같은 규칙) */
-    private String referenceGender(Gender gender) {
-        return gender == Gender.MALE ? "M" : "F";
-    }
-
-    /**
-     * 또래 비교 계산을 담당하는 AI 서버(FastAPI)를 부르고, 응답에서 {@code keep}에 적힌 필드만 남긴다.
-     * 응답 전체(끼니별 비교 배열 등)를 그대로 넘기면 같은 내용이 message와 중복돼 컨텍스트만 잡아먹는다.
-     *
-     * AI 서버는 평소 꺼져 있을 수 있고 또래 비교는 부가 정보라, 실패해도 대화 전체를 끊지 않고
-     * 도구 결과를 error로 돌려준다 - 모델이 "지금은 확인이 안 된다"고 답하게 된다.
-     */
-    private String callAiServer(String path, Map<String, Object> body, String... keep) {
-        JsonNode response;
-        try {
-            response = aiRestClient.post().uri(path).body(body).retrieve().body(JsonNode.class);
-        } catch (RestClientException e) {
-            log.info("AI 서버 또래 비교 호출 실패 ({}): {}", path, e.getMessage());
-            return toJson(Map.of("error", "또래 비교 데이터를 지금 가져올 수 없어요."));
-        }
-        if (response == null) {
-            return toJson(Map.of("error", "또래 비교 데이터를 지금 가져올 수 없어요."));
-        }
-
-        Map<String, Object> trimmed = new LinkedHashMap<>();
-        for (String field : keep) {
-            JsonNode value = response.get(field);
-            if (value != null && !value.isNull()) {
-                trimmed.put(field, objectMapper.convertValue(value, Object.class));
-            }
-        }
-        return toJson(trimmed);
-    }
-
-    private String toolCalculateNutrientTarget(User user) {
-        UserProfile profile = getProfileOrNull(user);
-        if (profile == null || profile.getGoal() == null) {
-            return toJson(Map.of("error", "목표가 설정되어 있지 않아요. 마이페이지에서 목표를 먼저 설정해야 계산할 수 있어요."));
-        }
-
-        InbodyRecord inbody = inbodyService.getLatest(user).orElse(null);
-        if (inbody == null || inbody.getWeightKg() == null) {
-            return toJson(Map.of("error", "인바디 정보가 없어서 목표 섭취량을 계산할 수 없어요."));
-        }
-
-        NutrientTarget target = nutrientTargetCalculator.calculate(inbody, profile);
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("goal", GOAL_LABEL.get(profile.getGoal()));
-        result.put("targetKcal", Math.round(target.kcal()));
-        result.put("targetProteinG", Math.round(target.proteinG()));
-        result.put("targetCarbsG", Math.round(target.carbsG()));
-        result.put("targetFatG", Math.round(target.fatG()));
-        return toJson(result);
-    }
-
-    private LocalDate parseDateArgOrToday(Map<String, Object> args) {
-        String raw = argString(args, "date", null);
-        if (raw == null) {
-            return LocalDate.now();
-        }
-        try {
-            return LocalDate.parse(raw);
-        } catch (Exception e) {
-            // 모델이 날짜 형식을 잘못 넣으면(예: "어제"를 계산 안 하고 그대로 보냄) 오늘로 대체.
-            // 여기서 예외를 던지면 도구 호출 자체가 실패해서 답변을 아예 못 받는 게 더 나쁨.
-            log.warn("도구 호출의 date 인자를 파싱하지 못해 오늘 날짜로 대체함: {}", raw);
-            return LocalDate.now();
-        }
-    }
-
-    private String argString(Map<String, Object> args, String key, String defaultVal) {
-        Object v = args == null ? null : args.get(key);
-        return v != null ? String.valueOf(v) : defaultVal;
-    }
-
-    private int argInt(Map<String, Object> args, String key, int defaultVal) {
-        Object v = args == null ? null : args.get(key);
-        if (v instanceof Number n) return n.intValue();
-        if (v instanceof String s) {
-            try {
-                return Integer.parseInt(s.trim());
-            } catch (NumberFormatException e) {
-                return defaultVal;
-            }
-        }
-        return defaultVal;
-    }
-
     /**
      * 인바디+목표로 계산한 목표 영양소와 오늘 실제 섭취량을 비교해서 LLM이 조언하게 함.
      * 계산(목표치 산출, 차이 비교)은 전부 결정론적 수식이고, LLM은 그 결과를 자연어로 풀어주는 역할만 함.
@@ -728,143 +399,13 @@ public class ChatService {
         messages.add(OllamaMessage.system(buildSystemPrompt(user) + "\n\n" + buildAdviceContext(goal, target, actual)));
         String userLabel = "오늘 내가 먹은 식단이 목표 대비 어떤지 분석해서 부족하거나 초과된 영양소를 짚어주고 조언해줘.";
         messages.add(OllamaMessage.user(userLabel));
-        String reply = chatCompletion(messages, false).content();
+        String reply = ollamaClient.chatCompletion(messages, false).content();
 
         // 이 흐름도 같은 대화창(ChatDrawer)에 이어서 보여지므로, 새로고침 후에도 이어지도록 이력에 남김
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(userLabel).build());
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(reply).build());
 
         return reply;
-    }
-
-    private Map<String, Object> buildRequestBody(List<OllamaMessage> messages, boolean includeTools, boolean stream) {
-        Map<String, Object> requestBody = new LinkedHashMap<>();
-        requestBody.put("model", model);
-        requestBody.put("stream", stream);
-        requestBody.put("messages", messages);
-        // Ollama는 마지막 요청 후 5분이 지나면 모델(4.7GB)을 메모리에서 내린다. 챗봇은 띄엄띄엄
-        // 쓰이므로 그대로 두면 사용자가 거의 매번 재적재(20초 안팎)를 기다리게 된다.
-        // GPU 인스턴스 환경변수를 건드리지 않고 요청마다 상주 시간을 지정해 그 비용을 없앤다.
-        requestBody.put("keep_alive", "24h");
-        // temperature 미지정 시 Ollama 기본값(0.8)이 적용되던 걸 명시적으로 낮춤.
-        // num_ctx: 시스템 프롬프트(약 1000토큰) + 툴 스키마(약 800) + 이력 8건 + 답변 384가
-        // 4096을 넘길 수 있었다. 넘치면 Ollama가 앞쪽부터 버려서 시스템 프롬프트가 날아간다.
-        // *** FoodParsingService와 값이 반드시 같아야 함 *** - 같은 모델을 쓰는데 num_ctx가
-        // 다르면 Ollama가 요청마다 모델을 내렸다 다시 올린다(4.7GB 재적재 = 20초).
-        // temperature 0.4에서는 모델이 도구를 부르는 대신 예고 문장만 쓰거나 tool_call을 텍스트로
-        // 흘리는 턴이 나온다(재현: 12회 중 1회). 도구가 안 돌면 검증 없는 답이 그대로 나가고
-        // 그게 이력에 남아 다음 턴부터 증폭되므로, 다양성보다 툴콜 신뢰도를 택한다.
-        requestBody.put("options", Map.of(
-                "temperature", 0.2,
-                "num_ctx", 8192,
-                "num_predict", 384
-        ));
-        if (includeTools) {
-            requestBody.put("tools", TOOLS);
-        }
-        return requestBody;
-    }
-
-    private static final String AI_UNAVAILABLE_MSG = "AI 챗봇은 지금 준비 중이에요. 잠시 후 다시 시도해 주세요.";
-
-    /**
-     * Ollama 호출 실패를 사용자向 예외로 변환한다. Ollama(GPU 인스턴스)는 평소 꺼져 있는 게 정상이라,
-     * 연결 자체가 안 되는 경우({@link ResourceAccessException} - ConnectException/타임아웃)는
-     * 스택트레이스 없이 INFO로만 남긴다. 그 외(5xx 응답 등)만 ERROR.
-     */
-    private ExternalServiceException aiUnavailable(Exception e) {
-        if (e instanceof ResourceAccessException) {
-            log.info("Ollama에 연결할 수 없음 (GPU 인스턴스 중지 상태로 추정): {}", e.getMessage());
-        } else {
-            log.error("Ollama 호출 실패", e);
-        }
-        return new ExternalServiceException(AI_UNAVAILABLE_MSG, e);
-    }
-
-    private OllamaMessage chatCompletion(List<OllamaMessage> messages, boolean includeTools) {
-        OllamaChatResponse response;
-        try {
-            response = ollamaRestClient.post()
-                    .uri("/api/chat")
-                    .body(buildRequestBody(messages, includeTools, false))
-                    .retrieve()
-                    .body(OllamaChatResponse.class);
-        } catch (RestClientException e) {
-            throw aiUnavailable(e);
-        }
-
-        if (response == null || response.message() == null) {
-            log.error("Ollama 채팅 응답이 비어있습니다.");
-            throw new ExternalServiceException(AI_UNAVAILABLE_MSG);
-        }
-        return response.message();
-    }
-
-    /** 스트리밍 한 번의 결과 - 흘려보낸 본문과, 모델이 요청한 도구 호출 목록 */
-    private record StreamResult(String content, List<OllamaMessage.ToolCall> toolCalls) {}
-
-    /**
-     * Ollama /api/chat 를 stream 모드로 호출해서, 응답으로 오는 NDJSON 각 줄의
-     * message.content 조각을 받는 대로 {@code onDelta}에 넘긴다.
-     * tools를 포함해 호출한 경우 도중에 오는 message.tool_calls를 모아서 돌려준다.
-     */
-    private StreamResult chatCompletionStream(
-            List<OllamaMessage> messages, boolean includeTools, Consumer<String> onDelta
-    ) {
-        StringBuilder content = new StringBuilder();
-        List<OllamaMessage.ToolCall> toolCalls = new ArrayList<>();
-        try {
-            ollamaRestClient.post()
-                    .uri("/api/chat")
-                    .body(buildRequestBody(messages, includeTools, true))
-                    .exchange((request, response) -> {
-                        try (BufferedReader reader = new BufferedReader(
-                                new InputStreamReader(response.getBody(), StandardCharsets.UTF_8))) {
-                            String line;
-                            while ((line = reader.readLine()) != null) {
-                                if (line.isBlank()) {
-                                    continue;
-                                }
-                                JsonNode node = objectMapper.readTree(line);
-                                JsonNode message = node.path("message");
-
-                                String delta = message.path("content").asText("");
-                                if (!delta.isEmpty()) {
-                                    content.append(delta);
-                                    onDelta.accept(delta);
-                                }
-                                collectToolCalls(message, toolCalls);
-
-                                if (node.path("done").asBoolean(false)) {
-                                    break;
-                                }
-                            }
-                        } catch (java.io.IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                        return null;
-                    });
-        } catch (RestClientException | UncheckedIOException e) {
-            throw aiUnavailable(e);
-        }
-        return new StreamResult(content.toString(), toolCalls);
-    }
-
-    /** 스트림 조각에 들어있는 tool_calls를 자바 객체로 옮겨 담는다 (없으면 아무것도 안 함) */
-    private void collectToolCalls(JsonNode message, List<OllamaMessage.ToolCall> into) {
-        JsonNode calls = message.path("tool_calls");
-        if (!calls.isArray()) {
-            return;
-        }
-        for (JsonNode call : calls) {
-            JsonNode function = call.path("function");
-            Map<String, Object> arguments = objectMapper.convertValue(
-                    function.path("arguments"), new TypeReference<Map<String, Object>>() {});
-            into.add(new OllamaMessage.ToolCall(
-                    call.path("id").asText(null),
-                    new OllamaMessage.FunctionCall(function.path("name").asText(), arguments)
-            ));
-        }
     }
 
     private String buildAdviceContext(Goal goal, NutrientTarget target, MealLoggingService.DailyTotal actual) {
@@ -874,7 +415,7 @@ public class ChatService {
                 목표 섭취량 - 칼로리: %.0fkcal, 단백질: %.0fg, 탄수화물: %.0fg, 지방: %.0fg
                 오늘 실제 섭취량 - 칼로리: %.0fkcal, 단백질: %.1fg, 탄수화물: %.1fg, 지방: %.1fg
                 """.formatted(
-                GOAL_LABEL.get(goal),
+                goal.label(),
                 target.kcal(), target.proteinG(), target.carbsG(), target.fatG(),
                 actual.totalCalories(), actual.totalProteinG(), actual.totalCarbsG(), actual.totalFatG()
         );
@@ -895,7 +436,7 @@ public class ChatService {
 
         sb.append("\n\n사용자 정보:");
         if (hasGoal) {
-            sb.append("\n- 목표: ").append(GOAL_LABEL.get(profile.getGoal()));
+            sb.append("\n- 목표: ").append(profile.getGoal().label());
         }
         // 체지방률 정상범위·권장 섭취량이 성별에 따라 다르므로 모델에게 같이 알려줌
         if (profile != null) {
@@ -928,36 +469,5 @@ public class ChatService {
         } catch (IllegalArgumentException e) {
             return null;
         }
-    }
-
-    private String toJson(Object obj) {
-        try {
-            return objectMapper.writeValueAsString(obj);
-        } catch (Exception e) {
-            log.error("도구 결과 직렬화 실패", e);
-            return "{\"error\": \"결과를 표현하는 중 문제가 발생했어요.\"}";
-        }
-    }
-
-    private static Map<String, Object> toolDef(
-            String name, String description, Map<String, Object> properties, List<String> required
-    ) {
-        Map<String, Object> parameters = new LinkedHashMap<>();
-        parameters.put("type", "object");
-        parameters.put("properties", properties);
-        parameters.put("required", required);
-
-        Map<String, Object> function = new LinkedHashMap<>();
-        function.put("name", name);
-        function.put("description", description);
-        function.put("parameters", parameters);
-
-        Map<String, Object> tool = new LinkedHashMap<>();
-        tool.put("type", "function");
-        tool.put("function", function);
-        return tool;
-    }
-
-    private record OllamaChatResponse(OllamaMessage message) {
     }
 }
