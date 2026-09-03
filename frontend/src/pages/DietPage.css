@@ -259,37 +259,60 @@
 .diet-timeline {
   display: flex;
   flex-direction: column;
+  gap: 28px;
 }
-.diet-row {
+/* 끼니 그룹 = 라벨 헤더 + 그 끼니에 기록한 카드들. 같은 끼니를 여러 번 적어도 라벨은 한 번만 */
+.diet-group {
   display: flex;
-  gap: 20px;
+  flex-direction: column;
+  gap: 12px;
 }
-.diet-time {
-  width: 56px;
+.diet-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* 카드에서 떼어낸 레드 스텁이 여기로 올라왔다 - 기울인 만큼 글자는 되돌려 세운다 */
+.diet-group-label {
   flex: none;
-  text-align: right;
-  font: 800 13px Archivo, 'Noto Sans KR', sans-serif;
-  color: #da291c;
-  padding-top: 16px;
-}
-.diet-line {
-  flex: none;
-  width: 1px;
-  background: #e5e3dd;
-  position: relative;
-}
-.diet-dot {
-  position: absolute;
-  top: 19px;
-  left: -4px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+  transform: skewX(-6deg);
   background: #da291c;
+  border-radius: 6px;
+  padding: 5px 15px;
 }
-.diet-body {
+.diet-group-label > span {
+  display: inline-block;
+  transform: skewX(6deg);
+  font: 800 13px Archivo, 'Noto Sans KR', sans-serif;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.diet-group-rule {
   flex: 1;
-  padding: 12px 0 24px;
+  height: 1px;
+  background: #e5e3dd;
+}
+/* 카드마다 큰 레드 숫자가 이미 있어서 끼니 합계는 물러나 있게 둔다 */
+.diet-group-total {
+  flex: none;
+  font: 800 12px Archivo, sans-serif;
+  color: #55534d;
+  font-variant-numeric: tabular-nums;
+}
+.diet-group-total-unit {
+  margin-left: 2px;
+  color: #9b9a96;
+}
+.diet-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* 기록 하나 = 카드 + 그 아래 액션 행 (+ 펼쳤을 때 항목 목록) */
+.diet-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .diet-meal {
   transform: skewX(-6deg);
@@ -307,27 +330,69 @@
   flex: 1;
   min-width: 0;
   transform: skewX(6deg);
-  padding: 18px 20px;
+  padding: 14px 18px;
   display: flex;
   gap: 14px;
   align-items: center;
+}
+.diet-meal-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 .diet-meal-title {
   font-size: 14px;
   font-weight: 700;
   color: #111;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.diet-meal-sub {
-  font-size: 12px;
-  color: #77767c;
-  margin-top: 3px;
-}
-.diet-meal-actions {
-  flex: none;
+/* 끼니별 영양소 - 저장은 예전부터 하고 있었는데 모달을 열어야만 보였다 */
+.diet-meal-macros {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
+  font-size: 11.5px;
+  color: #77767c;
+  font-variant-numeric: tabular-nums;
 }
+.diet-meal-macros strong {
+  font-weight: 700;
+  color: #55534d;
+}
+.diet-meal-macros span + span::before {
+  content: '·';
+  margin-right: 7px;
+  color: #d8d6cf;
+}
+/* 총 섭취 태그(.tag-value)와 같은 숫자 문법 - 페이지 안에서 칼로리는 늘 같은 얼굴로 읽히게 */
+.diet-meal-kcal {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.diet-meal-kcal-value {
+  font: 400 24px 'Archivo Black', sans-serif;
+  color: #da291c;
+  font-variant-numeric: tabular-nums;
+}
+.diet-meal-kcal-unit {
+  font: 800 12px Archivo, sans-serif;
+  color: #da291c;
+}
+/* 카드 밖 오른쪽 정렬 액션 행 */
+.diet-meal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-right: 4px;
+}
+/* 액션 행에서 레드는 "항목 보기" 하나만 - 수정/삭제는 물러나 있다가 호버에서 올라온다 */
 .diet-meal-status {
   flex: none;
   background: none;
@@ -337,6 +402,9 @@
   font-size: 11.5px;
   font-weight: 700;
   font-family: Archivo, 'Noto Sans KR', sans-serif;
+  color: #9b9a96;
+}
+.diet-meal-status:hover {
   color: #da291c;
 }
 .diet-meal-delete {
@@ -407,22 +475,20 @@
 
 /* 항목별 그램 펼쳐보기/수정 (식단 기록) */
 .diet-item-toggle {
-  margin-top: 8px;
-  margin-left: 4px;
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
   font-size: 11.5px;
   font-weight: 700;
-  color: #9b9a96;
+  font-family: Archivo, 'Noto Sans KR', sans-serif;
+  color: #da291c;
   transition: color 0.15s ease;
 }
 .diet-item-toggle:hover {
-  color: #da291c;
+  color: #c0241a;
 }
 .diet-item-list {
-  margin-top: 8px;
   margin-left: 4px;
   display: flex;
   flex-direction: column;
@@ -609,20 +675,16 @@
     flex-direction: column;
     gap: 28px;
   }
-  /* 타임라인 왼쪽 끼니 라벨 칸을 좁힘 */
-  .diet-row {
-    gap: 12px;
-  }
-  .diet-time {
-    width: 34px;
-    font-size: 11px;
-  }
+  /* 좁은 화면에선 카드 본문을 한 단계 줄임 */
   .diet-meal-inner {
-    padding: 14px;
+    padding: 12px 14px;
     gap: 10px;
   }
   .diet-meal-title {
     font-size: 13.5px;
+  }
+  .diet-meal-kcal-value {
+    font-size: 20px;
   }
   /* 이름/그램/칼로리/수정이 한 줄에 다 안 들어감 */
   .diet-item-row-main {
@@ -727,6 +789,11 @@
   font-weight: 700;
   color: #9b9a96;
 }
+.diet-memo-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .diet-memo-save {
   border: none;
   border-radius: 8px;
@@ -742,5 +809,23 @@
 }
 .diet-memo-save:disabled {
   background: #d8d6cf;
+  cursor: default;
+}
+.diet-memo-delete {
+  border: 1px solid #d8d6cf;
+  border-radius: 8px;
+  background: #fff;
+  color: #77767c;
+  font: 700 12px 'Noto Sans KR', sans-serif;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.diet-memo-delete:hover:not(:disabled) {
+  background: #f4f2ee;
+  color: #da291c;
+}
+.diet-memo-delete:disabled {
+  color: #d8d6cf;
   cursor: default;
 }

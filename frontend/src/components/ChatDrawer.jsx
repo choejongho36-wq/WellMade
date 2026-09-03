@@ -18,6 +18,16 @@ const CHAT_MENU_ITEMS = [
   { id: 'inbody-trend', label: '체중 추세', send: '요즘 체중 변화 어때?', menu: true },
   // 전용 API(/nutrient-advice) - 목표 대비 분석을 서버가 계산해서 넘긴다
   { id: 'nutrient-advice', label: '영양소 분석', action: 'nutrient-advice' },
+  // 운동 추천: 버튼 -> 봇이 부위/난이도를 되묻고(followUp) -> 사용자 답을 wrap으로 감싸
+  // 일반 채팅으로 보냄. 서버가 recommend_exercises 도구를 호출해 후보를 가져오고 모델이 추천문을 만든다.
+  {
+    id: 'exercise-recommend',
+    label: '운동 추천',
+    send: '운동 추천받고 싶어요',
+    followUp: '어느 부위를 운동하고 싶으세요? 초급/중급 같은 난이도나 사용할 장비(맨몸, 덤벨 등)가 있으면 같이 알려주세요.',
+    placeholder: '예: 하체, 중급, 맨몸',
+    wrap: (t) => `운동을 추천받고 싶어요. 원하는 조건: ${t}`,
+  },
   { id: 'diet-manage', label: '캘린더', path: '/mealplan' },
 ]
 
@@ -167,10 +177,10 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
     if (!text || loading) return
 
     if (pendingFollowUp) {
-      sendMessage(
-        `오늘 ${text}을(를) 먹으려고 하는데, 제 목표와 최근 인바디 수치에 맞춰서 괜찮은지, 어떻게 곁들이면 좋을지 조언해줘.`,
-        text
-      )
+      // wrap이 있으면 사용자 답을 문맥 문장으로 감싸 모델에게 보내고(말풍선엔 원문만 표시),
+      // 없으면 원문 그대로 보낸다.
+      const { wrap } = pendingFollowUp
+      sendMessage(wrap ? wrap(text) : text, text)
       return
     }
 
@@ -294,7 +304,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
               <textarea
                 className="chat-input"
                 rows={1}
-                placeholder={pendingFollowUp ? '예: 김치찌개' : '메시지를 입력하세요'}
+                placeholder={pendingFollowUp ? (pendingFollowUp.placeholder ?? '예: 김치찌개') : '메시지를 입력하세요'}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}

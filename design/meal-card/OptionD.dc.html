@@ -1,0 +1,124 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Black&family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+  <style>
+    body { margin: 0; background: #fff; font-family: 'Noto Sans KR', -apple-system, sans-serif; color: #111; -webkit-font-smoothing: antialiased; }
+    a { color: #da291c; } a:hover { color: #c0241a; }
+  </style>
+</helmet>
+
+<div style="width: 520px; padding: 24px; background: #fff;">
+
+  <div style="display: flex; align-items: baseline; gap: 9px; padding-bottom: 12px; border-bottom: 1px solid #e5e3dd;">
+    <span style="font: 400 20px 'Archivo Black', sans-serif; color: #da291c; line-height: 1;">D</span>
+    <span style="font: 800 13.5px Archivo, 'Noto Sans KR', sans-serif; color: #111;">목표 대비</span>
+    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.5; color: #9b9a96; text-align: right;">숫자에 의미를 붙임 · 목표 미설정이면 무력화</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 16px; padding-top: 16px;">
+
+    <div style="background: #f9f8f5; border: 1px solid #d8d6cf; border-radius: 12px; padding: 15px 17px; display: flex; flex-direction: column; gap: 11px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="flex: 1; min-width: 0; font-size: 11.5px; font-weight: 700; color: #9b9a96;">오늘 섭취</span>
+        <span style="display: flex; align-items: baseline; gap: 3px; font-variant-numeric: tabular-nums;">
+          <span style="font: 400 26px 'Archivo Black', sans-serif; color: #da291c;">1,220</span>
+          <span style="font: 800 13px Archivo, sans-serif; color: #9b9a96;">/ 2,100 kcal</span>
+        </span>
+      </div>
+
+      <div style="display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: #ece9e2;">
+        <div style="width: 9%; background: #eda69e;"></div>
+        <div style="width: 24%; background: #e2685c;"></div>
+        <div style="width: 25%; background: #da291c;"></div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 13px; font-size: 11px; color: #77767c; font-variant-numeric: tabular-nums;">
+        <span style="display: inline-flex; align-items: center; gap: 5px;">
+          <span style="width: 7px; height: 7px; border-radius: 2px; background: #eda69e;"></span>아침 9%
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 5px;">
+          <span style="width: 7px; height: 7px; border-radius: 2px; background: #e2685c;"></span>점심 24%
+        </span>
+        <span style="display: inline-flex; align-items: center; gap: 5px;">
+          <span style="width: 7px; height: 7px; border-radius: 2px; background: #da291c;"></span>저녁 25%
+        </span>
+        <span style="flex: 1; min-width: 0; text-align: right; font-weight: 700; color: #55534d;">남은 880kcal</span>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+
+      <div style="background: #fff; border: 1px solid #e5e3dd; border-radius: 10px; padding: 14px 17px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 11px;">
+          <span style="flex: none; font: 800 12px Archivo, 'Noto Sans KR', sans-serif; color: #da291c; letter-spacing: 0.04em;">아침</span>
+          <span style="flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: #111; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">그릭요거트, 블루베리</span>
+          <span style="flex: none; display: flex; align-items: baseline; gap: 3px;">
+            <span style="font: 400 20px 'Archivo Black', sans-serif; color: #111; font-variant-numeric: tabular-nums;">190</span>
+            <span style="font: 800 11px Archivo, sans-serif; color: #77767c;">kcal</span>
+          </span>
+        </div>
+        <div style="display: flex; height: 3px; border-radius: 999px; overflow: hidden; background: #ece9e2;">
+          <div style="width: 9%; background: #eda69e;"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 11.5px;">
+          <span style="flex: 1; min-width: 0; font-weight: 700; color: #77767c; font-variant-numeric: tabular-nums;">목표의 9%</span>
+          <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">수정</span>
+          <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">삭제</span>
+        </div>
+      </div>
+
+      <div style="background: #fff; border: 1px solid #e5e3dd; border-radius: 10px; padding: 14px 17px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 11px;">
+          <span style="flex: none; font: 800 12px Archivo, 'Noto Sans KR', sans-serif; color: #da291c; letter-spacing: 0.04em;">점심</span>
+          <span style="flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: #111; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">닭가슴살, 현미밥, 브로콜리</span>
+          <span style="flex: none; display: flex; align-items: baseline; gap: 3px;">
+            <span style="font: 400 20px 'Archivo Black', sans-serif; color: #111; font-variant-numeric: tabular-nums;">507</span>
+            <span style="font: 800 11px Archivo, sans-serif; color: #77767c;">kcal</span>
+          </span>
+        </div>
+        <div style="display: flex; height: 3px; border-radius: 999px; overflow: hidden; background: #ece9e2;">
+          <div style="width: 24%; background: #e2685c;"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 11.5px;">
+          <span style="flex: 1; min-width: 0; font-weight: 700; color: #77767c; font-variant-numeric: tabular-nums;">목표의 24%</span>
+          <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">수정</span>
+          <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">삭제</span>
+        </div>
+      </div>
+
+      <div style="background: #fff; border: 1px solid #e5e3dd; border-radius: 10px; padding: 14px 17px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 11px;">
+          <span style="flex: none; font: 800 12px Archivo, 'Noto Sans KR', sans-serif; color: #da291c; letter-spacing: 0.04em;">저녁</span>
+          <span style="flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: #111; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">연어구이, 고구마, 아보카도</span>
+          <span style="flex: none; display: flex; align-items: baseline; gap: 3px;">
+            <span style="font: 400 20px 'Archivo Black', sans-serif; color: #111; font-variant-numeric: tabular-nums;">523</span>
+            <span style="font: 800 11px Archivo, sans-serif; color: #77767c;">kcal</span>
+          </span>
+        </div>
+        <div style="display: flex; height: 3px; border-radius: 999px; overflow: hidden; background: #ece9e2;">
+          <div style="width: 25%; background: #da291c;"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 11.5px;">
+          <span style="flex: 1; min-width: 0; font-weight: 700; color: #77767c; font-variant-numeric: tabular-nums;">목표의 25%</span>
+          <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">수정</span>
+          <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">삭제</span>
+        </div>
+      </div>
+
+    </div>
+
+    <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #9b9a96;">목표 섭취량은 인바디와 목표가 있어야 계산돼요. 없으면 이 카드는 <span style="color: #55534d; font-weight: 700;">칼로리만 표시</span>로 떨어집니다.</p>
+
+  </div>
+</div>
+
+</x-dc>
+</body>
+</html>
