@@ -58,7 +58,7 @@ from app.pose.rules import (
 )
 from app.schemas import AngleFrame, HipFlexibilityCalibration
 
-# TODO: 팀 확정 필요 — 아래 임계값들은 실제 사용자 테스트 전까지의 초안값이다.
+# NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.
 MIN_FRAMES = 3  # 판정에 필요한 최소 프레임 수. 너무 적으면 노이즈에, 너무 많으면 반응 지연에 취약.
 STATIC_SLOPE_THRESHOLD_DEG_PER_SEC = 15.0  # 이보다 느린 변화율은 "정지(holding)"로 간주.
 JITTER_STD_THRESHOLD_DEG = 10.0  # 프레임 간 각도 변화량의 표준편차가 이 값을 넘으면 "불안정한 움직임".

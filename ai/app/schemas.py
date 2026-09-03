@@ -139,7 +139,7 @@ class AngleFrame(BaseModel):
         "(자세한 배경은 checklist 2026-08-27 addendum 8번 참고). 측면 랜드마크만으로 계산 "
         "가능한 값이라 heel_lift_ratio/knee_over_toe_ratio와 동일하게 프론트가 매 프레임 직접 "
         "계산해서 보낸다. 선택 필드 — 없으면 이 검사를 건너뛴다(하위 호환). "
-        "TODO: 팀 확정 필요(중요) — 나쁜 사례 표본이 아직 2건뿐이라 임계값 검증이 매우 약하다.",
+        "NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.",
     )
 
 
@@ -387,61 +387,10 @@ class OrchestrateResponse(BaseModel):
     )
 
 
-# ---- RAG 지식베이스 검색·생성 (AI-08/09/14) ----
-# 요구사항 정의서 "3.RAG파이프라인" 시트에는 이 두 엔드포인트의 정확한 요청/응답 필드명이
-# 표로 정리돼 있지 않다(다른 엔드포인트는 "5.AI_API명세" 시트에 명시돼 있었지만 RAG는
-# 파이프라인 단계 설명만 있음) — 그래서 AI-15/ML 엔드포인트와 마찬가지로 기존 코드베이스
-# 관례(session_id, snake_case)를 따라 자체적으로 설계했다.
-# TODO: 팀 확정 필요 — 실제 프론트/백엔드 연동 시 필드명 재검토.
-
-
-class RagSource(BaseModel):
-    """RAG 응답에 실리는 출처 정보 1건. 요구사항 정의서 ⑦ 출처 표기 단계에 대응."""
-
-    title: str
-    source: str = Field(..., description="출처 기관명 (예: NASM, Mayo Clinic)")
-    source_url: Optional[str] = None
-    source_date: Optional[str] = Field(None, description="지식베이스 문서 작성/확인 시점 (YYYY-MM). knowledge_base.py 주석 참고")
-
-
-class RagGuideRequest(BaseModel):
-    """지시형 RAG 가이드(/ai/rag/guide, AI-09) 요청.
-    하네스(AI-07)가 trigger_rag_search를 선택하며 돌려준 search_query를 그대로 받는
-    흐름을 전제로 한다 — 즉 이 엔드포인트는 하네스 응답을 받은 백엔드/프론트가 이어서
-    호출하는 것을 기대한다(harness.py 모듈 docstring의 "결정과 실행은 분리" 설명 참고)."""
-
-    query: str = Field(..., min_length=1, description="검색 쿼리 (예: 이슈 종류 '무릎 모임', 'knee_valgus')")
-    session_id: Optional[str] = None
-
-
-class RagGuideResponse(BaseModel):
-    guidance_message: str = Field(..., description="근거 문서 기반 코칭 문구 (TTS로 바로 읽을 수 있는 한국어 텍스트)")
-    sources: List[RagSource]
-    matched: bool = Field(..., description="관련 지식베이스 문서를 찾았는지 여부. False면 일반 안내로 대체됨")
-    generation_source: Literal["llm", "fallback"] = Field(
-        ..., description="LLM이 직접 문구를 생성했는지, 문서에 준비된 고정 문구(short_message)로 대체했는지"
-    )
-
-
-class RagQnaRequest(BaseModel):
-    """설명형 RAG Q&A(/ai/rag/qna, AI-14) 요청. 사용자가 자유 형식으로 입력하는 질문을 받는다."""
-
-    question: str = Field(..., min_length=1)
-    session_id: Optional[str] = None
-
-
-class RagQnaResponse(BaseModel):
-    answer: str = Field(..., description="근거 문서 기반 답변")
-    sources: List[RagSource]
-    matched: bool = Field(..., description="관련 지식베이스 문서를 찾았는지 여부")
-    generation_source: Literal["llm", "fallback"] = Field(
-        ..., description="LLM이 직접 답변을 생성했는지, 검색된 문서를 그대로 발췌해 답했는지"
-    )
-
-
 # ---- 세션 리포트 생성 (AI-12) ----
-# TODO: 팀 확정 필요 — 이 기능의 ID가 시트마다 다르게 쓰여 있다(1.AI모듈상세=AI-12,
-# 8.요구사항정의서=AI-08). 여기서는 "1.AI모듈상세" 기준(AI-12)으로 구현했다.
+# ID 표기 확정(2026-09-02): 요구사항정의서 "1.AI모듈상세" 시트 기준 AI-12로 쓴다.
+# "8.요구사항정의서" 시트가 같은 번호를 세션 종료 판단(AI-13)에 재사용하는 건 그 시트
+# 쪽 오기로 보고 따르지 않는다 — 이 기능은 앞으로도 계속 AI-12로 표기한다.
 
 
 class SessionIssueRecord(BaseModel):
