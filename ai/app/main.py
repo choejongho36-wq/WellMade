@@ -22,6 +22,8 @@ load_dotenv()
 from app.schemas import (
     CoachingFrameRequest,
     CoachingFrameResponse,
+    ExerciseDetailRequest,
+    ExerciseDetailResponse,
     ExerciseRecommendRequest,
     ExerciseRecommendResponse,
     ModelCompareRequest,
@@ -53,6 +55,7 @@ from app.schemas import (
 from app.coaching.llm_model_compare import compare_models
 from app.coaching.photo_summary_llm import summarize_photo_analysis
 from app.coaching.realtime import judge_realtime_coaching
+from app.exercise.recommend import find_detail as find_exercise_detail
 from app.exercise.recommend import recommend as recommend_exercises
 from app.insight.bmi_percentile import compute_bmi_insight
 from app.insight.nutrition_peer import compare_with_peers
@@ -450,6 +453,23 @@ def exercise_recommend(request: ExerciseRecommendRequest):
     )
 
     return ExerciseRecommendResponse(**result)
+
+
+@app.post(
+    "/ai/exercise/detail",
+    response_model=ExerciseDetailResponse,
+)
+def exercise_detail(request: ExerciseDetailRequest):
+    """
+    운동 하나의 한국어 수행 방법 조회.
+
+    추천 목록을 보여준 뒤 사용자가 "플랭크는 어떻게 해?"처럼 하나를 지목했을 때 쓴다.
+    예전에는 이 단계에서 챗봇이 도구 없이 설명을 직접 지어냈는데, 근거 없는 자유 생성이라
+    Qwen이 중국어로 새는 턴이 나왔다(실측). 데이터셋 1,324건 전부에 instructions_ko 가
+    있으므로 그걸 그대로 넘겨 "창작"을 "옮겨쓰기"로 바꾼다.
+    """
+
+    return ExerciseDetailResponse(**find_exercise_detail(request.name))
 
 
 # ===========================================================================

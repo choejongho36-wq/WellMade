@@ -101,8 +101,11 @@ public class ChatService {
                 - 어느 부위를 원하는지 모를 때만 한 문장으로 물어보세요. 난이도는 묻지 마세요.
                 - 부위가 정해지면 recommend_exercises 도구를 호출하고, candidates 안의 운동만
                   2~3개 골라 한국어로 추천하세요. 목록에 없는 운동은 지어내지 마세요.
-                - 사용자가 추천한 운동 중 하나를 지목하면(예: "플랭크") 도구를 다시 부르지 말고,
-                  그 운동 방법을 한국어로 2~3문장으로 간단히 설명하세요.
+                - 운동 방법은 절대 지어내지 마세요. candidates 안의 instructions_ko 에 적힌
+                  내용만 간추려 쓰세요. 추천할 때 각 운동의 수행 방법도 instructions_ko 를
+                  근거로 한 문장씩 같이 알려주세요.
+                - 컨텍스트에 instructions_ko 가 없는 운동을 물으면 get_exercise_detail 도구를
+                  부르고, 그래도 없으면 "그 운동은 설명해드릴 자료가 없다"고 답하세요.
             11. "또래", "평균", "남들과 비교" 같은 비교 질문은 get_bmi_peer_comparison 또는
                 get_nutrition_peer_comparison 도구 결과만 인용하세요.
                 - 아래 "사용자 정보"에 적힌 인바디 수치는 이 사용자 '본인' 값일 뿐 평균이 아닙니다.
