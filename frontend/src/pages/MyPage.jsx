@@ -64,9 +64,7 @@ function Sparkline({ points, area }) {
   const last = points[points.length - 1]
 
   return (
-    // 선/면은 가로로 늘려야 해서 preserveAspectRatio="none"을 쓰는데, 그러면 SVG 안의 원이
-    // 가로세로 다른 배율로 눌려 타원이 된다. 마지막 점만 SVG 밖 HTML로 얹어 정원을 유지한다
-    // (컨테이너 폭이 유동적이라 뷰박스 안에서는 보정할 배율을 알 수 없음).
+   
     <div className="mp-spark-wrap">
       <svg className={`mp-spark${area ? ' mp-spark-lg' : ''}`} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
         {area && (

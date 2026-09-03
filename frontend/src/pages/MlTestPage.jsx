@@ -2,6 +2,25 @@ import { useEffect, useRef, useState } from 'react'
 import './MlTestPage.css'
 import PageShell from '../components/PageShell.jsx'
 import { usePoseLandmarker } from '../hooks/usePoseLandmarker.js'
+// 각도/비율 공식과 관절 정의는 lib/squatPose.js 한 곳에만 둔다 - 예전엔 이 페이지와
+// squatPose.js에 같은 공식이 따로 있어서 한쪽만 고치면 조용히 어긋났다.
+// (getKneeValgusRatio만 이 페이지에 남아 있다 - 아래 그 함수 주석 참고)
+import {
+  KEY_LANDMARKS,
+  SKELETON_CONNECTIONS,
+  PART_LABELS,
+  PHOTO_DOT_LEFT_COLOR as LEFT_COLOR,
+  PHOTO_DOT_RIGHT_COLOR as RIGHT_COLOR,
+  buildSideMetrics,
+  calculateAngle,
+  selectSide,
+  getKneeAngle,
+  getHipAngle,
+  getShoulderForwardLeanDeg,
+  getHeelLiftRatio,
+  getKneeOverToeRatio,
+  getTorsoShinLeanGapDeg,
+} from '../lib/squatPose.js'
 
 // (2026-08-24) 이 페이지는 원래 /ai/pose/analyze(AI-03, 정지 자세 1차 판정)를 호출해
 // "정상/이상" 결과까지 보여주는 통합 테스트 페이지였다. 사용자가 업로드한 서비스 흐름도를
@@ -45,7 +64,6 @@ const LEFT_KNEE = 25
 const RIGHT_KNEE = 26
 const LEFT_ANKLE = 27
 const RIGHT_ANKLE = 28
-const LEFT_HEEL = 29
 const LEFT_FOOT_INDEX = 31
 const RIGHT_FOOT_INDEX = 32
 const LEFT_EAR = 7
@@ -55,90 +73,15 @@ const LEFT_EAR = 7
 // 동일한 값/이유.
 const MIN_RELIABLE_FOOT_LENGTH = 0.03
 
-// 허벅지(엉덩이-무릎) 길이가 이보다 작으면(카메라가 너무 멀거나 하체가 가려짐)
-// 무릎-발끝 비율의 분모로 쓰기에 불안정해 계산을 포기한다. 발 길이 임곗값과 달리
-// 아직 실측 데이터로 검증한 값이 아니라, 우선 같은 자릿수(0.03)를 잠정 적용했다.
-// TODO: 팀 확정 필요 — 실측 데이터(build_dtw_templates.py 재추출)로 검증.
-const MIN_RELIABLE_THIGH_LENGTH = 0.03
 
-const KEY_LANDMARKS = {
-  leftEar: 7,
-  rightEar: 8,
-  leftShoulder: LEFT_SHOULDER,
-  rightShoulder: RIGHT_SHOULDER,
-  leftHip: LEFT_HIP,
-  rightHip: RIGHT_HIP,
-  leftKnee: LEFT_KNEE,
-  rightKnee: RIGHT_KNEE,
-  leftAnkle: LEFT_ANKLE,
-  rightAnkle: RIGHT_ANKLE,
-  leftHeel: LEFT_HEEL,
-  rightHeel: 30,
-  leftFootIndex: LEFT_FOOT_INDEX,
-  rightFootIndex: RIGHT_FOOT_INDEX,
-}
 
-const SKELETON_CONNECTIONS = [
-  ['leftEar', 'leftShoulder'],
-  ['rightEar', 'rightShoulder'],
-  ['leftShoulder', 'leftHip'],
-  ['rightShoulder', 'rightHip'],
-  ['leftHip', 'leftKnee'],
-  ['rightHip', 'rightKnee'],
-  ['leftKnee', 'leftAnkle'],
-  ['rightKnee', 'rightAnkle'],
-  ['leftAnkle', 'leftHeel'],
-  ['rightAnkle', 'rightHeel'],
-  ['leftAnkle', 'leftFootIndex'],
-  ['rightAnkle', 'rightFootIndex'],
-]
 
-const LEFT_COLOR = '#00e5ff'
-const RIGHT_COLOR = '#ff3df0'
 
 // ---- 각도/비율 계산 (구 ai/app/pose/angles.py 이식) ----
 
-function calculateAngle(a, b, c) {
-  const ba = [a.x - b.x, a.y - b.y]
-  const bc = [c.x - b.x, c.y - b.y]
-  const magBa = Math.hypot(...ba)
-  const magBc = Math.hypot(...bc)
-  if (magBa === 0 || magBc === 0) return 0
-  const dot = ba[0] * bc[0] + ba[1] * bc[1]
-  const cos = Math.max(-1, Math.min(1, dot / (magBa * magBc)))
-  return (Math.acos(cos) * 180) / Math.PI
-}
 
-// side="auto"면 엉덩이/무릎/발목 평균 visibility가 더 높은 쪽을 고른다 — 측면 촬영에서
-// 카메라 반대쪽 다리는 가려져 visibility가 낮게 잡히는 경우가 많기 때문.
-function selectSide(landmarks, side = 'auto') {
-  if (side === 'left' || side === 'right') return side
-  const leftScore =
-    ((landmarks[LEFT_HIP].visibility ?? 1) +
-      (landmarks[LEFT_KNEE].visibility ?? 1) +
-      (landmarks[LEFT_ANKLE].visibility ?? 1)) /
-    3
-  const rightScore =
-    ((landmarks[RIGHT_HIP].visibility ?? 1) +
-      (landmarks[RIGHT_KNEE].visibility ?? 1) +
-      (landmarks[RIGHT_ANKLE].visibility ?? 1)) /
-    3
-  return leftScore >= rightScore ? 'left' : 'right'
-}
 
-// 엉덩이-무릎-발목 3점. 180도에 가까울수록 다리를 편 상태.
-function getKneeAngle(landmarks, side = 'auto') {
-  const chosen = selectSide(landmarks, side)
-  const [hipIdx, kneeIdx, ankleIdx] = chosen === 'left' ? [LEFT_HIP, LEFT_KNEE, LEFT_ANKLE] : [RIGHT_HIP, RIGHT_KNEE, RIGHT_ANKLE]
-  return calculateAngle(landmarks[hipIdx], landmarks[kneeIdx], landmarks[ankleIdx])
-}
 
-// 어깨-엉덩이-무릎 3점. 상체가 다리 기준으로 얼마나 숙여졌는지.
-function getHipAngle(landmarks, side = 'auto') {
-  const chosen = selectSide(landmarks, side)
-  const [shoulderIdx, hipIdx, kneeIdx] = chosen === 'left' ? [LEFT_SHOULDER, LEFT_HIP, LEFT_KNEE] : [RIGHT_SHOULDER, RIGHT_HIP, RIGHT_KNEE]
-  return calculateAngle(landmarks[shoulderIdx], landmarks[hipIdx], landmarks[kneeIdx])
-}
 
 // 귀-어깨-엉덩이 3점 절대각도(참고용) — 실제 어깨 말림 판정은 아래 shoulderForwardLeanDeg가 담당.
 function getShoulderAlignmentAngle(landmarks, side = 'auto') {
@@ -147,78 +90,8 @@ function getShoulderAlignmentAngle(landmarks, side = 'auto') {
   return calculateAngle(landmarks[earIdx], landmarks[shoulderIdx], landmarks[hipIdx])
 }
 
-// "귀-엉덩이가 일자로 뻗는지"를 각도로 잰 값 — 엉덩이→어깨 방향(상체)을 그대로
-// 연장했을 때의 방향과, 실제 어깨→귀 방향(목) 사이의 각도 차이다. 0이면 완전한 일자,
-// 양수면 그 연장선보다 목이 더 앞으로 꺾인(고개가 앞으로 떨어진) 상태, 음수면 그
-// 연장선보다 목이 더 세워진(뒤로 젖혀진) 상태 — 음수는 현재 정상으로 취급한다.
-// (2026-08-27 변경) 원래는 목 기울기·상체 기울기를 각각 atan2로 따로 구해서 뺐는데,
-// 이건 "귀-어깨-엉덩이가 일자인지"와 수학적으로 동일한 값이다 — getShoulderAlignmentAngle()
-// (귀-어깨-엉덩이 3점 각도)의 180도 보각과 정확히 일치함을 실제 사진 데이터로 확인했다
-// (36.9도로 일치). 다만 getShoulderAlignmentAngle()은 acos 기반이라 부호가 없어(0~180도)
-// 앞으로 숙임과 뒤로 젖힘을 구분 못 해 그대로 가져다 쓸 수는 없었고, 대신 상체 벡터와
-// 목 벡터 사이의 부호 있는 각도를 외적·내적으로 한 번에 구하는 방식으로 단순화했다 —
-// atan2 두 번 + 뺄셈이 atan2 한 번으로 줄었다(좌우 반전 케이스까지 부호 대칭 검증 완료,
-// 결과값은 기존 방식과 동일).
-function getShoulderForwardLeanDeg(landmarks, side = 'auto') {
-  const chosen = selectSide(landmarks, side)
-  const [earIdx, shoulderIdx, hipIdx, ankleIdx, toeIdx] =
-    chosen === 'left' ? [LEFT_EAR, LEFT_SHOULDER, LEFT_HIP, LEFT_ANKLE, LEFT_FOOT_INDEX] : [8, RIGHT_SHOULDER, RIGHT_HIP, RIGHT_ANKLE, RIGHT_FOOT_INDEX]
-  const ear = landmarks[earIdx]
-  const shoulder = landmarks[shoulderIdx]
-  const hip = landmarks[hipIdx]
-  const ankle = landmarks[ankleIdx]
-  const toe = landmarks[toeIdx]
-  const footLength = Math.abs(ankle.x - toe.x)
-  if (footLength < MIN_RELIABLE_FOOT_LENGTH) return 0
-  const facingDirection = toe.x - ankle.x >= 0 ? 1 : -1
 
-  const torsoVec = { x: shoulder.x - hip.x, y: shoulder.y - hip.y }
-  const neckVec = { x: ear.x - shoulder.x, y: ear.y - shoulder.y }
-  const cross = torsoVec.x * neckVec.y - torsoVec.y * neckVec.x
-  const dot = torsoVec.x * neckVec.x + torsoVec.y * neckVec.y
-  return ((Math.atan2(cross, dot) * 180) / Math.PI) * facingDirection
-}
 
-// 발뒤꿈치-발끝 높이차 / 발 길이. 값이 클수록 발뒤꿈치가 뜬 상태.
-function getHeelLiftRatio(landmarks, side = 'auto') {
-  const chosen = selectSide(landmarks, side)
-  const [heelIdx, toeIdx, ankleIdx] = chosen === 'left' ? [LEFT_HEEL, LEFT_FOOT_INDEX, LEFT_ANKLE] : [30, RIGHT_FOOT_INDEX, RIGHT_ANKLE]
-  const heel = landmarks[heelIdx]
-  const toe = landmarks[toeIdx]
-  const ankle = landmarks[ankleIdx]
-  const footLength = Math.abs(ankle.x - toe.x)
-  if (footLength < MIN_RELIABLE_FOOT_LENGTH) return 0
-  return (toe.y - heel.y) / footLength
-}
-
-// 무릎-발끝 거리 / 허벅지(엉덩이-무릎) 길이. 값이 0 이하면 무릎이 발끝을 안 넘은 상태,
-// 클수록 허벅지 길이 대비 많이 넘은 상태.
-// (2026-08-27 변경) 예전에는 발 길이로 정규화하지 않고 원시 좌표 거리만 썼는데, 스쿼트
-// 스탠스 때문에 발이 자연스럽게 바깥으로 돌아가면(외회전) 발 길이 자체가 코사인 배율로
-// 줄어들어 자로 쓰기 불안정했다 — 실제로 정상적인 딥스쿼트 사진에서 오탐이 확인됐다
-// (checklist 2026-08-27 addendum 참고). 허벅지는 스쿼트의 주된 움직임(고관절·무릎 굽힘)이
-// 카메라 화면과 평행한 면 안에서 일어나는 회전이라 자세가 바뀌어도 화면상 길이가 거의
-// 안 변하고, 뼈 구간이라 등 굽음 같은 척추 변형에도 흔들리지 않아 발보다 안정적인 자다.
-// facingDirection(몸이 향한 방향 보정)은 여전히 발목-발끝 오프셋으로 판단하므로, 그 판단이
-// 신뢰할 수 없는 경우(발이 카메라를 거의 정면으로 향함)에는 별도 게이트를 그대로 둔다.
-// 두 게이트(발 길이/허벅지 길이) 중 하나라도 걸리면 null을 반환한다 — 예전에는 0을
-// 반환했는데, 0은 "무릎이 발끝을 안 넘은 안전한 상태"를 뜻하는 값이라 "측정 불가"와
-// 구분이 안 됐다(getTorsoLengthRatio와 동일하게 null로 통일).
-function getKneeOverToeRatio(landmarks, side = 'auto') {
-  const chosen = selectSide(landmarks, side)
-  const [kneeIdx, hipIdx, ankleIdx, toeIdx] =
-    chosen === 'left' ? [LEFT_KNEE, LEFT_HIP, LEFT_ANKLE, LEFT_FOOT_INDEX] : [RIGHT_KNEE, RIGHT_HIP, RIGHT_ANKLE, RIGHT_FOOT_INDEX]
-  const knee = landmarks[kneeIdx]
-  const hip = landmarks[hipIdx]
-  const ankle = landmarks[ankleIdx]
-  const toe = landmarks[toeIdx]
-  const footLength = Math.abs(ankle.x - toe.x)
-  if (footLength < MIN_RELIABLE_FOOT_LENGTH) return null
-  const thighLength = Math.hypot(hip.x - knee.x, hip.y - knee.y)
-  if (thighLength < MIN_RELIABLE_THIGH_LENGTH) return null
-  const facingDirection = toe.x - ankle.x >= 0 ? 1 : -1
-  return ((knee.x - toe.x) * facingDirection) / thighLength
-}
 
 // 어깨-엉덩이 직선거리 / 발 길이. 등이 곧게 펴져 있으면 척추 길이에 가깝게, 둥글게
 // 말리면(등 굽음) 짧아진다. 값이 작을수록 등이 굽은 쪽 — 기준치 없이 이 값 하나만으로는
@@ -237,51 +110,14 @@ function getTorsoLengthRatio(landmarks, side = 'auto') {
   return torsoLength / footLength
 }
 
-// 상체(어깨-엉덩이)와 정강이(무릎-발목)가 각각 수직선 대비 얼마나 앞으로 기울었는지를 구해서
-// 그 차이를 본다. 정강이는 거의 안 기울었는데(발목 가동범위가 부족해 무릎이 발끝 쪽으로
-// 못 나감) 상체만 훨씬 더 기울어 있다면, 발목 대신 상체가 그 부족분을 보상하고 있다는
-// 뜻이고, 무게중심이 지지기반(발) 뒤쪽에 가깝게 남는다 — "앞에 반대 방향 무게(바/플레이트)가
-// 없으면 뒤로 넘어갈 것 같다"는 인상으로 이어지는 자세다.
-// (2026-08-27 추가) 팀에서 "무게중심이 무너진 것 같다"고 지적한 실제 사진 2장(다른 사람·
-// 다른 기구·다른 출처, checklist 2026-08-27 addendum 8번 참고)에서 이 값이 각각 27.2도·
-// 28.9도로 나왔고, 확인된 정상 사진 10장은 전부 -2.0~23.3도 사이였다. 상체·정강이 각각의
-// 절대 기울기는 체형(다리 길이 등)에 따라 편차가 컸지만(정상 사진만 봐도 상체 기울기가
-// 15.6~48.9도로 넓게 퍼짐 — 절대각도 단독으로는 정상/이상이 안 갈렸다), 두 값의 "차이"는
-// 체형과 무관하게 정상군과 나쁜 사례가 갈리는 것을 확인했다.
-// 먼저 시도했던 "엉덩이가 지지기반(발뒤꿈치)보다 얼마나 뒤로 벗어났는지"(발 길이/허벅지
-// 길이로 각각 정규화) 지표는 실측에서 정상 사진들과 구분이 안 됐고(정상 사진 안에서도
-// 편차가 너무 컸음), 예전에 비슷한 접근(어깨-무릎 직선 기준 엉덩이 이탈)을 실제 적용했을 때
-// 모든 사진에서 이상이 뜨는 문제로 폐기했던 것과 같은 실패 패턴이라 이번엔 채택하지 않았다.
-// TODO: 팀 확정 필요(중요) — 나쁜 사례가 아직 2건뿐이라 임계값(rules.py의
-// TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG) 검증 표본이 매우 작다. 실사용자 테스트로 반드시
-// 재검증할 것.
-function getTorsoShinLeanGapDeg(landmarks, side = 'auto') {
-  const chosen = selectSide(landmarks, side)
-  const [shoulderIdx, hipIdx, kneeIdx, ankleIdx, toeIdx] =
-    chosen === 'left'
-      ? [LEFT_SHOULDER, LEFT_HIP, LEFT_KNEE, LEFT_ANKLE, LEFT_FOOT_INDEX]
-      : [RIGHT_SHOULDER, RIGHT_HIP, RIGHT_KNEE, RIGHT_ANKLE, RIGHT_FOOT_INDEX]
-  const shoulder = landmarks[shoulderIdx]
-  const hip = landmarks[hipIdx]
-  const knee = landmarks[kneeIdx]
-  const ankle = landmarks[ankleIdx]
-  const toe = landmarks[toeIdx]
-  const footLength = Math.abs(ankle.x - toe.x)
-  if (footLength < MIN_RELIABLE_FOOT_LENGTH) return 0
-  const facingDirection = toe.x - ankle.x >= 0 ? 1 : -1
-
-  const torsoDx = (shoulder.x - hip.x) * facingDirection
-  const torsoDy = -(shoulder.y - hip.y)
-  const torsoLeanDeg = (Math.atan2(torsoDx, torsoDy) * 180) / Math.PI
-
-  const shinDx = (knee.x - ankle.x) * facingDirection
-  const shinDy = -(knee.y - ankle.y)
-  const shinLeanDeg = (Math.atan2(shinDx, shinDy) * 180) / Math.PI
-
-  return torsoLeanDeg - shinLeanDeg
-}
 
 // ---- 정면 촬영 전용(무릎 모임) ----
+
+// 이 함수만 squatPose.js에서 가져오지 않고 여기 남겨뒀다. 같은 이름이지만 동작이 다르다:
+// squatPose.js 쪽은 "측면 사진을 정면 칸에 올렸을 때 무릎모임이 잘못 뜨는" 문제를 고치면서
+// 어깨 너비 가드(MIN_FRONTAL_SHOULDER_WIDTH)를 넣고 판정 불가일 때 null을 반환하도록 바뀌었다.
+// 이 페이지는 가드 없이 계산된 원시 값을 그대로 보여주는 게 목적이라(값이 안 나오면 왜 안
+// 나오는지 확인할 수가 없다) 옛 동작을 유지한다 — 서비스 판정에 쓰이는 건 squatPose.js 쪽이다.
 
 // 무릎 사이 너비 / 발목 사이 너비. 1.0 이상이면 정상, 작을수록 무릎이 안쪽으로 모인(valgus) 상태.
 function getKneeValgusRatio(frontLandmarks) {
@@ -356,19 +192,6 @@ function getPelvisTiltAngle(landmarks) {
   return horizontalTiltAngle(landmarks[LEFT_HIP], landmarks[RIGHT_HIP])
 }
 
-// 측면 랜드마크 1세트에서 AI-06(/ai/coaching/frame)의 AngleFrame에 필요한 필드만 뽑아낸다.
-// 사진 판정(requestJudgment)과 영상 판정(아래 handleVideoLoadedMetadata) 양쪽에서 같은
-// 함수를 공유해서 쓴다 — 계산 공식이 두 곳에서 따로 어긋나는 걸 막기 위함.
-function buildSideMetrics(landmarks) {
-  return {
-    knee_angle: getKneeAngle(landmarks),
-    hip_angle: getHipAngle(landmarks),
-    shoulder_forward_lean_deg: getShoulderForwardLeanDeg(landmarks),
-    heel_lift_ratio: getHeelLiftRatio(landmarks),
-    knee_over_toe_ratio: getKneeOverToeRatio(landmarks),
-    torso_shin_lean_gap_deg: getTorsoShinLeanGapDeg(landmarks),
-  }
-}
 
 // 33개 랜드마크를 사진 위에 그려서, 각도 계산에 실제로 쓰이는 지점이 어디인지 눈으로
 // 바로 확인할 수 있게 한다. 왼쪽=시안/오른쪽=마젠타로 구분.
@@ -512,22 +335,6 @@ function FrontalMeasurementPanel({ landmarks }) {
   )
 }
 
-// (2026-08-27) hip_hyperextension 라벨은 그 판정 로직 자체가 근거 부족으로 폐기되며
-// 함께 제거했다(rules.py의 HIP_HYPEREXTENSION_VALGUS_THRESHOLD 자리 주석 참고).
-// center_of_mass는 그 판정 로직을 추가할 때 이 라벨 매핑에 넣는 걸 빠뜨렸던 걸 이번에 보강.
-const PART_LABELS = {
-  knee: '무릎',
-  hip: '엉덩이',
-  shoulder: '어깨',
-  heel: '발뒤꿈치',
-  knee_valgus: '무릎 모임',
-  knee_over_toe: '무릎-발끝',
-  back_rounded: '등 굽음',
-  center_of_mass: '무게중심',
-  form_pattern: '전체 움직임 패턴',
-  movement: '움직임',
-  data: '데이터',
-}
 
 // AI-06(/ai/coaching/frame)이 돌려준 판정 결과를 그대로 보여준다 — 여기서 정상/이상을
 // 다시 계산하지 않는다(단일 출처 원칙: 판정은 항상 서버 응답 그대로 표시).

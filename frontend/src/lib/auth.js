@@ -100,6 +100,13 @@ function useAuthState() {
     return res.json()
   }
 
+  // 응답 본문을 쓰지 않는 케이스(DELETE, 저장만 하는 PUT). 성공/실패 판정 방식은
+  // authJson과 같게 두어, 이 파일의 모든 API가 같은 모양으로 실패하도록 한다.
+  const authOk = async (path, options, failMessage) => {
+    const res = await authFetch(path, options)
+    if (!res.ok) throw new Error(failMessage)
+  }
+
   useEffect(() => {
     const loadMe = () => {
       authJson('/api/users/me', {}, 'unauthorized')
@@ -165,34 +172,32 @@ function useAuthState() {
   // 잘못 등록한 기록 삭제. 지운 게 최신 기록이면 화면의 인바디도 이전 기록으로 되돌아가야 해서
   // 삭제 후 latest를 다시 읽어온다 (이력 재조회는 MyPage가 inbody 변화를 보고 알아서 함)
   const deleteInbody = (id) =>
-    authFetch(`/api/users/me/inbody/${id}`, { method: 'DELETE' }).then((res) => {
-      if (!res.ok) throw new Error('삭제에 실패했어요')
-      return authFetch('/api/users/me/inbody/latest')
+    authOk(`/api/users/me/inbody/${id}`, { method: 'DELETE' }, '삭제에 실패했어요').then(() =>
+      authFetch('/api/users/me/inbody/latest')
         .then((r) => (r.status === 200 ? r.json() : null))
-        .then(setInbody)
-    })
+        .then(setInbody),
+    )
 
   const getInbodyHistory = () =>
     authJson('/api/users/me/inbody/history', {}, '인바디 이력을 불러오지 못했어요')
 
   // 성별/키/출생연도. 목표 칼로리·기초대사량이 이 값으로 계산되므로 저장 후 프로필 상태도 같이 갱신함
   const updateBody = ({ gender, heightCm, birthYear }) =>
-    authFetch('/api/users/me/profile/body', {
+    authOk('/api/users/me/profile/body', {
       method: 'PUT',
       body: JSON.stringify({ gender, heightCm, birthYear }),
-    }).then((res) => {
-      if (!res.ok) throw new Error('신체 정보 저장에 실패했어요')
-      setProfile((prev) => ({ ...prev, gender, heightCm, birthYear }))
-    })
+    }, '신체 정보 저장에 실패했어요')
+      .then(() => setProfile((prev) => ({ ...prev, gender, heightCm, birthYear })))
 
+  // 예전엔 실패해도 예외 대신 false를 돌려줬는데, 부르는 쪽(MyPage.selectGoal)이 그 값을
+  // 읽지 않아 저장이 실패해도 성공한 것처럼 목표 칼로리를 다시 계산하러 갔다. 다른 API와
+  // 같이 예외를 던지게 바꿔서, 실패하면 뒤 단계가 이어지지 않는다.
   const updateGoal = (goal) =>
-    authFetch('/api/users/me/profile', {
+    authOk('/api/users/me/profile', {
       method: 'PUT',
       body: JSON.stringify({ name: profile?.name, profileImageUrl: profile?.profileImageUrl, goal }),
-    }).then((res) => {
-      if (res.ok) setProfile((prev) => ({ ...prev, goal }))
-      return res.ok
-    })
+    }, '목표 저장에 실패했어요')
+      .then(() => setProfile((prev) => ({ ...prev, goal })))
 
   const updateName = (name) =>
     authFetch('/api/users/me/profile', {
@@ -255,9 +260,7 @@ function useAuthState() {
     authJson('/api/users/me/chat/history', {}, '대화 이력을 불러오지 못했어요')
 
   const clearChatHistory = () =>
-    authFetch('/api/users/me/chat/history', { method: 'DELETE' }).then((res) => {
-      if (!res.ok) throw new Error('대화 기록을 지우지 못했어요')
-    })
+    authOk('/api/users/me/chat/history', { method: 'DELETE' }, '대화 기록을 지우지 못했어요')
 
   const getNutrientAdvice = () =>
     authJson('/api/users/me/chat/nutrient-advice', { method: 'POST' }, '분석을 받지 못했어요')

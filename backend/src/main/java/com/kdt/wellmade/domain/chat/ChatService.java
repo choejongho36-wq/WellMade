@@ -90,13 +90,6 @@ public class ChatService {
                   그 운동 방법을 한국어로 2~3문장으로 간단히 설명하세요.
             """;
 
-    // ChatToolExecutor.GOAL_LABEL과 같은 값 유지 (버킷 3개, 거의 안 바뀜)
-    private static final Map<Goal, String> GOAL_LABEL = Map.of(
-            Goal.LOSE, "체중감량",
-            Goal.GAIN, "근성장(벌크업)",
-            Goal.MAINTAIN, "체형 유지/건강관리"
-    );
-
     private final UserProfileService userProfileService;
     private final InbodyService inbodyService;
     private final MealLoggingService mealLoggingService;
@@ -422,7 +415,7 @@ public class ChatService {
                 목표 섭취량 - 칼로리: %.0fkcal, 단백질: %.0fg, 탄수화물: %.0fg, 지방: %.0fg
                 오늘 실제 섭취량 - 칼로리: %.0fkcal, 단백질: %.1fg, 탄수화물: %.1fg, 지방: %.1fg
                 """.formatted(
-                GOAL_LABEL.get(goal),
+                goal.label(),
                 target.kcal(), target.proteinG(), target.carbsG(), target.fatG(),
                 actual.totalCalories(), actual.totalProteinG(), actual.totalCarbsG(), actual.totalFatG()
         );
@@ -443,7 +436,7 @@ public class ChatService {
 
         sb.append("\n\n사용자 정보:");
         if (hasGoal) {
-            sb.append("\n- 목표: ").append(GOAL_LABEL.get(profile.getGoal()));
+            sb.append("\n- 목표: ").append(profile.getGoal().label());
         }
         // 체지방률 정상범위·권장 섭취량이 성별에 따라 다르므로 모델에게 같이 알려줌
         if (profile != null) {
