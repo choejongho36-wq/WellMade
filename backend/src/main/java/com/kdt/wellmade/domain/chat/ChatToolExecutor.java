@@ -116,6 +116,19 @@ public class ChatToolExecutor {
                             )
                     ),
                     List.of("body_part")
+            ),
+            toolDef(
+                    "get_exercise_detail",
+                    "운동 하나의 한국어 수행 방법을 가져온다. 추천한 운동 중 사용자가 하나를 지목하거나 "
+                  + "('플랭크는 어떻게 해?', '각 운동 설명해줘') 특정 운동의 방법을 물으면 반드시 이 도구를 "
+                  + "부를 것. 설명을 직접 지어내지 말 것 - 여러 개를 물으면 운동마다 한 번씩 호출할 것.",
+                    Map.of(
+                            "name", Map.of(
+                                    "type", "string",
+                                    "description", "운동 이름. 추천 목록에 보여준 한국어 이름 그대로 넣을 것."
+                            )
+                    ),
+                    List.of("name")
             )
     );
 
@@ -160,6 +173,7 @@ public class ChatToolExecutor {
                 case "get_nutrition_peer_comparison" -> toolGetNutritionPeerComparison(user, user.getId(), arguments);
                 case "calculate_nutrient_target" -> toolCalculateNutrientTarget(user);
                 case "recommend_exercises" -> toolRecommendExercises(arguments);
+                case "get_exercise_detail" -> toolGetExerciseDetail(arguments);
                 default -> toJson(Map.of("error", "알 수 없는 도구입니다: " + name));
             };
         } catch (Exception e) {
@@ -412,6 +426,17 @@ public class ChatToolExecutor {
             body.put("equipment", equipment);
         }
         return callAiServer("/ai/exercise/recommend", body, "body_part", "matched", "candidates", "note");
+    }
+
+    /**
+     * 지목한 운동 1건의 한국어 수행 방법. 이 도구가 없던 시절엔 모델이 설명을 직접 지어냈고,
+     * 근거 없는 자유 생성이라 중국어로 새는 턴이 나왔다(실측) - 데이터에 있는 한국어 설명을
+     * 넘겨서 "창작"을 "옮겨쓰기"로 바꾼다.
+     */
+    private String toolGetExerciseDetail(Map<String, Object> args) {
+        String name = argString(args, "name", "");
+        return callAiServer("/ai/exercise/detail", Map.of("name", name),
+                "found", "name", "target", "equipment", "instructions_ko", "note");
     }
 
     private LocalDate parseDateArgOrToday(Map<String, Object> args) {

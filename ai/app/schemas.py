@@ -371,6 +371,9 @@ class ExerciseCandidate(BaseModel):
     body_part: str
     equipment: str
     target: str
+    # 챗봇이 운동 방법을 지어내지 않도록 후보마다 한국어 설명을 같이 준다(자세한 배경은
+    # app/exercise/recommend.py의 candidates 주석 참고).
+    instructions_ko: str = ""
 
 
 class ExerciseRecommendResponse(BaseModel):
@@ -378,6 +381,27 @@ class ExerciseRecommendResponse(BaseModel):
     matched: int = Field(..., description="조건에 맞은 운동 총 개수")
     candidates: list[ExerciseCandidate]
     note: Optional[str] = Field(None, description="후보가 없을 때 사용자에게 보여줄 안내 문구")
+
+
+class ExerciseDetailRequest(BaseModel):
+    """운동 상세(/ai/exercise/detail) 요청. 추천 목록에서 사용자가 지목한 운동 하나."""
+
+    name: str = Field(..., description="운동 이름. 추천 목록에 보여준 한국어 이름이거나 그 일부")
+
+
+class ExerciseDetailResponse(BaseModel):
+    """
+    한 운동의 한국어 수행 방법. 챗봇이 설명을 지어내지 않고 이 값을 옮겨쓰게 하려는 응답이라
+    instructions_ko 를 반드시 함께 준다(없으면 found=False).
+    """
+
+    found: bool
+    name: Optional[str] = None
+    body_part: Optional[str] = None
+    equipment: Optional[str] = None
+    target: Optional[str] = None
+    instructions_ko: Optional[str] = Field(None, description="데이터셋의 한국어 수행 방법 원문")
+    note: Optional[str] = Field(None, description="못 찾았을 때 사용자에게 보여줄 안내 문구")
 
 
 # ---- 하네스 오케스트레이션 (AI-07) ----

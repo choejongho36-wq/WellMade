@@ -16,7 +16,10 @@ from typing import Optional
 
 DATA_PATH = Path(__file__).parent.parent / "rag" / "data" / "exercises_ko.json"
 
-MAX_CANDIDATES = 8
+# 후보마다 한국어 설명(instructions_ko, 평균 170자)을 같이 싣기 때문에 8건에서 3건으로 줄였다.
+# 모델은 어차피 2~3개를 골라 추천하므로 사용자가 보는 다양성은 그대로고(매번 random.sample),
+# 컨텍스트는 3x170 = 500자 수준으로 작다.
+MAX_CANDIDATES = 3
 
 VALID_BODY_PARTS = {
     "chest", "back", "shoulders", "upper arms", "lower arms",
@@ -103,16 +106,68 @@ def recommend(body_part: str, equipment: str = "") -> dict:
         }
 
     picked = random.sample(pool, min(MAX_CANDIDATES, len(pool)))
-    # steps(instruction_steps_ko)는 기계번역이라 영어 단어가 섞여 있고("engaged" 등), 8건을
-    # 다 실으면 Qwen이 언어 혼동으로 중국어로 새는 턴이 있었다(실측). 이름/부위/장비/타겟만
-    # 넘기고, 운동 방법 설명은 챗봇이 한국어로 직접 하게 둔다.
+    # 후보에 한국어 설명을 같이 싣는다. 예전엔 이름/부위/장비/타겟만 넘기고 "운동 방법 설명은
+    # 챗봇이 직접" 하게 뒀는데, 근거 없는 자유 생성이라 Qwen이 중국어로 새는 턴이 나왔다.
+    # 프롬프트로 "설명이 필요하면 도구를 부르라"고 시켜봤지만 모델이 도구를 부르지 않았다(6회 중 0회).
+    # 반대로 설명이 컨텍스트에 있으면 드리프트가 사라졌다(5회 중 0회) - 그래서 모델이 확실히
+    # 부르는 이 도구에 설명을 실어, 추천과 설명이 같은 턴에서 근거를 갖고 이뤄지게 한다.
     candidates = [
         {
             "name": e.get("name_ko") or e["name"],
             "body_part": e["body_part"],
             "equipment": e["equipment"],
             "target": e["target"],
+            "instructions_ko": e.get("instructions_ko") or "",
         }
         for e in picked
     ]
     return {"body_part": target, "matched": len(pool), "candidates": candidates, "note": None}
+
+
+def _normalize_name(raw: str) -> str:
+    """이름 비교용 정규화 - 공백 차이("벤치 프레스" vs "벤치프레스")로 못 찾는 걸 막는다."""
+    return "".join((raw or "").split()).lower()
+
+
+def find_detail(name: str) -> dict:
+    """
+    운동 이름 하나로 그 운동의 한국어 설명(instructions_ko)을 찾아 돌려준다.
+
+    챗봇이 추천 목록을 보여준 뒤 사용자가 "플랭크는 어떻게 해?"처럼 하나를 지목할 때 쓴다.
+    예전에는 이 단계에서 도구를 안 부르고 모델이 설명을 직접 지어내게 뒀는데, 근거 없는
+    자유 생성이라 Qwen이 중국어로 새는 턴이 나왔다(실측). 데이터에 1,324건 전부 한국어
+    설명이 있으므로 그걸 그대로 넘겨서 "창작"을 "옮겨쓰기"로 바꾼다.
+
+    :param name: 사용자가 지목한 운동 이름 (추천 목록에 보여준 name_ko 이거나 그 일부)
+    """
+    exercises = _load()
+    key = _normalize_name(name)
+    if not key:
+        return {"found": False, "note": "어떤 운동인지 알려주시면 설명해드릴게요."}
+
+    # 1) 정확히 같은 이름 (추천 목록에서 그대로 지목한 흔한 경우)
+    for e in exercises:
+        if key in (_normalize_name(e.get("name_ko")), _normalize_name(e.get("name"))):
+            return _detail_of(e)
+
+    # 2) 부분 일치 - "플랭크"처럼 짧게 말하면 9건이 걸린다(데이터에 플레인 "플랭크"는 없다).
+    #    수식어가 적은 쪽이 기본 동작에 가까우므로 이름이 가장 짧은 것을 고른다. 정확한 선택은
+    #    아니지만 실제 존재하는 운동의 실제 설명이고, 응답에 그 운동의 진짜 이름을 같이 실어서
+    #    챗봇이 "OO는 ~입니다"로 무엇을 설명하는지 밝히게 한다.
+    partial = [e for e in exercises if key in _normalize_name(e.get("name_ko"))]
+    if partial:
+        return _detail_of(min(partial, key=lambda e: len(e.get("name_ko") or "")))
+
+    return {"found": False, "note": f"'{name}' 운동을 찾지 못했어요. 추천해드린 목록 중에서 골라주세요."}
+
+
+def _detail_of(e: dict) -> dict:
+    return {
+        "found": True,
+        "name": e.get("name_ko") or e["name"],
+        "body_part": e["body_part"],
+        "equipment": e["equipment"],
+        "target": e["target"],
+        "instructions_ko": e.get("instructions_ko") or "",
+        "note": None,
+    }
