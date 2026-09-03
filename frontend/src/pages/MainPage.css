@@ -7,6 +7,9 @@
   justify-content: center;
   padding: 24px;
   overflow: hidden;
+  /* 히어로 전체가 클릭 대상(onClick=handleReveal)이라 클릭이 조금만 밀려도 문구가 파랗게 잡힌다.
+     예전엔 .hero-content에만 걸려 있어서 리빌 후 남는 태그라인·네비는 그대로 드래그됐다. */
+  user-select: none;
 }
 .hero-content {
   position: relative;
@@ -16,7 +19,6 @@
   align-items: center;
   gap: 32px;
   transition: opacity 1.4s ease, transform 1.4s ease;
-  user-select: none;
 }
 .hero.revealed .hero-content {
   opacity: 0;
