@@ -702,13 +702,39 @@
 }
 
 /* ============ 메모 (캘린더 아래) ============
-   캘린더와 같은 카드 문법을 쓰되, 캘린더가 주인공이므로 그림자는 빼고 한 단계 가볍게 둔다 */
-.diet-memo {
+   끼니 카드와 같은 티켓 문법 - 왼쪽 레드 스파인 + 흰 본문. 다만 카드를 기울이지는(skewX) 않는다:
+   본문이 여러 줄이라 기울이면 읽는 흐름이 흔들리고, 편집 중엔 어차피 스큐를 빼야 해서
+   읽기/편집이 서로 다른 컴포넌트처럼 보였다. 읽기와 편집이 같은 껍데기를 쓰는 게 중요. */
+.diet-memo,
+.diet-memo-view {
   margin-top: 14px;
-  background: #f9f8f5;
-  border: 1px solid #d8d6cf;
-  border-radius: 14px;
-  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #da291c;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+}
+/* 세로로 세운 라벨. 한글은 세로쓰기에서 자간이 흐트러져서 라틴 대문자를 쓴다
+   (페이지 상단 .page-index-tag의 "Calendar"와 같은 결) */
+.diet-memo-spine {
+  flex: none;
+  width: 38px;
+  background: #da291c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.diet-memo-spine span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font: 800 11px Archivo, sans-serif;
+  color: #fff;
+  letter-spacing: 0.16em;
+}
+.diet-memo-inner {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 18px;
 }
 .diet-memo-head {
   display: flex;
@@ -716,9 +742,11 @@
   gap: 8px;
   margin-bottom: 10px;
 }
+/* 스파인이 이미 "메모"라고 말하고 있어서, 여기 제목 자리는 날짜가 가져간다 */
 .diet-memo-title {
-  font: 800 13px Archivo, 'Noto Sans KR', sans-serif;
-  color: #111;
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.06em;
+  color: #77767c;
 }
 /* 저장 안 한 변경이 있다는 표시 - 날짜를 옮기면 사라지므로 눈에 띄어야 한다 */
 .diet-memo-dirty {
@@ -726,21 +754,41 @@
   font-weight: 700;
   color: #da291c;
 }
-/* 저장된 메모를 그대로 펼쳐 보여주는 칸. 입력 칸과 같은 카드 문법을 쓰되 읽기 전용이라
-   흰 바탕 대신 웜 오프화이트를 깔고 왼쪽에 레드 러그를 둬서 "결과물"로 읽히게 한다 */
-.diet-memo-view {
-  margin-top: 12px;
-  background: #f9f8f5;
-  border: 1px solid #d8d6cf;
-  border-left: 3px solid #da291c;
-  border-radius: 10px;
-  padding: 14px 16px;
-}
 .diet-memo-view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
   letter-spacing: 0.06em;
   color: #77767c;
   margin-bottom: 6px;
+}
+/* 끼니 카드의 수정/삭제(.diet-meal-actions)와 같은 텍스트 버튼 문법 */
+.diet-memo-view-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  letter-spacing: normal;
+}
+.diet-memo-edit,
+.diet-memo-delete {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif;
+  color: #9b9a96;
+  transition: color 0.15s ease;
+}
+.diet-memo-edit:hover,
+.diet-memo-delete:hover:not(:disabled) {
+  color: #da291c;
+}
+.diet-memo-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .diet-memo-view-body {
   margin: 0;
@@ -754,17 +802,19 @@
 
 /* 저장됐다는 확인 - 어디에 남는지까지 같이 알려준다 */
 .diet-memo-saved {
+  margin-top: 8px;
   font-size: 10.5px;
   font-weight: 700;
   color: #77767c;
 }
+/* 카드가 흰 바탕이 됐으므로 입력칸은 웜 오프화이트로 뒤집어서 경계를 만든다 */
 .diet-memo-input {
   width: 100%;
   min-height: 84px;
   resize: vertical;
   border: 1px solid #e5e3dd;
   border-radius: 8px;
-  background: #fff;
+  background: #f9f8f5;
   padding: 10px 12px;
   font-family: inherit;
   font-size: 12.5px;
@@ -811,21 +861,15 @@
   background: #d8d6cf;
   cursor: default;
 }
-.diet-memo-delete {
-  border: 1px solid #d8d6cf;
-  border-radius: 8px;
-  background: #fff;
-  color: #77767c;
-  font: 700 12px 'Noto Sans KR', sans-serif;
-  padding: 7px 14px;
+.diet-memo-cancel {
+  background: none;
+  border: none;
+  padding: 0;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  font: 700 12.5px 'Noto Sans KR', sans-serif;
+  color: #9b9a96;
 }
-.diet-memo-delete:hover:not(:disabled) {
-  background: #f4f2ee;
-  color: #da291c;
-}
-.diet-memo-delete:disabled {
-  color: #d8d6cf;
+.diet-memo-cancel:disabled {
+  opacity: 0.5;
   cursor: default;
 }

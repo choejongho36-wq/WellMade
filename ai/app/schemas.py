@@ -371,7 +371,6 @@ class ExerciseCandidate(BaseModel):
     body_part: str
     equipment: str
     target: str
-    steps: list[str]
 
 
 class ExerciseRecommendResponse(BaseModel):

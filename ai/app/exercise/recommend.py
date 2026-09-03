@@ -68,14 +68,22 @@ def normalize_body_part(raw: str) -> Optional[str]:
 
 def recommend(body_part: str, equipment: str = "") -> dict:
     """
-    :param body_part: 운동할 부위 (한국어 표현 또는 영문 body_part 키). 못 맞추면 전체에서 뽑는다.
+    :param body_part: 운동할 부위 (한국어 표현 또는 영문 body_part 키). 못 맞추면 후보를 비워
+                      돌려준다 - 엉뚱한 부위 8건을 던지면 챗봇이 그걸로 헛소리를 만든다.
     :param equipment: 장비/환경 힌트. "맨몸"/"집" 계열이면 body weight로, 그 외 문자열이면
                       equipment 부분일치로 좁힌다. 좁힌 결과가 비면 부위 필터까지만 적용한다.
     """
     exercises = _load()
     target = normalize_body_part(body_part)
+    if target is None:
+        return {
+            "body_part": "",
+            "matched": 0,
+            "candidates": [],
+            "note": "어느 부위 운동인지 알려주시면 추천해드릴게요. (예: 가슴, 등, 어깨, 팔, 복근, 하체, 종아리)",
+        }
 
-    pool = [e for e in exercises if e["body_part"] == target] if target else list(exercises)
+    pool = [e for e in exercises if e["body_part"] == target]
 
     eq = (equipment or "").strip().lower()
     if eq:
@@ -95,16 +103,16 @@ def recommend(body_part: str, equipment: str = "") -> dict:
         }
 
     picked = random.sample(pool, min(MAX_CANDIDATES, len(pool)))
-    # ponytail: 후보 8건에 steps 전문을 다 실어 보낸다(≈1k토큰). num_ctx 8192라 아직 여유가
-    # 있지만, 모델이 시스템 프롬프트를 잃기 시작하면 steps를 첫 항목만 남기거나 빼면 된다.
+    # steps(instruction_steps_ko)는 기계번역이라 영어 단어가 섞여 있고("engaged" 등), 8건을
+    # 다 실으면 Qwen이 언어 혼동으로 중국어로 새는 턴이 있었다(실측). 이름/부위/장비/타겟만
+    # 넘기고, 운동 방법 설명은 챗봇이 한국어로 직접 하게 둔다.
     candidates = [
         {
             "name": e.get("name_ko") or e["name"],
             "body_part": e["body_part"],
             "equipment": e["equipment"],
             "target": e["target"],
-            "steps": e.get("instruction_steps_ko") or [],
         }
         for e in picked
     ]
-    return {"body_part": target or "", "matched": len(pool), "candidates": candidates, "note": None}
+    return {"body_part": target, "matched": len(pool), "candidates": candidates, "note": None}
