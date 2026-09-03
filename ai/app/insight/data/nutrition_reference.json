@@ -1,0 +1,137 @@
+{
+  "source": "질병관리청 2024 국민건강통계 (국민건강영양조사)",
+  "survey_year": 2024,
+  "ratio_baseline": "2020 한국인 영양소 섭취기준(보건복지부) 기준 권장섭취량 대비 비율",
+  "groups": {
+    "M": {
+      "10-18": {
+        "sample_size": 264.0,
+        "energy_kcal": 2158.0,
+        "protein_g": 84.7,
+        "fat_g": 69.1,
+        "carbs_g": 292.1,
+        "energy_ratio_pct": 88.2,
+        "protein_ratio_pct": 142.6
+      },
+      "19-29": {
+        "sample_size": 317.0,
+        "energy_kcal": 2180.5,
+        "protein_g": 94.3,
+        "fat_g": 68.4,
+        "carbs_g": 275.7,
+        "energy_ratio_pct": 83.9,
+        "protein_ratio_pct": 145.0
+      },
+      "30-39": {
+        "sample_size": 288.0,
+        "energy_kcal": 2373.1,
+        "protein_g": 97.3,
+        "fat_g": 76.6,
+        "carbs_g": 283.9,
+        "energy_ratio_pct": 94.9,
+        "protein_ratio_pct": 149.6
+      },
+      "40-49": {
+        "sample_size": 382.0,
+        "energy_kcal": 2217.2,
+        "protein_g": 86.5,
+        "fat_g": 62.9,
+        "carbs_g": 279.7,
+        "energy_ratio_pct": 88.7,
+        "protein_ratio_pct": 133.2
+      },
+      "50-59": {
+        "sample_size": 444.0,
+        "energy_kcal": 2278.9,
+        "protein_g": 84.4,
+        "fat_g": 60.6,
+        "carbs_g": 304.8,
+        "energy_ratio_pct": 103.6,
+        "protein_ratio_pct": 140.7
+      },
+      "60-69": {
+        "sample_size": 522.0,
+        "energy_kcal": 2059.1,
+        "protein_g": 79.9,
+        "fat_g": 50.0,
+        "carbs_g": 295.9,
+        "energy_ratio_pct": 97.7,
+        "protein_ratio_pct": 133.1
+      },
+      "70+": {
+        "sample_size": 547.0,
+        "energy_kcal": 1837.1,
+        "protein_g": 66.6,
+        "fat_g": 37.9,
+        "carbs_g": 296.9,
+        "energy_ratio_pct": 94.7,
+        "protein_ratio_pct": 111.0
+      }
+    },
+    "F": {
+      "10-18": {
+        "sample_size": 267.0,
+        "energy_kcal": 1633.4,
+        "protein_g": 60.9,
+        "fat_g": 49.8,
+        "carbs_g": 232.3,
+        "energy_ratio_pct": 83.5,
+        "protein_ratio_pct": 115.7
+      },
+      "19-29": {
+        "sample_size": 378.0,
+        "energy_kcal": 1656.9,
+        "protein_g": 64.7,
+        "fat_g": 54.3,
+        "carbs_g": 213.1,
+        "energy_ratio_pct": 82.7,
+        "protein_ratio_pct": 117.3
+      },
+      "30-39": {
+        "sample_size": 341.0,
+        "energy_kcal": 1606.6,
+        "protein_g": 63.6,
+        "fat_g": 51.0,
+        "carbs_g": 208.5,
+        "energy_ratio_pct": 84.3,
+        "protein_ratio_pct": 126.6
+      },
+      "40-49": {
+        "sample_size": 522.0,
+        "energy_kcal": 1624.7,
+        "protein_g": 64.6,
+        "fat_g": 50.4,
+        "carbs_g": 214.0,
+        "energy_ratio_pct": 85.4,
+        "protein_ratio_pct": 128.8
+      },
+      "50-59": {
+        "sample_size": 641.0,
+        "energy_kcal": 1606.7,
+        "protein_g": 61.2,
+        "fat_g": 44.7,
+        "carbs_g": 233.1,
+        "energy_ratio_pct": 94.5,
+        "protein_ratio_pct": 122.3
+      },
+      "60-69": {
+        "sample_size": 719.0,
+        "energy_kcal": 1527.5,
+        "protein_g": 57.8,
+        "fat_g": 37.2,
+        "carbs_g": 238.4,
+        "energy_ratio_pct": 92.3,
+        "protein_ratio_pct": 115.6
+      },
+      "70+": {
+        "sample_size": 755.0,
+        "energy_kcal": 1369.4,
+        "protein_g": 50.6,
+        "fat_g": 29.5,
+        "carbs_g": 224.5,
+        "energy_ratio_pct": 89.2,
+        "protein_ratio_pct": 101.1
+      }
+    }
+  }
+}

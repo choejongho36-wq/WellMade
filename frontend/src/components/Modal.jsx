@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * 공용 모달 껍데기. 배경 클릭 / × 버튼 / Esc 로 닫히고, 열려 있는 동안 포커스를 안에 가둔다.
+ * 공용 모달 껍데기. × 버튼 / Esc 로 닫히고, 열려 있는 동안 포커스를 안에 가둔다.
+ *
+ * 배경(바깥) 클릭으로는 닫히지 않는다 - 실수로 바깥을 눌러 입력 중이던 내용을 잃는 걸 막기 위함.
  *
  * 키 이벤트를 document가 아니라 모달 엘리먼트에서 받는 이유: 모달이 겹쳐 뜰 때
  * (기록 모달 위에 에러 모달) 포커스를 가진 맨 위 모달에서만 Esc가 처리되게 하려고.
@@ -45,7 +47,7 @@ function Modal({ onClose, className = '', children }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={() => onCloseRef.current()}>
+    <div className="modal-backdrop">
       <div
         className={`modal ${className}`.trim()}
         ref={dialogRef}

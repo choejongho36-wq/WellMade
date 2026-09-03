@@ -66,6 +66,13 @@ public class InbodyService {
 
     @Transactional
     public InbodyRecord save(User user, InbodyConfirmRequest request) {
+        // 사진을 잘못 올려 다시 올리는 경우엔 새 점을 만들면 안 된다 - 없던 측정이 추이에 생기고
+        // 체중 변화까지 왜곡된다. 같은 트랜잭션에서 최신 1건을 지우고 새로 저장한다.
+        if (Boolean.TRUE.equals(request.replaceLatest())) {
+            inbodyRecordRepository.findTopByUserOrderByCreatedAtDesc(user)
+                    .ifPresent(inbodyRecordRepository::delete);
+        }
+
         InbodyRecord record = InbodyRecord.builder()
                 .user(user)
                 .weightKg(request.weightKg())
@@ -75,6 +82,14 @@ public class InbodyService {
                 .bmi(request.bmi())
                 .build();
         return inbodyRecordRepository.save(record);
+    }
+
+    /** 잘못 등록한 기록 지우기. 본인 것이 아니면 0건이 지워지므로 400으로 뱉는다. */
+    @Transactional
+    public void delete(User user, Long recordId) {
+        if (inbodyRecordRepository.deleteByIdAndUser(recordId, user) == 0) {
+            throw new IllegalArgumentException("삭제할 인바디 기록을 찾을 수 없습니다.");
+        }
     }
 
     @Transactional(readOnly = true)

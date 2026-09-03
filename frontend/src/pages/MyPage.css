@@ -83,6 +83,15 @@
 .mp-name-input:focus {
   border-color: #da291c;
 }
+.mp-name-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* 취소는 되돌리는 동작이라 브랜드 레드로 강조하지 않는다 */
+.mp-name-cancel {
+  color: #8b8a86;
+}
 .mp-name-error {
   margin-top: 4px;
   font-size: 11.5px;
@@ -115,6 +124,30 @@
   letter-spacing: 0.02em;
 }
 
+/* 인바디 태그 아래 붙는 BMI 또래 비교 한 줄 */
+.mp-bmi-insight {
+  margin-top: 12px;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #55534d;
+}
+.mp-measured-at {
+  margin-left: 8px;
+  font: 500 11.5px 'Noto Sans KR', sans-serif;
+  color: #9b9a96;
+}
+
+.mp-bmi-source {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #9b9a96;
+}
+
 .mp-inbody-empty {
   margin-top: 14px;
   transform: skewX(-4deg);
@@ -143,10 +176,284 @@
   cursor: pointer;
 }
 
-/* 인바디 추이 그래프 */
-.mp-trend {
+/* 인바디 히어로 + 오늘 식단을 반반으로 - 몸 상태와 오늘 입력을 한 줄에서 같이 본다 */
+.mp-overview {
   margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: stretch;
 }
+
+/* 인바디 대표 지표 히어로 - 검정 블록은 박스 끝까지 붙이고(시안 그대로),
+   제목·측정일·액션은 오른쪽 그래프 칸 위에 얹어 박스 안으로 넣었다 */
+.mp-hero {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #f9f8f5;
+}
+.mp-hero-head {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.mp-hero-title {
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.1em;
+  color: #77767c;
+}
+.mp-hero-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.mp-hero-delete {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: 700 12.5px Archivo, 'Noto Sans KR', sans-serif;
+  color: #9b9a96;
+}
+.mp-hero-delete:hover {
+  color: #da291c;
+}
+.mp-hero-main {
+  flex: none;
+  width: 208px;
+  padding: 20px 22px;
+  background: #111;
+  color: #fff;
+}
+.mp-hero-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.1em;
+  color: #b6b3ac;
+}
+.mp-hero-num {
+  margin-top: 4px;
+  font: 400 44px/1 'Archivo Black', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.mp-hero-num small {
+  margin-left: 4px;
+  font: 800 15px Archivo, sans-serif;
+}
+.mp-hero-sub {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: #b6b3ac;
+}
+/* 검정 바탕에서는 본문 레드(#da291c)가 죽어서 한 톤 밝은 레드를 쓴다 */
+.mp-hero-sub .up {
+  color: #ff6b5e;
+}
+.mp-hero-sub .down {
+  color: #7fd68d;
+}
+/* 목표는 레드 뱃지로 - 지표 이름과 색·형태가 달라서 "체중 체중유지"로 붙어 읽히지 않는다 */
+.mp-hero-goal {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #da291c;
+  font: 700 10px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+.mp-hero-chart {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mp-hero-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: #9b9a96;
+}
+
+/* 히어로 옆 오늘 식단 카드 */
+.mp-diet-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  background: #fff;
+}
+.mp-diet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mp-diet-label {
+  font: 800 11px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.1em;
+  color: #77767c;
+}
+/* 목표 대비 원 - 클릭하면 영양소 상세 모달. 탄단지 수치는 거기 다 있어서 여기선 안 보여줌 */
+.mp-diet-ring-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mp-diet-ring-row:disabled {
+  cursor: default;
+}
+.mp-diet-ring {
+  position: relative;
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+.mp-diet-ring svg {
+  width: 56px;
+  height: 56px;
+}
+.mp-diet-ring-bg {
+  fill: none;
+  stroke: #e5e3dd;
+  stroke-width: 8;
+}
+.mp-diet-ring-fg {
+  fill: none;
+  stroke: #da291c;
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+.mp-diet-ring-fg.over {
+  stroke: #111;
+}
+.mp-diet-ring-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.mp-diet-ring-num b {
+  font: 400 13px 'Archivo Black', sans-serif;
+  color: #111;
+  font-variant-numeric: tabular-nums;
+}
+.mp-diet-ring-num span {
+  font-size: 7.5px;
+  color: #9b9a96;
+}
+.mp-diet-ring-caption {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #55534d;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 아침/점심/저녁 세 칸 - 기록 없는 칸은 점선 테두리로 "없음"을 같은 모양으로 표시 */
+.mp-diet-slots {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.mp-diet-slot {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 9px;
+  border: 1px solid #da291c;
+  border-radius: 10px;
+  background: #f9f8f5;
+}
+.mp-diet-slot.empty {
+  border-style: dashed;
+  background: #fff;
+  align-items: center;
+  justify-content: center;
+}
+.mp-diet-slot-label {
+  font: 800 10px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.04em;
+  color: #9b9a96;
+}
+.mp-diet-slot.empty .mp-diet-slot-label {
+  align-self: flex-start;
+}
+.mp-diet-slot-items {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mp-diet-slot-item {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #111;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mp-diet-slot-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: #c9c6bf;
+}
+
+/* 나머지 지표 펼치기 */
+.mp-detail-toggle {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid #e5e3dd;
+  border-radius: 999px;
+  background: #fff;
+  color: #77767c;
+  font: 700 12px Archivo, 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+}
+.mp-detail-toggle:hover {
+  border-color: #da291c;
+  color: #da291c;
+}
+.mp-detail-caret {
+  transition: transform 0.15s ease;
+}
+.mp-detail-caret.open {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-detail-caret {
+    transition: none;
+  }
+}
+
+/* 인바디 추이 그래프 */
 .mp-trend-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -182,6 +489,15 @@
   background: #fff;
   padding: 10px 12px;
 }
+.mp-mini-axis {
+  margin-top: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 10.5px;
+  color: #9b9a96;
+  font-variant-numeric: tabular-nums;
+}
 .mp-mini-head {
   display: flex;
   justify-content: space-between;
@@ -204,6 +520,7 @@
 }
 .mp-mini-value {
   margin-top: 2px;
+  font-variant-numeric: tabular-nums;
   font: 800 18px Archivo, sans-serif;
   color: #111;
 }
@@ -213,11 +530,16 @@
   font-weight: 700;
   color: #9b9a96;
 }
+/* 점을 SVG 밖에 얹으므로 기준 상자가 필요하다. 여백은 여기가 갖고 svg는 0으로 두어야
+   점의 top%가 그래프 영역 기준이 된다 */
+.mp-spark-wrap {
+  position: relative;
+  margin-top: 6px;
+}
 .mp-spark {
   display: block;
   width: 100%;
   height: 40px;
-  margin-top: 6px;
 }
 .mp-spark-line {
   fill: none;
@@ -226,8 +548,28 @@
   stroke-linejoin: round;
   stroke-linecap: round;
 }
+/* 메인 히어로의 관절 포인트(.pose-kp)와 같은 생김새 - 흰 채움 + 브랜드 레드 테두리 */
 .mp-spark-dot {
-  fill: #da291c;
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #da291c;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.mp-spark-lg {
+  height: 64px;
+}
+.mp-spark-grid {
+  stroke: #e5e3dd;
+  stroke-width: 1;
+}
+.mp-spark-fill {
+  fill: url(#mp-spark-grad);
+  stroke: none;
 }
 .mp-mini-empty {
   height: 40px;
@@ -329,7 +671,7 @@
   padding: 11px 0;
   border: 1px solid #e5e3dd;
   border-radius: 8px;
-  background: transparent;
+  background: #f9f8f5;
   color: #111;
   font-size: 13.5px;
   font-weight: 700;
@@ -480,6 +822,16 @@
     align-items: flex-start;
     gap: 14px;
     padding: 20px;
+  }
+  .mp-overview {
+    grid-template-columns: 1fr;
+  }
+  /* 검정 블록 + 그래프가 한 줄에 안 들어감 */
+  .mp-hero {
+    flex-direction: column;
+  }
+  .mp-hero-main {
+    width: 100%;
   }
   /* 추이 미니카드는 auto-fit(150px)이라 폰에서 1열로 떨어짐 - 2열 유지 */
   .mp-trend-grid {

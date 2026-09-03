@@ -1,16 +1,15 @@
 import { useState } from 'react'
 import ChatDrawer from './ChatDrawer.jsx'
-import RobotIcon from './RobotIcon.jsx'
+import chatbotIcon from '../assets/Wellmade chatbot.png'
 import './ChatWidget.css'
 
-function ChatWidget({ loggedIn, sendChat, getChatHistory, getNutrientAdvice, userName }) {
+function ChatWidget({ loggedIn, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu, userName }) {
   const [open, setOpen] = useState(false)
 
   return (
     <>
       <button className="chat-fab" onClick={() => setOpen((o) => !o)} aria-label={open ? '챗봇 닫기' : '챗봇 열기'}>
-        <RobotIcon size={26} color="#111" />
-        <span className="chat-fab-label">CHAT</span>
+        <img className="chat-fab-icon" src={chatbotIcon} alt="" />
       </button>
       <ChatDrawer
         open={open}
@@ -18,7 +17,9 @@ function ChatWidget({ loggedIn, sendChat, getChatHistory, getNutrientAdvice, use
         onClose={() => setOpen(false)}
         sendChat={sendChat}
         getChatHistory={getChatHistory}
+        clearChatHistory={clearChatHistory}
         getNutrientAdvice={getNutrientAdvice}
+        sendChatMenu={sendChatMenu}
         userName={userName}
       />
     </>

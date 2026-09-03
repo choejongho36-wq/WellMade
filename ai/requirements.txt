@@ -22,6 +22,9 @@ httpx>=0.27              # FastAPI TestClient가 내부적으로 사용
 # 엄격히 고정(==)해야 할 이유가 없어져 범위(>=)로 완화했다.
 scikit-learn>=1.4
 pandas>=2.2   # prepare_posture_reference.py에서 CSV 로딩에 사용
+openpyxl>=3.1 # prepare_nutrition_reference.py에서 국민건강통계 엑셀 로딩에 사용
+# 위 둘은 ml_training/의 일회성 전처리 스크립트 전용이다 - 서버 런타임(app/)은 미리 만들어둔
+# JSON만 읽으므로(표준 라이브러리) 이 패키지들이 없어도 API는 정상 동작한다.
 
 # --- DTW 궤적 유사도 매칭 (app/pose/dtw_matching.py) ---
 # 허리 과신전/등 굽음을 실시간 영상에서 "정상 스쿼트 궤적과의 패턴 유사도"로 판정하기 위한

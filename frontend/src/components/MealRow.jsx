@@ -116,8 +116,9 @@ function MealRow({ meal, showLabel, expanded, onToggleExpand, onChanged, onError
               <input
                 className="diet-meal-edit-input diet-meal-edit-kcal"
                 type="number"
+                min="0"
                 value={editDraft.kcal}
-                onChange={(e) => setEditDraft((d) => ({ ...d, kcal: e.target.value }))}
+                onChange={(e) => setEditDraft((d) => ({ ...d, kcal: e.target.value.replace(/-/g, '') }))}
                 disabled={savingEdit}
               />
               {editDraft.menuName.trim() !== meal.menu_name && (
@@ -168,14 +169,18 @@ function MealRow({ meal, showLabel, expanded, onToggleExpand, onChanged, onError
                       <span className="diet-item-name">
                         {it.foodName}
                         {it.servings > 1 && <span className="diet-item-servings">×{it.servings}</span>}
+                        {it.matchTier === 'FUZZY' && (
+                          <span className="diet-item-badge-fuzzy">비슷한 이름으로 추정</span>
+                        )}
                       </span>
                       {editingIndex === idx ? (
                         <div className="diet-item-edit">
                           <input
                             className="diet-item-amount-input"
                             type="number"
+                            min="0"
                             value={amountDraft}
-                            onChange={(e) => setAmountDraft(e.target.value)}
+                            onChange={(e) => setAmountDraft(e.target.value.replace(/-/g, ''))}
                             disabled={savingItem}
                             autoFocus
                           />
@@ -212,14 +217,11 @@ function MealRow({ meal, showLabel, expanded, onToggleExpand, onChanged, onError
                     </div>
 
                     {it.matchTier === 'FUZZY' && (
-                      <div className="diet-item-confidence diet-item-confidence-low">
-                        ⚠️ 유사한 항목으로 추정했어요 - 확인해주세요
-                        <CandidateButtons
-                          item={it}
-                          onPick={(candidate) => pickCandidate(idx, candidate)}
-                          changing={changingIndex === idx}
-                        />
-                      </div>
+                      <CandidateButtons
+                        item={it}
+                        onPick={(candidate) => pickCandidate(idx, candidate)}
+                        changing={changingIndex === idx}
+                      />
                     )}
                     {it.userEntered && (
                       <div className="diet-item-confidence diet-item-confidence-mid">

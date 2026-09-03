@@ -1,24 +1,39 @@
 .cal {
   background: #f9f8f5;
-  border: 1px solid #e5e3dd;
+  /* 페이지 배경(#fff)과 밝기가 거의 같아 캘린더가 묻혔다. 테두리를 한 단계 진하게 하고
+     그림자를 얹어 카드로 떠 보이게 한다 */
+  border: 1px solid #d8d6cf;
   border-radius: 14px;
-  padding: 20px;
+  padding: 18px;
+  box-shadow: 0 6px 22px rgba(17, 17, 17, 0.07);
 }
 .cal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #111;
 }
 .cal-title {
-  font: 800 14px Archivo, 'Noto Sans KR', sans-serif;
+  font: 800 20px Archivo, 'Noto Sans KR', sans-serif;
   color: #111;
+  line-height: 1;
+}
+.cal-year {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9b9a96;
+}
+.cal-nav-group {
+  display: flex;
+  gap: 6px;
 }
 .cal-nav {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  border: 1px solid #e5e3dd;
+  border: 1px solid #d8d6cf;
   background: #fff;
   color: #111;
   font-size: 14px;
@@ -36,25 +51,32 @@
 .cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 4px;
 }
 .cal-weekday {
   text-align: center;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   color: #9b9a96;
-  padding: 4px 0;
+  letter-spacing: 0.04em;
+  padding: 6px 0;
 }
+.cal-weekday:first-child {
+  color: #da291c;
+}
+/* gap 1px + 같은 색 배경/외곽선 = 칸 사이 격자선. 실선을 따로 그리지 않아도
+   칸이 늘어나거나 줄어도 선이 어긋나지 않는다 */
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 1px;
+  background: #eceae4;
+  outline: 1px solid #eceae4;
 }
 .cal-cell {
   min-height: 62px;
   border: none;
-  border-radius: 8px;
-  background: transparent;
+  border-radius: 0;
+  background: #fff;
   color: #111;
   cursor: pointer;
   display: flex;
@@ -65,11 +87,10 @@
   overflow: hidden;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
-.cal-cell:hover:not(:disabled):not(.selected) {
-  background: #fff5f4;
-}
+/* 예전엔 visibility:hidden 이었는데, 격자선을 gap으로 그리는 지금은 그러면
+   그 자리에 격자 배경색(#eceae4)이 통째로 드러난다. 빈 칸도 흰 칸으로 둔다 */
 .cal-cell.empty {
-  visibility: hidden;
+  background: #fff;
   cursor: default;
 }
 .cal-cell-top {
@@ -93,12 +114,27 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 메모가 있는 날 표시. 히트맵이 레드 계열이라 잉크색 점을 써서 "다른 축의 정보"임을 구분한다 */
+.cal-cell-memo {
+  flex: none;
+  margin-left: auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #111;
+}
+.cal-cell.selected .cal-cell-memo {
+  background: #fff;
+}
+.cal-cell:disabled .cal-cell-memo {
+  background: #d8d6cf;
+}
 .cal-cell-kcal {
   margin-top: auto;
   width: 100%;
   font-size: 8.5px;
   font-weight: 700;
-  color: #77767c;
+  color: #6f6e6a;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -109,6 +145,15 @@
 }
 .cal-cell.holiday .cal-cell-day {
   color: #da291c;
+}
+/* 섭취량 히트맵. selected/hover 보다 앞에 둬서 그 둘이 항상 이기게 한다 */
+.cal-cell.k1 { background: #fdf3f2; }
+.cal-cell.k2 { background: #fbe6e4; }
+.cal-cell.k3 { background: #f6cdc9; }
+.cal-cell.k4 { background: #efb0aa; }
+
+.cal-cell:hover:not(:disabled):not(.selected) {
+  background: #f2e2e0;
 }
 .cal-cell.selected {
   background: #da291c;
@@ -133,8 +178,8 @@
   .cal {
     padding: 14px;
   }
-  .cal-grid {
-    gap: 3px;
+  .cal-title {
+    font-size: 17px;
   }
   .cal-cell {
     padding: 3px;

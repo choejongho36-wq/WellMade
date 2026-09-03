@@ -27,6 +27,10 @@ from app.schemas import (
     OrchestrateRequest,
     OrchestrateResponse,
     PoseIssue,
+    BmiInsightRequest,
+    BmiInsightResponse,
+    NutritionPeerCompareRequest,
+    NutritionPeerCompareResponse,
     PostureInsightRequest,
     PostureInsightResponse,
     RagGuideRequest,
@@ -48,6 +52,8 @@ from app.schemas import (
 
 from app.coaching.llm_model_compare import compare_models
 from app.coaching.realtime import judge_realtime_coaching
+from app.insight.bmi_percentile import compute_bmi_insight
+from app.insight.nutrition_peer import compare_with_peers
 from app.insight.posture_percentile import compute_posture_insight
 from app.orchestration.harness import decide_next_action
 from app.pose.angles import (
@@ -319,6 +325,77 @@ def posture_insight(
 
 
 # ===========================================================================
+# 영양 섭취 또래 비교 (posture-insight의 자매 기능)
+# ===========================================================================
+
+
+@app.post(
+    "/ai/nutrition/peer-compare",
+    response_model=NutritionPeerCompareResponse,
+)
+def nutrition_peer_compare(
+    request: NutritionPeerCompareRequest,
+):
+    """
+    영양 섭취 또래 비교 API.
+
+    백엔드가 집계해둔 하루 섭취량을 받아, 질병관리청 2024 국민건강통계의
+    성별×연령대별 평균과 비교한 결과를 돌려준다.
+
+    posture-insight와 달리 백분위가 아니라 "평균 대비 몇 %"를 낸다 —
+    원 통계가 집계값(평균+표준오차)만 공개해 분포가 없기 때문이다.
+    정상/이상 판정은 하지 않는다(목표 대비 판정은 백엔드의 목표 섭취량 계산이 담당).
+    """
+
+    age = date.today().year - request.birth_year
+
+    result = compare_with_peers(
+        intake={
+            "energy_kcal": request.energy_kcal,
+            "protein_g": request.protein_g,
+            "carbs_g": request.carbs_g,
+            "fat_g": request.fat_g,
+        },
+        gender=request.gender,
+        age=age,
+    )
+
+    return NutritionPeerCompareResponse(**result)
+
+
+# ===========================================================================
+# BMI 또래 비교 + 비만도 분류 (인바디 수치 해석)
+# ===========================================================================
+
+
+@app.post(
+    "/ai/inbody/bmi-insight",
+    response_model=BmiInsightResponse,
+)
+def bmi_insight(
+    request: BmiInsightRequest,
+):
+    """
+    BMI 인사이트 API.
+
+    대한비만학회 기준 분류와, 질병관리청 2024 국민건강통계의 성별×연령대별
+    백분위수 대비 위치를 함께 돌려준다.
+
+    체지방률·골격근량은 이 통계에 없어 또래 비교를 할 수 없다 — BMI만 지원한다.
+    """
+
+    age = date.today().year - request.birth_year
+
+    result = compute_bmi_insight(
+        bmi=request.bmi,
+        gender=request.gender,
+        age=age,
+    )
+
+    return BmiInsightResponse(**result)
+
+
+# ===========================================================================
 # AI-07. Orchestration
 # ===========================================================================
 
@@ -448,24 +525,3 @@ def llm_model_compare(
     )
 
     return ModelCompareResponse(**result)
-
-@app.post(
-    "/ai/session/report",
-    response_model=SessionReportResponse,
-)
-def session_report(
-    request: SessionReportRequest,
-):
-    result = generate_session_report(
-        frame_history=[
-            frame.model_dump()
-            for frame in request.frame_history
-        ],
-        session_duration_sec=request.session_duration_sec,
-        previous_sessions=[
-            previous.model_dump()
-            for previous in request.previous_sessions
-        ],
-    )
-
-    return SessionReportResponse(**result)

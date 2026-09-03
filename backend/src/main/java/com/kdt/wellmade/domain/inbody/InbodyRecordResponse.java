@@ -3,6 +3,7 @@ package com.kdt.wellmade.domain.inbody;
 import java.time.LocalDateTime;
 
 public record InbodyRecordResponse(
+    Long id,
     Double weightKg,
     Double skeletalMuscleMassKg,
     Double bodyFatPercentage,
@@ -12,6 +13,7 @@ public record InbodyRecordResponse(
 ) {
     public static InbodyRecordResponse from(InbodyRecord record) {
         return new InbodyRecordResponse(
+            record.getId(),
             record.getWeightKg(),
             record.getSkeletalMuscleMassKg(),
             record.getBodyFatPercentage(),
