@@ -6,6 +6,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,6 +118,16 @@ public class ChatToolExecutor {
                     List.of("body_part")
             )
     );
+
+    /**
+     * TOOLS에 정의된 도구 이름 모음. 모델이 툴콜을 구조화된 tool_calls 대신 본문 텍스트로 흘렸을 때
+     * 그게 툴콜인지 판별하고 회수하는 데 쓴다({@code ChatService.looksLikeToolCallText} 참고) -
+     * 도구를 추가하면 여기도 자동으로 따라오도록 TOOLS에서 뽑아 쓴다.
+     */
+    @SuppressWarnings("unchecked")
+    static final Set<String> TOOL_NAMES = TOOLS.stream()
+            .map(t -> (String) ((Map<String, Object>) t.get("function")).get("name"))
+            .collect(Collectors.toUnmodifiableSet());
 
     private final UserProfileService userProfileService;
     private final InbodyService inbodyService;

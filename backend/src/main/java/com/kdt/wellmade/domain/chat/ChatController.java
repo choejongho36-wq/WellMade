@@ -70,7 +70,12 @@ public class ChatController {
 
         chatStreamExecutor.execute(() -> {
             try {
-                chatService.replyStream(user, request.message(), delta -> sendJson(emitter, Map.of("t", delta)));
+                String action = chatService.replyStream(
+                        user, request.message(), delta -> sendJson(emitter, Map.of("t", delta)));
+                // 답변 뒤에 한 번만 - 프론트가 말풍선 아래에 버튼을 그린다 (예: 인바디 등록하러 가기)
+                if (action != null) {
+                    sendJsonQuietly(emitter, Map.of("action", action));
+                }
             } catch (ExternalServiceException e) {
                 // 원인은 ChatService 에서 이미 적절한 레벨로 로깅함. 안내 문구만 그대로 전달
                 sendJsonQuietly(emitter, Map.of("error", e.getMessage()));
@@ -106,11 +111,11 @@ public class ChatController {
     public ChatResponse menu(@AuthenticationPrincipal Long userId, @PathVariable String menuId) {
         // 이 경로도 같은 모델을 쓰므로 채팅과 같은 가드를 건다
         if (!generating.add(userId)) {
-            return new ChatResponse("아직 이전 질문에 답하고 있어요. 잠시만 기다려 주세요.");
+            return ChatResponse.of("아직 이전 질문에 답하고 있어요. 잠시만 기다려 주세요.");
         }
         try {
             User user = userService.getUser(userId);
-            return new ChatResponse(chatService.menuReply(user, userId, menuId));
+            return chatService.menuReply(user, userId, menuId);
         } finally {
             generating.remove(userId);
         }
@@ -120,11 +125,11 @@ public class ChatController {
     public ChatResponse nutrientAdvice(@AuthenticationPrincipal Long userId) {
         // 이 경로도 같은 모델을 쓰므로 채팅과 같은 가드를 건다
         if (!generating.add(userId)) {
-            return new ChatResponse("아직 이전 질문에 답하고 있어요. 잠시만 기다려 주세요.");
+            return ChatResponse.of("아직 이전 질문에 답하고 있어요. 잠시만 기다려 주세요.");
         }
         try {
             User user = userService.getUser(userId);
-            return new ChatResponse(chatService.nutrientAdvice(user, userId));
+            return chatService.nutrientAdvice(user, userId);
         } finally {
             generating.remove(userId);
         }

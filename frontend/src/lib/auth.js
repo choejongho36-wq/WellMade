@@ -221,6 +221,7 @@ function useAuthState() {
     const decoder = new TextDecoder()
     let buffer = ''
     let full = ''
+    let action = null   // 스트림 끝에 한 번 오는 후속 행동 신호 (예: register_inbody)
 
     for (;;) {
       const { done, value } = await reader.read()
@@ -247,13 +248,14 @@ function useAuthState() {
           continue
         }
         if (parsed.error) throw new Error(parsed.error)
+        if (parsed.action) action = parsed.action
         if (parsed.t) {
           full += parsed.t
           onDelta?.(full)
         }
       }
     }
-    return full
+    return { content: full, action }
   }
 
   const getChatHistory = () =>
@@ -264,7 +266,6 @@ function useAuthState() {
 
   const getNutrientAdvice = () =>
     authJson('/api/users/me/chat/nutrient-advice', { method: 'POST' }, '분석을 받지 못했어요')
-      .then((data) => data.content)
 
   // 날짜별 메모. 내용을 비워서 저장하면 서버가 그 날 메모를 지운다.
   const getWorkoutMemo = (date) =>
@@ -283,9 +284,9 @@ function useAuthState() {
 
   // 메뉴 버튼 답변. 자유 대화(sendChat)와 달리 서버가 도구를 직접 실행하므로 스트리밍이 아니다 -
   // 대신 라운드가 하나 줄고, 기록이 없으면 LLM 없이 즉시 응답한다.
+  // { content, action } 을 그대로 넘긴다 - action 은 말풍선 아래 버튼을 그리라는 신호
   const sendChatMenu = (menuId) =>
     authJson(`/api/users/me/chat/menu/${menuId}`, { method: 'POST' }, '답변을 받지 못했어요')
-      .then((data) => data.content)
 
   // date를 넘기면 그 날짜로 기록된다(깜빡한 지난 끼니 채워넣기). 생략하면 서버가 오늘로 처리
   const logMeal = (message, mealType, date) =>

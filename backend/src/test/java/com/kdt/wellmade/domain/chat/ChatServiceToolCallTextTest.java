@@ -49,6 +49,22 @@ class ChatServiceToolCallTextTest {
         assertEquals("2026-08-31", calls.get(0).function().arguments().get("date"));
     }
 
+    // 운동 추천 도구를 넣은 뒤 사용자 화면에 그대로 노출된 형태 (2026-09-03 스크린샷).
+    // <tool_call> 태그도 "name" 키도 없이 `도구이름 {인자}` 로만 흘러서, 예전 판별식은 못 잡았다.
+    private static final String LEAKED_BARE_NAME =
+            "dumpingbells, recommend_exercises {\"body_part\": \"어깨\", \"equipment\": \"덤벨\"}";
+
+    @Test
+    void recoversToolCallLeakedAsBareNameAndArgs() {
+        assertTrue(service.looksLikeToolCallText(LEAKED_BARE_NAME));
+
+        List<OllamaMessage.ToolCall> calls = service.parseToolCallsFromText(LEAKED_BARE_NAME);
+        assertEquals(1, calls.size());
+        assertEquals("recommend_exercises", calls.get(0).function().name());
+        assertEquals("어깨", calls.get(0).function().arguments().get("body_part"));
+        assertEquals("덤벨", calls.get(0).function().arguments().get("equipment"));
+    }
+
     @Test
     void plainAnswerIsNotMistakenForToolCall() {
         String normal = "어제는 기록된 식사가 없어요. 식단을 기록하면 확인해드릴게요.";

@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -58,6 +59,19 @@ public class ChatService {
     // 1라운드 본문을 사용자에게 흘리기 전에 도구 호출 텍스트인지 판별할 만큼만 붙잡아두는 길이
     private static final int TOOLCALL_SNIFF_CHARS = 48;
 
+    /**
+     * 답변에 붙일 후속 행동. 프론트가 이 값을 보고 말풍선 아래에 버튼을 그린다.
+     * 지금은 인바디 등록 유도 하나뿐이라 상수 하나로 둔다.
+     */
+    public static final String ACTION_REGISTER_INBODY = "register_inbody";
+
+    /**
+     * 인바디 기록이 있어야 답할 수 있는 도구들. 이걸 쓰려 했는데 기록이 없으면 "인바디가 없어서
+     * 못 알려준다"로 대화가 끊기므로, 등록 화면으로 가는 버튼을 답변에 같이 실어 보낸다.
+     */
+    private static final Set<String> INBODY_TOOLS = Set.of(
+            "get_inbody_history", "get_bmi_peer_comparison", "calculate_nutrient_target");
+
     // 예전 프롬프트는 역할을 "식단과 운동을 추천하는 어시스턴트"로 정의해서, 모델이 묻지도 않은
     // 추천을 매번 덧붙였다("안녕" -> 하루 식단표). 또 기록이 없을 때 어떻게 답할지 정해두지 않아
     // 없는 식단을 지어내기도 했다. 그래서 역할을 "물어본 것에 답하는" 쪽으로 좁히고, 하지 말아야
@@ -70,6 +84,7 @@ public class ChatService {
             1. 사용자가 물어본 것에만 답하세요. 묻지 않은 추천, 제안, 계획, 후속 질문을 덧붙이지 마세요.
             2. 식단이나 운동 추천은 사용자가 명시적으로 요청했을 때만 하세요.
             3. 답변은 2~4문장으로 짧게. 마크다운 헤더/표/목록/이모지 없이 대화체로 쓰세요.
+               코드블록(```)이나 백틱으로 감싸지 마세요. 수치도 그냥 문장 안에 쓰세요.
             4. 반드시 한국어로만 답하세요. 영어 단어나 중국어·한자를 섞지 말고 문장 전체를 한국어로 쓰세요.
             5. 직전에 한 답변을 다시 반복하지 마세요.
             6. 인사에는 한 문장으로 인사만 하세요. 무엇을 확인할지 되묻거나 제안하지 마세요.
@@ -88,6 +103,12 @@ public class ChatService {
                   2~3개 골라 한국어로 추천하세요. 목록에 없는 운동은 지어내지 마세요.
                 - 사용자가 추천한 운동 중 하나를 지목하면(예: "플랭크") 도구를 다시 부르지 말고,
                   그 운동 방법을 한국어로 2~3문장으로 간단히 설명하세요.
+            11. "또래", "평균", "남들과 비교" 같은 비교 질문은 get_bmi_peer_comparison 또는
+                get_nutrition_peer_comparison 도구 결과만 인용하세요.
+                - 아래 "사용자 정보"에 적힌 인바디 수치는 이 사용자 '본인' 값일 뿐 평균이 아닙니다.
+                  그 값만 보고 "평균보다 높다/낮다"를 판단하지 마세요.
+                - 도구를 부르지 않았거나 결과에 error가 있으면, 평균을 추측하지 말고
+                  "지금은 또래 비교를 할 수 없다"고만 답하세요.
             """;
 
     private final UserProfileService userProfileService;
@@ -123,7 +144,7 @@ public class ChatService {
      *
      * 도구 호출이 필요한 질문은 먼저 (비스트리밍) 도구를 해소한 뒤 최종 답변만 스트리밍한다.
      */
-    public void replyStream(User user, String rawMessage, Consumer<String> onDelta) {
+    public String replyStream(User user, String rawMessage, Consumer<String> onDelta) {
         String userMessage = validateAndTrim(rawMessage);
 
         List<OllamaMessage> messages = new ArrayList<>();
@@ -134,7 +155,7 @@ public class ChatService {
         messages.add(OllamaMessage.user(userMessage));
 
         StringBuilder full = new StringBuilder();
-        resolveToolsThenStream(user, messages, delta -> {
+        String action = resolveToolsThenStream(user, messages, delta -> {
             full.append(delta);
             onDelta.accept(delta);
         });
@@ -151,6 +172,7 @@ public class ChatService {
         // 있지 않으려는 의도. 두 저장 사이에 실패가 나도 사용자 메시지 한 줄만 남는 정도라 치명적이지 않음.
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(userMessage).build());
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(full.toString()).build());
+        return action;
     }
 
     /**
@@ -188,7 +210,7 @@ public class ChatService {
      * (도구가 돌려주는 note/error는 그래서 사람이 읽는 문장으로 쓰고, 모델에게만 필요한 지시는
      * instruction 키로 따로 뺐다.)
      */
-    public String menuReply(User user, Long userId, String menuId) {
+    public ChatResponse menuReply(User user, Long userId, String menuId) {
         MenuTool menu = menuTool(menuId);
         if (menu == null) {
             throw new IllegalArgumentException("알 수 없는 메뉴입니다: " + menuId);
@@ -202,7 +224,7 @@ public class ChatService {
 
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(menu.userLabel()).build());
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(reply).build());
-        return reply;
+        return new ChatResponse(reply, inbodyActionFor(user, List.of(menu.toolName())));
     }
 
     /** 도구 결과가 "데이터 없음"이면 사용자에게 그대로 보여줄 문구, 데이터가 있으면 null */
@@ -300,7 +322,7 @@ public class ChatService {
      * 순차적으로 여러 번 도구를 불러야 하는 질문은 지원하지 않는다(이 앱의 도구는 한 라운드에서
      * 병렬 호출로 충분함). tools를 뺀 마지막 호출이라 모델은 반드시 텍스트로 답한다.
      */
-    private void resolveToolsThenStream(User user, List<OllamaMessage> messages, Consumer<String> onDelta) {
+    private String resolveToolsThenStream(User user, List<OllamaMessage> messages, Consumer<String> onDelta) {
         // 1라운드 본문은 앞부분만 붙잡아두고 흘린다. Qwen이 도구 호출을 구조화된 tool_calls 대신
         // <tool_call>{"name":...} 텍스트로 흘리는 턴이 있는데(재현됨), 그대로 스트리밍하면 화면에
         // JSON이 뜬다. 도구를 부를지는 본문 앞부분만 보면 판별돼서, 홀드 비용은 몇 백 ms 수준이다.
@@ -327,7 +349,7 @@ public class ChatService {
             if (!releasedToUser[0]) {
                 onDelta.accept(held.toString());
             }
-            return;
+            return null;
         }
 
         // 도구를 부르는 턴이면 홀드분(툴콜 텍스트나 "확인해볼게요" 예고)은 화면에도 컨텍스트에도 넣지 않는다.
@@ -338,11 +360,27 @@ public class ChatService {
         }
 
         ollamaClient.chatCompletionStream(messages, false, onDelta);
+        return inbodyActionFor(user, toolCalls.stream().map(c -> c.function().name()).toList());
     }
 
-    /** 홀드 중인 본문이 모델이 텍스트로 흘린 도구 호출인지. 정상 답변이 이렇게 시작할 일은 없다. */
+    /** 인바디가 필요한 도구를 쓰려 했는데 기록이 없으면 "등록하러 가기" 버튼을 붙이라고 알린다 */
+    private String inbodyActionFor(User user, List<String> usedToolNames) {
+        boolean needsInbody = usedToolNames.stream().anyMatch(INBODY_TOOLS::contains);
+        return needsInbody && inbodyService.getLatest(user).isEmpty() ? ACTION_REGISTER_INBODY : null;
+    }
+
+    /**
+     * 홀드 중인 본문이 모델이 텍스트로 흘린 도구 호출인지. 정상 답변이 이렇게 시작할 일은 없다.
+     *
+     * 도구 이름까지 보는 이유: 예전엔 {@code <tool_call>} 태그나 {@code "name"} 키만 찾았는데,
+     * 모델이 그 둘 없이 `recommend_exercises {"body_part": "어깨"}` 처럼 이름 + 인자만 흘리는
+     * 턴이 실제로 나왔다(사용자 화면에 그대로 노출됨). 도구 이름은 정상 한국어 답변에 나올 말이 아니다.
+     */
     boolean looksLikeToolCallText(String content) {
-        return content.contains("<tool_call>") || content.contains("\"name\"");
+        if (content.contains("<tool_call>") || content.contains("\"name\"")) {
+            return true;
+        }
+        return ChatToolExecutor.TOOL_NAMES.stream().anyMatch(content::contains);
     }
 
     /**
@@ -358,14 +396,29 @@ public class ChatService {
         }
         try {
             JsonNode node = objectMapper.readTree(content.substring(start, end + 1));
+
+            // 형태 1 - {"name": "...", "arguments": {...}}
             String name = node.path("name").asText("");
-            if (name.isEmpty()) {
+            if (!name.isEmpty()) {
+                Map<String, Object> arguments = objectMapper.convertValue(
+                        node.path("arguments"), new TypeReference<Map<String, Object>>() {});
+                log.warn("모델이 도구 호출을 본문 텍스트로 흘려서 회수함: {}", name);
+                return List.of(new OllamaMessage.ToolCall(null, new OllamaMessage.FunctionCall(name, arguments)));
+            }
+
+            // 형태 2 - `recommend_exercises {"body_part": "어깨"}` 처럼 이름이 JSON 밖에 있고
+            // 중괄호 안은 인자만 있는 경우. 이때는 JSON 전체가 arguments다.
+            String bareName = ChatToolExecutor.TOOL_NAMES.stream()
+                    .filter(n -> content.lastIndexOf(n, start) >= 0)
+                    .findFirst()
+                    .orElse(null);
+            if (bareName == null) {
                 return List.of();
             }
             Map<String, Object> arguments = objectMapper.convertValue(
-                    node.path("arguments"), new TypeReference<Map<String, Object>>() {});
-            log.warn("모델이 도구 호출을 본문 텍스트로 흘려서 회수함: {}", name);
-            return List.of(new OllamaMessage.ToolCall(null, new OllamaMessage.FunctionCall(name, arguments)));
+                    node, new TypeReference<Map<String, Object>>() {});
+            log.warn("모델이 도구 호출을 '이름 + 인자' 텍스트로 흘려서 회수함: {}", bareName);
+            return List.of(new OllamaMessage.ToolCall(null, new OllamaMessage.FunctionCall(bareName, arguments)));
         } catch (Exception e) {
             return List.of();
         }
@@ -376,20 +429,21 @@ public class ChatService {
      * 계산(목표치 산출, 차이 비교)은 전부 결정론적 수식이고, LLM은 그 결과를 자연어로 풀어주는 역할만 함.
      * 필요한 데이터를 이미 프롬프트에 다 박아넣기 때문에 툴콜링은 쓰지 않음.
      */
-    public String nutrientAdvice(User user, Long userId) {
+    public ChatResponse nutrientAdvice(User user, Long userId) {
         InbodyRecord inbody = inbodyService.getLatest(user).orElse(null);
         if (inbody == null || inbody.getWeightKg() == null) {
-            return "인바디 정보가 없어서 분석할 수 없어요. 마이페이지에서 인바디를 먼저 등록해주세요.";
+            return new ChatResponse("인바디 정보가 없어서 분석할 수 없어요. 아래 버튼으로 인바디를 먼저 등록해주세요.",
+                    ACTION_REGISTER_INBODY);
         }
 
         UserProfile profile = getProfileOrNull(user);
         if (profile == null || profile.getGoal() == null) {
-            return "목표가 설정되어 있지 않아요. 마이페이지에서 목표(체중감량/근육증가/체중유지)를 먼저 설정해주세요.";
+            return ChatResponse.of("목표가 설정되어 있지 않아요. 마이페이지에서 목표(체중감량/근육증가/체중유지)를 먼저 설정해주세요.");
         }
 
         MealLoggingService.DailyTotal actual = mealLoggingService.getTotalForDate(userId, LocalDate.now());
         if (actual.mealCount() == 0) {
-            return "오늘 기록된 식사가 아직 없어요. 식단을 기록하면 목표 대비 분석해드릴게요.";
+            return ChatResponse.of("오늘 기록된 식사가 아직 없어요. 식단을 기록하면 목표 대비 분석해드릴게요.");
         }
 
         Goal goal = profile.getGoal();
@@ -405,7 +459,7 @@ public class ChatService {
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(userLabel).build());
         chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(reply).build());
 
-        return reply;
+        return ChatResponse.of(reply);
     }
 
     private String buildAdviceContext(Goal goal, NutrientTarget target, MealLoggingService.DailyTotal actual) {

@@ -3,6 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import chatbotIcon from '../assets/Wellmade chatbot.png'
 import './ChatDrawer.css'
 
+/**
+ * 모델이 가끔 답변을 ```plaintext ... ``` 코드펜스로 감싸서 보낸다(프롬프트로 금지해도 확률적으로 샘).
+ * 말풍선은 마크다운을 렌더하지 않으므로 백틱과 "plaintext"가 사용자에게 그대로 보인다.
+ * 펜스 줄만 걷어내고 안쪽 내용은 살린다 - 스트리밍 중간 조각과 DB에 이미 저장된 이력에도 같이 적용된다.
+ */
+function stripCodeFences(text) {
+  return typeof text === 'string' ? text.replace(/^ *```.*$\n?/gm, '') : text
+}
+
+// 서버(ChatService.ACTION_*)가 답변에 실어 보내는 후속 행동 -> 말풍선 아래 버튼.
+// 값을 모르는 action 이 오면 버튼을 안 그린다(옛 프론트가 새 서버를 만나도 깨지지 않게).
+const ACTION_BUTTONS = {
+  register_inbody: { label: '인바디 등록하러 가기', path: '/mypage' },
+}
+
 // 예전에는 send 문장을 그대로 모델에게 보내고 모델이 알아서 도구를 고르길 기대했는데, 그 "고르기"가
 // 확률적으로 실패했다(툴콜을 텍스트로 흘리거나 아예 안 부르고 지어냄). 버튼을 누른 시점에 이미 어떤
 // 데이터를 볼지는 정해져 있으므로, 이제 menu:true 항목은 id를 서버로 보내고 서버가 도구를 직접 실행한다
@@ -108,14 +123,14 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
     }
 
     sendChat(content, applyStream)
-      .then((reply) => {
+      .then(({ content: reply, action }) => {
         setMessages((prev) => {
           const copy = [...prev]
           const last = copy[copy.length - 1]
           if (last?.role === 'assistant' && last.streaming) {
-            copy[copy.length - 1] = { role: 'assistant', content: reply }
+            copy[copy.length - 1] = { role: 'assistant', content: reply, action }
           } else {
-            copy.push({ role: 'assistant', content: reply })
+            copy.push({ role: 'assistant', content: reply, action })
           }
           return copy
         })
@@ -138,8 +153,8 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
       setLoading(true)
       setError('')
       sendChatMenu(item.id)
-        .then((reply) => {
-          setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+        .then(({ content, action }) => {
+          setMessages((prev) => [...prev, { role: 'assistant', content, action }])
         })
         .catch((e) => setError(e.message || '답변을 받지 못했어요. 잠시 후 다시 시도해주세요.'))
         .finally(() => setLoading(false))
@@ -151,8 +166,8 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
       setLoading(true)
       setError('')
       getNutrientAdvice()
-        .then((reply) => {
-          setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+        .then(({ content, action }) => {
+          setMessages((prev) => [...prev, { role: 'assistant', content, action }])
         })
         .catch((e) => setError(e.message || '분석을 받지 못했어요. 잠시 후 다시 시도해주세요.'))
         .finally(() => setLoading(false))
@@ -259,7 +274,22 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
                       {messages[i - 1]?.role !== 'assistant' && <img className="chat-bot-img" src={chatbotIcon} alt="" />}
                     </div>
                   )}
-                  <div className="chat-bubble">{m.display ?? m.content}</div>
+                  <div className="chat-bubble-col">
+                    <div className="chat-bubble">
+                      {m.role === 'assistant' ? stripCodeFences(m.content) : (m.display ?? m.content)}
+                    </div>
+                    {ACTION_BUTTONS[m.action] && (
+                      <button
+                        className="chat-action-btn"
+                        onClick={() => {
+                          onClose()
+                          navigate(ACTION_BUTTONS[m.action].path)
+                        }}
+                      >
+                        {ACTION_BUTTONS[m.action].label}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
               {loading && !messages[messages.length - 1]?.streaming && (
