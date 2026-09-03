@@ -53,6 +53,21 @@ CENTER_OF_MASS_SHIFT_MESSAGE = (
     "무릎을 발끝 쪽으로 조금 더 내밀어서 정강이도 상체와 함께 앞으로 기울여주세요."
 )
 
+# (2026-09-03, 세 번째 정정) 사진 코칭(is_photo=True)에서 무게중심 값이 임곗값을 넘었을
+# 때 쓰는 "하단 별도 안내" 문구 — app/coaching/realtime.py의 center_of_mass 블록 참고.
+# 위 CENTER_OF_MASS_SHIFT_MESSAGE와 달리 issues 목록(정식 판정, is_normal 계산에
+# 포함)에는 넣지 않고, CoachingFrameResponse.center_of_mass_notice 필드로만 내려준다 —
+# 프론트는 이걸 "분석 결과" 패널이 아니라 그 아래 별도 영역에 보여준다. 사진 한 장
+# 기준의 낮은 확신도를 문구에도 반영해 "참고만 해주세요/확실하지 않다" 톤으로
+# CENTER_OF_MASS_SHIFT_MESSAGE보다 더 조심스럽게 썼다(원래는 검사 자체를 사진에서
+# 아예 뺐었는데, "정식 판정에서는 빼되 의심되면 하단에 따로 설명은 보여달라"는 요청으로
+# 최종 정정).
+CENTER_OF_MASS_PHOTO_SUSPECTED_MESSAGE = (
+    "참고로, 무게중심이 뒤로 쏠려 있는 것처럼 보이는 부분이 있어요. "
+    "사진 한 장만으로는 확실히 판단하기 어려우니 참고만 해주시고, "
+    "정확히 확인하고 싶다면 실시간 영상 코칭을 이용해보세요."
+)
+
 
 # (2026-08-27 추가) DTW 렙 패턴 유사도 판정(rules.py의 DTW_NEAREST_DISTANCE_THRESHOLD
 # 참고) 임곗값을 넘었을 때 쓰는 메시지. 이 판정은 무릎/엉덩이/등/무게중심처럼 "어느

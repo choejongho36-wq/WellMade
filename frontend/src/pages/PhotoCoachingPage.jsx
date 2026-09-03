@@ -36,14 +36,18 @@
  * 복제해 보내면 "정지" 상태로 인식해 실제 임계값 비교를 그대로 적용해준다는 점은 이전과
  * 동일 — 측면 사진은 항상 있으므로 AI-06은 매번 호출되고, 정면 사진이 있으면 무릎 모임
  * 값을 추가로 얹어 보낸다.
+ *
+ * (2026-09-03 추가) 운동 선택 드롭다운/운동방법 버튼을 이 페이지 헤더에서 빼서
+ * SquatModeSelectPage(사진모드/동영상모드를 고르는 화면)의 헤더로 옮겼다 — 모드를
+ * 먼저 고르기 전에 운동/운동방법을 한 번만 확인하면 되게 하려는 목적("사진모드
+ * 안에 들어가서 일일이 누르기 힘들다"는 요청). 같은 이유로 "분석하기" 버튼도
+ * 별도 줄이 아니라 "사진 코칭" 타이틀이 있는 section-head 줄 오른쪽으로 옮겼다.
  */
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import PageShell from '../components/PageShell.jsx'
 import Modal from '../components/Modal.jsx'
-import ExerciseGuideModal from '../components/ExerciseGuideModal.jsx'
-import ExerciseSelectDropdown from '../components/ExerciseSelectDropdown.jsx'
 import PhotoLandmarkEditor from '../components/PhotoLandmarkEditor.jsx'
 import PersonPickerOverlay from '../components/PersonPickerOverlay.jsx'
 import PhotoCropOverlay from '../components/PhotoCropOverlay.jsx'
@@ -61,7 +65,14 @@ function UploadNoticeModal({ onClose }) {
       <ul className="upload-notice-list">
         <li>전신이 옆모습(측면)으로 잘 보이는 사진을 올려주세요.</li>
         <li>사진이 흐리거나 신체 일부가 가려지면 분석이 부정확하거나 실패할 수 있어요.</li>
-        <li>이 분석 결과는 참고용이에요. 통증이 있다면 무리하지 말고 전문가와 상담해주세요.</li>
+        {/* (2026-09-03, 세 번째 정정) 무게중심(허리 젖혀짐/과신전)은 "정상/이상" 정식
+            판정(분석 결과)에는 포함하지 않는다(app/coaching/realtime.py의
+            center_of_mass 블록, is_photo 분기 참고) — 사진 한 장으로는 이 지표의 정식
+            판정 신뢰도를 보장할 수 없다고 판단했기 때문. 다만 의심되는 경우엔
+            AnalysisPanel 아래 별도 영역(CenterOfMassNotice)에 참고용으로만 안내한다 —
+            여기 모달은 그 한계를 미리 알려주는 용도. */}
+        <li>무게중심은 사진 한 장만으로 정확히 판단하긴 어려워요. 의심되는 경우 분석 결과 아래에 참고용으로만 안내해드리고, 정식 판정에는 포함하지 않아요. 정확히 확인하고 싶다면 실시간 영상 코칭을 이용해주세요.</li>
+        <li>이 분석 결과는 일반인 기준이에요. 통증이 있다면 무리하지 말고 전문가와 상담해주세요.</li>
       </ul>
     </Modal>
   )
@@ -71,7 +82,7 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
   return (
     <div className="squat-card photo-panel photo-slot-panel">
       <div className="photo-panel-head">
-        사진 미리보기 · {label}
+         {label}
         <span className={required ? 'photo-req-badge' : 'photo-optional-badge'}>{required ? '필수' : '선택'}</span>
       </div>
 
@@ -80,7 +91,7 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
           {slot.phase === 'idle' && (
             <button type="button" className="preview-placeholder" onClick={slot.openFilePicker}>
               <span className="preview-placeholder-icon">📷</span>
-              {label} 사진을 업로드해주세요
+              여기를 눌러 {label} 사진을 업로드해주세요
               {/* (2026-09-03) 별도 "사진 업로드" 버튼을 없애고 이 영역 클릭만으로 업로드하게
                   되면서, 그 버튼 아래 있던 파일 형식 안내 문구를 이 자리로 옮겨왔다. */}
               <span className="preview-placeholder-hint">JPG · PNG · 최대 10MB</span>
@@ -205,9 +216,22 @@ function AnalysisPanel({ session }) {
   )
 }
 
+// (2026-09-03 추가) 무게중심(허리 젖혀짐/과신전) 참고용 별도 안내 — "분석 결과"(정식
+// 판정)와는 별개 영역에, 서버가 center_of_mass_notice를 내려줬을 때만 보여준다. 정식
+// 판정(judgeResult.is_normal/issues)에는 영향을 주지 않는다는 걸 시각적으로도 구분하기
+// 위해 AnalysisPanel과 다른 카드로 분리했다.
+function CenterOfMassNotice({ notice }) {
+  if (!notice) return null
+  return (
+    <div className="squat-card photo-panel photo-panel-full center-of-mass-notice">
+      <div className="photo-panel-head">참고로 확인해보세요</div>
+      <p className="center-of-mass-notice-text">{notice}</p>
+    </div>
+  )
+}
+
 function PhotoCoachingPage() {
   const session = usePhotoCoachingSession()
-  const [guideOpen, setGuideOpen] = useState(false)
   // 초깃값 true — 이 페이지에 들어올 때마다(컴포넌트가 새로 마운트될 때) 자동으로 뜬다.
   const [noticeOpen, setNoticeOpen] = useState(true)
 
@@ -215,16 +239,21 @@ function PhotoCoachingPage() {
     <PageShell>
       <div className="page-eyebrow-row">
         <div className="page-index-tag">PHOTO COACHING</div>
-        <div className="photo-header-actions">
-          <ExerciseSelectDropdown value="squat" />
-          <button type="button" className="squat-btn squat-btn-outline photo-guide-btn" onClick={() => setGuideOpen(true)}>
-            운동방법
-          </button>
-        </div>
       </div>
 
       <div className="section-head">
         <div className="section-title">사진 코칭</div>
+        <div className="photo-analyze-inline">
+          <button
+            type="button"
+            className="squat-btn squat-btn-primary photo-analyze-btn"
+            onClick={session.runAnalysis}
+            disabled={!session.canAnalyze}
+          >
+            {session.analyzing ? '분석 중...' : '분석하기'}
+          </button>
+          {session.side.phase !== 'ready' && <p className="photo-analyze-hint">측면 사진을 먼저 올려주세요. 정면 사진은 선택이에요.</p>}
+        </div>
       </div>
 
       <div className="photo-upload-row">
@@ -232,28 +261,17 @@ function PhotoCoachingPage() {
         <PhotoSlotPanel slot={session.front} label="정면" required={false} alt="업로드한 정면 스쿼트 자세" />
       </div>
 
-      <div className="photo-analyze-row">
-        <button
-          type="button"
-          className="squat-btn squat-btn-primary photo-analyze-btn"
-          onClick={session.runAnalysis}
-          disabled={!session.canAnalyze}
-        >
-          {session.analyzing ? '분석 중...' : '분석하기'}
-        </button>
-        {session.side.phase !== 'ready' && <p className="photo-analyze-hint">측면 사진을 먼저 올려주세요. 정면 사진은 선택이에요.</p>}
-      </div>
-
       <div className="squat-card photo-panel photo-panel-full">
         <div className="photo-panel-head">분석 결과</div>
         <AnalysisPanel session={session} />
       </div>
 
+      <CenterOfMassNotice notice={session.centerOfMassNotice} />
+
       <p className="photo-back-link">
         <Link to="/squat">← 코칭 모드 다시 고르기</Link>
       </p>
 
-      {guideOpen && <ExerciseGuideModal onClose={() => setGuideOpen(false)} />}
       {noticeOpen && <UploadNoticeModal onClose={() => setNoticeOpen(false)} />}
     </PageShell>
   )

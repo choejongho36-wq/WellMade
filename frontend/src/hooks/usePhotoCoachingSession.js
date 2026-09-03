@@ -291,6 +291,12 @@ export function usePhotoCoachingSession() {
   const [judgeError, setJudgeError] = useState('')
   const [summary, setSummary] = useState(null) // { summary_message, generation_source }
   const [summaryError, setSummaryError] = useState('')
+  // (2026-09-03 추가) 무게중심(허리 젖혀짐/과신전) 참고용 별도 안내 — 서버가
+  // center_of_mass_notice 필드로 내려준다. issues(정식 판정)에는 안 들어가 있어서
+  // judgeResult.is_normal/issues와는 무관하게 별도로 다룬다("분석 결과" 패널이 아니라
+  // 페이지의 별도 하단 영역에 보여줌, PhotoCoachingPage.jsx 참고). photo-summary
+  // 요청에도 넣지 않는다 — 정식 분석 결과 요약에는 포함시키지 않기로 했기 때문.
+  const [centerOfMassNotice, setCenterOfMassNotice] = useState(null)
 
   const canAnalyze = side.phase === 'ready' && !analyzing
 
@@ -302,6 +308,7 @@ export function usePhotoCoachingSession() {
     setSummaryError('')
     setJudgeResult(null)
     setSummary(null)
+    setCenterOfMassNotice(null)
 
     const hasFront = front.phase === 'ready' && !!front.points
 
@@ -314,16 +321,22 @@ export function usePhotoCoachingSession() {
       const metrics = { ...sideMetrics, ...frontMetrics }
 
       const angle_history = [0, 0.1, 0.2].map((timestamp) => ({ timestamp, ...metrics }))
+      // is_photo: true — 사진 코칭 호출임을 서버에 알려, 무게중심(center_of_mass) 판정을
+      // 정식 판정(issues)에서 빼고 참고용 별도 필드(center_of_mass_notice)로만 받게
+      // 한다(2026-09-03, app/coaching/realtime.py의 center_of_mass 블록 참고). 실시간
+      // 영상 코칭(useSquatCoachingSession.js)은 이 플래그를 보내지 않아 기존 임곗값
+      // 판정을 그대로 유지한다.
       const res = await fetch(`${AI_BASE}/ai/coaching/frame`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ angle_history }),
+        body: JSON.stringify({ angle_history, is_photo: true }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const judged = await res.json()
-      const { is_normal, confidence, issues } = judged
+      const { is_normal, confidence, issues, center_of_mass_notice } = judged
 
       setJudgeResult({ is_normal, confidence, issues })
+      setCenterOfMassNotice(center_of_mass_notice || null)
 
       try {
         const summaryRes = await fetch(`${AI_BASE}/ai/coaching/photo-summary`, {
@@ -358,6 +371,7 @@ export function usePhotoCoachingSession() {
     judgeError,
     summary,
     summaryError,
+    centerOfMassNotice,
     runAnalysis,
   }
 }

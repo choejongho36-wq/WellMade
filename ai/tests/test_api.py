@@ -902,6 +902,113 @@ def test_coaching_frame_without_center_of_mass_field_still_works():
     assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
 
 
+# (2026-09-03, 세 번째 정정) 사진 코칭(is_photo=True)에서 무게중심(center_of_mass)은
+# 여전히 계산·비교되지만, 정식 판정(issues/is_normal)에는 들어가지 않고 임곗값을 넘을
+# 때만 별도 필드 center_of_mass_notice에 참고용 문구가 채워진다 — "아치"/"정상" 참고
+# 이미지 재검토 대화에서 사용자가 최종 결정(처음엔 이 검사를 사진에서 아예 뺐었는데,
+# "정식 판정에서는 빼되 의심되면 하단에 따로 설명은 보여달라"는 요청으로 다시 바뀌었다).
+# app/coaching/realtime.py의 center_of_mass 블록 참고.
+def test_coaching_frame_center_of_mass_photo_mode_notice_but_not_issue_when_above_threshold():
+    # is_photo=True + 임곗값 초과 → issues에는 안 들어가고(정식 판정에서 제외,
+    # is_normal에 영향 없음), center_of_mass_notice 필드에만 참고용 문구가 채워진다.
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG + 20.0,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history, "is_photo": True}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(center of mass, photo mode, above threshold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
+    assert data["is_normal"] is True, data
+    assert data["center_of_mass_notice"], data
+    assert "참고" in data["center_of_mass_notice"], data
+
+
+def test_coaching_frame_center_of_mass_photo_mode_no_notice_below_threshold():
+    # is_photo=True + 임곗값 미만(정상 범위) → issues에도 안 들어가고, notice 필드도
+    # None이어야 한다(임곗값을 넘을 때만 채워짐).
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG - 5.0,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history, "is_photo": True}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(center of mass, photo mode, below threshold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
+    assert data["center_of_mass_notice"] is None, data
+
+
+def test_coaching_frame_center_of_mass_photo_mode_no_notice_without_field():
+    # torso_shin_lean_gap_deg 필드 자체가 없으면(정면 전용 등) 사진 모드여도 당연히
+    # issues도 notice도 아무 것도 안 채워진다.
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
+    ]
+    body = {"angle_history": angle_history, "is_photo": True}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(no torso_shin_lean_gap_deg, photo mode):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
+    assert data["center_of_mass_notice"] is None, data
+
+
+def test_coaching_frame_center_of_mass_video_mode_notice_always_none():
+    # is_photo=False(영상 경로)에서는 임곗값을 넘어도 기존처럼 issues에 정식 판정으로
+    # 들어가고, center_of_mass_notice는 이 경로에서 쓰지 않으므로 항상 None이어야 한다.
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG + 2.0,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history, "is_photo": False}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(center of mass, video mode, above threshold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
+    assert data["is_normal"] is False, data
+    assert data["center_of_mass_notice"] is None, data
+
+
+def test_coaching_frame_center_of_mass_video_mode_still_uses_threshold():
+    # is_photo를 False로 보내면(또는 생략, 하위 호환) 기존 임곗값 판정 그대로 유지된다 —
+    # 임곗값 미만이면 안내가 안 붙어야 한다(위 사진 모드 테스트와 대조).
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 85 + (i % 2),
+            "hip_angle": 80 + (i % 2),
+            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG - 5.0,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history, "is_photo": False}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(center of mass, video mode, below threshold):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
+
+
 # (2026-08-27) DTW(동적 시간 워핑) 렙 패턴 유사도 판정 테스트. 다른 검사들과 달리 이
 # 검사는 정적인 마지막 프레임 값이 아니라 "렙 1개 전체의 움직임 곡선"을 실제 정상 렙
 # 템플릿 20개(app/pose/dtw_templates/*.json)와 비교하므로, 손으로 대충 지어낸 몇 개
@@ -1374,6 +1481,11 @@ if __name__ == "__main__":
     test_coaching_frame_without_torso_length_ratio_field_still_works()
     test_coaching_frame_center_of_mass_flagged_when_deep_hold()
     test_coaching_frame_without_center_of_mass_field_still_works()
+    test_coaching_frame_center_of_mass_photo_mode_notice_but_not_issue_when_above_threshold()
+    test_coaching_frame_center_of_mass_photo_mode_no_notice_below_threshold()
+    test_coaching_frame_center_of_mass_photo_mode_no_notice_without_field()
+    test_coaching_frame_center_of_mass_video_mode_notice_always_none()
+    test_coaching_frame_center_of_mass_video_mode_still_uses_threshold()
     test_coaching_frame_dtw_form_pattern_not_flagged_for_real_normal_rep()
     test_coaching_frame_dtw_form_pattern_flagged_when_severely_distorted()
     test_coaching_frame_dtw_skipped_when_optional_fields_missing()

@@ -164,6 +164,17 @@ class CoachingFrameRequest(BaseModel):
         "조회한다(app/coaching/hyperextension_llm_check.py 참고). 대기 중인 job이 없으면 "
         "생략한다.",
     )
+    is_photo: bool = Field(
+        False,
+        description="이 호출이 사진 코칭(정지 프레임, 3프레임 복제)에서 온 것인지. True면 "
+        "무게중심(torso_shin_lean_gap_deg 기반 center_of_mass)을 issues(정식 판정, "
+        "is_normal 계산에 포함)에는 넣지 않고, 임곗값을 넘을 때만 응답의 "
+        "center_of_mass_notice 필드에 참고용 문구를 담아 돌려준다(2026-09-03 — 사진 "
+        "한 장으로는 이 지표의 정식 판정 신뢰도를 보장할 수 없다고 판단, "
+        "app/coaching/realtime.py의 center_of_mass 블록 참고). 실시간 영상 호출(기본값 "
+        "False)은 기존처럼 issues에 바로 넣는 임곗값 판정을 유지하고, "
+        "center_of_mass_notice는 항상 None이다.",
+    )
 
 
 class CoachingFrameResponse(BaseModel):
@@ -180,6 +191,13 @@ class CoachingFrameResponse(BaseModel):
         "값을 저장해뒀다가 다음 호출들의 요청에 그대로 실어 보내면 된다. None이면 지금 "
         "기다릴 job이 없다는 뜻(방금 결과를 이슈로 받았거나, 애초에 없었음)이라 프론트가 "
         "들고 있던 이전 job id는 지워도 된다.",
+    )
+    center_of_mass_notice: Optional[str] = Field(
+        None,
+        description="사진 코칭(is_photo=True)에서 무게중심이 임곗값을 넘었을 때만 채워지는 "
+        "참고용 안내 문구(2026-09-03 추가). issues(정식 판정)에는 포함되지 않으므로 "
+        "is_normal 계산에 영향을 주지 않는다 — 프론트는 '분석 결과' 패널이 아니라 별도 "
+        "하단 영역에 보여줘야 한다. 실시간 영상 호출(is_photo=False)에서는 항상 None.",
     )
 
 

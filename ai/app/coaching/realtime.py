@@ -27,6 +27,7 @@ from app.coaching.hyperextension_llm_check import (
 from app.pose.coaching_messages import (
     BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE,
     BACK_ROUNDED_MESSAGE,
+    CENTER_OF_MASS_PHOTO_SUSPECTED_MESSAGE,
     CENTER_OF_MASS_SHIFT_MESSAGE,
     DTW_FORM_MISMATCH_MESSAGE,
     HEEL_LIFT_MESSAGE,
@@ -205,6 +206,7 @@ def judge_realtime_coaching(
     angle_history: list[AngleFrame],
     hip_calibration: HipFlexibilityCalibration | None = None,
     pending_llm_job_id: str | None = None,
+    is_photo: bool = False,
 ) -> dict:
     """
     최근 N프레임의 무릎/엉덩이 각도 시계열을 보고
@@ -216,12 +218,24 @@ def judge_realtime_coaching(
     pending_llm_job_id: 이전 호출에서 시작된 고관절 과신전 LLM 2차 확인 job이 있으면
     프론트가 그대로 실어 보낸다 — app/coaching/hyperextension_llm_check.py 모듈
     docstring, schemas.py의 CoachingFrameRequest/Response 필드 설명 참고.
+
+    is_photo: 사진 코칭(정지 프레임)에서 온 호출이면 True — 무게중심(center_of_mass)은
+    계산은 하되 정식 판정(issues, is_normal 계산에 들어감)에서는 빼고, 임곗값을 넘을 때만
+    반환값의 별도 필드 center_of_mass_notice에 "참고용" 문구를 담아 돌려준다(아래
+    center_of_mass 블록, schemas.py의 CoachingFrameRequest.is_photo /
+    CoachingFrameResponse.center_of_mass_notice 필드 설명 참고). 2026-09-03 — 처음엔
+    이 검사를 아예 사진에서 뺐다가, "정식 판정에서는 빼되 의심되면 하단에 별도로 설명은
+    보여달라"는 요청으로 최종 정정.
     """
     issues: list[dict] = []
     # 이번 응답에서 프론트가 계속 들고 있어야 할 job id — 기본은 "기다릴 것 없음"이고,
     # 아래 (1.5)/(1.6) 블록에서 새로 시작하거나 아직 안 끝난 이전 job을 그대로 돌려줄 때만
     # 채워진다.
     outgoing_llm_job_id: str | None = None
+    # (2026-09-03 추가) 사진 코칭(is_photo=True)에서 무게중심이 임곗값을 넘었을 때만
+    # 채워지는 "참고용 별도 안내" — issues 목록(정식 판정, is_normal 계산에 포함)과는
+    # 별개다. 아래 center_of_mass 블록 참고.
+    center_of_mass_notice: str | None = None
 
     # 프레임이 너무 적으면 추세를 신뢰할 수 없다. 예외를 던지는 대신 "정지"로 잠정 판단하고
     # 신뢰도만 낮게 준다 — 세션 시작 직후 프레임이 아직 안 쌓였을 때도 프론트가 매번
@@ -235,6 +249,7 @@ def judge_realtime_coaching(
             "confidence": round(len(angle_history) / MIN_FRAMES * 0.3, 2),
             "issues": [],
             "pending_llm_job_id": None,
+            "center_of_mass_notice": None,
         }
 
     timestamps = [f.timestamp for f in angle_history]
@@ -373,12 +388,28 @@ def judge_realtime_coaching(
             issues.append({"part": "knee_over_toe", "message": KNEE_OVER_TOE_MESSAGE})
         # 무게중심도 무릎-발끝과 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 동작
         # 중(내려가는/올라오는 도중)에는 상체-정강이 기울기 차이가 과도기적으로 커질 수 있다.
+        #
+        # (2026-09-03, 세 번째 정정) 사진 코칭(is_photo=True)에서는 이 값을 여전히
+        # 계산·비교하지만, issues 목록(정식 판정 — is_normal/점검 결과에 들어감)에는 넣지
+        # 않는다 — 참고 이미지("아치"/"정상" 분류) 재검토 대화에서 이 지표(무게중심/
+        # 과신전 방향)는 사진 한 장 기준 판정 신뢰도가 낮다고 판단했기 때문(표본도 원래
+        # 2~3건뿐인 잠정치, rules.py의 TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG 주석 참고).
+        # 대신 임곗값을 넘으면 별도 필드 center_of_mass_notice에 "참고용" 문구만 채워
+        # 반환한다 — 프론트가 "분석 결과" 패널이 아니라 그 아래 별도 영역에 보여준다
+        # (처음엔 검사 자체를 아예 뺐다가, "정식 판정에서는 빼되 의심되면 하단에 따로
+        # 설명은 보여달라"는 요청으로 최종 정정). 실시간 영상 경로(is_photo=False)는
+        # 기존처럼 issues에 바로 넣는 정식 판정을 유지한다(고관절 과신전을 더 정확히
+        # 보는 LLM 2차 확인(hyperextension_llm_check.py)이 렙 전체 시계열을 필요로 해
+        # 애초에 사진에서는 성립하지 않는다는 점도 이 결정의 배경).
         if (
             is_deep_hold
             and latest_torso_shin_lean_gap is not None
             and latest_torso_shin_lean_gap > TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG
         ):
-            issues.append({"part": "center_of_mass", "message": CENTER_OF_MASS_SHIFT_MESSAGE})
+            if is_photo:
+                center_of_mass_notice = CENTER_OF_MASS_PHOTO_SUSPECTED_MESSAGE
+            else:
+                issues.append({"part": "center_of_mass", "message": CENTER_OF_MASS_SHIFT_MESSAGE})
         # 등 굽음도 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 기준값
         # (hip_calibration.standing_shoulder_hip_ratio)이 없으면(캘리브레이션을 안 한 기존
         # 클라이언트) 검사 자체를 건너뛴다.
@@ -515,4 +546,5 @@ def judge_realtime_coaching(
         "confidence": round(confidence, 2),
         "issues": issues,
         "pending_llm_job_id": outgoing_llm_job_id,
+        "center_of_mass_notice": center_of_mass_notice,
     }

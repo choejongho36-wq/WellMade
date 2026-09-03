@@ -163,6 +163,10 @@ BACK_ROUNDING_RATIO_THRESHOLD = 0.85
 # 27.2도·28.9도로 정상군 범위 밖에 일관되게 모였다. 25.0은 이 둘 사이(정상 최댓값 23.3 /
 # 나쁜 사례 최솟값 27.2)의 중간 지점이다.
 # NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.
+# (2026-09-03, 세 번째 정정) 이 임곗값은 사진/영상 양쪽 다 계산·비교에 쓰이지만,
+# 사진 코칭(is_photo=True)에서는 결과가 issues(정식 판정)가 아니라 별도 필드
+# center_of_mass_notice로만 나간다 — 사진 한 장 기준으로는 이 지표의 정식 판정 신뢰도를
+# 보장할 수 없다고 판단했기 때문(app/coaching/realtime.py의 center_of_mass 블록 참고).
 TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG = 25.0
 
 

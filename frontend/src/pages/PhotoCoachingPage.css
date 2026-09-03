@@ -1,77 +1,6 @@
-/* ---- 헤더: 운동 선택 드롭다운 + 운동방법 버튼 (page-eyebrow-row 오른쪽에 나란히) ---- */
-.photo-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.photo-guide-btn {
-  padding: 8px 18px;
-  font-size: 12.5px;
-}
-
-.exercise-dropdown {
-  position: relative;
-}
-.exercise-dropdown-trigger {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #fff;
-  border: 1px solid #e5e3dd;
-  border-radius: 999px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #111;
-  cursor: pointer;
-}
-.exercise-dropdown-trigger:hover {
-  border-color: #da291c;
-}
-.exercise-dropdown-dot {
-  color: #da291c;
-  font-size: 9px;
-}
-.exercise-dropdown-arrow {
-  font-size: 9px;
-  color: #9b9a96;
-}
-.exercise-dropdown-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 140px;
-  background: #fff;
-  border: 1px solid #e5e3dd;
-  border-radius: 10px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
-  list-style: none;
-  margin: 0;
-  padding: 6px;
-  z-index: 20;
-}
-.exercise-dropdown-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  background: none;
-  border: none;
-  border-radius: 7px;
-  padding: 9px 10px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #111;
-  text-align: left;
-  cursor: pointer;
-}
-.exercise-dropdown-item:hover {
-  background: #f9f8f5;
-}
-.exercise-dropdown-check {
-  color: #da291c;
-}
+/* (2026-09-03) 헤더 드롭다운/운동방법 버튼 스타일(.photo-header-actions 등)은
+   SquatModeSelectPage로 옮기면서 squatShared.css(공용)로 이동했다 — 이 페이지 헤더에는
+   더 이상 없음. */
 
 /* ---- 업로드 전 확인해 주세요 모달(UploadNoticeModal) ---- */
 /* Modal.jsx 기본 .modal-title(검정 배너)을 그대로 쓰고, 본문 목록만 여기서 스타일링한다.
@@ -243,14 +172,13 @@
   color: #9b9a96;
 }
 
-/* ---- 분석하기 버튼 행 ---- */
-.photo-analyze-row {
-  margin-top: 22px;
+/* ---- 분석하기 버튼: "사진 코칭" 타이틀 옆(section-head 오른쪽)에 배치
+   (2026-09-03: 업로드 행 아래 별도 줄이었던 걸 타이틀 줄 오른쪽으로 옮김) ---- */
+.photo-analyze-inline {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
+  align-items: flex-end;
+  gap: 6px;
 }
 .photo-analyze-btn {
   min-width: 200px;
@@ -265,6 +193,7 @@
   margin: 0;
   font-size: 12px;
   color: #9b9a96;
+  text-align: right;
 }
 
 /* ---- 분석 결과: 업로드 행 아래, 전체 폭 ---- */
@@ -314,6 +243,21 @@
   color: #33322f;
 }
 
+/* (2026-09-03 추가) 무게중심(허리 젖혀짐/과신전) 참고용 별도 안내 카드 — "분석
+   결과"(정식 판정) 패널과 시각적으로 구분되도록 은은한 노란빛 톤을 쓴다(경고/에러가
+   아니라 "참고용"이라는 뉘앙스). photo-panel-full 클래스를 공유해 위 분석 결과 패널과
+   같은 폭/여백을 유지한다. */
+.center-of-mass-notice {
+  background: #fdf8ee;
+  border: 1px solid #eee0bd;
+}
+.center-of-mass-notice-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #6b5a2a;
+}
+
 /* ---- 공통 ---- */
 .photo-ok {
   color: #2eb872;
@@ -339,10 +283,6 @@
 
 /* ============ 모바일 (~768px) ============ */
 @media (max-width: 768px) {
-  .page-eyebrow-row {
-    flex-wrap: wrap;
-    gap: 10px;
-  }
   .photo-upload-row {
     grid-template-columns: 1fr;
   }

@@ -1,5 +1,82 @@
 /* 자세 측정(사진 코칭/실시간 코칭/모드 선택) 페이지들이 공유하는 기본 카드·버튼 스타일. */
 
+/* ---- 헤더: 운동 선택 드롭다운 + 운동방법 버튼 (page-eyebrow-row 오른쪽에 나란히)
+   (2026-09-03: 원래 PhotoCoachingPage.css에만 있었는데, 이 버튼들을 SquatModeSelectPage
+   헤더로 옮기면서 두 페이지가 같이 쓸 수 있게 공용 파일로 이동했다.) ---- */
+.photo-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.photo-guide-btn {
+  padding: 8px 18px;
+  font-size: 12.5px;
+}
+
+.exercise-dropdown {
+  position: relative;
+}
+.exercise-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111;
+  cursor: pointer;
+}
+.exercise-dropdown-trigger:hover {
+  border-color: #da291c;
+}
+.exercise-dropdown-dot {
+  color: #da291c;
+  font-size: 9px;
+}
+.exercise-dropdown-arrow {
+  font-size: 9px;
+  color: #9b9a96;
+}
+.exercise-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 140px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  z-index: 20;
+}
+.exercise-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  padding: 9px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111;
+  text-align: left;
+  cursor: pointer;
+}
+.exercise-dropdown-item:hover {
+  background: #f9f8f5;
+}
+.exercise-dropdown-check {
+  color: #da291c;
+}
+
 .squat-card {
   background: #f9f8f5;
   border: 1px solid #e5e3dd;
@@ -92,5 +169,9 @@
 @media (max-width: 768px) {
   .squat-card {
     max-width: 100%;
+  }
+  .page-eyebrow-row {
+    flex-wrap: wrap;
+    gap: 10px;
   }
 }
