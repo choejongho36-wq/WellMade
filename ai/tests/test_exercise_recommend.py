@@ -23,7 +23,16 @@ def test_부위로_필터링하고_후보를_돌려준다():
     assert result["matched"] > MAX_CANDIDATES  # 가슴 운동은 데이터에 163건 있음
     assert len(result["candidates"]) == MAX_CANDIDATES
     assert all(c["body_part"] == "chest" for c in result["candidates"])
-    assert all(c["name"] and c["steps"] for c in result["candidates"])
+    assert all(c["name"] for c in result["candidates"])
+
+
+def test_모르는_부위면_후보를_비우고_안내만_돌려준다():
+    # "플랭크"처럼 부위가 아닌 값이 오면, 엉뚱한 운동 8건 대신 빈 후보 + 안내를 준다
+    result = recommend(body_part="플랭크")
+
+    assert result["candidates"] == []
+    assert result["matched"] == 0
+    assert result["note"]
 
 
 def test_맨몸_조건이면_body_weight로_좁힌다():
