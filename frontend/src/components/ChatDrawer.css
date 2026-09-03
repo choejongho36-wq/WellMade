@@ -199,13 +199,43 @@
 .chat-bubble-row.assistant {
   justify-content: flex-start;
 }
-.chat-bubble {
+/* 말풍선 + (있으면) 후속 버튼을 한 덩어리로 세로로 쌓는다.
+   폭 제한이 .chat-bubble 에서 이 칸으로 올라왔다 - 버튼도 같은 폭 안에 들어와야 해서 */
+.chat-bubble-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
   max-width: calc(82% - 40px);
+}
+.chat-bubble-row.user .chat-bubble-col {
+  align-items: flex-end;
+}
+.chat-bubble-row.assistant .chat-bubble-col {
+  align-items: flex-start;
+}
+.chat-bubble {
+  max-width: 100%;
   padding: 12px 16px;
   border-radius: 14px;
   font-size: 13.5px;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+/* "인바디 등록하러 가기" 같은 후속 행동. 답변이 막다른 길로 끝나지 않게 다음 걸음을 붙인다 */
+.chat-action-btn {
+  flex: none;
+  background: #da291c;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font: 700 12.5px 'Noto Sans KR', sans-serif;
+  padding: 9px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.chat-action-btn:hover {
+  background: #c0241a;
 }
 .chat-bubble-row.user .chat-bubble {
   background: #da291c;
