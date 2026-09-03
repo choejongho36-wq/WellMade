@@ -1,0 +1,63 @@
+.photo-crop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.photo-crop-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+/* box-shadow의 거대한 spread(9999px)를 부모(.preview-photo-box)의 overflow:hidden이
+   잘라내는 방식으로, 자르기 영역 바깥을 어둡게 처리한다 — clip-path/mask 없이 div 하나로
+   해결. */
+.photo-crop-rect {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #00e5ff;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  cursor: move;
+  touch-action: none;
+}
+.photo-crop-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: #00e5ff;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  touch-action: none;
+}
+.photo-crop-handle-nw {
+  left: -9px;
+  top: -9px;
+  cursor: nwse-resize;
+}
+.photo-crop-handle-ne {
+  right: -9px;
+  top: -9px;
+  cursor: nesw-resize;
+}
+.photo-crop-handle-sw {
+  left: -9px;
+  bottom: -9px;
+  cursor: nesw-resize;
+}
+.photo-crop-handle-se {
+  right: -9px;
+  bottom: -9px;
+  cursor: nwse-resize;
+}
+.photo-crop-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+}

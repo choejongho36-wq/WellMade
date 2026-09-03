@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" width="480" height="300">
+  <rect x="0" y="0" width="480" height="300" rx="20" fill="#f0efe9"/>
+  <g stroke="#b3b1ab" stroke-width="6" fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="150" y="115" width="180" height="120" rx="14"/>
+    <rect x="205" y="95" width="70" height="26" rx="6"/>
+    <circle cx="240" cy="178" r="34"/>
+  </g>
+  <circle cx="240" cy="178" r="14" fill="#b3b1ab"/>
+  <text x="240" y="268" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" fill="#8c8b88">이미지 준비 중</text>
+</svg>

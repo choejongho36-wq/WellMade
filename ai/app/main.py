@@ -29,6 +29,8 @@ from app.schemas import (
     OrchestrateRequest,
     OrchestrateResponse,
     PoseIssue,
+    PhotoSummaryRequest,
+    PhotoSummaryResponse,
     BmiInsightRequest,
     BmiInsightResponse,
     NutritionPeerCompareRequest,
@@ -49,6 +51,7 @@ from app.schemas import (
 # ---------------------------------------------------------------------------
 
 from app.coaching.llm_model_compare import compare_models
+from app.coaching.photo_summary_llm import summarize_photo_analysis
 from app.coaching.realtime import judge_realtime_coaching
 from app.exercise.recommend import recommend as recommend_exercises
 from app.insight.bmi_percentile import compute_bmi_insight
@@ -157,6 +160,35 @@ def coaching_frame(request: CoachingFrameRequest):
         ],
         pending_llm_job_id=result["pending_llm_job_id"],
     )
+
+
+# ===========================================================================
+# 사진 코칭 분석 결과 요약 (app/coaching/photo_summary_llm.py, 2026-09-02)
+# ===========================================================================
+
+
+@app.post(
+    "/ai/coaching/photo-summary",
+    response_model=PhotoSummaryResponse,
+)
+def coaching_photo_summary(request: PhotoSummaryRequest) -> PhotoSummaryResponse:
+    """
+    사진 코칭 "분석 결과" 자연어 요약 API.
+
+    /ai/coaching/frame(AI-06)이 이미 내린 규칙 기반 판정 결과를 받아, 그 결과를 사람이
+    읽기 편한 한국어 문장으로 정리해 돌려준다. 판정 자체(정상/이상 여부)는 이 API가
+    새로 계산하지 않는다 — 이미 결정된 판정을 설명만 한다.
+    """
+
+    result = summarize_photo_analysis(
+        is_normal=request.is_normal,
+        confidence=request.confidence,
+        issues=[issue.model_dump() for issue in request.issues],
+        metrics=request.metrics,
+        has_front_photo=request.has_front_photo,
+    )
+
+    return PhotoSummaryResponse(**result)
 
 
 # ===========================================================================
