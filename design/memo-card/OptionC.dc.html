@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Black&family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+  <style>
+    body { margin: 0; background: #fff; font-family: 'Noto Sans KR', -apple-system, sans-serif; color: #111; -webkit-font-smoothing: antialiased; }
+    a { color: #da291c; } a:hover { color: #c0241a; }
+  </style>
+</helmet>
+
+<div style="width: 520px; padding: 24px; background: #fff;">
+
+  <div style="display: flex; align-items: baseline; gap: 9px; padding-bottom: 12px; border-bottom: 1px solid #e5e3dd;">
+    <span style="font: 400 20px 'Archivo Black', sans-serif; color: #da291c; line-height: 1;">C</span>
+    <span style="font: 800 13.5px Archivo, 'Noto Sans KR', sans-serif; color: #111;">줄 단위 리스트</span>
+    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.5; color: #9b9a96; text-align: right;">줄바꿈을 항목으로 · 문단으로 쓰면 이득 없음</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 20px; padding-top: 16px;">
+
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      <div style="font: 800 10px Archivo, 'Noto Sans KR', sans-serif; letter-spacing: 0.1em; color: #b3b2ae;">읽기 상태 — 서버 변경 없이 표시만 쪼갠다</div>
+      <div style="background: #fff; border: 1px solid #d8d6cf; border-radius: 10px; overflow: hidden;">
+        <div style="background: #f9f8f5; border-bottom: 1px solid #e5e3dd; padding: 11px 16px; display: flex; align-items: center; gap: 10px;">
+          <span style="flex: 1; min-width: 0; font: 800 11px Archivo, 'Noto Sans KR', sans-serif; letter-spacing: 0.06em; color: #77767c;">2026.09.03 메모</span>
+          <span style="flex: none; font-size: 10.5px; font-weight: 700; color: #9b9a96;">3줄</span>
+          <span style="flex: none; display: flex; align-items: center; gap: 12px;">
+            <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">수정</span>
+            <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">삭제</span>
+          </span>
+        </div>
+        <div style="display: flex; align-items: flex-start; gap: 11px; padding: 11px 16px;">
+          <span style="flex: none; width: 3px; height: 13px; margin-top: 4px; border-radius: 999px; background: #da291c;"></span>
+          <span style="flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.7; color: #111;">하체 - 스쿼트 60kg 5x5, 레그프레스 120kg 3x12</span>
+        </div>
+        <div style="height: 1px; background: #f2f1ec;"></div>
+        <div style="display: flex; align-items: flex-start; gap: 11px; padding: 11px 16px;">
+          <span style="flex: none; width: 3px; height: 13px; margin-top: 4px; border-radius: 999px; background: #da291c;"></span>
+          <span style="flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.7; color: #111;">런닝 20분 (6.5km/h)</span>
+        </div>
+        <div style="height: 1px; background: #f2f1ec;"></div>
+        <div style="display: flex; align-items: flex-start; gap: 11px; padding: 11px 16px;">
+          <span style="flex: none; width: 3px; height: 13px; margin-top: 4px; border-radius: 999px; background: #da291c;"></span>
+          <span style="flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.7; color: #111;">컨디션 괜찮았고 허리 안 아픔</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      <div style="font: 800 10px Archivo, 'Noto Sans KR', sans-serif; letter-spacing: 0.1em; color: #b3b2ae;">편집 상태</div>
+      <div style="background: #f9f8f5; border: 1px solid #d8d6cf; border-radius: 12px; padding: 16px 18px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+          <span style="font: 800 13px Archivo, 'Noto Sans KR', sans-serif; color: #111;">메모</span>
+          <span style="font-size: 10.5px; font-weight: 700; color: #da291c;">저장 안 됨</span>
+        </div>
+        <div style="min-height: 84px; border: 1px solid #e5e3dd; border-radius: 8px; background: #fff; padding: 10px 12px; font-size: 12.5px; line-height: 1.6; color: #111; white-space: pre-wrap;">하체 - 스쿼트 60kg 5x5, 레그프레스 120kg 3x12
+런닝 20분 (6.5km/h)
+컨디션 괜찮았고 허리 안 아픔</div>
+        <p style="margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: #9b9a96;">줄을 바꿔서 쓰면 저장한 뒤 항목으로 나뉘어 보여요.</p>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px;">
+          <span style="font-size: 10.5px; font-weight: 700; color: #9b9a96;">62/1000</span>
+          <span style="display: flex; align-items: center; gap: 8px;">
+            <span style="font: 700 12.5px 'Noto Sans KR', sans-serif; color: #9b9a96;">취소</span>
+            <span style="background: #da291c; border-radius: 8px; color: #fff; font: 700 12px 'Noto Sans KR', sans-serif; padding: 7px 18px;">저장</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+</body>
+</html>

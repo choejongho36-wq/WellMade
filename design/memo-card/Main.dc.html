@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Black&family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+  <style>
+    body { margin: 0; background: #fff; font-family: 'Noto Sans KR', -apple-system, sans-serif; color: #111; -webkit-font-smoothing: antialiased; }
+    a { color: #da291c; } a:hover { color: #c0241a; }
+  </style>
+</helmet>
+
+<div style="width: 520px; padding: 24px; background: #fff;">
+
+  <div style="display: flex; align-items: baseline; gap: 9px; padding-bottom: 12px; border-bottom: 1px solid #e5e3dd;">
+    <span style="font: 400 20px 'Archivo Black', sans-serif; color: #da291c; line-height: 1;">A</span>
+    <span style="font: 800 13.5px Archivo, 'Noto Sans KR', sans-serif; color: #111;">티켓 스파인</span>
+    <span style="flex: none; background: #da291c; color: #fff; border-radius: 999px; padding: 2px 9px; font: 700 10.5px Archivo, 'Noto Sans KR', sans-serif;">확정 · 적용됨</span>
+    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.5; color: #9b9a96; text-align: right;">기울기 없이 · 세 상태가 같은 껍데기를 씀</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 20px; padding-top: 16px;">
+
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      <div style="font: 800 10px Archivo, 'Noto Sans KR', sans-serif; letter-spacing: 0.1em; color: #b3b2ae;">읽기 상태</div>
+      <div style="background: #fff; border: 1px solid #da291c; border-radius: 8px; overflow: hidden; display: flex;">
+        <div style="flex: none; width: 38px; background: #da291c; display: flex; align-items: center; justify-content: center;">
+          <span style="writing-mode: vertical-rl; transform: rotate(180deg); font: 800 11px Archivo, sans-serif; color: #fff; letter-spacing: 0.16em;">MEMO</span>
+        </div>
+        <div style="flex: 1; min-width: 0; padding: 14px 18px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font: 800 11px Archivo, 'Noto Sans KR', sans-serif; letter-spacing: 0.06em; color: #77767c;">
+            <span>2026.09.03</span>
+            <span style="flex: none; display: flex; align-items: center; gap: 12px; letter-spacing: normal;">
+              <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">수정</span>
+              <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">삭제</span>
+            </span>
+          </div>
+          <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: #111; white-space: pre-wrap;">하체 - 스쿼트 60kg 5x5, 레그프레스 120kg 3x12
+런닝 20분 (6.5km/h)
+컨디션 괜찮았고 허리 안 아픔</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      <div style="font: 800 10px Archivo, 'Noto Sans KR', sans-serif; letter-spacing: 0.1em; color: #b3b2ae;">편집 상태 — 수정을 눌렀을 때</div>
+      <div style="background: #fff; border: 1px solid #da291c; border-radius: 8px; overflow: hidden; display: flex;">
+        <div style="flex: none; width: 38px; background: #da291c; display: flex; align-items: center; justify-content: center;">
+          <span style="writing-mode: vertical-rl; transform: rotate(180deg); font: 800 11px Archivo, sans-serif; color: #fff; letter-spacing: 0.16em;">MEMO</span>
+        </div>
+        <div style="flex: 1; min-width: 0; padding: 14px 18px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+            <span style="font: 800 11px Archivo, 'Noto Sans KR', sans-serif; letter-spacing: 0.06em; color: #77767c;">2026.09.03</span>
+            <span style="font-size: 10.5px; font-weight: 700; color: #da291c;">저장 안 됨</span>
+          </div>
+          <div style="min-height: 84px; border: 1px solid #e5e3dd; border-radius: 8px; background: #f9f8f5; padding: 10px 12px; font-size: 12.5px; line-height: 1.6; color: #111; white-space: pre-wrap;">하체 - 스쿼트 60kg 5x5, 레그프레스 120kg 3x12
+런닝 20분 (6.5km/h)
+컨디션 괜찮았고 허리 안 아픔</div>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+            <span style="font-size: 10.5px; font-weight: 700; color: #9b9a96;">62/1000</span>
+            <span style="display: flex; align-items: center; gap: 8px;">
+              <span style="font: 700 12.5px 'Noto Sans KR', sans-serif; color: #9b9a96;">취소</span>
+              <span style="background: #da291c; border-radius: 8px; color: #fff; font: 700 12px 'Noto Sans KR', sans-serif; padding: 7px 18px;">저장</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      <div style="font: 800 10px Archivo, 'Noto Sans KR', sans-serif; letter-spacing: 0.1em; color: #b3b2ae;">빈 상태 — 메모가 없는 날은 바로 쓸 수 있게 열려 있다</div>
+      <div style="background: #fff; border: 1px solid #da291c; border-radius: 8px; overflow: hidden; display: flex;">
+        <div style="flex: none; width: 38px; background: #da291c; display: flex; align-items: center; justify-content: center;">
+          <span style="writing-mode: vertical-rl; transform: rotate(180deg); font: 800 11px Archivo, sans-serif; color: #fff; letter-spacing: 0.16em;">MEMO</span>
+        </div>
+        <div style="flex: 1; min-width: 0; padding: 14px 18px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+            <span style="font: 800 11px Archivo, 'Noto Sans KR', sans-serif; letter-spacing: 0.06em; color: #77767c;">2026.09.03</span>
+          </div>
+          <div style="min-height: 84px; border: 1px solid #e5e3dd; border-radius: 8px; background: #f9f8f5; padding: 10px 12px; font-size: 12.5px; line-height: 1.6; color: #b3b2ae;">오늘 기록을 남겨보세요. 예) 하체 - 스쿼트 60kg 5x5, 런닝 20분</div>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px;">
+            <span style="font-size: 10.5px; font-weight: 700; color: #9b9a96;">0/1000</span>
+            <span style="background: #d8d6cf; border-radius: 8px; color: #fff; font: 700 12px 'Noto Sans KR', sans-serif; padding: 7px 18px;">저장</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+</body>
+</html>
