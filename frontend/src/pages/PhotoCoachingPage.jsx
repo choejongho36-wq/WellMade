@@ -18,13 +18,17 @@
  * 5. "분석 결과"의 각도 숫자 막대(예전 ANALYSIS_METRICS)는 없애고, 규칙 기반 판정
  *    결과를 LLM(Nova, app/coaching/photo_summary_llm.py)이 정리한 문장으로 보여준다 —
  *    판정 자체는 여전히 규칙 기반이고 문장만 LLM이 담당.
- * 6. 미리보기 박스는 고정 비율을 강제하지 않는다(2026-09-02 최종 정정) — 한때 3:4로
- *    고정했다가("사진 크기를 어떤 사진을 넣든 일정하게" 요청), cover(크롭)와
- *    contain(여백) 사이를 오가며 계속 사진이 잘리거나 여백이 남는 문제가 반복됐다.
- *    결국 "고정 비율 박스" 자체를 없애고, 박스(.preview-photo-box)가 매 사진마다 그
- *    사진의 실제 가로/세로 비율을 그대로 쓰도록 바꿨다(인라인 style, slot.imageAspect) —
- *    이제 박스 모양이 항상 사진 모양과 똑같아서 자르거나 여백이 남을 일 자체가 없다.
- *    박스 너비는 바깥 흰 카드(.preview-frame) 너비를 그대로 쓴다.
+ * 6. 미리보기 박스를 3:2(가로로 긴 형태)로 고정하고(어떤 크기 사진을 올리든 항상 동일한
+ *    크기로 표시, 2026-09-02: 이중 박스였을 때의 바깥 박스와 같은 높이가 되도록 3:4에서
+ *    3:2로 변경),
+ *    사진은 object-fit: contain으로 잘리지 않고 전체가 다 보이도록 표시 — 박스 비율과
+ *    안 맞는 나머지 공간은 여백으로 남는다(squatPose.js의 PHOTO_BOX_ASPECT_RATIO/
+ *    imageToBoxPoint 참고, 2026-09-02 정정: 한때 cover(크롭) 방식으로 바꿨었는데, "사진
+ *    자르지 말고 세로든 가로든 박스 안에 꽉 차게 보이게 해달라"는 요청으로 다시
+ *    contain(여백) 방식으로 되돌림). 박스는 바깥 흰 카드(.preview-frame) 너비를 그대로
+ *    쓴다(2026-09-02 재정정: 한때 카드보다 절반 크기로 줄여서 가운데 정렬했었는데,
+ *    그러면 "진짜 사진 영역"과 "바깥 흰 카드"가 두 겹으로 보여 혼동을 줘서, 바깥 카드
+ *    전체를 그대로 사진 영역으로 쓰도록 되돌렸다).
  * 7. 무릎모임(knee_valgus) 판정은 실제로 정면처럼 보이는 사진일 때만 나온다 — 측면 사진을
  *    정면 칸에 올렸을 때 잘못 판정되던 문제를 squatPose.js의 어깨 폭 검증으로 수정.
  *
@@ -41,6 +45,8 @@ import Modal from '../components/Modal.jsx'
 import ExerciseGuideModal from '../components/ExerciseGuideModal.jsx'
 import ExerciseSelectDropdown from '../components/ExerciseSelectDropdown.jsx'
 import PhotoLandmarkEditor from '../components/PhotoLandmarkEditor.jsx'
+import PersonPickerOverlay from '../components/PersonPickerOverlay.jsx'
+import PhotoCropOverlay from '../components/PhotoCropOverlay.jsx'
 import { usePhotoCoachingSession } from '../hooks/usePhotoCoachingSession.js'
 import { PHOTO_DOT_LEFT_COLOR, PHOTO_DOT_RIGHT_COLOR } from '../lib/squatPose.js'
 import './squatShared.css'
@@ -70,16 +76,37 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
       </div>
 
       <div className="preview-frame">
-        {/* 박스 비율(aspect-ratio)을 이 사진의 실제 가로/세로 비율로 그대로 맞춘다 —
-            사진을 업로드하기 전(idle/분석 중 실패)에는 알 수 없으니 1:1로 둔다. */}
-        <div className="preview-photo-box" style={{ aspectRatio: slot.imageAspect || 1 }}>
+        <div className="preview-photo-box">
           {slot.phase === 'idle' && (
             <button type="button" className="preview-placeholder" onClick={slot.openFilePicker}>
               <span className="preview-placeholder-icon">📷</span>
               {label} 사진을 업로드해주세요
+              {/* (2026-09-03) 별도 "사진 업로드" 버튼을 없애고 이 영역 클릭만으로 업로드하게
+                  되면서, 그 버튼 아래 있던 파일 형식 안내 문구를 이 자리로 옮겨왔다. */}
+              <span className="preview-placeholder-hint">JPG · PNG · 최대 10MB</span>
             </button>
           )}
-          {slot.phase === 'analyzing' && <div className="preview-placeholder preview-loading">자세 인식 중...</div>}
+          {slot.phase === 'analyzing' && <div className="preview-placeholder preview-loading">처리 중...</div>}
+          {slot.phase === 'cropping' && slot.photoUrl && slot.cropRect && (
+            <PhotoCropOverlay
+              photoUrl={slot.photoUrl}
+              alt={alt}
+              imageAspect={slot.imageAspect}
+              cropRect={slot.cropRect}
+              onCropRectChange={slot.setCropRect}
+              onApply={slot.applyCrop}
+              onSkip={slot.skipCrop}
+            />
+          )}
+          {slot.phase === 'choosing' && slot.photoUrl && slot.candidates && (
+            <PersonPickerOverlay
+              photoUrl={slot.photoUrl}
+              alt={alt}
+              candidates={slot.candidates}
+              imageAspect={slot.imageAspect}
+              onChoose={slot.choosePerson}
+            />
+          )}
           {slot.phase === 'error' && (
             <button type="button" className="preview-placeholder" onClick={slot.openFilePicker}>
               <span className="preview-placeholder-icon">⚠️</span>
@@ -87,14 +114,23 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
             </button>
           )}
           {slot.phase === 'ready' && slot.photoUrl && slot.points && (
-            <PhotoLandmarkEditor
-              photoUrl={slot.photoUrl}
-              alt={alt}
-              points={slot.points}
-              onPointsChange={slot.setPoints}
-              leftColor={PHOTO_DOT_LEFT_COLOR}
-              rightColor={PHOTO_DOT_RIGHT_COLOR}
-            />
+            <>
+              <PhotoLandmarkEditor
+                photoUrl={slot.photoUrl}
+                alt={alt}
+                points={slot.points}
+                imageAspect={slot.imageAspect}
+                onPointsChange={slot.setPoints}
+                leftColor={PHOTO_DOT_LEFT_COLOR}
+                rightColor={PHOTO_DOT_RIGHT_COLOR}
+              />
+              {/* (2026-09-03 추가) 사진 삭제 버튼 — usePhotoSlot()에 이미 있던 reset()을
+                  그대로 재사용해 phase/photoUrl/points를 전부 idle로 되돌린다(업로드 전
+                  상태로 복귀, 다시 사진을 올릴 수 있게 됨). */}
+              <button type="button" className="photo-delete-btn" onClick={slot.reset} aria-label={`${label} 사진 삭제`}>
+                ✕
+              </button>
+            </>
           )}
         </div>
 
@@ -122,6 +158,11 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
 
       {slot.fileError && <p className="squat-error">{slot.fileError}</p>}
 
+      {/* (2026-09-03) 별도 "사진 업로드"/"다른 사진 업로드" 버튼을 없앴다 — idle 상태의
+          사진 영역(위 placeholder) 클릭만으로 파일 선택창이 열린다. 사진이 이미 있을 때
+          바꾸고 싶으면 photo-delete-btn(X)으로 지운 뒤 같은 방식으로 다시 올리면 된다.
+          input 자체는 openFilePicker()가 여전히 이걸 프로그래밍적으로 클릭하므로 그대로
+          유지(화면에는 안 보임). */}
       <input
         ref={slot.fileInputRef}
         type="file"
@@ -129,12 +170,6 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
         className="photo-file-input"
         onChange={slot.onFileInputChange}
       />
-      <div className="photo-upload-actions">
-        <button type="button" className="squat-btn squat-btn-outline" onClick={slot.openFilePicker}>
-          {slot.phase === 'ready' ? '다른 사진 업로드' : '사진 업로드'}
-        </button>
-        <p className="photo-upload-caption">JPG · PNG · 최대 10MB</p>
-      </div>
     </div>
   )
 }
