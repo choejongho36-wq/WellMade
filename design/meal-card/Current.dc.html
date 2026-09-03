@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Black&family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+  <style>
+    body { margin: 0; background: #fff; font-family: 'Noto Sans KR', -apple-system, sans-serif; color: #111; -webkit-font-smoothing: antialiased; }
+    a { color: #da291c; } a:hover { color: #c0241a; }
+  </style>
+</helmet>
+
+<div style="width: 520px; padding: 24px; background: #fff;">
+
+  <div style="display: flex; align-items: baseline; gap: 9px; padding-bottom: 12px; border-bottom: 1px solid #e5e3dd;">
+    <span style="font: 800 11px Archivo, sans-serif; letter-spacing: 0.08em; color: #9b9a96;">NOW</span>
+    <span style="font: 800 13.5px Archivo, 'Noto Sans KR', sans-serif; color: #111;">현재 화면</span>
+    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.5; color: #9b9a96; text-align: right;">식품명 + 칼로리 한 줄 · 영양소는 전부 숨어 있음</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; padding-top: 14px;">
+
+    <div style="display: flex; gap: 20px;">
+      <div style="width: 56px; flex: none; text-align: right; font: 800 13px Archivo, 'Noto Sans KR', sans-serif; color: #da291c; padding-top: 16px;">아침</div>
+      <div style="flex: none; width: 1px; background: #e5e3dd; position: relative;">
+        <div style="position: absolute; top: 19px; left: -4px; width: 9px; height: 9px; border-radius: 50%; background: #da291c;"></div>
+      </div>
+      <div style="flex: 1; min-width: 0; padding: 12px 0 24px;">
+        <div style="transform: skewX(-6deg); background: #fff; border: 1px solid #da291c; border-radius: 8px; overflow: hidden; display: flex;">
+          <div style="flex: 1; min-width: 0; transform: skewX(6deg); padding: 18px 20px; display: flex; gap: 14px; align-items: center;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 14px; font-weight: 700; color: #111;">그릭요거트, 블루베리</div>
+              <div style="font-size: 12px; color: #77767c; margin-top: 3px;">190kcal</div>
+            </div>
+            <div style="flex: none; display: flex; align-items: center; gap: 10px;">
+              <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #da291c;">수정</span>
+              <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">삭제</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 8px; margin-left: 4px; font-size: 11.5px; font-weight: 700; color: #9b9a96;">항목별 그램 보기 (2)</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 20px;">
+      <div style="width: 56px; flex: none; text-align: right; font: 800 13px Archivo, 'Noto Sans KR', sans-serif; color: #da291c; padding-top: 16px;">점심</div>
+      <div style="flex: none; width: 1px; background: #e5e3dd; position: relative;">
+        <div style="position: absolute; top: 19px; left: -4px; width: 9px; height: 9px; border-radius: 50%; background: #da291c;"></div>
+      </div>
+      <div style="flex: 1; min-width: 0; padding: 12px 0 24px;">
+        <div style="transform: skewX(-6deg); background: #fff; border: 1px solid #da291c; border-radius: 8px; overflow: hidden; display: flex;">
+          <div style="flex: 1; min-width: 0; transform: skewX(6deg); padding: 18px 20px; display: flex; gap: 14px; align-items: center;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 14px; font-weight: 700; color: #111; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">닭가슴살, 현미밥, 브로콜리</div>
+              <div style="font-size: 12px; color: #77767c; margin-top: 3px;">507kcal</div>
+            </div>
+            <div style="flex: none; display: flex; align-items: center; gap: 10px;">
+              <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #da291c;">수정</span>
+              <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">삭제</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 8px; margin-left: 4px; font-size: 11.5px; font-weight: 700; color: #9b9a96;">항목별 그램 보기 (3)</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 20px;">
+      <div style="width: 56px; flex: none; text-align: right; font: 800 13px Archivo, 'Noto Sans KR', sans-serif; color: #da291c; padding-top: 16px;">저녁</div>
+      <div style="flex: none; width: 1px; background: #e5e3dd; position: relative;">
+        <div style="position: absolute; top: 19px; left: -4px; width: 9px; height: 9px; border-radius: 50%; background: #da291c;"></div>
+      </div>
+      <div style="flex: 1; min-width: 0; padding: 12px 0 24px;">
+        <div style="transform: skewX(-6deg); background: #fff; border: 1px solid #da291c; border-radius: 8px; overflow: hidden; display: flex;">
+          <div style="flex: 1; min-width: 0; transform: skewX(6deg); padding: 18px 20px; display: flex; gap: 14px; align-items: center;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 14px; font-weight: 700; color: #111; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">연어구이, 고구마, 아보카도</div>
+              <div style="font-size: 12px; color: #77767c; margin-top: 3px;">523kcal</div>
+            </div>
+            <div style="flex: none; display: flex; align-items: center; gap: 10px;">
+              <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #da291c;">수정</span>
+              <span style="font: 700 11.5px Archivo, 'Noto Sans KR', sans-serif; color: #9b9a96;">삭제</span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 8px; margin-left: 4px; font-size: 11.5px; font-weight: 700; color: #9b9a96;">항목별 그램 보기 (3) · 그램 확인 필요</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+</body>
+</html>

@@ -22,6 +22,8 @@ load_dotenv()
 from app.schemas import (
     CoachingFrameRequest,
     CoachingFrameResponse,
+    ExerciseRecommendRequest,
+    ExerciseRecommendResponse,
     ModelCompareRequest,
     ModelCompareResponse,
     OrchestrateRequest,
@@ -48,6 +50,7 @@ from app.schemas import (
 
 from app.coaching.llm_model_compare import compare_models
 from app.coaching.realtime import judge_realtime_coaching
+from app.exercise.recommend import recommend as recommend_exercises
 from app.insight.bmi_percentile import compute_bmi_insight
 from app.insight.nutrition_peer import compare_with_peers
 from app.insight.posture_percentile import compute_posture_insight
@@ -388,6 +391,33 @@ def bmi_insight(
     )
 
     return BmiInsightResponse(**result)
+
+
+# ===========================================================================
+# 운동 추천 v1 (챗봇 "운동 추천" 메뉴)
+# ===========================================================================
+
+
+@app.post(
+    "/ai/exercise/recommend",
+    response_model=ExerciseRecommendResponse,
+)
+def exercise_recommend(request: ExerciseRecommendRequest):
+    """
+    운동 추천 후보 조회 API (v1).
+
+    exercises_ko.json에서 부위(+장비)로 필터링한 후보 목록만 돌려준다. 자연어 추천문은
+    백엔드 챗봇이 기존 스트리밍 경로로 생성한다(도구 결과를 문장으로 옮기는 패턴).
+    RAG/임베딩 없이 정형 필터 — body_part 값이 10종뿐이고 조건도 단순해서 충분하다.
+    난이도는 데이터에 없어 여기서 거르지 않는다(생성 단계에서 참고).
+    """
+
+    result = recommend_exercises(
+        body_part=request.body_part,
+        equipment=request.equipment or "",
+    )
+
+    return ExerciseRecommendResponse(**result)
 
 
 # ===========================================================================

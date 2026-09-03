@@ -20,10 +20,28 @@ import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
 import DietLogModal from '../components/DietLogModal.jsx'
 import MealRow from '../components/MealRow.jsx'
 import Modal from '../components/Modal.jsx'
+import { MEAL_TYPE_LABEL } from '../lib/mealTypes.js'
 
 function todayStr() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * 같은 끼니에 여러 번 기록해도 화면에선 끼니 하나로 묶는다 - 점심을 세 번 나눠 적으면
+ * 예전엔 "점심" 카드가 세 장 나왔다.
+ *
+ * 백엔드가 끼니 종류(아침->점심->저녁->간식)로 먼저 정렬해서 주므로 연속된 같은 종류를
+ * 이어붙이면 그대로 끼니 그룹이 된다. 종류별로 훑지 않는 이유는, 그렇게 하면 목록에 없는
+ * 끼니 코드가 들어왔을 때 그 기록이 화면에서 통째로 사라지기 때문.
+ */
+function groupByMealType(meals) {
+  return meals.reduce((groups, meal) => {
+    const last = groups[groups.length - 1]
+    if (last && last.type === meal.meal_type) last.items.push(meal)
+    else groups.push({ type: meal.meal_type, items: [meal] })
+    return groups
+  }, [])
 }
 
 const SUMMARY_HEADLINE_FIELD = { key: 'totalCalories', unit: 'kcal' }
@@ -122,6 +140,20 @@ function DietPage() {
       .finally(() => setMemoSaving(false))
   }
 
+  // 빈 내용으로 저장하면 서버가 그 날 메모를 지운다 (saveWorkoutMemo 주석 참고)
+  const handleDeleteMemo = () => {
+    setMemoSaving(true)
+    saveWorkoutMemo(selectedDate, '')
+      .then(() => {
+        setMemo('')
+        setSavedMemo('')
+        setMemoSaved(false)
+        setCalendarKey((k) => k + 1)
+      })
+      .catch((e) => setNotice(e.message || '메모를 삭제하지 못했어요'))
+      .finally(() => setMemoSaving(false))
+  }
+
   /* ===== 삭제 ===== */
 
   const handleDelete = (id) => {
@@ -171,13 +203,24 @@ function DietPage() {
               />
               <div className="diet-memo-foot">
                 <span className="diet-memo-count">{memo.length}/1000</span>
-                <button
-                  className="diet-memo-save"
-                  onClick={handleSaveMemo}
-                  disabled={memoSaving || memo === savedMemo}
-                >
-                  {memoSaving ? '저장 중...' : '저장'}
-                </button>
+                <div className="diet-memo-actions">
+                  {savedMemo && (
+                    <button
+                      className="diet-memo-delete"
+                      onClick={handleDeleteMemo}
+                      disabled={memoSaving}
+                    >
+                      삭제
+                    </button>
+                  )}
+                  <button
+                    className="diet-memo-save"
+                    onClick={handleSaveMemo}
+                    disabled={memoSaving || memo === savedMemo}
+                  >
+                    {memoSaving ? '저장 중...' : '저장'}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -217,19 +260,36 @@ function DietPage() {
             </div>
 
             <div className="diet-timeline" style={{ marginTop: 14 }}>
-              {meals.map((meal, index) => (
-                <MealRow
-                  key={meal.id}
-                  meal={meal}
-                  // 같은 끼니 종류가 연달아 있으면 라벨은 처음 한 번만 (백엔드가 끼니별로 묶어 정렬해줌)
-                  showLabel={index === 0 || meals[index - 1].meal_type !== meal.meal_type}
-                  expanded={expandedMealId === meal.id}
-                  onToggleExpand={() => setExpandedMealId((prev) => (prev === meal.id ? null : meal.id))}
-                  onChanged={() => refresh(selectedDate)}
-                  onError={setNotice}
-                  onRequestDelete={() => setConfirmDeleteId(meal.id)}
-                  deleting={deletingId === meal.id}
-                />
+              {groupByMealType(meals).map((group, groupIndex) => (
+                <section className="diet-group" key={`${group.type}-${groupIndex}`}>
+                  <div className="diet-group-head">
+                    <span className="diet-group-label">
+                      <span>{MEAL_TYPE_LABEL[group.type] ?? group.type}</span>
+                    </span>
+                    <span className="diet-group-rule" />
+                    {/* 기록이 하나뿐이면 카드에 적힌 칼로리와 같은 숫자라 굳이 두 번 쓰지 않는다 */}
+                    {group.items.length > 1 && (
+                      <span className="diet-group-total">
+                        {group.items.reduce((sum, m) => sum + (m.kcal ?? 0), 0)}
+                        <span className="diet-group-total-unit">kcal</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="diet-group-body">
+                    {group.items.map((meal) => (
+                      <MealRow
+                        key={meal.id}
+                        meal={meal}
+                        expanded={expandedMealId === meal.id}
+                        onToggleExpand={() => setExpandedMealId((prev) => (prev === meal.id ? null : meal.id))}
+                        onChanged={() => refresh(selectedDate)}
+                        onError={setNotice}
+                        onRequestDelete={() => setConfirmDeleteId(meal.id)}
+                        deleting={deletingId === meal.id}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
 

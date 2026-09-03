@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
  */
 class ChatServiceMenuTest {
 
-    private final ChatService service = new ChatService(null, null, null, null, null, null, null, null);
+    private final ChatService service = new ChatService(null, null, null, null, null, null, null);
 
     @Test
     void emptyMealsReturnsUserFacingNote() {
