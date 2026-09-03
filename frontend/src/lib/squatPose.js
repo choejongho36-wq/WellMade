@@ -204,7 +204,7 @@ export const ANALYSIS_METRICS = [
   },
 ]
 
-function calculateAngle(a, b, c) {
+export function calculateAngle(a, b, c) {
   const ba = [a.x - b.x, a.y - b.y]
   const bc = [c.x - b.x, c.y - b.y]
   const magBa = Math.hypot(...ba)
@@ -217,7 +217,7 @@ function calculateAngle(a, b, c) {
 
 // side="auto"면 엉덩이/무릎/발목 평균 visibility가 더 높은 쪽을 고른다 — 측면 촬영에서
 // 카메라 반대쪽 다리는 가려져 visibility가 낮게 잡히는 경우가 많기 때문.
-function selectSide(landmarks, side = 'auto') {
+export function selectSide(landmarks, side = 'auto') {
   if (side === 'left' || side === 'right') return side
   const leftScore =
     ((landmarks[LEFT_HIP].visibility ?? 1) +
@@ -233,22 +233,31 @@ function selectSide(landmarks, side = 'auto') {
 }
 
 // 엉덩이-무릎-발목 3점. 180도에 가까울수록 다리를 편 상태.
-function getKneeAngle(landmarks, side = 'auto') {
+export function getKneeAngle(landmarks, side = 'auto') {
   const chosen = selectSide(landmarks, side)
   const [hipIdx, kneeIdx, ankleIdx] = chosen === 'left' ? [LEFT_HIP, LEFT_KNEE, LEFT_ANKLE] : [RIGHT_HIP, RIGHT_KNEE, RIGHT_ANKLE]
   return calculateAngle(landmarks[hipIdx], landmarks[kneeIdx], landmarks[ankleIdx])
 }
 
 // 어깨-엉덩이-무릎 3점. 상체가 다리 기준으로 얼마나 숙여졌는지.
-function getHipAngle(landmarks, side = 'auto') {
+export function getHipAngle(landmarks, side = 'auto') {
   const chosen = selectSide(landmarks, side)
   const [shoulderIdx, hipIdx, kneeIdx] = chosen === 'left' ? [LEFT_SHOULDER, LEFT_HIP, LEFT_KNEE] : [RIGHT_SHOULDER, RIGHT_HIP, RIGHT_KNEE]
   return calculateAngle(landmarks[shoulderIdx], landmarks[hipIdx], landmarks[kneeIdx])
 }
 
-// "귀-엉덩이가 일자로 뻗는지"를 부호 있는 각도로 잰 값. 0이면 완전한 일자, 양수면 목이
-// 더 앞으로 꺾인(고개가 앞으로 떨어진) 상태, 음수면 더 세워진(뒤로 젖혀진) 상태.
-function getShoulderForwardLeanDeg(landmarks, side = 'auto') {
+// "귀-엉덩이가 일자로 뻗는지"를 각도로 잰 값 — 엉덩이→어깨 방향(상체)을 그대로
+// 연장했을 때의 방향과, 실제 어깨→귀 방향(목) 사이의 각도 차이다. 0이면 완전한 일자,
+// 양수면 그 연장선보다 목이 더 앞으로 꺾인(고개가 앞으로 떨어진) 상태, 음수면 그
+// 연장선보다 목이 더 세워진(뒤로 젖혀진) 상태 — 음수는 현재 정상으로 취급한다.
+// (2026-08-27 변경) 원래는 목 기울기·상체 기울기를 각각 atan2로 따로 구해서 뺐는데,
+// 이건 "귀-어깨-엉덩이가 일자인지"와 수학적으로 동일한 값이다 — 귀-어깨-엉덩이 3점
+// 각도의 180도 보각과 정확히 일치함을 실제 사진 데이터로 확인했다(36.9도로 일치).
+// 다만 그 3점 각도는 acos 기반이라 부호가 없어(0~180도) 앞으로 숙임과 뒤로 젖힘을
+// 구분 못 해 그대로 가져다 쓸 수는 없었고, 대신 상체 벡터와 목 벡터 사이의 부호 있는
+// 각도를 외적·내적으로 한 번에 구하는 방식으로 단순화했다 — atan2 두 번 + 뺄셈이
+// atan2 한 번으로 줄었다(좌우 반전 케이스까지 부호 대칭 검증 완료, 결과값 동일).
+export function getShoulderForwardLeanDeg(landmarks, side = 'auto') {
   const chosen = selectSide(landmarks, side)
   const [earIdx, shoulderIdx, hipIdx, ankleIdx, toeIdx] =
     chosen === 'left'
@@ -271,7 +280,7 @@ function getShoulderForwardLeanDeg(landmarks, side = 'auto') {
 }
 
 // 발뒤꿈치-발끝 높이차 / 발 길이. 값이 클수록 발뒤꿈치가 뜬 상태.
-function getHeelLiftRatio(landmarks, side = 'auto') {
+export function getHeelLiftRatio(landmarks, side = 'auto') {
   const chosen = selectSide(landmarks, side)
   const [heelIdx, toeIdx, ankleIdx] = chosen === 'left' ? [LEFT_HEEL, LEFT_FOOT_INDEX, LEFT_ANKLE] : [RIGHT_HEEL, RIGHT_FOOT_INDEX, RIGHT_ANKLE]
   const heel = landmarks[heelIdx]
@@ -283,7 +292,7 @@ function getHeelLiftRatio(landmarks, side = 'auto') {
 }
 
 // 무릎-발끝 거리 / 허벅지(엉덩이-무릎) 길이. 값이 0 이하면 무릎이 발끝을 안 넘은 상태.
-function getKneeOverToeRatio(landmarks, side = 'auto') {
+export function getKneeOverToeRatio(landmarks, side = 'auto') {
   const chosen = selectSide(landmarks, side)
   const [kneeIdx, hipIdx, ankleIdx, toeIdx] =
     chosen === 'left' ? [LEFT_KNEE, LEFT_HIP, LEFT_ANKLE, LEFT_FOOT_INDEX] : [RIGHT_KNEE, RIGHT_HIP, RIGHT_ANKLE, RIGHT_FOOT_INDEX]
@@ -299,9 +308,25 @@ function getKneeOverToeRatio(landmarks, side = 'auto') {
   return ((knee.x - toe.x) * facingDirection) / thighLength
 }
 
-// 상체(어깨-엉덩이)와 정강이(무릎-발목)가 각각 수직선 대비 얼마나 앞으로 기울었는지의 차이.
-// 무게중심이 지지기반(발) 뒤쪽에 남는 자세를 잡기 위한 신호.
-function getTorsoShinLeanGapDeg(landmarks, side = 'auto') {
+// 상체(어깨-엉덩이)와 정강이(무릎-발목)가 각각 수직선 대비 얼마나 앞으로 기울었는지를 구해서
+// 그 차이를 본다. 정강이는 거의 안 기울었는데(발목 가동범위가 부족해 무릎이 발끝 쪽으로
+// 못 나감) 상체만 훨씬 더 기울어 있다면, 발목 대신 상체가 그 부족분을 보상하고 있다는
+// 뜻이고, 무게중심이 지지기반(발) 뒤쪽에 가깝게 남는다 — "앞에 반대 방향 무게(바/플레이트)가
+// 없으면 뒤로 넘어갈 것 같다"는 인상으로 이어지는 자세다.
+// (2026-08-27 추가) 팀에서 "무게중심이 무너진 것 같다"고 지적한 실제 사진 2장(다른 사람·
+// 다른 기구·다른 출처, checklist 2026-08-27 addendum 8번 참고)에서 이 값이 각각 27.2도·
+// 28.9도로 나왔고, 확인된 정상 사진 10장은 전부 -2.0~23.3도 사이였다. 상체·정강이 각각의
+// 절대 기울기는 체형(다리 길이 등)에 따라 편차가 컸지만(정상 사진만 봐도 상체 기울기가
+// 15.6~48.9도로 넓게 퍼짐 — 절대각도 단독으로는 정상/이상이 안 갈렸다), 두 값의 "차이"는
+// 체형과 무관하게 정상군과 나쁜 사례가 갈리는 것을 확인했다.
+// 먼저 시도했던 "엉덩이가 지지기반(발뒤꿈치)보다 얼마나 뒤로 벗어났는지"(발 길이/허벅지
+// 길이로 각각 정규화) 지표는 실측에서 정상 사진들과 구분이 안 됐고(정상 사진 안에서도
+// 편차가 너무 컸음), 예전에 비슷한 접근(어깨-무릎 직선 기준 엉덩이 이탈)을 실제 적용했을 때
+// 모든 사진에서 이상이 뜨는 문제로 폐기했던 것과 같은 실패 패턴이라 이번엔 채택하지 않았다.
+// TODO: 팀 확정 필요(중요) — 나쁜 사례가 아직 2건뿐이라 임계값(rules.py의
+// TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG) 검증 표본이 매우 작다. 실사용자 테스트로 반드시
+// 재검증할 것.
+export function getTorsoShinLeanGapDeg(landmarks, side = 'auto') {
   const chosen = selectSide(landmarks, side)
   const [shoulderIdx, hipIdx, kneeIdx, ankleIdx, toeIdx] =
     chosen === 'left'

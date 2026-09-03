@@ -18,7 +18,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
 import com.kdt.wellmade.domain.inbody.InbodyService;
 import com.kdt.wellmade.domain.mapage.Gender;
-import com.kdt.wellmade.domain.mapage.Goal;
 import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileService;
 import com.kdt.wellmade.domain.nutrition.MealLoggingService;
@@ -37,13 +36,6 @@ import com.kdt.wellmade.domain.user.User;
 public class ChatToolExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(ChatToolExecutor.class);
-
-    // ChatService.GOAL_LABEL과 같은 값 유지 (버킷 3개, 거의 안 바뀜)
-    private static final Map<Goal, String> GOAL_LABEL = Map.of(
-            Goal.LOSE, "체중감량",
-            Goal.GAIN, "근성장(벌크업)",
-            Goal.MAINTAIN, "체형 유지/건강관리"
-    );
 
     /** Ollama에 넘길 도구 스펙 (OpenAI function-calling 호환 형식). Qwen2.5-Instruct가 이 형식을 지원함. */
     static final List<Map<String, Object>> TOOLS = List.of(
@@ -387,7 +379,7 @@ public class ChatToolExecutor {
         NutrientTarget target = nutrientTargetCalculator.calculate(inbody, profile);
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("goal", GOAL_LABEL.get(profile.getGoal()));
+        result.put("goal", profile.getGoal().label());
         result.put("targetKcal", Math.round(target.kcal()));
         result.put("targetProteinG", Math.round(target.proteinG()));
         result.put("targetCarbsG", Math.round(target.carbsG()));
