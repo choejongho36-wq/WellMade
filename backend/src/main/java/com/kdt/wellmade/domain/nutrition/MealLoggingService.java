@@ -313,7 +313,7 @@ public class MealLoggingService {
 
     /**
      * food_items 배열 중 한 항목의 그램 수를 고쳐서, 그 항목만 영양정보를 다시 조회하고
-     * 끼니 전체 합계(kcal/protein/carbs/fat)를 재계산해서 반영함 (본인 소유 레코드만).
+     * 끼니 전체 합계(kcal/protein/carbs/fat)를 재계산해서 반영함 (본인 소유 레코드만)
      * 사용자가 그램을 직접 지정하는 행위이므로 인분수 환산은 거치지 않고 그대로 씀.
      *
      * @param itemIndex food_items 배열에서의 0부터 시작하는 인덱스

@@ -42,7 +42,7 @@ public class HttpOllamaClient implements OllamaClient {
         this.model = model;
         this.objectMapper = objectMapper;
     }
-
+    
     private record OllamaChatResponse(OllamaMessage message) {
     }
 
