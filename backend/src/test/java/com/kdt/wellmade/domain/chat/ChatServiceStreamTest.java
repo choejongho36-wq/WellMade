@@ -73,7 +73,7 @@ class ChatServiceStreamTest {
     /** 도구는 실제로 실행하지 않고 고정된 결과만 돌려준다 */
     private static final class FakeToolExecutor extends ChatToolExecutor {
         FakeToolExecutor() {
-            super(null, null, null, null, null, new ObjectMapper());
+            super(null, null, null, null, null, new ObjectMapper(), null);
         }
 
         @Override

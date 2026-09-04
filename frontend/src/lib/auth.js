@@ -329,6 +329,23 @@ function useAuthState() {
     authJson(`/api/diet/meals/month?year=${year}&month=${month}`, {}, '월별 기록을 불러오지 못했어요'),
     [authJson])
 
+  /**
+   * 또래 비교(BMI / 영양). 예전엔 브라우저가 AI 서버(/ai/...)를 인증 없이 직접 불렀는데,
+   * 이제 백엔드가 JWT를 확인하고 DB에서 값을 읽어 AI 서버를 대신 부른다(PeerInsightService).
+   * 비교할 값을 클라이언트가 넘기지 않으므로 "내 기록"에 대한 답이라는 게 보장된다.
+   *
+   * 실패하거나 비교 불가면 { error } 가 담겨 오거나 null이다 - 부가 정보라 화면을 막지 않는다.
+   */
+  const getBmiInsight = useCallback(() =>
+    authFetch('/api/users/me/insights/bmi')
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null), [authFetch])
+
+  const getNutritionPeerCompare = useCallback((date) =>
+    authFetch(`/api/users/me/insights/nutrition${date ? `?date=${date}` : ''}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null), [authFetch])
+
   // 달력 칸에 공휴일을 표시하기 위한 월 단위 조회. { "2026-01-01": "신정", ... } 형태
   // (서버가 공공데이터포털 API로 조회 - 키 미설정이면 그냥 빈 객체가 옴)
   const getHolidays = useCallback((year, month) =>
@@ -388,6 +405,7 @@ function useAuthState() {
     sessionExpired, dismissSessionExpired: () => setSessionExpired(false),
     deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory,
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
+    getBmiInsight, getNutritionPeerCompare,
     logManualMeal,
     updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
     sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu,

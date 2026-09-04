@@ -1,8 +1,7 @@
 # 오프라인 전처리 스크립트
 
 `app/`는 FastAPI 서버 실행 코드이고, 이 폴더(`ml_training/`)는 그 서버가 쓰는 참조 분포
-데이터(`app/insight/data/posture_reference.json`)를 만들어내는 **오프라인 스크립트**
-모음이다. 서버가 직접 이 폴더의 코드를 import하지 않는다 — 전처리는 사람이 필요할 때 한 번
+데이터(`app/insight/data/*.json`)를 만들어내는 **오프라인 스크립트** 모음이다. 서버가 직접 이 폴더의 코드를 import하지 않는다 — 전처리는 사람이 필요할 때 한 번
 실행하는 작업이고, 그 결과물만 서버가 로딩해서 쓴다.
 
 ## 스쿼트/런지 ML 학습 스크립트는 삭제됨 (2026-08-21)
@@ -16,16 +15,23 @@
 스크립트, 특징 추출(`app/ml/features.py`), 저장된 모델 파일(`app/ml/models/*.joblib`),
 `/ai/ml/lunge/analyze`·`/ai/ml/squat/analyze` 엔드포인트 모두 함께 제거했다.
 
-## 참조 분포 데이터 (자세 비교 인사이트, AI-15)
+## 참조 분포 데이터 (또래 비교 인사이트)
 
-| 스크립트 | 만드는 것 | 용도 | 데이터 출처 |
-|---|---|---|---|
-| `prepare_posture_reference.py` | `app/insight/data/posture_reference.json` | 성별×연령대별 어깨/골반 기울기 백분위 비교 | 세종특별자치시_자세 측정 내역 (공공데이터포털) |
+| 스크립트 | 만드는 것 | 용도 | 데이터 출처 | 통계 연도 |
+|---|---|---|---|---|
+| `prepare_posture_reference.py` | `app/insight/data/posture_reference.json` | 성별×연령대별 어깨/골반 기울기 백분위 비교 | 세종특별자치시_자세 측정 내역 (공공데이터포털) | 2024 측정분 |
+| `prepare_bmi_reference.py` | `app/insight/data/bmi_reference.json` | 성별×연령대별 BMI 백분위 비교 (`/ai/inbody/bmi-insight`) | 질병관리청 국민건강통계 표15-4 체질량지수 분포 | **2024 (스크립트에 하드코딩)** |
+| `prepare_nutrition_reference.py` | `app/insight/data/nutrition_reference.json` | 성별×연령대별 영양 섭취 평균 비교 (`/ai/nutrition/peer-compare`) | 질병관리청 국민건강통계 (국민건강영양조사) | **2024 (스크립트에 하드코딩)** |
 
-이건 분류 모델을 학습하는 게 아니라, "같은 성별·연령대에서 내 기울기가 몇 %에 해당하는지"
-백분위를 계산할 때 쓸 참조 분포(정렬된 각도 리스트)를 미리 만들어두는 전처리 스크립트다.
-자세한 배경(왜 원본 CSV를 그대로 안 쓰는지, 백분위를 어떻게 정의했는지)은
-`prepare_posture_reference.py`와 `app/insight/posture_percentile.py` 주석 참고.
+이건 분류 모델을 학습하는 게 아니라, "같은 성별·연령대에서 내 값이 어디쯤인지"를 계산할 때 쓸
+참조 데이터를 미리 만들어두는 전처리 스크립트다. 자세한 배경(왜 원본을 그대로 안 쓰는지,
+백분위/평균 대비 비율을 어떻게 정의했는지)은 각 스크립트와 `app/insight/*.py` 주석 참고.
+
+> **통계 연도는 자동으로 갱신되지 않는다.** BMI/영양 두 스크립트는 엑셀에서 `'24` 열을 찾도록
+> 연도가 박혀 있고(`SURVEY_YEAR_HEADER`, 표 레이아웃 상수), 결과 JSON의 `source`/`survey_year`도
+> 그 값을 그대로 쓴다. 2025 국민건강통계가 나오면 **스크립트의 연도 상수를 고치고 다시 실행**해야
+> 하며, 표 레이아웃이 바뀌었을 수 있으니 열 위치 상수도 함께 확인해야 한다.
+> (자세 데이터는 세종시가 파일을 새로 올릴 때만 갱신 대상이다.)
 
 **데이터 준비**
 

@@ -375,6 +375,7 @@ function DietPage() {
         <NutrientDetailModal
           summary={total}
           target={nutrientTarget}
+          date={selectedDate}
           onTargetChange={setNutrientTarget}
           title="총 섭취 영양소"
           onClose={() => setNutrientModalOpen(false)}

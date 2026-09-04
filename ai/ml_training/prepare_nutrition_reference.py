@@ -113,7 +113,10 @@ def read_sheet(sheet) -> dict:
         sample_size = row[value_col - 1] if len(row) > value_col else None
         value = to_float(row[value_col]) if len(row) > value_col else None
         if value is not None:
-            result[current_sex][sub_label] = (round(value, 1), to_float(sample_size))
+            # 표본 수는 사람 수라 정수다. 엑셀에서 읽으면 264.0 같은 float가 되는데
+            # 그대로 JSON에 넣으면 "264.0명"이 된다(prepare_bmi_reference.py는 int로 넣는다).
+            n = to_float(sample_size)
+            result[current_sex][sub_label] = (round(value, 1), int(n) if n is not None else None)
 
     return result
 

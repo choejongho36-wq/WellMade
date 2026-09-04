@@ -6,7 +6,6 @@ import { todayStr } from '../lib/dates.js'
 import PageShell from '../components/PageShell.jsx'
 import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
 import profileImg from '../assets/profile.webp'
-import { getBmiInsight } from '../lib/aiApi.js'
 import { MEAL_TYPE_LABEL } from '../lib/mealTypes.js'
 
 const GOAL_LABEL = {
@@ -559,7 +558,7 @@ function GoalPickerModal({ current, onClose, onSelect }) {
 
 function MyPage() {
   const [bmiInsight, setBmiInsight] = useState(null)
-  const { user, profile, inbody, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory, getTodayTotal, getTodayMeals, getNutrientTarget, deleteAccount } = useAuth()
+  const { user, profile, inbody, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory, getTodayTotal, getTodayMeals, getNutrientTarget, getBmiInsight, deleteAccount } = useAuth()
   const navigate = useNavigate()
   const [inbodyHistory, setInbodyHistory] = useState([])
   const [bodyModalOpen, setBodyModalOpen] = useState(false)
@@ -598,15 +597,13 @@ function MyPage() {
     if (user) getInbodyHistory().then(setInbodyHistory).catch(() => {})
   }, [user, inbody, getInbodyHistory])
 
-  // BMI 또래 비교(AI 서버). 성별·출생년도가 없으면 비교 자체가 불가능해서 건너뛴다.
-  // 실패하면 null이 와서 아래 섹션이 그냥 안 보인다 - 인바디 화면 자체는 영향받지 않는다
+  // BMI 또래 비교. 값은 서버가 DB에서 읽으므로 여기선 "다시 읽어라"는 신호(인바디 변경)만 준다.
+  // 프로필이 없거나 AI 서버가 꺼져 있으면 error가 담겨 와서 아래 섹션이 안 보인다 -
+  // 인바디 화면 자체는 영향받지 않는다.
   useEffect(() => {
-    getBmiInsight({
-      bmi: inbody?.bmi,
-      gender: profile?.gender,
-      birthYear: profile?.birthYear,
-    }).then(setBmiInsight)
-  }, [inbody?.bmi, profile?.gender, profile?.birthYear])
+    if (!user) return
+    getBmiInsight().then((data) => setBmiInsight(data?.error ? null : data))
+  }, [user, inbody?.bmi, getBmiInsight])
 
   const startEditName = () => {
     setNameDraft(profile?.name ?? '')
@@ -778,6 +775,11 @@ function MyPage() {
               {bmiInsight && (
                 <p className="mp-bmi-insight">
                   {bmiInsight.message}
+                  {/* 인바디에 적힌 BMI와 프로필 키·체중으로 계산한 값이 어긋날 때.
+                      어느 쪽이 틀렸는지는 알 수 없으므로 고치지 않고 확인만 요청한다 */}
+                  {bmiInsight.warning && (
+                    <span className="mp-bmi-warning">{bmiInsight.warning}</span>
+                  )}
                   <span className="mp-bmi-source">
                     {bmiInsight.source} 기준 · 대한비만학회 분류
                   </span>
@@ -864,6 +866,7 @@ function MyPage() {
         <NutrientDetailModal
           summary={todaySummary}
           target={nutrientTarget}
+          date={todayStr()}
           onTargetChange={setNutrientTarget}
           onClose={() => setNutrientModalOpen(false)}
         />

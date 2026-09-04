@@ -70,7 +70,13 @@ def compare_with_peers(intake: dict, gender: str, age: int) -> dict:
     """
     :param intake: {"energy_kcal": 1850.0, "protein_g": 62.0, ...} — 없는 항목은 비교에서 빠진다
     :param gender: "M" | "F"
-    :param age: 만 나이
+    :param age: 연령 구간을 고르는 데 쓰는 나이. 원 통계는 만 나이 기준이지만 프로필이 생년만
+                갖고 있으면 연 나이가 들어오므로 만 나이보다 최대 1살 많을 수 있다
+                (생일이 안 지난 사람은 한 구간 위로 갈 수 있음 - app/insight/age.py 참고).
+
+    비교 대상은 "하루 전체 섭취량"이어야 한다 - 원 통계가 하루 총량이라, 아직 진행 중인
+    오늘의 부분 합계를 넣으면 "평균의 28%"처럼 무의미한 비율이 나온다. 그 판단(오늘인지,
+    끼니를 몇 번 기록했는지)은 날짜와 시각을 아는 백엔드가 하고, 여기는 받은 값을 비교만 한다.
     """
     reference = _load_reference()
     bracket = to_age_bracket(age)

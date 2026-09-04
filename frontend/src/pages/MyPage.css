@@ -135,6 +135,14 @@
   line-height: 1.6;
   color: #55534d;
 }
+/* BMI 교차검증 경고 - 안내문(mp-bmi-source)보다 눈에 띄어야 하지만 오류는 아니다 */
+.mp-bmi-warning {
+  display: block;
+  margin-top: 6px;
+  color: #b3261e;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .mp-measured-at {
   margin-left: 8px;
   font: 500 11.5px 'Noto Sans KR', sans-serif;

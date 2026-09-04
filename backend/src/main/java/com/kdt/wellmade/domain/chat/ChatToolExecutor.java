@@ -19,12 +19,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
 import com.kdt.wellmade.domain.inbody.InbodyService;
-import com.kdt.wellmade.domain.mapage.Gender;
 import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileService;
 import com.kdt.wellmade.domain.nutrition.MealLoggingService;
 import com.kdt.wellmade.domain.nutrition.NutrientTarget;
 import com.kdt.wellmade.domain.nutrition.NutrientTargetCalculator;
+import com.kdt.wellmade.domain.insight.PeerInsightService;
 import com.kdt.wellmade.domain.user.User;
 import com.kdt.wellmade.global.time.AppTime;
 
@@ -149,6 +149,7 @@ public class ChatToolExecutor {
     private final NutrientTargetCalculator nutrientTargetCalculator;
     private final RestClient aiRestClient;
     private final ObjectMapper objectMapper;
+    private final PeerInsightService peerInsightService;
 
     public ChatToolExecutor(
             UserProfileService userProfileService,
@@ -156,7 +157,8 @@ public class ChatToolExecutor {
             MealLoggingService mealLoggingService,
             NutrientTargetCalculator nutrientTargetCalculator,
             RestClient aiRestClient,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            PeerInsightService peerInsightService
     ) {
         this.userProfileService = userProfileService;
         this.inbodyService = inbodyService;
@@ -164,6 +166,7 @@ public class ChatToolExecutor {
         this.nutrientTargetCalculator = nutrientTargetCalculator;
         this.aiRestClient = aiRestClient;
         this.objectMapper = objectMapper;
+        this.peerInsightService = peerInsightService;
     }
 
     String execute(User user, String name, Map<String, Object> arguments) {
@@ -307,68 +310,38 @@ public class ChatToolExecutor {
         return toJson(result);
     }
 
+    // 또래 비교의 실제 내용(프로필 검증, BMI 유효성·교차검증, 오늘 비교 주의문구, AI 서버 호출)은
+    // PeerInsightService에 있다 - 마이페이지/영양소 화면도 같은 서비스를 쓴다. 여기서는 모델이
+    // 읽을 필드만 남기는 일만 한다.
     private String toolGetBmiPeerComparison(User user) {
-        UserProfile profile = getProfileOrNull(user);
-        String peerError = peerProfileError(profile);
-        if (peerError != null) {
-            return toJson(Map.of("error", peerError));
-        }
-
-        InbodyRecord inbody = inbodyService.getLatest(user).orElse(null);
-        if (inbody == null || inbody.getBmi() == null) {
-            return toJson(Map.of("error", "인바디 기록이 없어서 또래 비교를 할 수 없어요."));
-        }
-
-        return callAiServer("/ai/inbody/bmi-insight", Map.of(
-                "bmi", inbody.getBmi(),
-                "gender", referenceGender(profile.getGender()),
-                "birth_year", profile.getBirthYear()
-        ), "category", "percentile", "peer_mean", "age_bracket", "message", "source");
+        return trim(peerInsightService.bmiInsight(user),
+                "error", "category", "percentile", "peer_mean", "age_bracket", "warning", "message", "source");
     }
 
     private String toolGetNutritionPeerComparison(User user, Long userId, Map<String, Object> args) {
-        UserProfile profile = getProfileOrNull(user);
-        String peerError = peerProfileError(profile);
-        if (peerError != null) {
-            return toJson(Map.of("error", peerError));
-        }
-
-        LocalDate date = parseDateArgOrToday(args);
-        MealLoggingService.DailyTotal total = mealLoggingService.getTotalForDate(userId, date);
-        if (total.mealCount() == 0) {
-            return toJson(Map.of("date", date.toString(),
-                    "note", date + "에 기록된 식사가 없어서 또래 비교를 할 수 없어요.",
-                    "instruction", "없다고만 답하고 수치를 지어내지 마세요."));
-        }
-
-        return callAiServer("/ai/nutrition/peer-compare", Map.of(
-                "gender", referenceGender(profile.getGender()),
-                "birth_year", profile.getBirthYear(),
-                "energy_kcal", total.totalCalories(),
-                "protein_g", total.totalProteinG(),
-                "carbs_g", total.totalCarbsG(),
-                "fat_g", total.totalFatG()
-        ), "age_bracket", "message", "source");
-    }
-
-    /** 또래 비교는 성별×연령대 통계라 둘 중 하나만 없어도 비교 자체가 불가능하다. */
-    private String peerProfileError(UserProfile profile) {
-        if (profile == null || profile.getGender() == null || profile.getBirthYear() == null) {
-            return "성별과 출생연도가 있어야 또래 비교를 할 수 있어요. 마이페이지에서 프로필을 먼저 채워주세요.";
-        }
-        return null;
-    }
-
-    /** 프로필의 MALE/FEMALE을 AI 서버 참조 통계 표기(M/F)로 (frontend/src/lib/aiApi.js와 같은 규칙) */
-    private String referenceGender(Gender gender) {
-        return gender == Gender.MALE ? "M" : "F";
+        return trim(peerInsightService.nutritionPeerCompare(user, user.getId(), parseDateArgOrToday(args)),
+                "error", "date", "note", "instruction", "age_bracket", "message", "source");
     }
 
     /**
-     * AI 서버(FastAPI)를 부르고, 응답에서 {@code keep}에 적힌 필드만 남긴다. 응답 전체(끼니별
-     * 비교 배열 등)를 그대로 넘기면 같은 내용이 message와 중복돼 컨텍스트만 잡아먹는다.
+     * 도구 결과에서 {@code keep}에 적힌 필드만 남긴다. 응답 전체(끼니별 비교 배열 등)를 그대로
+     * 넘기면 같은 내용이 message와 중복돼 컨텍스트만 잡아먹는다.
+     */
+    private String trim(JsonNode response, String... keep) {
+        Map<String, Object> trimmed = new LinkedHashMap<>();
+        for (String field : keep) {
+            JsonNode value = response.get(field);
+            if (value != null && !value.isNull()) {
+                trimmed.put(field, objectMapper.convertValue(value, Object.class));
+            }
+        }
+        return toJson(trimmed);
+    }
+
+    /**
+     * AI 서버(FastAPI)를 부르고, 응답에서 {@code keep}에 적힌 필드만 남긴다.
      *
-     * AI 서버는 평소 꺼져 있을 수 있고 여기서 부르는 기능(또래 비교, 운동 추천)은 부가 정보라,
+     * AI 서버는 평소 꺼져 있을 수 있고 여기서 부르는 기능(운동 추천)은 부가 정보라,
      * 실패해도 대화 전체를 끊지 않고 도구 결과를 error로 돌려준다 - 모델이 "지금은 확인이
      * 안 된다"고 답하게 된다.
      */
@@ -383,15 +356,7 @@ public class ChatToolExecutor {
         if (response == null) {
             return toJson(Map.of("error", "AI 서버에서 정보를 가져오지 못했어요. 잠시 후 다시 시도해 주세요."));
         }
-
-        Map<String, Object> trimmed = new LinkedHashMap<>();
-        for (String field : keep) {
-            JsonNode value = response.get(field);
-            if (value != null && !value.isNull()) {
-                trimmed.put(field, objectMapper.convertValue(value, Object.class));
-            }
-        }
-        return toJson(trimmed);
+        return trim(response, keep);
     }
 
     private String toolCalculateNutrientTarget(User user) {

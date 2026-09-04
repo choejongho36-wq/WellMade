@@ -21,6 +21,7 @@ import {
   getKneeOverToeRatio,
   getTorsoShinLeanGapDeg,
 } from '../lib/squatPose.js'
+import { AI_BASE } from '../lib/aiApi.js'
 
 // (2026-08-24) 이 페이지는 원래 /ai/pose/analyze(AI-03, 정지 자세 1차 판정)를 호출해
 // "정상/이상" 결과까지 보여주는 통합 테스트 페이지였다. 사용자가 업로드한 서비스 흐름도를
@@ -50,8 +51,6 @@ import {
 // 했다. 서버에는 여전히 원본 좌표를 보내지 않으므로(이 페이지는 항상 서버 호출 없이 각도만
 // 계산) 백엔드 변경은 필요 없다 — 드래그로 landmarks 배열의 x/y 값만 프론트 state에서
 // 바꾸고, 그 즉시 같은 랜드마크로 아래 측정값/판정 요청이 재계산된다.
-// auth.js 의 API_BASE 와 같은 방식 - 빌드 시 VITE_AI_BASE 로 주입, 없으면 로컬 기본값
-const AI_BASE = import.meta.env.VITE_AI_BASE || 'http://localhost:8000'
 
 const DRAG_HIT_RADIUS_PX = 16 // 이 거리(px) 안에 있는 핵심 관절점만 드래그로 잡을 수 있다.
 

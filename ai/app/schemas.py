@@ -11,6 +11,7 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
 필드가 없다.
 """
 
+from datetime import date
 from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
@@ -299,7 +300,16 @@ class NutritionPeerCompareRequest(BaseModel):
     들고 있지 않다 — 무상태 설계). 넘기지 않은 영양소는 비교에서 빠진다."""
 
     gender: Gender
-    birth_year: int = Field(..., ge=1900, le=2026, description="출생년도. 서버가 현재 연도 기준으로 연령대를 계산한다")
+    birth_year: int = Field(
+        ...,
+        ge=1900,
+        le=2026,
+        description="출생년도. 이것만 있으면 연 나이(현재 연도 - 출생년도)로 계산하므로 "
+                    "만 나이 기준인 원 통계와 최대 1살 어긋난다. birth_date를 같이 주면 정확해진다",
+    )
+    birth_date: Optional[date] = Field(
+        None, description="생년월일. 있으면 정확한 만 나이로 연령 구간을 고른다"
+    )
     energy_kcal: Optional[float] = Field(None, ge=0)
     protein_g: Optional[float] = Field(None, ge=0)
     carbs_g: Optional[float] = Field(None, ge=0)
@@ -333,11 +343,26 @@ class BmiInsightRequest(BaseModel):
     """BMI 인사이트(/ai/inbody/bmi-insight) 요청.
 
     BMI는 백엔드(인바디 기록)가 이미 갖고 있는 값을 그대로 넘긴다 - 키/몸무게로 다시
-    계산하지 않는다(인바디 기기가 낸 값과 우리가 계산한 값이 미세하게 달라지는 걸 피함)."""
+    계산하지 않는다(인바디 기기가 낸 값과 우리가 계산한 값이 미세하게 달라지는 걸 피함).
 
-    bmi: float = Field(..., gt=0, le=100)
+    비교 대상은 항상 "가장 최근 인바디 기록 1건"이다 - 과거 기록과의 추이는 다루지 않는다."""
+
+    # 인바디 OCR이 2.5나 250으로 잘못 읽는 일이 있는데, 그대로 두면 "저체중"/"3단계 비만"으로
+    # 확정돼 버린다. 사람이 가질 수 있는 범위 밖은 아예 받지 않는다.
+    bmi: float = Field(..., ge=10, le=60)
     gender: Gender
-    birth_year: int = Field(..., ge=1900, le=2026)
+    birth_year: int = Field(
+        ...,
+        ge=1900,
+        le=2026,
+        description="출생년도. 이것만 있으면 연 나이로 계산해 만 나이보다 최대 1살 많을 수 있다",
+    )
+    birth_date: Optional[date] = Field(
+        None, description="생년월일. 있으면 정확한 만 나이로 연령 구간을 고른다"
+    )
+    # 키·체중을 같이 주면 BMI를 다시 계산해 교차검증한다(값은 안 바꾸고 warning만 붙는다)
+    height_cm: Optional[float] = Field(None, gt=0, le=300)
+    weight_kg: Optional[float] = Field(None, gt=0, le=500)
 
 
 class BmiInsightResponse(BaseModel):
@@ -348,6 +373,9 @@ class BmiInsightResponse(BaseModel):
     peer_mean: Optional[float] = None
     percentile: Optional[float] = Field(
         None, description="같은 성별·연령대에서 이 BMI 이하인 비율(%). 공개 백분위수(5~95) 밖이면 None"
+    )
+    warning: Optional[str] = Field(
+        None, description="키·체중으로 다시 계산한 BMI와 크게 다를 때의 경고. 정상이면 None"
     )
     message: str
     source: str
