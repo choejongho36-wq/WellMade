@@ -77,7 +77,7 @@ public class ChatController {
 
         chatStreamExecutor.execute(() -> {
             try {
-                String action = chatService.replyStream(user, message, request.followUpId(),
+                ChatService.ReplyMeta meta = chatService.replyStream(user, message, request.followUpId(),
                         new ChatService.ReplyStream() {
                             @Override
                             public void delta(String text) {
@@ -92,8 +92,12 @@ public class ChatController {
                             }
                         });
                 // 답변 뒤에 한 번만 - 프론트가 말풍선 아래에 버튼을 그린다 (예: 인바디 등록하러 가기)
-                if (action != null) {
-                    sendJsonQuietly(emitter, Map.of("action", action));
+                if (meta.action() != null) {
+                    sendJsonQuietly(emitter, Map.of("action", meta.action()));
+                }
+                // 도구가 실어 보낸 바깥 링크 (운동 추천의 국민체력100 영상)
+                if (!meta.links().isEmpty()) {
+                    sendJsonQuietly(emitter, Map.of("links", meta.links()));
                 }
             } catch (UncheckedIOException e) {
                 // 사용자가 답변 도중 창을 닫았을 때(sendJson 실패). 보낼 곳이 없으니 안내도 못 하고,

@@ -449,17 +449,24 @@ def bmi_insight(
 )
 def exercise_recommend(request: ExerciseRecommendRequest):
     """
-    운동 추천 후보 조회 API (v1).
+    운동 추천 API (v2).
 
-    exercises_ko.json에서 부위(+장비)로 필터링한 후보 목록만 돌려준다. 자연어 추천문은
-    백엔드 챗봇이 기존 스트리밍 경로로 생성한다(도구 결과를 문장으로 옮기는 패턴).
-    RAG/임베딩 없이 정형 필터 — body_part 값이 10종뿐이고 조건도 단순해서 충분하다.
-    난이도는 데이터에 없어 여기서 거르지 않는다(생성 단계에서 참고).
+    "무엇을 몇 세트 할지"까지 규칙으로 정해서 내려보낸다 — 자연어 추천문만 백엔드 챗봇이
+    기존 스트리밍 경로로 만든다(도구 결과를 문장으로 옮기는 패턴). 세트/횟수와 주의사항을
+    모델이 지어내게 두면 같은 목표에도 답이 흔들리고 근거를 댈 수 없다.
+
+    후보는 사람이 고른 기본 동작(exercises_core.json)에서만 뽑고, 순서는 결정적이다.
+    임베딩/벡터 검색은 쓰지 않는다 — 자세한 판단 근거는 app/exercise/recommend.py 참고.
     """
 
     result = recommend_exercises(
         body_part=request.body_part,
         equipment=request.equipment or "",
+        goal=request.goal,
+        age=request.age,
+        recent_workouts=[w.model_dump() for w in request.recent_workouts],
+        exclude=request.exclude,
+        exclude_from_text=request.exclude_from_text,
     )
 
     return ExerciseRecommendResponse(**result)

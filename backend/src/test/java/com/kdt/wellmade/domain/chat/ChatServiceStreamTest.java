@@ -73,12 +73,12 @@ class ChatServiceStreamTest {
     /** 도구는 실제로 실행하지 않고 고정된 결과만 돌려준다 */
     private static final class FakeToolExecutor extends ChatToolExecutor {
         FakeToolExecutor() {
-            super(null, null, null, null, null, new ObjectMapper(), null);
+            super(null, null, null, null, null, new ObjectMapper(), null, null, null);
         }
 
         @Override
-        String execute(User user, String name, Map<String, Object> arguments) {
-            return "{\"date\":\"2026-09-01\",\"meals\":[{\"menuName\":\"김밥\",\"kcal\":480}]}";
+        ToolResult execute(User user, String name, Map<String, Object> arguments) {
+            return ToolResult.of("{\"date\":\"2026-09-01\",\"meals\":[{\"menuName\":\"김밥\",\"kcal\":480}]}");
         }
     }
 
@@ -108,12 +108,12 @@ class ChatServiceStreamTest {
                 "leton \"arguments\": {\"date\": \"2026-09-01\"}}"), List.of());
 
         Recorder recorder = new Recorder();
-        String action = serviceWith(ollama).resolveToolsThenStream(null, messages(), recorder);
+        ChatService.ReplyMeta meta = serviceWith(ollama).resolveToolsThenStream(null, messages(), recorder);
 
         // 아무것도 안 나가야 한다 - 빈 답변은 replyStream이 "답변을 만들지 못했어요"로 대체한다
         assertEquals("", recorder.shown.toString());
         assertEquals(0, recorder.resets);
-        assertTrue(action == null);
+        assertTrue(meta.action() == null && meta.links().isEmpty());
     }
 
     /** 도구를 안 부르는 짧은 답변(48자 미만)은 홀드된 채로 끝나므로, 마지막에 마저 흘려야 한다 */

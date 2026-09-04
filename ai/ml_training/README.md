@@ -33,7 +33,43 @@
 > 하며, 표 레이아웃이 바뀌었을 수 있으니 열 위치 상수도 함께 확인해야 한다.
 > (자세 데이터는 세종시가 파일을 새로 올릴 때만 갱신 대상이다.)
 
-**데이터 준비**
+## 운동 추천 데이터
+
+| 스크립트 | 만드는 것 | 용도 | 입력 |
+|---|---|---|---|
+| `prepare_exercise_core.py` | `app/exercise/data/exercises_core.json` | 추천 후보로 쓸 기본 동작 152건 (부위별 8~24건) | `exercise_core_seed.json`(사람이 고른 목록) + `app/rag/data/exercises_ko.json` |
+| `prepare_exercise_videos.py` | `app/exercise/data/exercise_videos.json` | 추천에 붙일 국민체력100 참고 영상 (근육 18종 x 8건) | `app/rag/data/videos.json` |
+
+**왜 큐레이션인가** — 추천 후보를 1,324건 전부로 두면 "덤벨 하이트 플라이" 같은 변형이
+"덤벨 플라이"보다 먼저 나오고 초보자가 알아보지 못한다. 부위별 기본 동작만 남기고
+`difficulty` / `is_compound` / `home_friendly` 태그를 사람이 붙였다(`exercise_core_seed.json`).
+나머지 1,000여 건은 버리는 게 아니라 `get_exercise_detail`(이름으로 설명 찾기)에서 계속 쓰이므로
+커버리지는 그대로다. 운동을 추가·수정하려면 시드 JSON만 고치고 스크립트를 다시 돌리면 된다
+(시드에 원본에 없는 이름을 적으면 그 목록을 출력하고 실패한다).
+
+**영상 매칭** — 운동명이 아니라 근육으로 잇는다. `exercises_ko`의 `target`(pectorals 등)과
+국민체력100의 `trng_mscl_eng_nm`(Pectoralis Major 등)을 `TARGET_TO_MUSCLES` 사전으로 이었다.
+원본 30,090행은 대부분 같은 영상의 구간 레코드라 운동명 기준으로는 1,816종이고,
+그중 근육 정보가 붙은 것만 추리면 900여 종이다.
+
+**임베딩/벡터 검색을 아직 넣지 않은 이유** — "허리 안 아프게 하는 등 운동"처럼 필터로 못 잡는
+자유 표현이 실제로 들어오는지부터 봐야 한다. 부위 매칭에 실패한 요청은
+`app/exercise/recommend.py`의 `log_freeform_request`가 INFO 로그로 남기므로, 그 로그가 쌓이면
+그때 큐레이션 152건 + 영상 설명문에만 좁게 임베딩(bge-m3 / multilingual-e5, CPU로 충분)을 걸어
+`recommend`의 전처리 단계로 넣으면 된다. 30,090건 영상에 그대로 벡터 검색을 거는 건 중복이 많아
+검색 품질이 오히려 떨어지고, 지금 단계에서 벡터 DB를 세우는 비용 대비 효과가 낮다.
+
+**실행**
+
+```bash
+cd ai
+python -m ml_training.prepare_exercise_core
+python -m ml_training.prepare_exercise_videos
+```
+
+원본(`exercises_ko.json`, `videos.json`)이 이미 커밋돼 있어 별도 다운로드 없이 바로 돌아간다.
+
+## 자세 참조 분포 데이터 준비
 
 ```
 https://www.data.go.kr/data/15128996/fileData.do

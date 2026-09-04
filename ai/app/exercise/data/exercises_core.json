@@ -1,0 +1,2458 @@
+{
+  "source": "ExerciseDB (exercises_ko.json) 중 사람이 고른 기본 동작",
+  "curation_note": "부위별 기본 동작만 남긴 추천 후보. difficulty/is_compound/home_friendly는 사람이 붙인 태그이고, 나머지 필드는 원본 그대로다. 이름으로 설명을 찾는 get_exercise_detail은 원본 전체를 계속 쓴다.",
+  "groups": {
+    "chest": [
+      {
+        "id": "0662",
+        "name": "push-up",
+        "name_ko": "푸시업",
+        "body_part": "chest",
+        "equipment": "body weight",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "deltoids",
+          "core"
+        ],
+        "instructions_ko": "손이 어깨 너비보다 약간 넓고 발이 함께 있으며 머리에서 발끝까지 일직선인 높은 플랭크 자세에서 시작합니다. 코어를 조여 팔꿈치를 구부려 가슴을 땅 쪽으로 낮추면서 몸을 일직선으로 유지합니다. 가슴이 땅 바로 위에 있을 때 잠깐 멈춘 후 팔을 펴서 처음 자세로 다시 올립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3211",
+        "name": "kneeling push-up (male)",
+        "name_ko": "닐링 푸시업 (남성)",
+        "body_part": "chest",
+        "equipment": "body weight",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders"
+        ],
+        "instructions_ko": "땅에 무릎을 꿇은 자세에서 손을 어깨너비로 벌리고 손가락은 앞을 향하도록 시작합니다. 다리를 뒤로 펼쳐 발가락으로 받치면서 머리에서 발뒤꿈치까지 몸이 일직선을 이루도록 합니다. 코어에 힘을 주고 팔꿈치를 구부려 몸을 땅 쪽으로 낮추면서 팔꿈치는 몸 옆에 가깝게 유지합니다. 가슴이 땅 바로 위에 올 때까지 계속 낮춘 후 팔을 펴면서 밀어 시작 위치로 돌아옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0659",
+        "name": "push-up (wall)",
+        "name_ko": "푸시업 (월)",
+        "body_part": "chest",
+        "equipment": "body weight",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "deltoids"
+        ],
+        "instructions_ko": "벽을 마주보고 팔 길이 정도 거리에 서 있습니다. 손을 어깨 높이의 벽 위에 놓고 어깨 너비보다 약간 넓게 벌립니다. 발을 몇 발짝 뒤로 물러나면서 몸을 펴진 상태로 유지하고 발을 엉덩이 너비로 벌립니다. 팔꿈치를 구부려 가슴을 벽 쪽으로 낮추면서 몸을 일직선으로 유지합니다. 처음 자세로 다시 밀어올리면서 팔을 펼칩니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0493",
+        "name": "incline push-up",
+        "name_ko": "인클라인 푸시업",
+        "body_part": "chest",
+        "equipment": "body weight",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders"
+        ],
+        "instructions_ko": "벤치나 스텝 같은 높인 표면에 손을 어깨 너비보다 약간 넓게 얹습니다. 발을 뒤로 펼쳐 발 앞쪽으로 지탱하여 머리부터 발까지 일직선이 되도록 합니다. 팔꿈치를 구부려 가슴을 높인 표면 쪽으로 내립니다. 몸이 일직선으로 유지되도록 합니다. 아래에서 잠시 멈춘 후 팔을 펴서 시작 위치로 올라옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0279",
+        "name": "decline push-up",
+        "name_ko": "디클라인 푸시업",
+        "body_part": "chest",
+        "equipment": "body weight",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders"
+        ],
+        "instructions_ko": "손을 어깨너비보다 약간 넓게 바닥에 올려놓고 발을 안정적인 높은 곳에 올려놓습니다. 머리부터 발끝까지 몸을 일직선으로 유지하며 코어에 힘을 줍니다. 팔꿈치를 구부려 가슴을 바닥 쪽으로 내리고 팔꿈치를 몸 가까이 유지합니다. 손바닥으로 밀어 팔을 펴서 처음 위치로 돌아갑니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3294",
+        "name": "archer push up",
+        "name_ko": "아처 푸시 업",
+        "body_part": "chest",
+        "equipment": "body weight",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders",
+          "core"
+        ],
+        "instructions_ko": "팔굽혀펴기 자세로 시작하되 손이 어깨 넓이보다 약간 넓게 벌어집니다. 한쪽 팔을 곧게 펴 바닥과 평행하게 옆으로 뻗습니다. 팔꿈치를 구부려 몸을 내리되 등을 곧게 펴고 복근을 긴장시킵니다. 시작 자세로 밀어 올립니다. 반대쪽 팔을 옆으로 펴 같은 동작을 반복합니다. 원하는 반복 횟수만큼 좌우를 번갈아가며 계속합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1273",
+        "name": "clap push up",
+        "name_ko": "클랩 푸시 업",
+        "body_part": "chest",
+        "equipment": "body weight",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders"
+        ],
+        "instructions_ko": "손을 어깨 너비보다 약간 넓게 놓고 높은 플랭크 자세를 시작합니다. 팔꿈치를 구부려서 지면을 향해 몸을 내려놓되 복근을 긴장시킵니다. 손가락 끝으로 폭발적으로 밀어서 몸을 지면에서 떨어지게 합니다. 공중에 있는 동안 손을 박수로 짚습니다. 시작 위치로 돌아와 착지합니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0025",
+        "name": "barbell bench press",
+        "name_ko": "바벨 벤치 프레스",
+        "body_part": "chest",
+        "equipment": "barbell",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders"
+        ],
+        "instructions_ko": "벤치에 눕되 발을 땅에 댑니다. 등을 벤치에 밀착합니다. 어깨 너비보다 약간 더 넓게 오버그립으로 바벨을 잡습니다. 바벨을 랙에서 들어 가슴 위에서 팔을 완전히 뻗은 상태로 잡습니다. 팔꿈치를 안쪽으로 유지하면서 천천히 바벨을 가슴 쪽으로 내립니다. 바벨이 가슴에 닿을 때 잠시 멈춘 후, 팔을 펴서 바벨을 처음 위치로 밀어냅니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0289",
+        "name": "dumbbell bench press",
+        "name_ko": "덤벨 벤치 프레스",
+        "body_part": "chest",
+        "equipment": "dumbbell",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders"
+        ],
+        "instructions_ko": "벤치에 누워 발을 바닥에 붙이고 등을 벤치에 기대십시오. 양손에 덤벨을 들고 손바닥이 앞을 향하며 팔이 가슴 위로 펼쳐진 상태입니다. 덤벨을 천천히 가슴 옆으로 내리고 팔꿈치를 90도로 유지합니다. 잠시 멈춘 후 덤벨을 처음 위치로 밀어 올리며 팔을 완전히 펼칩니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0308",
+        "name": "dumbbell fly",
+        "name_ko": "덤벨 플라이",
+        "body_part": "chest",
+        "equipment": "dumbbell",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "shoulders"
+        ],
+        "instructions_ko": "벤치에 누워 각 손에 덤벨을 들되 손바닥이 서로 마주보도록 합니다. 팔을 가슴 위로 곧게 펴되 팔꿈치에 약간의 굴곡을 유지합니다. 팔꿈치에 약간의 굴곡을 유지하면서 넓은 호를 그리며 팔을 옆으로 내려 가슴에 스트레치를 느낍니다. 잠깐 멈춘 후 동작을 반전하여 덤벨을 시작 위치로 올립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0319",
+        "name": "dumbbell incline fly",
+        "name_ko": "덤벨 인클라인 플라이",
+        "body_part": "chest",
+        "equipment": "dumbbell",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "shoulders"
+        ],
+        "instructions_ko": "인클라인 벤치를 45도 각도로 설정합니다. 벤치에 앉아 각 손에 덤벨을 들되 손바닥이 서로 마주보도록 합니다. 벤치에 등을 기대고 덤벨을 가슴 위로 올려 시작 위치에 놓습니다. 덤벨을 옆으로 넓은 호를 그리며 내려 가슴에 스트레치를 느낍니다. 잠깐 멈춘 후 가슴 근육을 조이면서 덤벨을 시작 위치로 올립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0375",
+        "name": "dumbbell pullover",
+        "name_ko": "덤벨 풀오버",
+        "body_part": "chest",
+        "equipment": "dumbbell",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "latissimus dorsi",
+          "triceps"
+        ],
+        "instructions_ko": "벤치에 누워 한쪽 끝에 머리를 놓고 발을 바닥에 놓습니다. 양손으로 덤벨을 잡고 팔을 가슴 위로 곧게 펼칩니다. 팔꿈치에 약간의 굽힘을 유지하면서 천천히 덤벨을 머리 뒤로 내려 가슴과 어깨에 스트레칭을 느낍니다. 잠시 멈춘 후 덤벨을 시작 위치로 올립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "1254",
+        "name": "band bench press",
+        "name_ko": "밴드 벤치 프레스",
+        "body_part": "chest",
+        "equipment": "band",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders"
+        ],
+        "instructions_ko": "벤치에 누워 발을 바닥에 평평하게 놓고 등을 벤치에 붙입니다. 손바닥이 앞을 향하도록 밴드 손잡이를 어깨너비보다 약간 넓게 잡습니다. 팔을 완전히 펼쳐 밴드를 가슴에서 멀어지게 밀어냅니다. 밴드를 천천히 다시 가슴으로 내려 팔꿈치가 90도 각도가 되도록 합니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0188",
+        "name": "cable middle fly",
+        "name_ko": "케이블 미들 플라이",
+        "body_part": "chest",
+        "equipment": "cable",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "deltoids",
+          "triceps"
+        ],
+        "instructions_ko": "케이블 머신의 양쪽에 케이블을 가슴 높이에 부착합니다. 머신 중앙에 서서 한 발을 약간 앞으로 합니다. 손잡이를 오버핸드 그립으로 잡고 팔을 옆으로 펼칩니다. 팔꿈치에 약간의 굽곡을 유지하고 약간 앞으로 기울인 자세를 유지합니다. 가슴 근육을 활성화하고 팔을 앞으로 쓸어 움직입니다. 중앙에서 잠깐 멈추었다가 팔을 천천히 시작 위치로 돌아옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "2144",
+        "name": "cable seated chest press",
+        "name_ko": "케이블 시티드 체스트 프레스",
+        "body_part": "chest",
+        "equipment": "cable",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "shoulders",
+          "triceps"
+        ],
+        "instructions_ko": "시트 높이와 케이블 핸들을 편안한 위치로 조정합니다. 벤치에 앉아 등을 곧게 펴고 발을 바닥에 평평하게 놓습니다. 어깨 높이에서 오버그립으로 케이블 핸들을 잡습니다. 핸들을 몸에서 앞으로 밀어내면서 팔을 완전히 펼칩니다. 잠시 멈추었다가 핸들을 천천히 시작 위치로 가져옵니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0576",
+        "name": "lever chest press",
+        "name_ko": "레버 체스트 프레스",
+        "body_part": "chest",
+        "equipment": "leverage machine",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders"
+        ],
+        "instructions_ko": "시트의 높이를 조정하고 머신에 앉아 등을 패드에 편다. 오버핸드 그립으로 손잡이를 잡고 팔꿈치를 90도 각도로 위치시킨다. 손잡이를 앞으로 밀어 팔을 완전히 펼칠 때까지 누르며 숨을 내쉰다. 동작의 끝에서 짧게 멈춘 후, 천천히 시작 위치로 돌아오며 숨을 마신다. 원하는 횟수만큼 반복한다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0748",
+        "name": "smith bench press",
+        "name_ko": "스미스 벤치 프레스",
+        "body_part": "chest",
+        "equipment": "smith machine",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders"
+        ],
+        "instructions_ko": "스미스 머신 바의 높이를 가슴 높이로 조정하세요. 벤치에 평평하게 누워 발을 땅에 단단히 디디세요. 바를 오버핸드 그립으로 잡되 손을 어깨 너비보다 약간 넓게 벌리세요. 바를 랙에서 들어올려 가슴 쪽으로 천천히 내려놓되 팔꿈치를 안쪽으로 향하게 하세요. 바가 가슴에 닿을 때 잠깐 멈춘 후 바를 밀어 팔을 완전히 펴세요. 원하는 반복 횟수만큼 반복하세요.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0251",
+        "name": "chest dip",
+        "name_ko": "체스트 딥스",
+        "body_part": "chest",
+        "equipment": "body weight",
+        "target": "pectorals",
+        "secondary_muscles": [
+          "triceps",
+          "shoulders"
+        ],
+        "instructions_ko": "평행봉에 팔을 곧게 펴고 몸을 곧게 한 상태로 위치합니다. 팔꿈치를 구부려서 어깨가 팔꿈치 아래로 내려올 때까지 몸을 내려놓습니다. 팔을 펴서 몸을 시작 위치로 다시 올립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": false
+      }
+    ],
+    "back": [
+      {
+        "id": "2300",
+        "name": "inverted row bent knees",
+        "name_ko": "인버티드 로우 벤트 무릎",
+        "body_part": "back",
+        "equipment": "body weight",
+        "target": "upper back",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "막대를 허리 높이에 설정한 후 아래에 누워집니다. 손아등그립으로 막대를 어깨너비보다 약간 넓게 잡습니다. 발꿈치가 바닥에 있고 몸이 곧은 상태가 되도록 자세를 잡습니다. 어깨뼈를 함께 조이면서 가슴을 위로 당겨 막대에 올립니다. 위쪽에서 잠시 멈춘 후 천천히 몸을 시작 자세로 낮춥니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0499",
+        "name": "inverted row",
+        "name_ko": "인버티드 로우",
+        "body_part": "back",
+        "equipment": "body weight",
+        "target": "upper back",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "막대를 허리 높이에 설정하거나 서스펜션 트레이너를 사용합니다. 막대나 서스펜션 트레이너 앞에 서면서 발을 어깨너비로 벌립니다. 손아등그립으로 막대나 손잡이를 어깨너비보다 약간 넓게 잡습니다. 몸을 곧게 유지하고 발꿈치를 바닥에 붙인 채로 뒤로 기울입니다. 가슴을 막대나 손잡이 쪽으로 당기면서 어깨뼈를 함께 조입니다. 위쪽에서 잠시 멈춘 후 천천히 시작 자세로 내려옵니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0017",
+        "name": "assisted pull-up",
+        "name_ko": "보조 풀업",
+        "body_part": "back",
+        "equipment": "leverage machine",
+        "target": "lats",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "머신을 원하는 무게와 높이 설정으로 조정합니다. 손바닥이 앞을 향하도록 손잡이를 어깨너비보다 약간 넓게 잡습니다. 팔을 완전히 펼친 상태로 발이 바닥에서 떨어져 매달립니다. 등 근육을 활성화하고 팔꿈치를 몸 옆에 붙이며 몸을 위로 당겨 턱이 손잡이 위로 올라올 때까지 계속 당깁니다. 맨 위에서 잠깐 멈춘 후 천천히 시작 위치로 내려갑니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0970",
+        "name": "band assisted pull-up",
+        "name_ko": "보조 풀업 (밴드)",
+        "body_part": "back",
+        "equipment": "band",
+        "target": "lats",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "밴드를 풀업 바나 견고한 지점에 고정시킵니다. 밴드에 발을 올리고 손바닥이 몸에서 멀어지도록 바를 어깨너비보다 약간 넓게 잡습니다. 팔을 완전히 펼친 상태로 매달리면서 코어를 활성화하고 어깨를 아래로 뒤로 젖힙니다. 어깨뼈를 함께 조이면서 몸을 바 방향으로 당기되 팔꿈치를 골반 방향으로 아래로 밀어냅니다. 턱이 바 위로 올라올 때까지 계속 당긴 후 천천히 시작 위치로 자신을 내려갑니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1326",
+        "name": "chin-up",
+        "name_ko": "친업",
+        "body_part": "back",
+        "equipment": "body weight",
+        "target": "lats",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "손가락이 자신을 향하도록 하고 손을 어깨 너비로 떨어뜨려서 풀업 바에 매달립니다. 복근을 긴장시키고 가슴을 앞으로 내밀면서 몸을 바 쪽으로 들어올립니다. 턱이 바 위로 올 때까지 계속 들어올립니다. 꼭대기에서 잠깐 멈춘 후 천천히 몸을 시작 위치로 내려놓습니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "1327",
+        "name": "close grip chin-up",
+        "name_ko": "클로즈 그립 친업",
+        "body_part": "back",
+        "equipment": "body weight",
+        "target": "lats",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "손가락이 자신을 향하도록 하고 손을 어깨 너비로 떨어뜨려서 풀업 바를 잡습니다. 팔을 곧게 펴고 발을 지면에서 떨어뜨려 바에 매달립니다. 등 근육을 긴장시키고 팔꿈치를 몸에 가깝게 유지하면서 몸을 바 쪽으로 들어올립니다. 턱이 바 위로 올 때까지 계속 들어올립니다. 꼭대기에서 잠깐 멈춘 후 천천히 몸을 시작 위치로 내려놓습니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0198",
+        "name": "cable pulldown",
+        "name_ko": "케이블 풀다운",
+        "body_part": "back",
+        "equipment": "cable",
+        "target": "lats",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "케이블 풀다운 머신의 좌석이 편안한 높이에 있도록 조정하고 무릎 패드를 고정합니다. 등을 곧게 유지하고 발을 바닥에 두고 좌석에 앉습니다. 손을 어깨 너비보다 약간 넓게 벌린 오버핸드 그립으로 케이블 바를 잡습니다. 약간 뒤로 기울어져 코어에 힘을 줍니다. 케이블 바를 가슴 방향으로 당기며 어깨뼈를 함께 조입니다. 움직임의 최하점에서 잠깐 멈춘 후 천천히 바를 시작 위치로 풀어 올립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0245",
+        "name": "cable underhand pulldown",
+        "name_ko": "케이블 언더핸드 풀다운",
+        "body_part": "back",
+        "equipment": "cable",
+        "target": "lats",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "케이블 머신의 풀다운 바가 머리 위 높이에 오도록 조정합니다. 의자에 앉아 역그립으로 풀다운 바를 잡고 손을 어깨너비보다 약간 넓게 벌립니다. 등을 곧게 펴고 약간 뒤로 기울입니다. 바를 가슴 쪽으로 당기면서 견갑골을 모읍니다. 동작의 최하단에서 잠시 멈춘 후 천천히 바를 처음 위치로 돌려놓습니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0579",
+        "name": "lever front pulldown",
+        "name_ko": "레버 프론트 풀다운",
+        "body_part": "back",
+        "equipment": "leverage machine",
+        "target": "lats",
+        "secondary_muscles": [
+          "biceps",
+          "rhomboids",
+          "rear deltoids"
+        ],
+        "instructions_ko": "시트의 높이를 조정하고 무릎이 패드 아래 오고 발을 바닥에 딛고 머신에 앉는다. 오버핸드 그립으로 손잡이를 잡고 어깨 너비보다 약간 넓게 벌린다. 가슴을 세우고 어깨를 뒤로 펴며 허리 아래에 약간의 아치를 유지하고 곧게 앉는다. 광배근을 활성화하고 손잡이를 가슴 쪽으로 당기며 견갑골을 모아 쥔다. 동작의 하단에서 잠시 멈춘 후, 천천히 손잡이를 시작 위치로 놓아준다. 원하는 횟수만큼 반복한다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0861",
+        "name": "cable seated row",
+        "name_ko": "케이블 시티드 로우",
+        "body_part": "back",
+        "equipment": "cable",
+        "target": "upper back",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "케이블 로우 머신에 앉아 발을 풋레스트에 평평하게 놓고 무릎을 약간 구부립니다. 오버핸드 그립으로 핸들을 잡고 등을 곧게 펴고 어깨를 이완합니다. 핸들을 몸 쪽으로 당기며 견갑골을 함께 조입니다. 운동의 최고점에서 잠시 멈춘 후 천천히 핸들을 처음 위치로 돌려놓습니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0180",
+        "name": "cable low seated row",
+        "name_ko": "케이블 로우 시티드 로우",
+        "body_part": "back",
+        "equipment": "cable",
+        "target": "upper back",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "발을 풋레스트에 평평하게 놓고 무릎을 약간 구부린 상태로 머신에 앉습니다. 손잡이를 오버핸드 그립으로 잡고 손가락이 아래를 향합니다. 등을 곧게 유지하고 약간 앞으로 기울이면서 팔꿈치에 약간의 굽곡을 유지합니다. 손잡이를 몸 쪽으로 당겨 견갑골을 함께 쥡니다. 동작의 절정에서 잠깐 멈추었다가 천천히 손잡이를 시작 위치로 돌려놓습니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0293",
+        "name": "dumbbell bent over row",
+        "name_ko": "덤벨 벤트 오버 로우",
+        "body_part": "back",
+        "equipment": "dumbbell",
+        "target": "upper back",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "발을 어깨 너비로 벌리고 무릎을 약간 구부린 상태에서 섭니다. 각 손에 덤벨을 하나씩 들고 손바닥이 신체를 향하도록 합니다. 엉덩이 부분에서 구부려 앞으로 숙입니다. 등을 곧게 유지하고 코어에 힘을 줍니다. 팔을 바닥을 향해 곧게 내립니다. 팔꿈치는 약간 구부립니다. 덤벨을 가슴 쪽으로 당기면서 어깨뼈를 함께 조여줍니다. 정점에서 잠시 멈추고 천천히 덤벨을 시작 자세로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0027",
+        "name": "barbell bent over row",
+        "name_ko": "바벨 벤트 오버 로우",
+        "body_part": "back",
+        "equipment": "barbell",
+        "target": "upper back",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "발을 어깨넓이로 벌리고 무릎을 약간 구부린 상태로 섭니다. 허리를 굽혀 상체를 앞으로 숙이면서 등은 곧게 유지하고 가슴을 펼칩니다. 손가락이 앞을 향하는 그립으로 바벨을 잡고 손은 어깨넓이보다 약간 넓게 위치시킵니다. 어깨뼈를 뒤로 당기면서 등 근육을 수축시켜 바벨을 아래 가슴 쪽으로 당깁니다. 맨 위에서 잠시 멈춘 후 천천히 바벨을 시작 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "3017",
+        "name": "barbell pendlay row",
+        "name_ko": "바벨 펜들레이 로우",
+        "body_part": "back",
+        "equipment": "barbell",
+        "target": "upper back",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "어깨너비로 발을 벌리고 무릎을 약간 구부립니다. 엉덩이에서 구부려 앞으로 숙이되, 등을 곧게 펴고 가슴은 위로 향하게 합니다. 오버그립으로 바벨을 잡되, 손은 어깨너비보다 약간 넓게 벌립니다. 바벨을 상부 복부 방향으로 당기면서 어깨뼈를 모으고 짜냅니다. 바벨을 시작 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0541",
+        "name": "kettlebell one arm row",
+        "name_ko": "케틀벨 원 암 로우",
+        "body_part": "back",
+        "equipment": "kettlebell",
+        "target": "upper back",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "다리를 어깨 너비로 벌리고 한 손으로 오버핸드 그립으로 케틀벨을 잡습니다. 무릎을 살짝 구부리고 허리에서 구부리면서 등을 곧게 펴고 코어에 힘을 줍니다. 팔꿈치를 몸에 붙인 상태로 케틀벨을 가슴 쪽으로 당기면서 어깨 날개뼈를 모아줍니다. 최고점에서 잠깐 멈춘 후 케틀벨을 천천히 처음 위치로 낮춥니다. 원하는 반복 횟수를 완료한 후 반대쪽 팔로 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0974",
+        "name": "band close-grip pulldown",
+        "name_ko": "밴드 클로즈그립 풀다운",
+        "body_part": "back",
+        "equipment": "band",
+        "target": "lats",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "밴드를 풀업 바나 견고한 들보 같은 높은 지점에 고정시킵니다. 고정 지점을 마주보고 선 후 손바닥이 몸을 향하도록 밴드를 어깨너비로 언더핸드 그립으로 잡습니다. 발 너비를 엉덩이너비로 벌리고 뒤로 물러나 밴드에 장력을 만듭니다. 코어를 활성화하고 등을 펴며 밴드를 가슴 방향으로 아래로 당기면서 어깨뼈를 함께 조입니다. 동작의 맨 아래에서 잠깐 멈춘 후 천천히 밴드를 시작 위치로 놓습니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1013",
+        "name": "band underhand pulldown",
+        "name_ko": "밴드 언더핸드 풀다운",
+        "body_part": "back",
+        "equipment": "band",
+        "target": "lats",
+        "secondary_muscles": [
+          "biceps",
+          "forearms"
+        ],
+        "instructions_ko": "밴드를 풀업 바나 견고한 보(보)와 같은 높은 고정점에 부착합니다. 고정점을 향해 어깨 너비로 발을 벌리고 섭니다. 언더그립으로 밴드를 잡되 손이 어깨보다 약간 더 넓게 벌어지도록 합니다. 팔꿈치를 약간 구부린 상태에서 팔을 머리 위로 완전히 뻗습니다. 광배근을 활성화하여 밴드를 가슴 쪽으로 당기며 어깨날을 조입니다. 동작의 맨 아래에서 잠시 멈춘 후, 천천히 장력을 풀고 원래 위치로 돌아옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0406",
+        "name": "dumbbell shrug",
+        "name_ko": "덤벨 슈러그",
+        "body_part": "back",
+        "equipment": "dumbbell",
+        "target": "traps",
+        "secondary_muscles": [
+          "shoulders"
+        ],
+        "instructions_ko": "발을 어깨 너비로 벌리고 섭니다. 각 손에 덤벨을 들되 손바닥이 몸 쪽을 향하도록 잡습니다. 팔을 곧게 펴고 덤벨을 옆에 내린 상태로 유지합니다. 어깨를 최대한 높이 올려 귀에 닿으려는 듯이 합니다. 수축을 1초간 유지한 후 어깨를 처음 위치로 천천히 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0095",
+        "name": "barbell shrug",
+        "name_ko": "바벨 슈러그",
+        "body_part": "back",
+        "equipment": "barbell",
+        "target": "traps",
+        "secondary_muscles": [
+          "shoulders"
+        ],
+        "instructions_ko": "어깨넓이로 발을 벌리고 서서 바벨을 양손으로 오버그립으로 몸 앞에 들고 있습니다. 운동 내내 팔과 등을 곧게 펴진 상태로 유지합니다. 어깨를 귀 쪽으로 최대한 높이 들어올리면서 사다리근을 최상단에서 꼬집습니다. 순간 멈춘 후 어깨를 천천히 시작 위치로 낮춥니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0489",
+        "name": "hyperextension",
+        "name_ko": "하이퍼익스텐션",
+        "body_part": "back",
+        "equipment": "body weight",
+        "target": "spine",
+        "secondary_muscles": [
+          "glutes",
+          "hamstrings"
+        ],
+        "instructions_ko": "하이퍼익스텐션 벤치를 조정하여 허벅지 위쪽이 패드에 걸쳐지고 발이 고정되도록 합니다. 양팔을 가슴에 교차시키거나 손을 머리 뒤에 둡니다. 등을 곧게 유지하면서 상체를 천천히 지면 방향으로 내립니다. 아래에서 잠시 멈춘 후 상체를 들어 올려 다리와 일직선이 되도록 합니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      }
+    ],
+    "shoulders": [
+      {
+        "id": "0334",
+        "name": "dumbbell lateral raise",
+        "name_ko": "덤벨 래터럴 레이즈",
+        "body_part": "shoulders",
+        "equipment": "dumbbell",
+        "target": "delts",
+        "secondary_muscles": [
+          "traps"
+        ],
+        "instructions_ko": "어깨 너비만큼 발을 벌리고 각 손에 덤벨을 들되 손가락이 몸 쪽을 향합니다. 등을 쭉 펴고 복부에 힘을 주어 유지합니다. 팔을 옆으로 들어올려 바닥과 평행하게 만들고 팔꿈치에 살짝 구부립니다. 정상에서 잠시 멈추었다가 팔을 천천히 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0310",
+        "name": "dumbbell front raise",
+        "name_ko": "덤벨 프론트 레이즈",
+        "body_part": "shoulders",
+        "equipment": "dumbbell",
+        "target": "delts",
+        "secondary_muscles": [
+          "biceps",
+          "trapezius"
+        ],
+        "instructions_ko": "어깨너비로 발을 벌리고 서서 각 손에 덤벨을 들되 손바닥이 허벅지를 향하도록 합니다. 팔을 곧게 펴고 숨을 내쉬면서 덤벨을 앞으로 들어 어깨 높이까지 올립니다. 맨 위에서 잠깐 멈춘 후 숨을 들이쉬면서 천천히 덤벨을 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "2292",
+        "name": "dumbbell rear delt raise",
+        "name_ko": "덤벨 리어 삼각근 레이즈",
+        "body_part": "shoulders",
+        "equipment": "dumbbell",
+        "target": "delts",
+        "secondary_muscles": [
+          "trapezius",
+          "rhomboids"
+        ],
+        "instructions_ko": "발을 어깨 넓이로 벌리고 양손에 덤벨을 잡아 몸통 쪽으로 손바닥을 향하게 합니다. 무릎을 약간 구부리고 엉덩이에서 구부리면서 등을 곧게 펼칩니다. 팔꿈치에 약간의 굽힘을 유지하면서 팔을 옆으로 들어올려 바닥과 평행하게 합니다. 맨 위에서 잠시 멈춘 후 천천히 팔을 시작 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0383",
+        "name": "dumbbell reverse fly",
+        "name_ko": "덤벨 리버스 플라이",
+        "body_part": "shoulders",
+        "equipment": "dumbbell",
+        "target": "delts",
+        "secondary_muscles": [
+          "trapezius",
+          "rhomboids"
+        ],
+        "instructions_ko": "발을 어깨 넓이로 벌리고 양손에 덤벨을 잡습니다. 무릎을 약간 구부리고 엉덩이에서 구부리면서 등을 곧게 펼칩니다. 팔을 앞으로 곧게 내리되 손바닥이 서로 마주보게 합니다. 팔꿈치에 약간의 굽힘을 유지하면서 팔을 옆으로 들어올려 바닥과 평행하게 합니다. 맨 위에서 잠시 멈춘 후 천천히 팔을 시작 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "2137",
+        "name": "dumbbell arnold press",
+        "name_ko": "덤벨 아놀드 프레스",
+        "body_part": "shoulders",
+        "equipment": "dumbbell",
+        "target": "delts",
+        "secondary_muscles": [
+          "triceps",
+          "upper chest"
+        ],
+        "instructions_ko": "등받이가 있는 벤치에 앉아 양손에 덤벨을 어깨 높이에 들고 손바닥이 몸을 향하며 팔꿈치를 구부립니다. 덤벨을 위로 누르며 팔을 완전히 펼치고 손바닥이 앞을 향하도록 합니다. 들어올리면서 손목을 회전시켜 상단에서 손바닥이 앞을 향하도록 합니다. 상단에서 잠시 멈춘 후 천천히 덤벨을 처음 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0437",
+        "name": "dumbbell upright row",
+        "name_ko": "덤벨 업라이트 로우",
+        "body_part": "shoulders",
+        "equipment": "dumbbell",
+        "target": "delts",
+        "secondary_muscles": [
+          "traps",
+          "biceps"
+        ],
+        "instructions_ko": "어깨너비로 발을 벌리고 서서 양손에 덤벨을 들되 손가락이 앞을 향하도록 합니다. 덤벨을 허벅지 앞에 내린 채로 팔을 완전히 펼친 상태로 둡니다. 등을 곧게 펴고 복부에 힘을 주면서 숨을 내쉬며 덤벨을 턱 방향으로 곧게 들어올리되 팔꿈치를 먼저 움직입니다. 맨 위에서 잠깐 멈춘 후 숨을 들이쉬며 덤벨을 천천히 시작 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0997",
+        "name": "band shoulder press",
+        "name_ko": "밴드 숄더 프레스",
+        "body_part": "shoulders",
+        "equipment": "band",
+        "target": "delts",
+        "secondary_muscles": [
+          "triceps",
+          "upper back"
+        ],
+        "instructions_ko": "발을 어깨너비로 벌리고 서서 발 아래에 밴드를 놓습니다. 손바닥이 앞을 향하게 하여 밴드를 잡고 손을 어깨 높이로 올려 팔꿈치를 구부립니다. 밴드를 머리 위로 눌러 팔을 완전히 펼칩니다. 꼭짓점에서 잠깐 멈춘 후 천천히 밴드를 어깨 높이로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0978",
+        "name": "band front raise",
+        "name_ko": "밴드 프론트 레이즈",
+        "body_part": "shoulders",
+        "equipment": "band",
+        "target": "delts",
+        "secondary_muscles": [
+          "triceps",
+          "upper back"
+        ],
+        "instructions_ko": "발을 어깨너비로 벌리고 서서 밴드를 넓적다리 앞에 들되 손바닥이 아래를 향하게 합니다. 팔을 곧게 펼친 상태로 천천히 팔을 앞으로 올려 지면과 평행하게 만듭니다. 꼭짓점에서 잠깐 멈춘 후 천천히 팔을 시작 자세로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0993",
+        "name": "band reverse fly",
+        "name_ko": "밴드 리버스 플라이",
+        "body_part": "shoulders",
+        "equipment": "band",
+        "target": "delts",
+        "secondary_muscles": [
+          "upper back",
+          "trapezius"
+        ],
+        "instructions_ko": "밴드를 가슴 높이의 고정된 물체에 부착합니다. 발을 어깨너비로 벌리고 서서 양손으로 밴드를 앞에서 잡습니다. 팔을 곧게 펼친 상태로 팔을 옆으로 들어올려 지면과 평행하게 만듭니다. 동작의 꼭짓점에서 견갑골을 함께 짜냅니다. 천천히 팔을 시작 자세로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "1017",
+        "name": "band y-raise",
+        "name_ko": "밴드 Y레이즈",
+        "body_part": "shoulders",
+        "equipment": "band",
+        "target": "delts",
+        "secondary_muscles": [
+          "traps",
+          "rhomboids"
+        ],
+        "instructions_ko": "어깨 너비로 발을 벌리고 서서 밴드를 넓적다리 앞에 손바닥이 안쪽을 향하도록 잡습니다. 팔을 곧게 펼치고 옆으로 들어 올려 몸으로 'Y' 자 형태를 만듭니다. 동작의 맨 위에서 어깨날을 조입니다. 천천히 팔을 원래 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0178",
+        "name": "cable lateral raise",
+        "name_ko": "케이블 래터럴 레이즈",
+        "body_part": "shoulders",
+        "equipment": "cable",
+        "target": "delts",
+        "secondary_muscles": [
+          "traps",
+          "triceps"
+        ],
+        "instructions_ko": "발을 어깨너비로 벌리고 서서 케이블 손잡이를 오버핸드 그립으로 잡습니다. 팔을 곧게 유지하고 코어에 힘을 줍니다. 팔을 옆으로 들어올려 바닥과 평행하게 합니다. 위에서 잠깐 멈추었다가 천천히 팔을 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0162",
+        "name": "cable front raise",
+        "name_ko": "케이블 프론트 레이즈",
+        "body_part": "shoulders",
+        "equipment": "cable",
+        "target": "delts",
+        "secondary_muscles": [
+          "triceps",
+          "forearms"
+        ],
+        "instructions_ko": "발을 어깨 너비로 벌리고 오버핸드 그립으로 케이블 핸들을 잡습니다. 등을 곧게 하고 코어를 긴장시킵니다. 팔을 곧게 유지하면서 케이블 핸들을 앞으로 올리고 손바닥이 아래를 향하도록 합니다. 팔이 바닥과 평행이 될 때까지 계속 올립니다. 최상단에서 잠깐 멈추었다가 케이블 핸들을 천천히 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0219",
+        "name": "cable shoulder press",
+        "name_ko": "케이블 숄더 프레스",
+        "body_part": "shoulders",
+        "equipment": "cable",
+        "target": "delts",
+        "secondary_muscles": [
+          "triceps",
+          "upper back"
+        ],
+        "instructions_ko": "케이블 머신의 핸들이 어깨 높이에 오도록 조정합니다. 머신을 등지고 발을 어깨 너비만큼 벌려 서 있습니다. 오버핸드 그립으로 핸들을 잡고 팔꿈치를 바깥쪽으로 향하게 하며 어깨 높이까지 올립니다. 핸들을 위로 눌러 팔을 완전히 펴 머리 위로 올립니다. 최고점에서 잠시 멈춘 후 천천히 핸들을 어깨 높이까지 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0603",
+        "name": "lever shoulder press",
+        "name_ko": "레버 숄더 프레스",
+        "body_part": "shoulders",
+        "equipment": "leverage machine",
+        "target": "delts",
+        "secondary_muscles": [
+          "triceps",
+          "chest"
+        ],
+        "instructions_ko": "시트 높이를 조절하고 머신에 앉아 등을 등받이에 붙입니다. 손바닥을 위로 향하게 하여 손잡이를 잡고 손을 어깨 높이에 위치합니다. 손잡이를 위로 밀어 팔을 완전히 펼치되 팔꿈치를 잠그지 않습니다. 최상단에서 잠시 멈춘 후 천천히 손잡이를 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0584",
+        "name": "lever lateral raise",
+        "name_ko": "레버 래터럴 레이즈",
+        "body_part": "shoulders",
+        "equipment": "leverage machine",
+        "target": "delts",
+        "secondary_muscles": [
+          "traps",
+          "upper back"
+        ],
+        "instructions_ko": "시트 높이를 조정하고 등을 패드에 기대고 머신에 위치합니다. 손가락을 위로 향하게 하는 오버핸드 그립으로 핸들을 잡고 팔을 일직선으로 유지합니다. 숨을 내쉬고 팔을 양옆으로 들어올려 바닥과 평행하게 만듭니다. 상단에서 잠깐 멈춘 후, 숨을 들이쉬고 팔을 천천히 처음 위치로 낮춥니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0766",
+        "name": "smith shoulder press",
+        "name_ko": "스미스 숄더 프레스",
+        "body_part": "shoulders",
+        "equipment": "smith machine",
+        "target": "delts",
+        "secondary_muscles": [
+          "triceps",
+          "upper back"
+        ],
+        "instructions_ko": "스미스 머신의 시트 높이를 조정하고 발을 어깨 너비만큼 벌려진 위치에 서 있습니다. 어깨 너비보다 약간 넓은 손으로 오버핸드 그립으로 바를 잡습니다. 바를 랙에서 들어 어깨 높이에 위치시키되 팔꿈치를 구부리고 손가락이 앞을 향합니다. 바를 머리 위로 올려 팔을 완전히 펼칩니다. 위에서 잠깐 멈추고 바를 어깨 높이로 천천히 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0120",
+        "name": "barbell upright row",
+        "name_ko": "바벨 업라이트 로우",
+        "body_part": "shoulders",
+        "equipment": "barbell",
+        "target": "delts",
+        "secondary_muscles": [
+          "traps",
+          "biceps"
+        ],
+        "instructions_ko": "어깨 너비로 발을 벌리고 서서 손바닥이 바깥쪽을 향하도록 바벨을 잡되 손은 어깨 너비보다 약간 넓게 벌립니다. 바벨을 허벅지 앞에서 팔을 완전히 펼친 상태로 놓습니다. 등을 곧게 펴고 코어에 힘을 주며 숨을 내쉬면서 팔꿈치를 앞으로 향하게 하여 바벨을 턱 쪽으로 들어올립니다. 맨 위에서 잠깐 멈춘 후, 숨을 들이쉬면서 천천히 바벨을 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0546",
+        "name": "kettlebell seated press",
+        "name_ko": "케틀벨 시티드 프레스",
+        "body_part": "shoulders",
+        "equipment": "kettlebell",
+        "target": "delts",
+        "secondary_muscles": [
+          "triceps",
+          "core"
+        ],
+        "instructions_ko": "벤치에 앉아 등은 곧게 펴고 발은 땅에 닿은 상태에서 시작합니다. 각 손에 케틀벨을 어깨 높이에서 잡고 손은 앞을 향합니다. 케틀벨을 머리 위로 눌러 팔을 완전히 펼칩니다. 케틀벨을 어깨 높이로 다시 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3305",
+        "name": "barbell thruster",
+        "name_ko": "바벨 쓰러스터",
+        "body_part": "shoulders",
+        "equipment": "barbell",
+        "target": "delts",
+        "secondary_muscles": [
+          "quadriceps",
+          "glutes",
+          "hamstrings",
+          "core"
+        ],
+        "instructions_ko": "어깨 너비로 발을 벌리고 서서 어깨 높이에서 손바닥이 바깥쪽을 향하도록 바벨을 들고 시작합니다. 무릎을 구부리고 엉덩이를 뒤로 밀어 스쿼트 자세로 내려갑니다. 스쿼트의 맨 아래에서 발꿈치로 폭발적으로 밀어 일어나면서 동시에 바벨을 머리 위로 밀어 올립니다. 바벨을 어깨 높이로 내리면서 다시 스쿼트 자세로 내려갑니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": false
+      }
+    ],
+    "upper arms": [
+      {
+        "id": "0294",
+        "name": "dumbbell biceps curl",
+        "name_ko": "덤벨 바이셉스 컬",
+        "body_part": "upper arms",
+        "equipment": "dumbbell",
+        "target": "biceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "똑바로 서서 각 손에 덤벨을 하나씩 들고 손바닥이 정면을 향하고 팔은 완전히 펼친 상태입니다. 위팔을 고정하고 숨을 내쉬면서 덤벨을 컬하여 이두근을 수축시킵니다. 이두근이 완전히 수축되고 덤벨이 어깨 높이에 올 때까지 계속 올립니다. 이두근을 꽉 조여주면서 수축된 자세를 잠시 멈춥니다. 숨을 들이쉬며 천천히 덤벨을 시작 자세로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0313",
+        "name": "dumbbell hammer curl",
+        "name_ko": "덤벨 해머 컬",
+        "body_part": "upper arms",
+        "equipment": "dumbbell",
+        "target": "biceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "곧게 서서 각 손에 덤벨을 들되 손바닥이 몸을 향하도록 합니다. 팔꿈치를 몸에 가깝게 유지하고 손바닥이 앞을 향할 때까지 손을 회전합니다. 이것이 시작 위치입니다. 상완을 고정한 상태에서 숨을 내쉬면서 이두근을 수축시키며 무게를 들어 올립니다. 이두근이 완전히 수축되고 덤벨이 어깨 높이에 올 때까지 계속 올립니다. 이두근을 수축하면서 짧은 시간 동안 수축된 자세를 유지합니다. 그런 다음 숨을 들이쉬면서 천천히 덤벨을 시작 위치로 내립니다. 권장되는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0318",
+        "name": "dumbbell incline curl",
+        "name_ko": "덤벨 인클라인 컬",
+        "body_part": "upper arms",
+        "equipment": "dumbbell",
+        "target": "biceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "인클라인 벤치를 45도 각도로 설정하고 앉아 각 손에 덤벨을 들되 손바닥이 앞을 향하도록 합니다. 상완을 인클라인 벤치에 올려놓고 팔꿈치를 내려 팔을 완전히 펰 상태를 유지합니다. 상완을 고정한 상태에서 숨을 내쉬면서 이두근을 수축시키며 무게를 들어 올립니다. 이두근이 완전히 수축되고 덤벨이 어깨 높이에 올 때까지 계속 올립니다. 이두근을 수축하면서 짧은 시간 동안 수축된 자세를 유지합니다. 숨을 들이쉬면서 천천히 덤벨을 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0372",
+        "name": "dumbbell preacher curl",
+        "name_ko": "덤벨 프리처 컬",
+        "body_part": "upper arms",
+        "equipment": "dumbbell",
+        "target": "biceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "프리처 컬 벤치에 앉아 팔을 패드에 올리고 가슴을 패드에 대십시오. 양손에 덤벨을 잡고 손바닥이 위를 향하고 팔이 완전히 펼쳐져 있습니다. 상체는 고정한 채로 숨을 내쉬면서 이두근을 수축시키면서 무게를 커핑합니다. 이두근이 완전히 수축되고 덤벨이 어깨 높이에 올 때까지 덤벨을 계속 올립니다. 이두근을 꽉 쥐면서 수축된 위치에서 잠시 멈춥니다. 숨을 들이쉬고 천천히 덤벨을 시작 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0333",
+        "name": "dumbbell kickback",
+        "name_ko": "덤벨 킥백",
+        "body_part": "upper arms",
+        "equipment": "dumbbell",
+        "target": "triceps",
+        "secondary_muscles": [
+          "shoulders"
+        ],
+        "instructions_ko": "어깨 너비만큼 발을 벌리고 각 손에 덤벨을 들어 시작합니다. 무릎을 살짝 구부리고 엉덩이를 뒤로 빼며 앞으로 숙이면서 등을 쭉 펴 유지합니다. 상완을 옆으로 가깝게 붙이고 팔꿈치를 90도 각도로 구부립니다. 팔을 뒤로 쭉 펴면서 삼두근을 수축시킵니다. 잠시 멈추었다가 덤벨을 천천히 시작 위치로 낮춥니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0031",
+        "name": "barbell curl",
+        "name_ko": "바벨 컬",
+        "body_part": "upper arms",
+        "equipment": "barbell",
+        "target": "biceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "발을 어깨넓이로 벌리고 서서 손가락이 앞을 향하도록 바벨을 잡고 손바닥이 앞을 향하게 합니다. 팔꿈치를 몸 가까이 유지하면서 숨을 내쉬고 이두근을 수축시켜 바벨을 컬합니다. 이두근이 완전히 수축되어 바벨이 어깨 높이에 올 때까지 계속 올립니다. 수축된 상태를 잠시 유지하면서 이두근을 꽉 조입니다. 숨을 들이마시면서 천천히 바벨을 시작 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0447",
+        "name": "ez barbell curl",
+        "name_ko": "EZ 바벨 컬",
+        "body_part": "upper arms",
+        "equipment": "ez barbell",
+        "target": "biceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "발을 어깨 너비만큼 벌리고 서서 손가락이 위를 향하도록 역그립으로 EZ바벨을 잡습니다. 팔꿈치를 몸통에 붙인 상태로 위팔을 고정한 채 운동을 진행합니다. 숨을 내쉬면서 바벨을 어깨 쪽으로 말아 올려 이두근을 수축시킵니다. 맨 위에서 잠깐 멈춘 후 숨을 들이쉬면서 바벨을 천천히 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0070",
+        "name": "barbell preacher curl",
+        "name_ko": "바벨 프리처 컬",
+        "body_part": "upper arms",
+        "equipment": "barbell",
+        "target": "biceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "프리처 벤치에 앉아 상완이 패드에 올려지고 가슴이 지지대에 닿도록 합니다. 언더그립으로 바벨을 잡되, 손은 어깨너비보다 약간 넓게 벌립니다. 상완을 움직이지 않게 고정하고 숨을 내쉬면서 바벨을 어깨 방향으로 구부립니다. 위에서 잠깐 멈춘 후 이두근을 짜냅니다. 숨을 들이쉬면서 바벨을 천천히 시작 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0057",
+        "name": "barbell lying extension",
+        "name_ko": "바벨 라잉 익스텐션",
+        "body_part": "upper arms",
+        "equipment": "barbell",
+        "target": "triceps",
+        "secondary_muscles": [
+          "shoulders"
+        ],
+        "instructions_ko": "벤치에 누워 양발을 바닥에 놓고 머리가 벤치의 끝에 오도록 합니다. 바벨을 오버핸드 그립으로 어깨너비로 잡고 가슴 위로 팔을 완전히 펼쳐 올립니다. 상부 팔을 고정하면서 팔꿈치를 굽혀 바벨을 천천히 이마 쪽으로 내립니다. 잠깐 멈춘 후 팔을 펼쳐 처음 위치로 돌아옵니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0868",
+        "name": "cable curl",
+        "name_ko": "케이블 컬",
+        "body_part": "upper arms",
+        "equipment": "cable",
+        "target": "biceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "케이블 머신을 향해 서서 발을 어깨 너비로 벌립니다. 언더핸드 그립(손바닥이 위를 향함)으로 케이블 어태치먼트를 잡습니다. 팔꿈치를 몸 옆에 붙이고 상팔을 고정시킵니다. 숨을 내쉬면서 케이블 어태치먼트를 어깨 방향으로 말아 이두근을 수축시킵니다. 동작의 최상단에서 이두근을 짜내며 잠깐 멈춉니다. 숨을 들이마시면서 케이블 어태치먼트를 천천히 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0201",
+        "name": "cable pushdown",
+        "name_ko": "케이블 푸시다운",
+        "body_part": "upper arms",
+        "equipment": "cable",
+        "target": "triceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "높은 도르래 케이블 머신에 바를 부착합니다. 머신을 향해 어깨 너비로 발을 벌리고 무릎을 약간 구부립니다. 손을 어깨 너비로 벌린 오버핸드 그립으로 바를 잡습니다. 팔꿈치를 옆에 붙이고 상완을 고정한 채로 유지합니다. 숨을 내쉬며 팔꿈치가 완전히 펴질 때까지 바를 아래로 밉니다. 잠깐 멈춘 후 숨을 들이쉬며 천천히 바를 시작 위치로 돌립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0575",
+        "name": "lever bicep curl",
+        "name_ko": "레버 바이셉스 컬",
+        "body_part": "upper arms",
+        "equipment": "leverage machine",
+        "target": "biceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "시트의 높이를 조정하고 머신에 앉아 등을 패드에 기댄다. 언더핸드 그립으로 손잡이를 잡고, 손바닥이 위를 향하게 한다. 팔꿈치를 몸 옆에 붙인 상태를 유지한다. 숨을 내쉬며 손잡이를 위로 굽혀 올려 이두근을 수축시킨다. 동작의 상단에서 잠시 멈춰 이두근을 쥔다. 숨을 마시며 천천히 손잡이를 시작 위치로 내려 팔을 완전히 펼친다. 원하는 횟수만큼 반복한다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0607",
+        "name": "lever triceps extension",
+        "name_ko": "레버 트라이셉스 익스텐션",
+        "body_part": "upper arms",
+        "equipment": "leverage machine",
+        "target": "triceps",
+        "secondary_muscles": [
+          "shoulders"
+        ],
+        "instructions_ko": "시트 높이를 조절하고 머신에 앉아 등을 패드에 붙입니다. 손바닥을 위로 향하게 하여 손잡이를 잡고 팔을 앞으로 완전히 펼칩니다. 위팔을 고정한 상태에서 팔꿈치를 구부려 천천히 손잡이를 이마 쪽으로 내립니다. 최하단에서 잠시 멈춘 후 팔을 펴서 손잡이를 시작 위치로 밀어 올립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0976",
+        "name": "band concentration curl",
+        "name_ko": "밴드 컨센트레이션 컬",
+        "body_part": "upper arms",
+        "equipment": "band",
+        "target": "biceps",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "벤치나 의자에 앉아 다리를 벌리고 발을 바닥에 붙입니다. 밴드의 한쪽 끝을 손으로 잡고 다른 쪽 끝을 같은 쪽 발로 밟습니다. 살짝 앞으로 기울이고 팔꿈치를 무릎 바로 위 넓적다리 안쪽에 놓습니다. 손바닥이 위를 향하게 하여 천천히 손을 어깨 쪽으로 말아올리되 위팔은 고정한 상태를 유지합니다. 꼭짓점에서 잠깐 멈춘 후 천천히 손을 시작 자세로 내립니다. 원하는 반복 횟수만큼 반복한 후 반대쪽으로 바꿉니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0259",
+        "name": "close-grip push-up",
+        "name_ko": "클로즈그립 푸시업",
+        "body_part": "upper arms",
+        "equipment": "body weight",
+        "target": "triceps",
+        "secondary_muscles": [
+          "chest",
+          "shoulders"
+        ],
+        "instructions_ko": "손을 어깨 바로 아래에 가깝게 놓고 높은 플랭크 자세를 시작합니다. 복근을 긴장시키고 지면을 향해 몸을 내려놓되 팔꿈치를 몸에 가깝게 유지합니다. 손가락 끝으로 밀어서 팔을 펴고 시작 위치로 돌아갑니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0283",
+        "name": "diamond push-up",
+        "name_ko": "다이아몬드 푸시업",
+        "body_part": "upper arms",
+        "equipment": "body weight",
+        "target": "triceps",
+        "secondary_muscles": [
+          "chest",
+          "shoulders"
+        ],
+        "instructions_ko": "엄지와 검지로 다이아몬드 모양을 만들도록 손을 모아 높은 널빤지 자세에서 시작합니다. 머리부터 발끝까지 몸을 일직선으로 유지하며 코어와 둔근에 힘을 줍니다. 손으로 만든 다이아몬드 모양을 향해 가슴을 내리고 팔꿈치를 몸 가까이 유지합니다. 하단에서 잠시 멈춘 후 처음 위치로 밀어 올립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0129",
+        "name": "bench dip (knees bent)",
+        "name_ko": "벤치 딥스 (무릎 벤트)",
+        "body_part": "upper arms",
+        "equipment": "body weight",
+        "target": "triceps",
+        "secondary_muscles": [
+          "chest",
+          "shoulders"
+        ],
+        "instructions_ko": "벤치나 의자의 가장자리에 앉아 엉덩이 옆에 손을 올립니다. 엉덩이를 벤치에서 밀어 내되 다리는 앞으로 펴고 발꿈치는 땅에 놓습니다. 팔꿈치를 구부려 몸을 땅 쪽으로 내리되 등은 벤치에 가깝게 유지합니다. 맨 아래에서 잠깐 멈춘 후, 시작 위치로 밀어 올립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1399",
+        "name": "bench dip on floor",
+        "name_ko": "벤치 딥스 위에 플로어",
+        "body_part": "upper arms",
+        "equipment": "body weight",
+        "target": "triceps",
+        "secondary_muscles": [
+          "chest",
+          "shoulders"
+        ],
+        "instructions_ko": "벤치나 의자의 가장자리에 앉아 손가락이 앞을 향하도록 손으로 가장자리를 잡습니다. 엉덩이를 벤치에서 밀어 내려 몸무게를 손으로 지탱합니다. 팔꿈치를 구부려 상완삼두근이 땅과 평행할 때까지 몸을 내립니다. 팔을 펴서 시작 위치로 밀어 올립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0677",
+        "name": "ring dips",
+        "name_ko": "링 딥스",
+        "body_part": "upper arms",
+        "equipment": "body weight",
+        "target": "triceps",
+        "secondary_muscles": [
+          "chest",
+          "shoulders"
+        ],
+        "instructions_ko": "링에서 팔이 완전히 펴진 상태로 매달리되 몸을 곧게 유지합니다. 팘을 구부려 몸을 내리되 어깨가 팘 아래로 갈 때까지 내립니다. 팔을 펴서 시작 자세로 밀어 올립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": false
+      }
+    ],
+    "upper legs": [
+      {
+        "id": "0413",
+        "name": "dumbbell squat",
+        "name_ko": "덤벨 스쿼트",
+        "body_part": "upper legs",
+        "equipment": "dumbbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "양 손에 덤벨을 들고 어깨 너비로 발을 벌려 서 있습니다. 가슴을 펴고 코어에 힘을 주면서 무릎과 엉덩이를 구부려 의자에 앉는 것처럼 몸을 내립니다. 허벅지가 바닥과 평행해질 때까지 또는 편하게 내려갈 수 있는 만큼 계속 내립니다. 아래에서 잠시 멈춘 후 발뒤꿈치로 밀어 시작 자세로 돌아옵니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1760",
+        "name": "dumbbell goblet squat",
+        "name_ko": "덤벨 고블릿 스쿼트",
+        "body_part": "upper legs",
+        "equipment": "dumbbell",
+        "target": "quads",
+        "secondary_muscles": [
+          "glutes",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "어깨너비로 발을 벌리고 서서 덤벨을 양손으로 수직으로 잡아 가슴에 안깁니다. 가슴을 위로 유지하고 코어를 조이면서 엉덩이를 뒤로 밀고 무릎을 굽혀 몸을 스쿼트 자세로 내립니다. 허벅지가 지면과 평행해질 때까지 또는 편안한 범위까지 계속 내립니다. 바닥에서 잠깐 멈춘 후 발꿈치를 밀어 시작 위치로 돌아옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1004",
+        "name": "band squat",
+        "name_ko": "밴드 스쿼트",
+        "body_part": "upper legs",
+        "equipment": "band",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "어깨 너비로 발을 벌리고 서서 밴드를 무릎 바로 위에 배치합니다. 가슴을 펴고 코어를 활성화하면서 엉덩이를 뒤로 밀고 무릎을 구부려 스쿼트 자세로 내립니다. 무릎이 발가락 위로 정렬되고 체중이 발꿈치에 있는지 확인합니다. 맨 아래에서 잠시 멈춘 후, 발꿈치를 통해 밀어 원래 위치로 돌아옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3769",
+        "name": "curtsey squat",
+        "name_ko": "커트시 스쿼트",
+        "body_part": "upper legs",
+        "equipment": "body weight",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "발을 어깨너비로 벌리고 섭니다. 오른발을 대각선으로 뒤쪽으로 옮기며 왼쪽 다리를 넘어 몸 뒤로 지나가도록 합니다. 커티시를 하듯이 두 무릎을 구부리며 몸을 바닥 쪽으로 내립니다. 몸통은 곧게 유지하고 무게는 앞쪽 발에 둡니다. 앞쪽 발로 밀어 처음 위치로 돌아갑니다. 반대쪽도 반복합니다. 왼발을 대각선으로 뒤쪽으로 옮기며 몸 뒤로 지나가도록 합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0043",
+        "name": "barbell full squat",
+        "name_ko": "바벨 풀 스쿼트",
+        "body_part": "upper legs",
+        "equipment": "barbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves",
+          "core"
+        ],
+        "instructions_ko": "발을 어깨넓이로 벌리고 발가락을 약간 바깥쪽으로 향하게 섭니다. 바벨을 상체 뒤쪽에 올려놓으면서 승모근이나 후삼각근에 걸쳐놓습니다. 복부에 힘을 주고 가슴을 펼친 상태를 유지하면서 몸을 내리기 시작합니다. 무릎과 허리를 구부려 의자에 앉는 것처럼 허리를 뒤로 내립니다. 넓적다리가 바닥과 평행하거나 약간 아래까지 내려갑니다. 무릎이 발가락과 일직선상에 있고 체중은 발 뒤꿈치에 있는지 확인합니다. 발 뒤꿈치로 힘을 주어 일어나면서 허리와 무릎을 펼칩니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0042",
+        "name": "barbell front squat",
+        "name_ko": "바벨 프론트 스쿼트",
+        "body_part": "upper legs",
+        "equipment": "barbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves",
+          "core"
+        ],
+        "instructions_ko": "발을 어깨넓이로 벌리고 발가락을 약간 바깥쪽으로 향하게 섭니다. 바벨을 어깨 앞에 올려놓으면서 빗장뼈와 어깨에 걸쳐놓습니다. 복부에 힘을 주고 가슴을 펼친 상태를 유지하면서 몸을 내립니다. 허리를 뒤로 빼고 무릎을 구부려 스쿼트 위치에 들어갑니다. 넓적다리가 바닥과 평행하거나 편안한 범위 내에서 최대한 낮게 내려갑니다. 맨 아래에서 잠시 멈춘 후 발 뒤꿈치로 힘을 주어 시작 위치로 돌아옵니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0371",
+        "name": "dumbbell plyo squat",
+        "name_ko": "덤벨 플라이오 스쿼트",
+        "body_part": "upper legs",
+        "equipment": "dumbbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "발을 어깨 넓이로 벌리고 양손에 덤벨을 잡고 옆에 놓습니다. 무릎을 구부리고 엉덩이를 뒤로 밀면서 스쿼트 자세로 몸을 낮춥니다. 스쿼트의 최하점에 도달하면 폭발적으로 위로 솟아올라 바닥에서 뛰어올립니다. 공중에서 빠르게 발의 위치를 바꾸고 반대쪽 발이 앞으로 향하게 착지합니다. 즉시 몸을 다시 스쿼트 자세로 낮추고 뛰어올리면서 발을 다시 바꿉니다. 원하는 반복 횟수만큼 매 점프마다 발의 위치를 계속 번갈아 변경합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3470",
+        "name": "forward lunge (male)",
+        "name_ko": "앞으로 런지 (남성)",
+        "body_part": "upper legs",
+        "equipment": "body weight",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "발을 엉덩이 너비로 벌리고 손을 허리에 얹습니다. 오른쪽 발로 크게 한 발 앞으로 나아가 런지 자세로 몸을 내립니다. 오른쪽 무릎을 약 90도로 구부리고 무릎이 발목과 일직선을 이루도록 유지합니다. 오른쪽 발을 밀어 시작 위치로 돌아갑니다. 왼쪽 다리로 반복하면서 양쪽을 번갈아 가며 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0336",
+        "name": "dumbbell lunge",
+        "name_ko": "덤벨 런지",
+        "body_part": "upper legs",
+        "equipment": "dumbbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "어깨 너비만큼 발을 벌리고 각 손에 덤벨을 들어 시작합니다. 오른발을 앞으로 내딛으며 런지 자세로 몸을 낮춥니다. 등을 쭉 펴고 가슴을 펴면서 몸을 낮춥니다. 오른발 뒤꿈치를 통해 힘을 주어 시작 위치로 돌아옵니다. 왼발로 반복합니다. 양쪽 다리를 번갈아가며 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0381",
+        "name": "dumbbell rear lunge",
+        "name_ko": "덤벨 리어 런지",
+        "body_part": "upper legs",
+        "equipment": "dumbbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "발을 어깨 넓이로 벌리고 양손에 덤벨을 잡습니다. 오른쪽 발로 뒤로 물러나면서 런지 자세로 몸을 내립니다. 왼쪽 무릎을 구부리고 왼쪽 넓적다리가 바닥과 평행할 때까지 몸을 내립니다. 잠시 멈춘 후 왼쪽 발꿈치를 밀어 시작 위치로 돌아옵니다. 왼쪽 발로 뒤로 물러나면서 반대쪽을 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0054",
+        "name": "barbell lunge",
+        "name_ko": "바벨 런지",
+        "body_part": "upper legs",
+        "equipment": "barbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "양발을 어깨너비로 벌리고 서서 바벨을 상부 등에 올립니다. 오른쪽 발로 앞으로 발을 내딛으면서 몸통을 곧게 유지합니다. 오른쪽 무릎을 굽혀 넓적다리가 바닥과 평행해질 때까지 몸을 내립니다. 오른쪽 발꿈치를 통해 힘을 주어 처음 위치로 돌아옵니다. 왼쪽 발로도 동일하게 진행하며 발을 교대로 하여 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0431",
+        "name": "dumbbell step-up",
+        "name_ko": "덤벨 스텝업",
+        "body_part": "upper legs",
+        "equipment": "dumbbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "양손에 덤벨을 들고 벤치나 계단 앞에 서서 손가락이 몸을 향하도록 합니다. 오른쪽 발을 벤치나 계단 위에 올리고 발 전체가 표면에 접하도록 합니다. 오른쪽 발뒤꿈치를 통해 몸을 밀어올리면서 벤치나 계단 위로 올라가 오른쪽 다리를 곧게 펍니다. 왼쪽 발을 벤치나 계단 위로 올려 완전히 섭니다. 왼쪽 발을 내린 후 오른쪽 발을 내려 시작 위치로 돌아갑니다. 원하는 반복 횟수만큼 반복한 후 다리를 바꿔 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1008",
+        "name": "band step-up",
+        "name_ko": "밴드 스텝업",
+        "body_part": "upper legs",
+        "equipment": "band",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "밴드를 무릎 바로 위 넓적다리 주위에 감습니다. 계단이나 플랫폼을 향해 엉덩이 너비로 발을 벌리고 섭니다. 오른쪽 발로 플랫폼에 올라가면서 발꿈치를 통해 밀어냅니다. 왼쪽 다리를 뒤로 곧게 뻗습니다. 왼쪽 발을 땅에 내립니다. 왼쪽 발로 플랫폼에 올라가도록 반복합니다. 원하는 횟수만큼 다리를 번갈아 계속합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3561",
+        "name": "glute bridge march",
+        "name_ko": "둔근 브릿지 마치",
+        "body_part": "upper legs",
+        "equipment": "body weight",
+        "target": "glutes",
+        "secondary_muscles": [
+          "hamstrings",
+          "quadriceps"
+        ],
+        "instructions_ko": "등을 대고 누워 무릎을 구부리고 발은 땅에 붙입니다. 둔근을 조여 엉덩이를 들어올려 무릎에서 어깨까지 일직선을 이룹니다. 엉덩이를 들어올린 상태로 한쪽 발을 들어올려 무릎을 가슴 쪽으로 당깁니다. 발을 다시 땅에 놓고 다른 다리로 같은 동작을 반복합니다. 브릿지 자세를 유지하면서 양쪽 다리를 번갈아 행진 동작으로 계속합니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1408",
+        "name": "band hip lift",
+        "name_ko": "밴드 힙 리프트",
+        "body_part": "upper legs",
+        "equipment": "band",
+        "target": "glutes",
+        "secondary_muscles": [
+          "hamstrings",
+          "quadriceps"
+        ],
+        "instructions_ko": "등을 바닥에 대고 누워 무릎을 구부리고 발을 바닥에 붙입니다. 저항 밴드를 무릎 바로 위에 놓습니다. 엉덩이와 복부 근육에 힘을 줍니다. 발뒤꿈치를 바닥에 눌러 엉덩이를 떨어뜨려 올리되 꼭짓점에서 엉덩이 근육을 짜냅니다. 꼭짓점에서 잠깐 멈춘 후 천천히 엉덩이를 시작 자세로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1409",
+        "name": "barbell glute bridge",
+        "name_ko": "바벨 둔근 브릿지",
+        "body_part": "upper legs",
+        "equipment": "barbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "hamstrings",
+          "lower back"
+        ],
+        "instructions_ko": "바닥에 누워 무릎을 구부리고 발을 바닥에 디딤니다. 바벨을 허리에 걸쳐놓고 양손으로 안정적으로 잡습니다. 둔근과 복부에 힘을 주고 바닥에서 허리를 들어올려 몸이 무릎부터 어깨까지 일직선을 이루도록 합니다. 맨 위에서 잠시 멈춘 후 둔근을 꽉 조입니다. 천천히 허리를 바닥으로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0300",
+        "name": "dumbbell deadlift",
+        "name_ko": "덤벨 데드리프트",
+        "body_part": "upper legs",
+        "equipment": "dumbbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "hamstrings",
+          "lower back"
+        ],
+        "instructions_ko": "발을 어깨 너비로 벌리고 서서 발가락이 정면을 향하도록 합니다. 각 손에 덤벨을 하나씩 들고 손바닥이 신체를 향하고 팔은 아래로 펼친 상태입니다. 엉덩이와 무릎을 구부려 덤벨을 바닥 쪽으로 내립니다. 등을 곧게 유지합니다. 발꿈치로 밀어내며 엉덩이와 무릎을 펼쳐 덤벨을 시작 자세로 들어올립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1009",
+        "name": "band stiff leg deadlift",
+        "name_ko": "밴드 스티프 레그 데드리프트",
+        "body_part": "upper legs",
+        "equipment": "band",
+        "target": "glutes",
+        "secondary_muscles": [
+          "hamstrings",
+          "lower back"
+        ],
+        "instructions_ko": "어깨 너비로 발을 벌리고 서서 밴드를 발목 주위에 감습니다. 밴드를 양손으로 넓적다리 앞에 잡되 손바닥이 몸을 향하도록 합니다. 등을 곧게 펴고 코어를 활성화한 상태에서 허리에서 천천히 앞으로 숙입니다. 내리면서 엉덩이를 뒤로 밀고 무릎을 약간 구부립니다. 밴드를 지면 쪽으로 내리며 햄스트링에서 스트레칭을 느낍니다. 맨 아래에서 잠시 멈춘 후, 둔근과 햄스트링을 활성화하여 몸을 원래 위치로 들어 올립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0085",
+        "name": "barbell romanian deadlift",
+        "name_ko": "바벨 루마니안 데드리프트",
+        "body_part": "upper legs",
+        "equipment": "barbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "hamstrings",
+          "lower back"
+        ],
+        "instructions_ko": "발을 어깨 너비로 벌리고 발끝은 앞을 향하도록 섭니다. 오버핸드 그립으로 바벨을 잡으며 손은 어깨 너비보다 약간 넓게 합니다. 허리에서 굽히며 등은 곧게 유지하고 무릎은 약간만 구부립니다. 바벨을 몸 가까이 유지하며 천천히 땅을 향해 내립니다. 햄스트링에 스트레칭 감각이 들 때까지 내립니다. 햄스트링에 스트레칭이 감지되면 엉덩이를 앞으로 밀어 일어섭니다. 동작 상단에서 글루트를 조입니다. 바벨을 시작 위치로 다시 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0032",
+        "name": "barbell deadlift",
+        "name_ko": "바벨 데드리프트",
+        "body_part": "upper legs",
+        "equipment": "barbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "hamstrings",
+          "lower back"
+        ],
+        "instructions_ko": "발을 어깨넓이로 벌리고 서서 바벨을 몸 앞 바닥에 놓습니다. 무릎을 굽혀 허리를 숙이면서 손가락이 앞을 향하도록 바벨을 잡고 손은 어깨넓이보다 약간 넓게 위치시킵니다. 등을 곧게 유지하고 가슴을 펴면서 발 뒤꿈치로 힘을 주어 바벨을 들어올리고 허리와 무릎을 펼칩니다. 서서 일어나면서 둔근을 조이고 복부에 힘을 줍니다. 바벨을 내릴 때는 허리와 무릎을 구부려 바닥으로 낮추면서 등을 곧게 유지합니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0117",
+        "name": "barbell sumo deadlift",
+        "name_ko": "바벨 스모 데드리프트",
+        "body_part": "upper legs",
+        "equipment": "barbell",
+        "target": "glutes",
+        "secondary_muscles": [
+          "hamstrings",
+          "quadriceps",
+          "lower back"
+        ],
+        "instructions_ko": "어깨 너비보다 넓게 발을 벌리고 발가락을 바깥쪽으로 향하게 합니다. 바벨을 몸 앞에 두고 발 사이의 중앙에 놓습니다. 무릎을 구부리고 엉덩이를 내리면서 등은 곧게, 가슴은 들어올린 상태로 유지하여 손바닥이 바깥쪽을 향하도록 바벨을 잡습니다. 코어를 단단히 조이고 발꿈치로 힘을 내어 바벨을 지면에서 들어올리며 엉덩이와 무릎을 동시에 펼칩니다. 들어올리면서 가슴을 들어올리고 등을 곧게 유지하며 엉덩이를 앞으로 밀어 글루트를 완전히 활성화합니다. 맨 위에서 잠깐 멈춘 후, 천천히 바벨을 시작 위치로 내리며 전체 동작에서 제어력을 유지합니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0044",
+        "name": "barbell good morning",
+        "name_ko": "바벨 굿 모닝",
+        "body_part": "upper legs",
+        "equipment": "barbell",
+        "target": "hamstrings",
+        "secondary_muscles": [
+          "lower back"
+        ],
+        "instructions_ko": "양발을 어깨너비로 벌리고 서서 바벨을 상부 등 위에 올립니다. 등을 곧게 펴고 복부에 력을 주면서 엉덩이를 뒤로 밀어 힌지 동작을 합니다. 마치 뒤쪽 벽에 둔근을 닿게 하려는 듯이 엉덩이를 뒤로 밉니다. 몸통이 바닥과 평행할 때까지 내려가며 햄스트링의 스트레칭을 느낍니다. 잠깐 멈춘 후 둔근을 조이고 엉덩이를 앞으로 밀어 처음 위치로 돌아옵니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "2133",
+        "name": "farmers walk",
+        "name_ko": "파머스 걷기",
+        "body_part": "upper legs",
+        "equipment": "dumbbell",
+        "target": "quads",
+        "secondary_muscles": [
+          "calves",
+          "forearms",
+          "core"
+        ],
+        "instructions_ko": "각 손에 덤벨을 잡고 선 자세에서 손가락이 옆을 향하도록 합니다. 등을 곧게 유지하고 어깨를 뒤로 당깁니다. 작고 조절된 걸음으로 앞으로 나아가면서 바른 자세를 유지합니다. 원하는 거리나 시간 동안 계속 걷습니다. 마칠 때, 걷기를 멈추고 덤벨을 조심스럽게 옆에 내려놓습니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3193",
+        "name": "glute-ham raise",
+        "name_ko": "글루트햄 레이즈",
+        "body_part": "upper legs",
+        "equipment": "body weight",
+        "target": "hamstrings",
+        "secondary_muscles": [
+          "glutes",
+          "lower back"
+        ],
+        "instructions_ko": "둔근-햄스트링 레이즈 머신을 몸에 맞게 조정합니다. 머신에 엎드린 상태로 발목을 고정합니다. 손을 가슴에 놓거나 가슴 위에 교차시킵니다. 햄스트링과 둔근을 조여 상체를 천장 쪽으로 들어올립니다. 머리에서 발뒤꿈치까지 일직선이 될 때까지 계속 들어올립니다. 위쪽에서 잠깐 멈추었다가 몸을 천천히 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": false
+      }
+    ],
+    "waist": [
+      {
+        "id": "0274",
+        "name": "crunch floor",
+        "name_ko": "크런치 플로어",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors"
+        ],
+        "instructions_ko": "등을 바닥에 평평하게 누우십시오. 무릎을 구부리고 발을 바닥에 붙입니다. 손을 머리 뒤에 올려놓고 팔꿈치를 바깥쪽으로 향하게 합니다. 복부에 힘을 주어 어깨를 들어올리며 무릎 방향으로 몸을 굽힙니다. 상단에서 잠시 멈춘 후 천천히 처음 위치로 돌아갑니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "3016",
+        "name": "curl-up",
+        "name_ko": "컬업",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors"
+        ],
+        "instructions_ko": "등을 바닥에 평평하게 누으십시오. 무릎을 구부리고 발을 바닥에 붙입니다. 손을 머리 뒤에 올려놓고 팔꿈치를 바깥쪽으로 향하게 합니다. 복부에 힘을 주어 상체를 천천히 들어올리며 몸통이 45도 각도가 될 때까지 앞으로 굽힙니다. 상단에서 잠시 멈춘 후 천천히 처음 위치로 돌아갑니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "3202",
+        "name": "half sit-up (male)",
+        "name_ko": "하프 싯업 (남성)",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors"
+        ],
+        "instructions_ko": "등을 대고 누워 무릎을 구부리고 발은 땅에 붙입니다. 손을 머리 뒤에 놓고 팔꿈치는 옆을 향하게 합니다. 복부를 조여 상체를 지면에서 들어올려 몸이 45도 각도가 될 때까지 앞으로 말아올립니다. 위쪽에서 잠깐 멈추었다가 상체를 천천히 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0001",
+        "name": "3/4 sit-up",
+        "name_ko": "3/4 싯업",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors",
+          "lower back"
+        ],
+        "instructions_ko": "등을 바닥에 누워 무릎을 구부리고 발을 바닥에 붙입니다. 손을 머리 뒤에 깍지껴 팔꿈치가 바깥쪽을 향하도록 합니다. 복근을 사용하여 천천히 윗몸을 들어 올려 몸통이 45도 각도가 될 때까지 앞쪽으로 구부립니다. 맨 위에서 잠깐 멈췄다가 천천히 윗몸을 시작 자세로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0276",
+        "name": "dead bug",
+        "name_ko": "데드 버그",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors",
+          "lower back"
+        ],
+        "instructions_ko": "등을 바닥에 평평하게 누으십시오. 팔을 천장을 향해 펼칩니다. 무릎을 구부리고 발을 들어올려 엉덩이와 무릎에서 90도 각도를 만듭니다. 코어와 허리에 힘을 주어 허리 아래를 바닥에 누르십시오. 오른팔과 왼쪽 다리를 천천히 내려 바닥에 닿을 듯이 펼친 상태로 유지합니다. 잠시 멈춘 후 처음 위치로 돌아갑니다. 왼팔과 오른쪽 다리로 반복합니다. 원하는 반복 횟수만큼 양쪽을 번갈아 계속합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0003",
+        "name": "air bike",
+        "name_ko": "에어 바이크",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors"
+        ],
+        "instructions_ko": "등을 바닥에 누워 손을 머리 뒤에 깍지껴 올립니다. 다리를 바닥에서 들어 올려 무릎을 90도 각도로 구부립니다. 오른쪽 팔꿈치를 왼쪽 무릎으로 가져오면서 동시에 오른쪽 다리를 펼칩니다. 시작 자세로 돌아와 반대쪽을 반복하며 왼쪽 팔꿈치를 오른쪽 무릎으로 가져오면서 왼쪽 다리를 펼칩니다. 자전거 페달을 밟는 동작으로 양쪽을 번갈아가며 원하는 반복 횟수만큼 계속합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0006",
+        "name": "alternate heel touchers",
+        "name_ko": "얼터네이트 뒤꿈치 터치",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "obliques"
+        ],
+        "instructions_ko": "등을 바닥에 누워 무릎을 구부리고 발을 바닥에 붙입니다. 팔을 옆으로 쭉 펼쳐 바닥과 평행하게 합니다. 복근을 사용하여 어깨를 바닥에서 들어 올리고 오른쪽 손으로 오른쪽 발뒤꿈치를 터치합니다. 시작 자세로 돌아와 왼쪽 손으로 왼쪽 발뒤꿈치를 터치하는 것을 반복합니다. 원하는 반복 횟수만큼 좌우를 번갈아가며 계속합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0262",
+        "name": "cross body crunch",
+        "name_ko": "크로스 바디 크런치",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "obliques"
+        ],
+        "instructions_ko": "등을 지면에 대고 누워 무릎을 구부리고 발을 지면에 붙입니다. 머리 뒤에 손을 올리되 팔꿈치가 바깥쪽을 향하게 합니다. 복근을 긴장시키고 상체를 들어올리면서 오른쪽 팔꿈치를 왼쪽 무릎 쪽으로 회전합니다. 꼭대기에서 잠깐 멈춘 후 천천히 상체를 시작 위치로 내려놓습니다. 반대쪽에서 반복하면서 왼쪽 팔꿈치를 오른쪽 무릎 쪽으로 회전합니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "3640",
+        "name": "knee touch crunch",
+        "name_ko": "무릎 터치 크런치",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors"
+        ],
+        "instructions_ko": "등을 대고 누운 자세에서 무릎을 구부리고 발은 땅에 닿은 상태에서 시작합니다. 손을 머리 뒤에 놓고 팔꿈치는 바깥쪽을 향하도록 합니다. 복근에 힘을 주고 어깨 날개뼈를 땅에서 들어올린 후 오른손을 왼쪽 무릎 쪽으로 뻗습니다. 시작 위치로 돌아온 후 이번에는 왼손을 오른쪽 무릎 쪽으로 뻗습니다. 원하는 횟수만큼 양쪽을 교대로 계속합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0635",
+        "name": "oblique crunches floor",
+        "name_ko": "옆구리 크런치 플로어",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "obliques"
+        ],
+        "instructions_ko": "무릎을 구부리고 발을 바닥에 평평하게 놓고 등을 대고 누워 있습니다. 손을 머리 뒤에 올려놓거나 가슴 위에 교차시킵니다. 복근을 활성화하고 어깨 블레이드를 바닥에서 들어올리면서 몸통을 한쪽으로 회전합니다. 잠시 멈추었다가 어깨 블레이드를 바닥으로 내립니다. 반대쪽에서 반복하며 각 회마다 양쪽을 번갈아 진행합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "2429",
+        "name": "frog crunch",
+        "name_ko": "개구리 크런치",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors"
+        ],
+        "instructions_ko": "등을 대고 누워 무릎을 구부리고 발은 땅에 붙입니다. 손을 머리 뒤에 놓고 팔꿈치는 옆을 향하게 합니다. 복부를 조여 상체를 지면에서 들어올려 몸이 45도 각도가 될 때까지 앞으로 말아올립니다. 위쪽에서 잠깐 멈추었다가 상체를 천천히 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0865",
+        "name": "lying leg-hip raise",
+        "name_ko": "라잉 레그힙 레이즈",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors"
+        ],
+        "instructions_ko": "등을 바닥에 대고 누워 다리를 쭉 펴고 양팔을 옆에 놓습니다. 글루트 아래에 양손을 놓고 지지합니다. 코어에 힘을 주고 다리를 땅에서 들어올려 천장을 향해 올립니다. 맨 위에서 잠깐 멈춘 후 천천히 다리를 처음 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0464",
+        "name": "front plank with twist",
+        "name_ko": "프론트 플랭크 & 트위스트",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "obliques",
+          "shoulders"
+        ],
+        "instructions_ko": "손이 어깨 바로 아래에 오도록 하이 플랭크 자세에서 시작하여 머리에서 발끝까지 일직선을 이룹니다. 복부와 둔부를 조여 안정적인 자세를 유지합니다. 몸통을 오른쪽으로 회전하면서 오른팔을 들어올려 천장 쪽으로 뻗습니다. 회전할 때 골반과 다리는 안정적으로 유지합니다. 잠깐 멈추었다가 시작 위치로 돌아갑니다. 왼쪽도 같은 방식으로 반복합니다. 양쪽을 번갈아 가며 원하는 횟수만큼 계속합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1471",
+        "name": "inchworm",
+        "name_ko": "인치웜",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "shoulders",
+          "hamstrings"
+        ],
+        "instructions_ko": "어깨 너비만큼 발을 벌리고 서서 시작합니다. 허리에서 앞으로 구부려 손을 지면에 얹습니다. 손으로 앞으로 걸으면서 하이 플랭크 자세가 될 때까지 이동합니다. 머리부터 발끝까지 일직선이 되도록 합니다. 잠시 멈춘 후 다리를 최대한 곧게 펼친 채로 손을 발 쪽으로 걸어옵니다. 손이 발에 닿으면 일어나서 시작 위치로 돌아옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0507",
+        "name": "jackknife sit-up",
+        "name_ko": "잭나이프 싯업",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors"
+        ],
+        "instructions_ko": "등을 바닥에 대고 다리를 뻗고 팔을 머리 위로 뻗은 상태로 누워집니다. 코어를 수축시키고 다리와 상체를 동시에 들어올리면서 손을 발가락을 향해 뻗습니다. 위쪽에서 잠시 멈춘 후 다리와 상체를 천천히 시작 자세로 낮춥니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0277",
+        "name": "decline crunch",
+        "name_ko": "디클라인 크런치",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors"
+        ],
+        "instructions_ko": "발이 고정된 디클라인 벤치에 누으십시오. 무릎을 90도로 구부립니다. 손을 머리 뒤에 올려놓거나 가슴 위에 교차시킵니다. 복부에 힘을 주어 상체를 무릎 쪽으로 들어올리며 몸통을 굽힙니다. 상단에서 잠시 멈춘 후 천천히 처음 위치로 돌아갑니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0282",
+        "name": "decline sit-up",
+        "name_ko": "디클라인 싯업",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors",
+          "lower back"
+        ],
+        "instructions_ko": "발이 고정된 디클라인 벤치에 누으십시오. 무릎을 구부립니다. 손을 머리 뒤에 올려놓거나 가슴 위에 교차시킵니다. 복부에 힘을 주어 상체를 벤치에서 들어올리며 무릎 쪽으로 앞으로 굽힙니다. 상단에서 잠시 멈춘 후 천천히 처음 위치로 돌아갑니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0175",
+        "name": "cable kneeling crunch",
+        "name_ko": "케이블 닐링 크런치",
+        "body_part": "waist",
+        "equipment": "cable",
+        "target": "abs",
+        "secondary_muscles": [
+          "obliques"
+        ],
+        "instructions_ko": "로프 손잡이를 높은 풀리에 부착하고 머신에 등을 향하게 무릎을 꿇고 앉습니다. 로프 손잡이를 양손으로 잡고 머리 뒤에 놓으며 팔꿈치를 옆으로 벌립니다. 엉덩이를 고정하고 허리를 구부려 몸통을 허벅지 쪽으로 크런치합니다. 아래에서 잠깐 멈추었다가 천천히 시작 위치로 돌아옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0472",
+        "name": "hanging leg raise",
+        "name_ko": "행잉 레그 레이즈",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors"
+        ],
+        "instructions_ko": "턱걸이 바에 팔을 완전히 펼쳐 매달립니다. 손바닥은 몸에서 멀어지는 방향으로 향합니다. 복부에 힘을 주고 다리를 앞으로 곧게 펼쳐 들어 올립니다. 다리가 지면과 평행하거나 편하게 갈 수 있는 높이까지 올립니다. 위에서 잠시 멈춘 후 천천히 다리를 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "1764",
+        "name": "hanging leg hip raise",
+        "name_ko": "행잉 레그 힙 레이즈",
+        "body_part": "waist",
+        "equipment": "body weight",
+        "target": "abs",
+        "secondary_muscles": [
+          "hip flexors",
+          "lower back"
+        ],
+        "instructions_ko": "턱걸이 바에 팔을 완전히 펼쳐 매달립니다. 손바닥은 몸에서 멀어지는 방향으로 향합니다. 복부에 힘을 주고 엉덩이와 무릎을 구부려 다리를 들어 올립니다. 허벅지가 지면과 평행할 때까지 올립니다. 위에서 잠시 멈춘 후 천천히 다리를 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "advanced",
+        "is_compound": false,
+        "home_friendly": false
+      }
+    ],
+    "lower legs": [
+      {
+        "id": "1397",
+        "name": "standing calves",
+        "name_ko": "스탠딩 카프",
+        "body_part": "lower legs",
+        "equipment": "body weight",
+        "target": "calves",
+        "secondary_muscles": [
+          "hamstrings",
+          "glutes"
+        ],
+        "instructions_ko": "발을 어깨너비로 벌리고 발가락이 앞을 향하도록 서 있습니다. 뒤꿈치를 땅에서 떼고 최대한 높이 올려 발가락 위로 서 있습니다. 자세를 잠깐 유지한 후 뒤꿈치를 천천히 시작 자세로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "1387",
+        "name": "one leg floor calf raise",
+        "name_ko": "원 레그 플로어 카프 레이즈",
+        "body_part": "lower legs",
+        "equipment": "body weight",
+        "target": "calves",
+        "secondary_muscles": [
+          "ankles",
+          "feet"
+        ],
+        "instructions_ko": "발을 엉덩이 너비로 벌리고 서서 손을 벽이나 튼튼한 물건에 올려 균형을 잡습니다. 한발을 바닥에서 들어올려 다른 발로 균형을 잡습니다. 발뒤꿈치를 천천히 바닥에서 들어올려 발가락 공으로 몸을 들어올립니다. 맨 위에서 잠시 멈춘 후 발뒤꿈치를 천천히 시작 위치로 내립니다. 원하는 횟수만큼 반복한 후 다리를 바꿔 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "1368",
+        "name": "ankle circles",
+        "name_ko": "발목 서클",
+        "body_part": "lower legs",
+        "equipment": "body weight",
+        "target": "calves",
+        "secondary_muscles": [
+          "ankle stabilizers"
+        ],
+        "instructions_ko": "바닥에 앉아 다리를 앞으로 펼칩니다. 한쪽 다리를 바닥에서 들어 발목을 원형으로 회전시킵니다. 원하는 횟수만큼 한 방향으로 회전한 다음 반대 방향으로 회전합니다. 반대쪽 다리로 같은 동작을 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "1378",
+        "name": "calf stretch with rope",
+        "name_ko": "카프 스트레칭 (로프)",
+        "body_part": "lower legs",
+        "equipment": "rope",
+        "target": "calves",
+        "secondary_muscles": [
+          "hamstrings"
+        ],
+        "instructions_ko": "벽이나 견고한 물체를 향해 서서 발을 엉덩이 너비로 떨어뜨립니다. 로프의 양쪽 끝을 각각의 손에 들고 로프의 중간 부분을 오른쪽 발의 앞부분에 감습니다. 왼쪽 발을 뒤로 물러나면서 발뒤꿈치를 지면에 붙이고 다리를 곧게 펴십시오. 몸을 앞으로 기울이면서 등을 곧게 유지하고 로프를 부드럽게 당겨 종아리를 스트레치합니다. 20-30초 동안 스트레치를 유지한 후 로프를 놓습니다. 다른 다리에서 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0605",
+        "name": "lever standing calf raise",
+        "name_ko": "레버 스탠딩 카프 레이즈",
+        "body_part": "lower legs",
+        "equipment": "leverage machine",
+        "target": "calves",
+        "secondary_muscles": [
+          "soleus",
+          "ankle stabilizers"
+        ],
+        "instructions_ko": "머신을 키에 맞게 조절하고 어깨너비로 발을 벌려 섭니다. 패드 아래에 어깨를 놓고 안정성을 위해 손잡이를 잡습니다. 발목을 펴서 발뒤꿈치를 최대한 높이 올립니다. 최상단에서 잠시 멈춘 후 천천히 발뒤꿈치를 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0594",
+        "name": "lever seated calf raise",
+        "name_ko": "레버 시티드 카프 레이즈",
+        "body_part": "lower legs",
+        "equipment": "leverage machine",
+        "target": "calves",
+        "secondary_muscles": [
+          "soleus",
+          "ankle stabilizers"
+        ],
+        "instructions_ko": "시트 높이를 조정하여 무릎이 약간 굽혀지고 발이 풋플레이트에 평평하게 놓이도록 합니다. 발가락을 풋플레이트에 올리고 발뒤꿈치를 가장자리 바깥으로 내밉니다. 안정성을 위해 시트의 핸들이나 옆면을 잡습니다. 발의 공 부분을 통해 눌러서 발뒤꿈치를 가능한 높이 올립니다. 상단에서 잠깐 멈춘 후, 발뒤꿈치를 천천히 처음 위치로 낮춥니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "1375",
+        "name": "cable standing calf raise",
+        "name_ko": "케이블 스탠딩 카프 레이즈",
+        "body_part": "lower legs",
+        "equipment": "cable",
+        "target": "calves",
+        "secondary_muscles": [
+          "hamstrings",
+          "glutes"
+        ],
+        "instructions_ko": "케이블 머신을 마주보고 발을 어깨 너비만큼 벌려 서 있습니다. 케이블 머신 핸들을 잡거나 발목에 케이블 스트랩을 부착합니다. 발뒤꿈치를 바닥에서 떼고 발목을 최대한 펼쳐 발가락으로 몸을 올립니다. 최고점에서 잠시 멈춘 후 천천히 발뒤꿈치를 처음 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "1370",
+        "name": "barbell floor calf raise",
+        "name_ko": "바벨 플로어 카프 레이즈",
+        "body_part": "lower legs",
+        "equipment": "barbell",
+        "target": "calves",
+        "secondary_muscles": [
+          "hamstrings"
+        ],
+        "instructions_ko": "바벨을 바닥에 놓습니다. 발의 앞부분(발가락 부분)을 바벨의 모서리에 올려놓고 뒷꿈치는 공중에 띄웁니다. 필요하면 균형을 위해 안정적인 물체를 잡습니다. 종아리 힘을 사용하여 뒷꿈치를 가능한 한 높게 올립니다. 맨 위에서 잠시 멈춘 후 천천히 뒷꿈치를 시작 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0088",
+        "name": "barbell seated calf raise",
+        "name_ko": "바벨 시티드 카프 레이즈",
+        "body_part": "lower legs",
+        "equipment": "barbell",
+        "target": "calves",
+        "secondary_muscles": [
+          "hamstrings",
+          "quadriceps"
+        ],
+        "instructions_ko": "벤치에 앉아 발은 바닥에 놓고 바벨을 허벅지 위에 올립니다. 발의 앞부분(발가락 부분)을 블록이나 스텝과 같은 높은 플랫폼에 올립니다. 바벨을 허벅지 위에 가로질러 놓고 양손으로 단단히 잡습니다. 등을 곧게 펴고 코어에 힘을 줍니다. 발뒤꿈치를 들어 올리며 발목을 펼쳐 확장합니다. 상단에서 잠시 멈춘 후 천천히 발뒤꿈치를 시작 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0284",
+        "name": "donkey calf raise",
+        "name_ko": "동키 카프 레이즈",
+        "body_part": "lower legs",
+        "equipment": "body weight",
+        "target": "calves",
+        "secondary_muscles": [
+          "hamstrings",
+          "glutes"
+        ],
+        "instructions_ko": "발가락을 계단이나 블록 같은 높은 곳에 올려놓습니다. 손을 벽이나 손잡이 같은 안정적인 곳에 올려 균형을 잡습니다. 발뒤꿈치를 최대한 높이 올리며 발가락 앞부분으로 체중을 올립니다. 상단에서 잠시 멈춘 후 천천히 발뒤꿈치를 처음 위치로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "1396",
+        "name": "smith toe raise",
+        "name_ko": "스미스 발끝 레이즈",
+        "body_part": "lower legs",
+        "equipment": "smith machine",
+        "target": "calves",
+        "secondary_muscles": [
+          "ankles",
+          "shins"
+        ],
+        "instructions_ko": "스미스 머신의 바를 발을 바닥에 평평하게 놓고 편안하게 서 있을 수 있는 높이로 조정합니다. 어깨가 바 아래에 오도록 위치하고 발을 어깨 너비만큼 벌립니다. 발의 앞부분을 높은 발판이나 무게 판에 올리고 발뒤꿈치가 가장자리 밖으로 나가도록 합니다. 어깨 너비보다 약간 넓은 손으로 오버핸드 그립으로 바를 잡습니다. 복부에 힘을 주고 등을 펴진 상태로 유지합니다. 발뒤꿈치를 최대한 높이 올려 발 앞부분으로 몸무게를 옮깁니다. 위에서 잠깐 멈추고 발뒤꿈치를 천천히 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      }
+    ],
+    "lower arms": [
+      {
+        "id": "1016",
+        "name": "band wrist curl",
+        "name_ko": "밴드 리스트 컬",
+        "body_part": "lower arms",
+        "equipment": "band",
+        "target": "forearms",
+        "secondary_muscles": [
+          "biceps",
+          "triceps"
+        ],
+        "instructions_ko": "벤치나 의자에 앉아 발을 땅에 댑니다. 밴드를 양손으로 손바닥이 위를 향하도록 잡고 팔뚝을 넓적다리에 얹습니다. 천천히 손목을 위로 구부리며 팔뚝을 조입니다. 맨 위에서 잠시 멈춘 후, 천천히 손목을 원래 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0994",
+        "name": "band reverse wrist curl",
+        "name_ko": "밴드 리버스 리스트 컬",
+        "body_part": "lower arms",
+        "equipment": "band",
+        "target": "forearms",
+        "secondary_muscles": [
+          "forearms"
+        ],
+        "instructions_ko": "벤치나 의자에 앉아 발을 바닥에 붙입니다. 손바닥이 아래를 향하도록 오버핸드 그립으로 밴드를 잡고 손가락 주위에 감습니다. 전완을 넓적다리 위에 놓되 손목이 가장자리에서 떨어져 있게 합니다. 천천히 손목을 위로 말아올려 전완 근육을 짜냅니다. 꼭짓점에서 잠깐 멈춘 후 천천히 손목을 시작 자세로 내립니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "1428",
+        "name": "wrist circles",
+        "name_ko": "리스트 서클",
+        "body_part": "lower arms",
+        "equipment": "body weight",
+        "target": "forearms",
+        "secondary_muscles": [
+          "hands",
+          "wrists"
+        ],
+        "instructions_ko": "팔을 앞으로 곧게 뻗습니다. 양손으로 주먹을 만듭니다. 팔을 고정하고 손목을 원형 운동으로 회전합니다. 원하는 반복 횟수만큼 손목 원 운동을 계속합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "1437",
+        "name": "dumbbell finger curls",
+        "name_ko": "덤벨 손가락 컬",
+        "body_part": "lower arms",
+        "equipment": "dumbbell",
+        "target": "forearms",
+        "secondary_muscles": [
+          "wrist flexors",
+          "wrist extensors"
+        ],
+        "instructions_ko": "벤치나 의자에 앉아 발을 땅에 딛고 등을 곧게 펴집니다. 한쪽 손에 덤벨을 들되 언더그립으로 잡고 전완을 허벅지에 올려놓으며 손바닥이 위를 향하도록 합니다. 덤벨을 손가락 끝으로 굴린 후 손가락을 굽혀 다시 올립니다. 원하는 횟수만큼 반복한 후 반대쪽 손으로 합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0455",
+        "name": "finger curls",
+        "name_ko": "손가락 컬",
+        "body_part": "lower arms",
+        "equipment": "barbell",
+        "target": "forearms",
+        "secondary_muscles": [
+          "wrist flexors",
+          "grip muscles"
+        ],
+        "instructions_ko": "벤치에 앉아 발을 바닥에 댄 후 손가락이 위를 향하도록 역그립으로 바벨을 잡습니다. 팔뚝을 허벅지 위에 올리고 손목이 가장자리 밖으로 나오도록 합니다. 손가락을 천천히 손바닥 쪽으로 구부려 바벨을 단단히 쥡니다. 수축을 한 순간 유지한 후 손가락을 천천히 시작 위치로 펴줍니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0126",
+        "name": "barbell wrist curl",
+        "name_ko": "바벨 리스트 컬",
+        "body_part": "lower arms",
+        "equipment": "barbell",
+        "target": "forearms",
+        "secondary_muscles": [
+          "biceps",
+          "brachialis"
+        ],
+        "instructions_ko": "벤치에 앉아 발을 땅에 디디고 팔뚝을 허벅지 위에 올린 상태에서 손바닥이 위를 향하도록 바벨을 잡습니다. 바벨을 손가락 끝까지 천천히 굴립니다. 손목을 굽혀 바벨을 팔뚝 쪽으로 천천히 들어올립니다. 맨 위에서 잠깐 멈춘 후, 천천히 바벨을 시작 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0247",
+        "name": "cable wrist curl",
+        "name_ko": "케이블 리스트 컬",
+        "body_part": "lower arms",
+        "equipment": "cable",
+        "target": "forearms",
+        "secondary_muscles": [
+          "biceps",
+          "brachialis"
+        ],
+        "instructions_ko": "저 도르래 케이블 머신에 직바를 연결합니다. 머신을 향해 서서 어깨너비만큼 발을 벌립니다. 역그립으로 바를 잡고 손바닥이 위를 향하게 하며 손을 어깨너비만큼 벌립니다. 팔을 벤치나 패드에 놓고 손목이 가장자리 밖으로 나오도록 합니다. 팔뚝을 고정하고 숨을 내쉬면서 손목을 가능한 한 위로 말아올립니다. 최상단에서 잠시 멈춘 후 숨을 들이마시면서 바를 천천히 처음 위치로 내립니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": false
+      },
+      {
+        "id": "0721",
+        "name": "side wrist pull stretch",
+        "name_ko": "사이드 리스트 풀 스트레칭",
+        "body_part": "lower arms",
+        "equipment": "body weight",
+        "target": "forearms",
+        "secondary_muscles": [
+          "wrists",
+          "hands"
+        ],
+        "instructions_ko": "발을 어깨너비로 벌리고 팔을 앞으로 펼쳐 서세요. 오른팔을 옆으로 펴 땅과 평행하게 하고 손바닥은 아래를 향합니다. 왼손으로 오른손을 잡고 신체를 향해 부드럽게 당깁니다. 오른쪽 팔뚝에 스트레칭을 느낍니다. 15-30초 동안 스트레칭을 유지한 후 놓습니다. 반대쪽에서 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      }
+    ],
+    "cardio": [
+      {
+        "id": "2612",
+        "name": "jump rope",
+        "name_ko": "점프 로프",
+        "body_part": "cardio",
+        "equipment": "rope",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "calves",
+          "quadriceps",
+          "hamstrings",
+          "glutes"
+        ],
+        "instructions_ko": "손으로 줄넘기의 손잡이를 잡되 손바닥이 안쪽을 향하도록 합니다. 발을 어깨너비로 벌리고 무릎을 약간 구부린 상태에서 섭니다. 줄을 머리 위로 휘저으면서 발 쪽으로 오는 줄을 뛰어넘습니다. 발가락 끝으로 부드럽게 착지하고 줄이 다시 오면 점프를 반복합니다. 원하는 시간이나 반복 횟수 동안 계속 뛰어넘습니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3636",
+        "name": "high knee against wall",
+        "name_ko": "하이 무릎 기대어 월",
+        "body_part": "cardio",
+        "equipment": "body weight",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "glutes",
+          "calves"
+        ],
+        "instructions_ko": "벽을 마주보고 어깨 너비만큼 발을 벌려 섭니다. 지탱하기 위해 손을 벽에 얹습니다. 복부에 힘을 주고 오른쪽 무릎을 가슴 쪽으로 들어 올리면서 왼쪽 발은 지면에 유지합니다. 빠르게 다리를 바꾸어 왼쪽 무릎을 가슴 쪽으로 들어 올리고 오른쪽 발을 내립니다. 달리는 동작으로 양쪽 다리를 번갈아 가능한 높이까지 들어 올립니다. 빠른 속도를 유지하고 상체는 안정적으로 유지합니다. 원하는 시간 또는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3224",
+        "name": "jack jump (male)",
+        "name_ko": "잭 점프 (남성)",
+        "body_part": "cardio",
+        "equipment": "body weight",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "quadriceps",
+          "calves"
+        ],
+        "instructions_ko": "발을 모으고 팔을 옆에 붙인 상태에서 섭니다. 점프하면서 발을 벌리고 팔을 머리 위로 올립니다. 착지하면서 빠르게 시작 자세로 돌아옵니다. 원하는 반복 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3223",
+        "name": "star jump (male)",
+        "name_ko": "스타 점프 (남성)",
+        "body_part": "cardio",
+        "equipment": "body weight",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "발을 어깨너비로 벌리고 팔을 옆으로 내린 상태로 서 있습니다. 무릎을 약간 구부리고 폭발적으로 뛰어올립니다. 뛸 때 다리를 벌리고 팔을 옆으로 펼쳐 별 모양을 만듭니다. 발가락 공에 소리 없이 착지하며 무릎을 약간 구부린 상태로 내려옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3672",
+        "name": "back and forth step",
+        "name_ko": "앞뒤 런지 스텝",
+        "body_part": "cardio",
+        "equipment": "body weight",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "glutes",
+          "calves"
+        ],
+        "instructions_ko": "발을 어깨너비로 벌리고 섭니다. 오른쪽 발을 앞으로 내딛고 무릎을 구부려 런지 자세로 내려갑니다. 오른쪽 발로 밀어내 시작 위치로 돌아옵니다. 왼쪽 발로 같은 동작을 반복하면서 다리를 번갈아가며 스텝합니다. 꾸준한 속도를 유지하며 앞뒤로 스텝을 계속합니다. 원하는 시간 또는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0630",
+        "name": "mountain climber",
+        "name_ko": "마운틴 클라이머",
+        "body_part": "cardio",
+        "equipment": "body weight",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "core",
+          "shoulders",
+          "triceps"
+        ],
+        "instructions_ko": "높은 플랭크 자세를 취해 손을 어깨 바로 아래 놓고 몸을 일직선으로 유지합니다. 코어에 힘을 주고 오른쪽 무릎을 가슴 쪽으로 가져온 후 빠르게 왼쪽 무릎으로 전환합니다. 달리는 동작으로 좌우 다리를 교대로 가져가면서 엉덩이를 낮게 유지하고 코어를 계속 조입니다. 꾸준한 속도를 유지하고 운동 내내 균등하게 숨을 쉽니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3360",
+        "name": "bear crawl",
+        "name_ko": "베어 크롤",
+        "body_part": "cardio",
+        "equipment": "body weight",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "core",
+          "shoulders",
+          "triceps"
+        ],
+        "instructions_ko": "모든 사지로 바닥에 있는 상태에서 시작하되 손은 어깨 바로 아래, 무릎은 엉덩이 바로 아래에 위치합니다. 무릎을 약간 들어올려 바닥에서 띄우되 등은 평평하고 코어는 팽팽하게 유지합니다. 오른손과 왼발을 동시에 앞으로 이동한 후, 왼손과 오른발을 이동합니다. 계속해서 손과 발을 교대로 움직이며 앞으로 기어갑니다. 전체 동작에서 안정적인 속도를 유지하고 코어를 팽팽하게 유지합니다. 원하는 거리 또는 시간 동안 계속합니다.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "3361",
+        "name": "skater hops",
+        "name_ko": "스케이터 홉",
+        "body_part": "cardio",
+        "equipment": "body weight",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "glutes",
+          "calves"
+        ],
+        "instructions_ko": "발을 어깨 너비만큼 벌려서 서세요. 무릎을 약간 구부려서 오른쪽으로 점프하여 오른발에 착지하세요. 착지할 때 왼쪽 다리를 오른쪽 다리 뒤로 스윙하고 왼발 발가락으로 땅을 톡톡 치세요. 즉시 왼쪽으로 점프하여 왼발에 착지하세요. 착지할 때 오른쪽 다리를 왼쪽 다리 뒤로 스윙하고 오른발 발가락으로 땅을 톡톡 치세요. 양쪽을 번갈아 가며 점프하고 각 다리로 땅을 톡톡 치세요. 원하는 반복 횟수만큼 반복하세요.",
+        "difficulty": "intermediate",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1160",
+        "name": "burpee",
+        "name_ko": "버피",
+        "body_part": "cardio",
+        "equipment": "body weight",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves",
+          "shoulders",
+          "chest"
+        ],
+        "instructions_ko": "발을 어깨 너비만큼 벌려 서서 시작합니다. 무릎을 구부려 스쿼트 자세로 내려가면서 손을 바닥 앞에 놓습니다. 발을 뒤로 차서 푸시업 자세로 만듭니다. 몸을 일직선으로 유지하면서 푸시업을 수행합니다. 발을 다시 스쿼트 자세로 당겨 옵니다. 폭발적으로 뛰어올라 팔을 머리 위로 올립니다. 부드럽게 착지한 후 즉시 스쿼트 자세로 내려가 다음 반복을 시작합니다.",
+        "difficulty": "advanced",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "0685",
+        "name": "run",
+        "name_ko": "달리기",
+        "body_part": "cardio",
+        "equipment": "body weight",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "두 발을 엉덩이 너비로 벌려 곧게 서 있습니다. 코어를 수축시키고 상반신은 이완된 상태로 유지합니다. 제자리에서 조깅을 시작하여 무릎을 가슴을 향해 올리고 발 앞부분에 부드럽게 착지합니다. 일정한 속도를 유지하고 원하는 시간이나 거리동안 계속 조깅합니다. 깊게 숨을 쉬고 운동 전체에서 좋은 자세를 유지하는 것을 기억합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      },
+      {
+        "id": "0798",
+        "name": "stationary bike walk",
+        "name_ko": "스테이셔너리 바이크 걷기",
+        "body_part": "cardio",
+        "equipment": "leverage machine",
+        "target": "cardiovascular system",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "고정식 자전거의 안장 높이와 위치를 조정하여 올바른 정렬을 보장합니다. 발을 페달에 올리고 가능하면 스트랩으로 고정합니다. 등을 곧게 하고 코어를 활성화한 상태로 편한 속도로 페달을 밟기 시작합니다. 일정한 리듬을 유지하고 원하면 저항 수준을 높입니다. 유산소 운동의 원하는 시간 동안 페달을 계속 밟습니다. 속도와 저항 수준을 천천히 줄이면서 쿨다운합니다. 운동 후 다리 근육을 스트레치하여 경직됨을 방지하고 회복을 촉진합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": false
+      }
+    ],
+    "neck": [
+      {
+        "id": "1403",
+        "name": "neck side stretch",
+        "name_ko": "목 사이드 스트레칭",
+        "body_part": "neck",
+        "equipment": "body weight",
+        "target": "levator scapulae",
+        "secondary_muscles": [
+          "trapezius",
+          "sternocleidomastoid"
+        ],
+        "instructions_ko": "어깨를 이완하고 서 있거나 앉은 상태에서 척추를 곧게 펼칩니다. 머리를 한쪽으로 기울여 귀를 어깨 쪽으로 가져옵니다. 스트레칭을 15-30초간 유지합니다. 반대쪽에서 반복합니다. 각 쪽에서 2-4세트 수행합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      },
+      {
+        "id": "0716",
+        "name": "side push neck stretch",
+        "name_ko": "사이드 푸시 목 스트레칭",
+        "body_part": "neck",
+        "equipment": "body weight",
+        "target": "levator scapulae",
+        "secondary_muscles": [
+          "trapezius",
+          "sternocleidomastoid"
+        ],
+        "instructions_ko": "어깨를 이완한 상태로 서거나 앉아 곧게 펴세요. 목을 오른쪽으로 기울여 오른쪽 귀를 오른쪽 어깨에 가깝게 가져갑니다. 왼손을 머리의 왼쪽에 올려놓고 스트레칭을 강화하기 위해 부드럽게 압력을 가합니다. 15-30초 동안 스트레칭을 유지합니다. 반대쪽을 반복합니다. 목을 왼쪽으로 기울이고 왼손으로 압력을 가합니다. 각 쪽에서 2-3번 스트레칭을 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": false,
+        "home_friendly": true
+      }
+    ]
+  }
+}

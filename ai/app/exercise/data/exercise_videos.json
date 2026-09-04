@@ -1,0 +1,1339 @@
+{
+  "source": "국민체력100 운동 영상 (한국스포츠정책과학원, 공공데이터포털)",
+  "license_note": "영상은 원본 URL로 링크만 하고 재배포하지 않는다.",
+  "match_note": "운동명이 아니라 근육으로 매칭한다 - exercises_ko의 target과 국민체력100의 trng_mscl_eng_nm을 TARGET_TO_MUSCLES 사전으로 이었다.",
+  "by_target": {
+    "abs": [
+      {
+        "name": "V자 버티기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "써클링",
+        "duration_sec": 161,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00379.mp4",
+        "muscles_ko": "고관절굴곡근,복횡근,복직근,내전근"
+      },
+      {
+        "name": "누워서 다리 펴고 원 그리기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 100,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00365.mp4",
+        "muscles_ko": "복직근"
+      },
+      {
+        "name": "다리 모아 뒤로 눕기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "써클휠",
+        "duration_sec": 95,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00430.mp4",
+        "muscles_ko": "대흉근,복직근,대퇴사두근"
+      },
+      {
+        "name": "다리 올려 의자 넘기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "의자",
+        "duration_sec": 103,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00371.mp4",
+        "muscles_ko": "복횡근,복직근,외복사근,내복사근"
+      },
+      {
+        "name": "무릎 구부려 상체 비틀기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 106,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00376.mp4",
+        "muscles_ko": "복직근,외복사근"
+      },
+      {
+        "name": "무릎 대고 상체 뒤로 젖히기",
+        "level": "초급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 107,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00422.mp4",
+        "muscles_ko": "복직근,대퇴사두근"
+      },
+      {
+        "name": "무릎 대고 옆으로 기울이기",
+        "level": "초급",
+        "place": "실내",
+        "tool": "써클링",
+        "duration_sec": 112,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00426.mp4",
+        "muscles_ko": "복횡근,복사근"
+      },
+      {
+        "name": "밴드 다리 올려 버티기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 145,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00374.mp4",
+        "muscles_ko": "복직근"
+      }
+    ],
+    "pectorals": [
+      {
+        "name": "공 던져 색깔 맞추기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "공",
+        "duration_sec": 90,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00457.mp4",
+        "muscles_ko": "대흉근,상완삼두근"
+      },
+      {
+        "name": "공 양손으로 주고 받기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "테니스공",
+        "duration_sec": 58,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00454.mp4",
+        "muscles_ko": "외늑간근,내늑간근,전거근,소흉근,대흉근"
+      },
+      {
+        "name": "다리 모아 뒤로 눕기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "써클휠",
+        "duration_sec": 95,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00430.mp4",
+        "muscles_ko": "대흉근,복직근,대퇴사두근"
+      },
+      {
+        "name": "밴드 앞으로 당기기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 105,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00375.mp4",
+        "muscles_ko": "전거근,대흉근,삼각근"
+      },
+      {
+        "name": "엎드려 무릎 연속 차기",
+        "level": "중급",
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 92,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00402.mp4",
+        "muscles_ko": "복직근,복사근,대퇴사두근"
+      },
+      {
+        "name": "팔 굽혀 펴기(매트)",
+        "level": "중급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 91,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00351.mp4",
+        "muscles_ko": "대흉근,삼각근,상완삼두근"
+      },
+      {
+        "name": "팔로 써클링 누르기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "써클링",
+        "duration_sec": 101,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00378.mp4",
+        "muscles_ko": "대흉근"
+      },
+      {
+        "name": "활 자세",
+        "level": "초급",
+        "place": "실내",
+        "tool": "써클링",
+        "duration_sec": 103,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00429.mp4",
+        "muscles_ko": "대흉근,복직근"
+      }
+    ],
+    "biceps": [
+      {
+        "name": "공 양손으로 주고 받기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "테니스공",
+        "duration_sec": 58,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00454.mp4",
+        "muscles_ko": "외늑간근,내늑간근,전거근,소흉근,대흉근"
+      },
+      {
+        "name": "라켓으로 공치며 앞으로 가기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "배드민턴 라켓",
+        "duration_sec": 79,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00452.mp4",
+        "muscles_ko": "상완이두근"
+      },
+      {
+        "name": "아령 앞으로 들어올리기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "아령",
+        "duration_sec": 78,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00355.mp4",
+        "muscles_ko": "상완이두근"
+      },
+      {
+        "name": "가슴/어깨 앞쪽 스트레칭",
+        "level": null,
+        "place": "실내/실외",
+        "tool": null,
+        "duration_sec": 65,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00583.mp4",
+        "muscles_ko": "대흉근,삼각근,상완이두근"
+      },
+      {
+        "name": "가슴펴고 천장보기",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 570,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01020.mp4",
+        "muscles_ko": "대흉근,흉쇄유돌근,복횡근,상완이두근"
+      },
+      {
+        "name": "거꾸로 균형을 잡아요",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 617,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0CBN6AUEP_00030.mp4",
+        "muscles_ko": "후면삼각근,복직근,둔근,전면삼각근,상완근,척추기립근,대원근"
+      },
+      {
+        "name": "걷기",
+        "level": null,
+        "place": "실외",
+        "tool": null,
+        "duration_sec": 40,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00181.mp4",
+        "muscles_ko": "둔근,넙치근,대퇴사두근,슬괵근,전경골근,비복근"
+      },
+      {
+        "name": "고정한 상태에서 덤벨 들고 팔꿈치 굽히기",
+        "level": null,
+        "place": "헬스장",
+        "tool": "덤벨",
+        "duration_sec": 46,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00226.mp4",
+        "muscles_ko": "상완이두근"
+      }
+    ],
+    "triceps": [
+      {
+        "name": "공 던져 색깔 맞추기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "공",
+        "duration_sec": 90,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00457.mp4",
+        "muscles_ko": "대흉근,상완삼두근"
+      },
+      {
+        "name": "공 잡고 상체 들어올리기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "공",
+        "duration_sec": 101,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00377.mp4",
+        "muscles_ko": "척추기립근,상완삼두근"
+      },
+      {
+        "name": "누워서 뒤로 팔 굽혀 펴기",
+        "level": "중급",
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 91,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00352.mp4",
+        "muscles_ko": "삼각근,상완삼두근"
+      },
+      {
+        "name": "무릎/허리 높이로 공 튀기기",
+        "level": "중급",
+        "place": "실외",
+        "tool": "농구공",
+        "duration_sec": 60,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00449.mp4",
+        "muscles_ko": "수근관절굴곡근,상완삼두근"
+      },
+      {
+        "name": "십(十)자 드리블",
+        "level": "중급",
+        "place": "실외",
+        "tool": "농구공",
+        "duration_sec": 108,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00451.mp4",
+        "muscles_ko": "수근관절굴곡근,상완삼두근"
+      },
+      {
+        "name": "아령 뒤로 들어올리기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "아령",
+        "duration_sec": 107,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00356.mp4",
+        "muscles_ko": "상완삼두근"
+      },
+      {
+        "name": "앉아서 엉덩이 들고 이동하기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "라바콘",
+        "duration_sec": 99,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00353.mp4",
+        "muscles_ko": "상완삼두근,척측수근굴근,대퇴사두근,대퇴이두근,비복근"
+      },
+      {
+        "name": "의자 잡고 팔 뒤로 굽히기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "의자",
+        "duration_sec": 99,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00357.mp4",
+        "muscles_ko": "삼각근,상완삼두근"
+      }
+    ],
+    "delts": [
+      {
+        "name": "Banded Jumping Jack",
+        "level": "초급",
+        "place": "실내/실외",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "중둔근,삼각근,넙치근,비복근"
+      },
+      {
+        "name": "Overhead Raise",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "전거근,극하근,삼각근,소원근"
+      },
+      {
+        "name": "Y Raise",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "승모근,능형근,전면삼각근"
+      },
+      {
+        "name": "계이름 치기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "계이름 판",
+        "duration_sec": 99,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00458.mp4",
+        "muscles_ko": "삼각근"
+      },
+      {
+        "name": "공 위로 던지고 제자리 돌아 받기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "공",
+        "duration_sec": 45,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00450.mp4",
+        "muscles_ko": "삼각근"
+      },
+      {
+        "name": "누워서 뒤로 팔 굽혀 펴기",
+        "level": "중급",
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 91,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00352.mp4",
+        "muscles_ko": "삼각근,상완삼두근"
+      },
+      {
+        "name": "밴드 앞 옆으로 들어올리기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 106,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00358.mp4",
+        "muscles_ko": "삼각근"
+      },
+      {
+        "name": "밴드 앞으로 당기기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 105,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00375.mp4",
+        "muscles_ko": "전거근,대흉근,삼각근"
+      }
+    ],
+    "glutes": [
+      {
+        "name": "4방향 콘 찍고 달리기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "콘",
+        "duration_sec": 93,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00442.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "50M 달리기",
+        "level": "중급",
+        "place": "운동장",
+        "tool": "콘",
+        "duration_sec": 52,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00434.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "Banded Jumping Jack",
+        "level": "초급",
+        "place": "실내/실외",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "중둔근,삼각근,넙치근,비복근"
+      },
+      {
+        "name": "Clamshell",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "소둔근,중둔근,대퇴근막장근"
+      },
+      {
+        "name": "Deadlift",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "대둔근,척추기립근,대퇴사두근"
+      },
+      {
+        "name": "Glute Bridge",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "둔근,척추기립근,슬괵근"
+      },
+      {
+        "name": "Lying Hip Abduction",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "소둔근,중둔근,대퇴근막장근"
+      },
+      {
+        "name": "Side Walk and Squat",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "둔근,중둔근,대퇴사두근"
+      }
+    ],
+    "quads": [
+      {
+        "name": "4방향 콘 찍고 달리기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "콘",
+        "duration_sec": 93,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00442.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "50M 달리기",
+        "level": "중급",
+        "place": "운동장",
+        "tool": "콘",
+        "duration_sec": 52,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00434.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "Deadlift",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "대둔근,척추기립근,대퇴사두근"
+      },
+      {
+        "name": "Side Walk and Squat",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "둔근,중둔근,대퇴사두근"
+      },
+      {
+        "name": "S자 달리기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "콘",
+        "duration_sec": 78,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00444.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "계단 오르기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "계단",
+        "duration_sec": 72,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00405.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "교차 다리 굽히기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "덤벨",
+        "duration_sec": 124,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00388.mp4",
+        "muscles_ko": "둔근,대퇴사두근"
+      },
+      {
+        "name": "다리 굽혀(W자) 상체 뒤로 눕기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 121,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00412.mp4",
+        "muscles_ko": "장요근,대퇴사두근"
+      }
+    ],
+    "hamstrings": [
+      {
+        "name": "4방향 콘 찍고 달리기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "콘",
+        "duration_sec": 93,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00442.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "50M 달리기",
+        "level": "중급",
+        "place": "운동장",
+        "tool": "콘",
+        "duration_sec": 52,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00434.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "Glute Bridge",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "둔근,척추기립근,슬괵근"
+      },
+      {
+        "name": "Superman Kick",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "대둔근,척추기립근,슬괵근"
+      },
+      {
+        "name": "S자 달리기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "콘",
+        "duration_sec": 78,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00444.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "계단 오르기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "계단",
+        "duration_sec": 72,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00405.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "누워서 굽힌 다리 펴기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "써클링",
+        "duration_sec": 97,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00427.mp4",
+        "muscles_ko": "대둔근,슬괵근"
+      },
+      {
+        "name": "다리 꼬아 상체 앞으로 숙이기",
+        "level": "초급",
+        "place": "실내/실외",
+        "tool": null,
+        "duration_sec": 119,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00418.mp4",
+        "muscles_ko": "대퇴이두근,반막양근,반건양근,비복근"
+      }
+    ],
+    "calves": [
+      {
+        "name": "1단 줄넘기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "줄넘기",
+        "duration_sec": 86,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00404.mp4",
+        "muscles_ko": "넙치근,비복근"
+      },
+      {
+        "name": "2단 줄넘기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "줄넘기",
+        "duration_sec": 84,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00441.mp4",
+        "muscles_ko": "넙치근,비복근"
+      },
+      {
+        "name": "4방향 콘 찍고 달리기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "콘",
+        "duration_sec": 93,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00442.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "50M 달리기",
+        "level": "중급",
+        "place": "운동장",
+        "tool": "콘",
+        "duration_sec": 52,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00434.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "Banded Jumping Jack",
+        "level": "초급",
+        "place": "실내/실외",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "중둔근,삼각근,넙치근,비복근"
+      },
+      {
+        "name": "S자 달리기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "콘",
+        "duration_sec": 78,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00444.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "계단 오르기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "계단",
+        "duration_sec": 72,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00405.mp4",
+        "muscles_ko": "고관절굴곡근,둔근,넙치근,대퇴사두근,슬괵근,비복근"
+      },
+      {
+        "name": "다리 꼬아 상체 앞으로 숙이기",
+        "level": "초급",
+        "place": "실내/실외",
+        "tool": null,
+        "duration_sec": 119,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00418.mp4",
+        "muscles_ko": "대퇴이두근,반막양근,반건양근,비복근"
+      }
+    ],
+    "lats": [
+      {
+        "name": "앉아서 밴드 당기기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 98,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00372.mp4",
+        "muscles_ko": "광배근,승모근,능형근,후면삼각근"
+      },
+      {
+        "name": "앉아서 옆구리 늘려주기",
+        "level": "초급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 116,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00420.mp4",
+        "muscles_ko": "광배근,요방형근,슬괵근,내전근,비복근"
+      },
+      {
+        "name": "엎드려 어깨 늘리기",
+        "level": "초급",
+        "place": "실내",
+        "tool": "써클휠",
+        "duration_sec": 97,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00428.mp4",
+        "muscles_ko": "광배근,삼각근"
+      },
+      {
+        "name": "겨드랑이 늘리기",
+        "level": null,
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 92,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00946.mp4",
+        "muscles_ko": "광배근,상완삼두근"
+      },
+      {
+        "name": "굽히기를 해요",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 617,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0CBN6AUEP_00030.mp4",
+        "muscles_ko": "대퇴직근,대퇴사두근,봉공근"
+      },
+      {
+        "name": "깍지끼고 옆구리 늘리기",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 570,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01020.mp4",
+        "muscles_ko": "광배근,복횡근,복직근,소원근,대원근"
+      },
+      {
+        "name": "깍지끼고 천장보기",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 570,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01020.mp4",
+        "muscles_ko": "광배근,흉쇄유돌근,복직근,소원근,대원근"
+      },
+      {
+        "name": "나란히 서서 손잡고 끌어당기기",
+        "level": null,
+        "place": "실내/실외",
+        "tool": "매트",
+        "duration_sec": 102,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00949.mp4",
+        "muscles_ko": "광배근,복직근,외복사근"
+      }
+    ],
+    "upper back": [
+      {
+        "name": "Overhead Raise",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "전거근,극하근,삼각근,소원근"
+      },
+      {
+        "name": "Y Raise",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "승모근,능형근,전면삼각근"
+      },
+      {
+        "name": "앉아서 밴드 당기기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 98,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00372.mp4",
+        "muscles_ko": "광배근,승모근,능형근,후면삼각근"
+      },
+      {
+        "name": "팔 구부려 등 모으기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 83,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00367.mp4",
+        "muscles_ko": "능형근"
+      },
+      {
+        "name": "거꾸로 균형을 잡아요",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 617,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0CBN6AUEP_00030.mp4",
+        "muscles_ko": "후면삼각근,복직근,둔근,전면삼각근,상완근,척추기립근,대원근"
+      },
+      {
+        "name": "굽힘 밸런스운동",
+        "level": null,
+        "place": "실내",
+        "tool": "덤벨",
+        "duration_sec": 57,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00616.mp4",
+        "muscles_ko": "극하근,극상근,견갑하근,삼각근"
+      },
+      {
+        "name": "깍지끼고 옆구리 늘리기",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 570,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01020.mp4",
+        "muscles_ko": "광배근,복횡근,복직근,소원근,대원근"
+      },
+      {
+        "name": "깍지끼고 천장보기",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 570,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01020.mp4",
+        "muscles_ko": "광배근,흉쇄유돌근,복직근,소원근,대원근"
+      }
+    ],
+    "traps": [
+      {
+        "name": "Y Raise",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "승모근,능형근,전면삼각근"
+      },
+      {
+        "name": "앉아서 밴드 당기기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 98,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00372.mp4",
+        "muscles_ko": "광배근,승모근,능형근,후면삼각근"
+      },
+      {
+        "name": "누워서 막대 잡고 팔 회전하기",
+        "level": null,
+        "place": "실내",
+        "tool": "막대",
+        "duration_sec": 64,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00340.mp4",
+        "muscles_ko": "극하근,극상근,견갑하근,삼각근"
+      },
+      {
+        "name": "다리 어깨너비로 벌려 팔꿈치 돌리기",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 570,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01020.mp4",
+        "muscles_ko": "소흉근,대흉근,승모근,능형근,복횡근,복사근,삼각근"
+      },
+      {
+        "name": "다리벌려 어깨 내밀기",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01021.mp4",
+        "muscles_ko": "승모근,능형근,삼각근,내전근"
+      },
+      {
+        "name": "당겨내리기",
+        "level": null,
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 85,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00279.mp4",
+        "muscles_ko": "대흉근,광배근,승모근,삼각근"
+      },
+      {
+        "name": "당겨올리기",
+        "level": null,
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 85,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00279.mp4",
+        "muscles_ko": "승모근,능형근,삼각근"
+      },
+      {
+        "name": "등/어깨 뒤쪽 스트레칭",
+        "level": null,
+        "place": "실내/실외",
+        "tool": null,
+        "duration_sec": 77,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00582.mp4",
+        "muscles_ko": "후면삼각근,상완삼두근"
+      }
+    ],
+    "spine": [
+      {
+        "name": "Deadlift",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "대둔근,척추기립근,대퇴사두근"
+      },
+      {
+        "name": "Glute Bridge",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "둔근,척추기립근,슬괵근"
+      },
+      {
+        "name": "Superman Kick",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "대둔근,척추기립근,슬괵근"
+      },
+      {
+        "name": "공 잡고 상체 들어올리기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "공",
+        "duration_sec": 101,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00377.mp4",
+        "muscles_ko": "척추기립근,상완삼두근"
+      },
+      {
+        "name": "머리 뒤로 깍지 끼고 상체 숙이기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": null,
+        "duration_sec": 107,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00369.mp4",
+        "muscles_ko": "척추기립근"
+      },
+      {
+        "name": "슈퍼맨 자세",
+        "level": "중급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 95,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00361.mp4",
+        "muscles_ko": "대둔근,척추기립근"
+      },
+      {
+        "name": "앉아서 옆구리 늘려주기",
+        "level": "초급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 116,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00420.mp4",
+        "muscles_ko": "광배근,요방형근,슬괵근,내전근,비복근"
+      },
+      {
+        "name": "앉았다 일어서기(공)",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": null,
+        "duration_sec": 152,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00385.mp4",
+        "muscles_ko": "척추기립근,대퇴사두근"
+      }
+    ],
+    "forearms": [
+      {
+        "name": "공 양손으로 주고 받기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "테니스공",
+        "duration_sec": 58,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00454.mp4",
+        "muscles_ko": "외늑간근,내늑간근,전거근,소흉근,대흉근"
+      },
+      {
+        "name": "무릎/허리 높이로 공 튀기기",
+        "level": "중급",
+        "place": "실외",
+        "tool": "농구공",
+        "duration_sec": 60,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00449.mp4",
+        "muscles_ko": "수근관절굴곡근,상완삼두근"
+      },
+      {
+        "name": "십(十)자 드리블",
+        "level": "중급",
+        "place": "실외",
+        "tool": "농구공",
+        "duration_sec": 108,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00451.mp4",
+        "muscles_ko": "수근관절굴곡근,상완삼두근"
+      },
+      {
+        "name": "가위 바위 보해요",
+        "level": null,
+        "place": "실내, 실외",
+        "tool": null,
+        "duration_sec": 347,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0CBJT14JC_00015.mp4",
+        "muscles_ko": "시지신근,장무지굴근,요측수근신근,요측수근굴근,소지신근,수근관절굴곡근,수근관절신근,척측수근굴근,척측수근신근"
+      },
+      {
+        "name": "고무줄 놀이",
+        "level": null,
+        "place": "실내",
+        "tool": "고무줄",
+        "duration_sec": 96,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0CBNIWVA4_00033.mp4",
+        "muscles_ko": "시지신근,장무지굴근,요측수근신근,요측수근굴근,소지신근,수근관절굴곡근,수근관절신근"
+      },
+      {
+        "name": "깍지 끼고 상체 숙이기",
+        "level": null,
+        "place": "실내/실외",
+        "tool": null,
+        "duration_sec": 116,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00686.mp4",
+        "muscles_ko": "척추기립근,수근관절굴곡근,삼각근,대퇴이두근"
+      },
+      {
+        "name": "딩링링을 끼워요",
+        "level": null,
+        "place": "실내",
+        "tool": "고무줄",
+        "duration_sec": 105,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0CBNF97M5_00031.mp4",
+        "muscles_ko": "시지신근,장무지굴근,요측수근신근,요측수근굴근,소지신근"
+      },
+      {
+        "name": "모관운동",
+        "level": null,
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 92,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00932.mp4",
+        "muscles_ko": "복직근,수근관절굴곡근,수근관절신근,넙치근,후경골근,전경골근,비복근"
+      }
+    ],
+    "adductors": [
+      {
+        "name": "V자 버티기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "써클링",
+        "duration_sec": 161,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00379.mp4",
+        "muscles_ko": "고관절굴곡근,복횡근,복직근,내전근"
+      },
+      {
+        "name": "반복 옆 뛰기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "콘",
+        "duration_sec": 57,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00446.mp4",
+        "muscles_ko": "둔근,넙치근,대퇴사두근,내전근,비복근"
+      },
+      {
+        "name": "앉아서 옆구리 늘려주기",
+        "level": "초급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 116,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00420.mp4",
+        "muscles_ko": "광배근,요방형근,슬괵근,내전근,비복근"
+      },
+      {
+        "name": "점프해서 발바닥 치기",
+        "level": "중급",
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 79,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00435.mp4",
+        "muscles_ko": "중둔근,내전근,비복근"
+      },
+      {
+        "name": "한발 앞굽이 팔 위로 뻗어 가슴 내밀기",
+        "level": "중급",
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 131,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00416.mp4",
+        "muscles_ko": "대요근,척추기립근,대퇴직근,내전근"
+      },
+      {
+        "name": "내전근 스트레칭",
+        "level": null,
+        "place": "실내/실외",
+        "tool": "의자",
+        "duration_sec": 102,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00730.mp4",
+        "muscles_ko": "장내전근,박근,단내전근"
+      },
+      {
+        "name": "넙다리 안쪽 스트레칭",
+        "level": null,
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 92,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00591.mp4",
+        "muscles_ko": "장내전근,내전근"
+      },
+      {
+        "name": "넙다리 안쪽 스트레칭-1",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 116,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00694.mp4",
+        "muscles_ko": "대둔근,내전근"
+      }
+    ],
+    "abductors": [
+      {
+        "name": "Banded Jumping Jack",
+        "level": "초급",
+        "place": "실내/실외",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "중둔근,삼각근,넙치근,비복근"
+      },
+      {
+        "name": "Clamshell",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "소둔근,중둔근,대퇴근막장근"
+      },
+      {
+        "name": "Lying Hip Abduction",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "소둔근,중둔근,대퇴근막장근"
+      },
+      {
+        "name": "Side Walk and Squat",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "둔근,중둔근,대퇴사두근"
+      },
+      {
+        "name": "다리 옆으로 들어올리기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "의자",
+        "duration_sec": 106,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00391.mp4",
+        "muscles_ko": "중둔근,대퇴근막장근,봉공근"
+      },
+      {
+        "name": "옆으로 누워 다리 들어올리기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 137,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00381.mp4",
+        "muscles_ko": "소둔근,중둔근,대퇴근막장근"
+      },
+      {
+        "name": "옆으로 누워 무릎 벌리기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 111,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00384.mp4",
+        "muscles_ko": "중둔근,대둔근"
+      },
+      {
+        "name": "옆으로 다리 뻗기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": null,
+        "duration_sec": 109,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00386.mp4",
+        "muscles_ko": "둔근,소둔근,중둔근,대둔근,대퇴근막장근,대퇴사두근"
+      }
+    ],
+    "serratus anterior": [
+      {
+        "name": "Overhead Raise",
+        "level": "초급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 612,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_01011.mp4",
+        "muscles_ko": "전거근,극하근,삼각근,소원근"
+      },
+      {
+        "name": "공 양손으로 주고 받기",
+        "level": "중급",
+        "place": "실내/실외",
+        "tool": "테니스공",
+        "duration_sec": 58,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00454.mp4",
+        "muscles_ko": "외늑간근,내늑간근,전거근,소흉근,대흉근"
+      },
+      {
+        "name": "밴드 앞으로 당기기",
+        "level": "중급",
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 105,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00375.mp4",
+        "muscles_ko": "전거근,대흉근,삼각근"
+      },
+      {
+        "name": "가슴/어깨 스트레칭-1",
+        "level": null,
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 132,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00791.mp4",
+        "muscles_ko": "전거근,대흉근,삼각근"
+      },
+      {
+        "name": "네발기기 자세에서 손바닥으로 바닥밀기",
+        "level": null,
+        "place": "실내",
+        "tool": "매트",
+        "duration_sec": 65,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00246.mp4",
+        "muscles_ko": "전거근,능형근"
+      },
+      {
+        "name": "등 스트레칭",
+        "level": null,
+        "place": "실내",
+        "tool": "짐볼",
+        "duration_sec": 111,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00741.mp4",
+        "muscles_ko": "전거근,광배근,대원근"
+      },
+      {
+        "name": "등 스트레칭-1",
+        "level": null,
+        "place": "실내",
+        "tool": "짐볼",
+        "duration_sec": 128,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00781.mp4",
+        "muscles_ko": "전거근,광배근,대원근"
+      },
+      {
+        "name": "몸통 옆으로 굽히기",
+        "level": null,
+        "place": "헬스장",
+        "tool": "덤벨",
+        "duration_sec": 59,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00220.mp4",
+        "muscles_ko": "전거근,복사근"
+      }
+    ],
+    "levator scapulae": [
+      {
+        "name": "목 돌림 스트레칭",
+        "level": null,
+        "place": "실내/실외",
+        "tool": null,
+        "duration_sec": 147,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00699.mp4",
+        "muscles_ko": "두판상근,흉쇄유돌근,견갑거근"
+      },
+      {
+        "name": "목 스트레칭(의자)",
+        "level": null,
+        "place": "실내/실외",
+        "tool": "의자",
+        "duration_sec": 108,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00724.mp4",
+        "muscles_ko": "두최장근,두반극근,견갑거근"
+      },
+      {
+        "name": "목 스트레칭(의자)-1",
+        "level": null,
+        "place": "실내",
+        "tool": "의자",
+        "duration_sec": 107,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00803.mp4",
+        "muscles_ko": "두최장근,두반극근,견갑거근"
+      },
+      {
+        "name": "바벨 서서 어깨 들어올리기",
+        "level": null,
+        "place": "헬스장",
+        "tool": "바벨",
+        "duration_sec": 59,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00495.mp4",
+        "muscles_ko": "승모근,견갑거근"
+      },
+      {
+        "name": "배영자세와 물에 뜨기",
+        "level": null,
+        "place": "수영장",
+        "tool": null,
+        "duration_sec": 109,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00177.mp4",
+        "muscles_ko": "승모근,견갑하근,삼각근,견갑거근"
+      },
+      {
+        "name": "어깨 롤링",
+        "level": null,
+        "place": "수영장",
+        "tool": null,
+        "duration_sec": 109,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00177.mp4",
+        "muscles_ko": "견갑하근,삼각근,견갑거근,소원근"
+      },
+      {
+        "name": "좌/우 굴곡(목 좌/우 굴곡)",
+        "level": null,
+        "place": "실내",
+        "tool": null,
+        "duration_sec": 45,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00332.mp4",
+        "muscles_ko": "흉쇄유돌근,견갑거근"
+      },
+      {
+        "name": "탄력밴드 당기면서 팔 들어올리기",
+        "level": null,
+        "place": "실내",
+        "tool": "밴드",
+        "duration_sec": 67,
+        "video_url": "http://openapi.kspo.or.kr/web/video/0AUDLJ08S_00346.mp4",
+        "muscles_ko": "광배근,능형근,삼각근"
+      }
+    ]
+  }
+}

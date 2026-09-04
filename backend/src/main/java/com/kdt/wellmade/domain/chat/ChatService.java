@@ -75,7 +75,8 @@ public class ChatService {
     // 추천을 매번 덧붙였다("안녕" -> 하루 식단표). 또 기록이 없을 때 어떻게 답할지 정해두지 않아
     // 없는 식단을 지어내기도 했다. 그래서 역할을 "물어본 것에 답하는" 쪽으로 좁히고, 하지 말아야
     // 할 행동을 명시적으로 금지한다.
-    private static final String SYSTEM_PROMPT = """
+    // 평가 하네스(ChatExerciseEvalTest)가 실제 프롬프트로 채점할 수 있게 패키지까지 열어둔다
+    static final String SYSTEM_PROMPT = """
             당신은 사용자의 식단 기록과 인바디 수치를 확인해주는 헬스케어 어시스턴트입니다.
             의학적 진단은 하지 않고 생활습관 수준의 정보만 다룹니다.
 
@@ -98,11 +99,16 @@ public class ChatService {
                그대로 인용하세요.
             10. 운동 추천은 이렇게 처리하세요.
                 - 어느 부위를 원하는지 모를 때만 한 문장으로 물어보세요. 난이도는 묻지 마세요.
-                - 부위가 정해지면 recommend_exercises 도구를 호출하고, candidates 안의 운동만
-                  2~3개 골라 한국어로 추천하세요. 목록에 없는 운동은 지어내지 마세요.
+                - 부위가 정해지면 recommend_exercises 도구를 호출하고, candidates 에 들어 있는
+                  운동을 전부 한국어로 추천하세요. 목록에 없는 운동은 지어내지 마세요.
+                - 세트 수와 횟수는 직접 정하지 마세요. 각 운동의 sets_reps 값을 그대로 인용하세요.
+                  (도구가 사용자의 목표에 맞춰 이미 계산한 값입니다.)
+                - cautions 가 있으면 그 문장을 그대로 한 줄 덧붙이세요. 주의사항을 지어내지 마세요.
+                - workout_note 가 있으면 그 내용을 한 문장으로 자연스럽게 전달하세요.
                 - 운동 방법은 절대 지어내지 마세요. candidates 안의 instructions_ko 에 적힌
                   내용만 간추려 쓰세요. 추천할 때 각 운동의 수행 방법도 instructions_ko 를
                   근거로 한 문장씩 같이 알려주세요.
+                - 영상 링크나 주소는 절대 쓰지 마세요. 영상은 화면이 알아서 버튼으로 보여줍니다.
                 - 컨텍스트에 instructions_ko 가 없는 운동을 물으면 get_exercise_detail 도구를
                   부르고, 그래도 없으면 "그 운동은 설명해드릴 자료가 없다"고 답하세요.
             11. "또래", "평균", "남들과 비교" 같은 비교 질문은 get_bmi_peer_comparison 또는
@@ -140,6 +146,19 @@ public class ChatService {
         this.ollamaClient = ollamaClient;
         this.toolExecutor = toolExecutor;
         this.objectMapper = objectMapper;
+    }
+
+    /**
+     * 답변 본문 말고 화면에 같이 그릴 것들.
+     *
+     * action은 버튼 하나(예: 인바디 등록하러 가기), links는 도구가 실어 보낸 바깥 링크
+     * (운동 추천의 국민체력100 영상)다. 링크는 모델을 통과시키지 않는다 - URL을 컨텍스트에
+     * 넣으면 답변에 주소를 그대로 뱉거나 없는 주소를 지어낸다.
+     */
+    public record ReplyMeta(String action, List<Map<String, String>> links) {
+        static ReplyMeta none() {
+            return new ReplyMeta(null, List.of());
+        }
     }
 
     /**
@@ -184,7 +203,7 @@ public class ChatService {
      *
      * 도구 호출이 필요한 질문은 먼저 도구를 해소한 뒤 최종 답변을 다시 스트리밍한다.
      */
-    public String replyStream(User user, String rawMessage, String followUpId, ReplyStream out) {
+    public ReplyMeta replyStream(User user, String rawMessage, String followUpId, ReplyStream out) {
         String userMessage = validateAndTrim(rawMessage);
         FollowUp followUp = followUpId == null ? null : FOLLOW_UPS.get(followUpId);
         if (followUpId != null && followUp == null) {
@@ -215,9 +234,9 @@ public class ChatService {
         save(user, "user", userMessage);
 
         StringBuilder full = new StringBuilder();
-        String action;
+        ReplyMeta meta;
         try {
-            action = resolveToolsThenStream(user, messages, new ReplyStream() {
+            meta = resolveToolsThenStream(user, messages, new ReplyStream() {
                 @Override
                 public void delta(String text) {
                     full.append(text);
@@ -247,7 +266,7 @@ public class ChatService {
         }
 
         save(user, "assistant", full.toString());
-        return action;
+        return meta;
     }
 
     private void save(User user, String role, String content) {
@@ -296,7 +315,7 @@ public class ChatService {
             throw new IllegalArgumentException("알 수 없는 메뉴입니다: " + menuId);
         }
 
-        String toolResult = toolExecutor.execute(user, menu.toolName(), menu.arguments());
+        String toolResult = toolExecutor.execute(user, menu.toolName(), menu.arguments()).json();
         String reply = emptyResultMessage(toolResult);
         if (reply == null) {
             reply = phraseToolResult(user, menu, toolResult);
@@ -409,7 +428,7 @@ public class ChatService {
      * 순차적으로 여러 번 도구를 불러야 하는 질문은 지원하지 않는다(이 앱의 도구는 한 라운드에서
      * 병렬 호출로 충분함). tools를 뺀 마지막 호출이라 모델은 반드시 텍스트로 답한다.
      */
-    String resolveToolsThenStream(User user, List<OllamaMessage> messages, ReplyStream out) {
+    ReplyMeta resolveToolsThenStream(User user, List<OllamaMessage> messages, ReplyStream out) {
         // 1라운드 본문은 앞부분만 붙잡아두고 흘린다. Qwen이 도구 호출을 구조화된 tool_calls 대신
         // <tool_call>{"name":...} 텍스트로 흘리는 턴이 있는데(재현됨), 그대로 스트리밍하면 화면에
         // JSON이 뜬다. 도구를 부를지는 본문 앞부분만 보면 판별돼서, 홀드 비용은 몇 백 ms 수준이다.
@@ -433,7 +452,7 @@ public class ChatService {
 
         if (toolCalls.isEmpty()) {
             if (releasedToUser[0]) {
-                return null;
+                return ReplyMeta.none();
             }
             // 홀드를 푼 적이 없으면 held가 본문 전체다. 툴콜처럼 보여서 붙잡아둔 건데 회수까지
             // 실패했다면(도구 두 개를 텍스트로 흘려서 첫 '{'~마지막 '}' 사이에 JSON 두 덩어리가
@@ -441,11 +460,11 @@ public class ChatService {
             // 아니라서"였으니 여기서 버리고, 빈 답변으로 두면 replyStream이 폴백 문구로 대체한다.
             if (ToolCallTextParser.looksLikeToolCall(held.toString())) {
                 log.warn("툴콜 텍스트로 보였지만 회수하지 못해 버림: {}", held);
-                return null;
+                return ReplyMeta.none();
             }
             // 도구 없이 답한 턴(인사·잡담). 짧아서 아직 못 내보낸 앞부분을 마저 흘린다.
             out.delta(held.toString());
-            return null;
+            return ReplyMeta.none();
         }
 
         // 1라운드에서 이미 흘려보낸 게 있으면(예고 문장 뒤에 툴콜을 이어붙이는 턴) 최종 답변 앞에
@@ -457,13 +476,17 @@ public class ChatService {
 
         // 도구를 부르는 턴이면 홀드분(툴콜 텍스트나 "확인해볼게요" 예고)은 화면에도 컨텍스트에도 넣지 않는다.
         messages.add(new OllamaMessage("assistant", releasedToUser[0] ? first.content() : "", toolCalls, null));
+        List<Map<String, String>> links = new ArrayList<>();
         for (OllamaMessage.ToolCall call : toolCalls) {
-            String result = toolExecutor.execute(user, call.function().name(), call.function().arguments());
-            messages.add(OllamaMessage.tool(result, call.id()));
+            ChatToolExecutor.ToolResult result =
+                    toolExecutor.execute(user, call.function().name(), call.function().arguments());
+            links.addAll(result.links());
+            messages.add(OllamaMessage.tool(result.json(), call.id()));
         }
 
         ollamaClient.chatCompletionStream(messages, false, out::delta);
-        return inbodyActionFor(user, toolCalls.stream().map(c -> c.function().name()).toList());
+        String action = inbodyActionFor(user, toolCalls.stream().map(c -> c.function().name()).toList());
+        return new ReplyMeta(action, links);
     }
 
     /** 인바디가 필요한 도구를 쓰려 했는데 기록이 없으면 "등록하러 가기" 버튼을 붙이라고 알린다 */
