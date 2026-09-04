@@ -3,6 +3,7 @@ package com.kdt.wellmade.domain.chat;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -13,6 +14,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
@@ -265,13 +267,59 @@ public class ChatService {
             out.delta(fallback);
         }
 
-        save(user, "assistant", full.toString());
+        save(user, "assistant", full.toString(), meta);
         return meta;
     }
 
     private void save(User user, String role, String content) {
-        chatMessageRepository.save(
-                ChatMessageEntity.builder().user(user).role(role).content(content).build());
+        save(user, role, content, null);
+    }
+
+    private void save(User user, String role, String content, ReplyMeta meta) {
+        chatMessageRepository.save(ChatMessageEntity.builder()
+                .user(user).role(role).content(content).meta(serializeMeta(meta)).build());
+    }
+
+    /**
+     * 답변에 딸린 버튼/링크를 JSON 한 칸으로 만든다. 남길 게 없으면 null - 대부분의 답변은
+     * 버튼도 링크도 없으므로 빈 객체 문자열을 채워 넣지 않는다.
+     */
+    private String serializeMeta(ReplyMeta meta) {
+        if (meta == null || (meta.action() == null && meta.links().isEmpty())) {
+            return null;
+        }
+        Map<String, Object> payload = new LinkedHashMap<>();
+        if (meta.action() != null) {
+            payload.put("action", meta.action());
+        }
+        if (!meta.links().isEmpty()) {
+            payload.put("links", meta.links());
+        }
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (Exception e) {
+            // 표시용 부가 정보라, 못 만들었다고 답변 저장까지 막지는 않는다
+            log.warn("답변 메타 정보를 저장하지 못함", e);
+            return null;
+        }
+    }
+
+    /** 저장해둔 meta를 화면이 쓰는 형태로 되돌린다. 깨져 있으면 없는 것으로 본다. */
+    private ReplyMeta parseMeta(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return ReplyMeta.none();
+        }
+        try {
+            JsonNode node = objectMapper.readTree(raw);
+            String action = node.path("action").isTextual() ? node.get("action").asText() : null;
+            List<Map<String, String>> links = node.has("links")
+                    ? objectMapper.convertValue(node.get("links"), new TypeReference<List<Map<String, String>>>() {})
+                    : List.of();
+            return new ReplyMeta(action, links);
+        } catch (Exception e) {
+            log.warn("답변 메타 정보를 읽지 못함", e);
+            return ReplyMeta.none();
+        }
     }
 
     /**
@@ -321,9 +369,10 @@ public class ChatService {
             reply = phraseToolResult(user, menu, toolResult);
         }
 
+        String action = inbodyActionFor(user, List.of(menu.toolName()));
         save(user, "user", menu.userLabel());
-        save(user, "assistant", reply);
-        return new ChatResponse(reply, inbodyActionFor(user, List.of(menu.toolName())));
+        save(user, "assistant", reply, new ReplyMeta(action, List.of()));
+        return new ChatResponse(reply, action);
     }
 
     /** 도구 결과가 "데이터 없음"이면 사용자에게 그대로 보여줄 문구, 데이터가 있으면 null */
@@ -380,7 +429,11 @@ public class ChatService {
     /** 프론트에서 드로어를 열 때 "이전 대화 이어보기"용으로 내려줄 이력 (오래된 순) */
     public List<ChatHistoryItem> getHistory(User user) {
         return loadRecentHistory(user, DISPLAY_HISTORY_LIMIT).stream()
-                .map(h -> new ChatHistoryItem(h.getRole(), h.getContent(), h.getCreatedAt()))
+                .map(h -> {
+                    ReplyMeta meta = parseMeta(h.getMeta());
+                    return new ChatHistoryItem(
+                            h.getRole(), h.getContent(), h.getCreatedAt(), meta.action(), meta.links());
+                })
                 .toList();
     }
 

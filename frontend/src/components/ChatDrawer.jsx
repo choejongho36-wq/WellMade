@@ -81,7 +81,11 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
       getChatHistory()
         .then((history) => {
           if (history.length) {
-            setMessages(history.map((h) => ({ role: h.role, content: h.content })))
+            // action/links는 답변에 딸려 나갔던 버튼과 영상 링크다. 서버가 이력에 같이
+            // 저장해두므로(chat_messages.meta) 새로고침해도 그대로 다시 그려진다.
+            setMessages(history.map((h) => ({
+              role: h.role, content: h.content, action: h.action, links: h.links,
+            })))
           }
         })
         // 조용히 넘기면 "대화가 사라진 것"처럼 보인다. 새 대화는 계속 할 수 있으므로

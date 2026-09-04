@@ -11,178 +11,998 @@
     "home_friendly: 맨몸이나 집에 흔한 도구(밴드/덤벨/매트)로 할 수 있는가.",
     "",
     "태그는 사람이 판단해 붙인 값이다 - 데이터셋에는 난이도 필드가 없고, equipment만 보고",
-    "기계적으로 매기면 '바벨=고급'처럼 실제와 어긋난다(바벨 컬은 초보도 한다)."
+    "기계적으로 매기면 '바벨=고급'처럼 실제와 어긋난다(바벨 컬은 초보도 한다).",
+    "",
+    "name_ko: 원본 이름을 그대로 쓰기 곤란할 때만 덧씌운다(예: ExerciseDB의 '(male)' 성별 변형 표기).",
+    "덧씌운 이름으로 사용자가 되물어도 설명을 찾을 수 있도록, find_detail이 이 이름도 같이 훑는다."
   ],
   "chest": [
-    { "name": "push-up", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "kneeling push-up (male)", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "push-up (wall)", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "incline push-up", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "decline push-up", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "archer push up", "difficulty": "advanced", "is_compound": true, "home_friendly": true },
-    { "name": "clap push up", "difficulty": "advanced", "is_compound": true, "home_friendly": true },
-    { "name": "barbell bench press", "difficulty": "intermediate", "is_compound": true, "home_friendly": false },
-    { "name": "dumbbell bench press", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "dumbbell fly", "difficulty": "intermediate", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell incline fly", "difficulty": "intermediate", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell pullover", "difficulty": "intermediate", "is_compound": false, "home_friendly": true },
-    { "name": "band bench press", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "cable middle fly", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "cable seated chest press", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "lever chest press", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "smith bench press", "difficulty": "intermediate", "is_compound": true, "home_friendly": false },
-    { "name": "chest dip", "difficulty": "advanced", "is_compound": true, "home_friendly": false }
+    {
+      "name": "push-up",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "kneeling push-up (male)",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true,
+      "name_ko": "닐링 푸시업"
+    },
+    {
+      "name": "push-up (wall)",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "incline push-up",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "decline push-up",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "archer push up",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "clap push up",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "barbell bench press",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "dumbbell bench press",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell fly",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell incline fly",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell pullover",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "band bench press",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "cable middle fly",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "cable seated chest press",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "lever chest press",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "smith bench press",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "chest dip",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": false
+    }
   ],
   "back": [
-    { "name": "inverted row bent knees", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "inverted row", "difficulty": "intermediate", "is_compound": true, "home_friendly": false },
-    { "name": "assisted pull-up", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "band assisted pull-up", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "chin-up", "difficulty": "intermediate", "is_compound": true, "home_friendly": false },
-    { "name": "close grip chin-up", "difficulty": "advanced", "is_compound": true, "home_friendly": false },
-    { "name": "cable pulldown", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "cable underhand pulldown", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "lever front pulldown", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "cable seated row", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "cable low seated row", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "dumbbell bent over row", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "barbell bent over row", "difficulty": "intermediate", "is_compound": true, "home_friendly": false },
-    { "name": "barbell pendlay row", "difficulty": "advanced", "is_compound": true, "home_friendly": false },
-    { "name": "kettlebell one arm row", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "band close-grip pulldown", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "band underhand pulldown", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "dumbbell shrug", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "barbell shrug", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "hyperextension", "difficulty": "beginner", "is_compound": true, "home_friendly": false }
+    {
+      "name": "inverted row bent knees",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "inverted row",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "assisted pull-up",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "band assisted pull-up",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "chin-up",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "close grip chin-up",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "cable pulldown",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "cable underhand pulldown",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "lever front pulldown",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "cable seated row",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "cable low seated row",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "dumbbell bent over row",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "barbell bent over row",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "barbell pendlay row",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "kettlebell one arm row",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "band close-grip pulldown",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "band underhand pulldown",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell shrug",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "barbell shrug",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "hyperextension",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "pull-up",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    }
   ],
   "shoulders": [
-    { "name": "dumbbell lateral raise", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell front raise", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell rear delt raise", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell reverse fly", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell arnold press", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "dumbbell upright row", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "band shoulder press", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "band front raise", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "band reverse fly", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "band y-raise", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "cable lateral raise", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "cable front raise", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "cable shoulder press", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "lever shoulder press", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "lever lateral raise", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "smith shoulder press", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "barbell upright row", "difficulty": "intermediate", "is_compound": true, "home_friendly": false },
-    { "name": "kettlebell seated press", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "barbell thruster", "difficulty": "advanced", "is_compound": true, "home_friendly": false }
+    {
+      "name": "dumbbell lateral raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell front raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell rear delt raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell reverse fly",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell arnold press",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell upright row",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "band shoulder press",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "band front raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "band reverse fly",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "band y-raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "cable lateral raise",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "cable front raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "cable shoulder press",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "lever shoulder press",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "lever lateral raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "smith shoulder press",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "barbell upright row",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "kettlebell seated press",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "barbell thruster",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": false
+    }
   ],
   "upper arms": [
-    { "name": "dumbbell biceps curl", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell hammer curl", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell incline curl", "difficulty": "intermediate", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell preacher curl", "difficulty": "intermediate", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell kickback", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "barbell curl", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "ez barbell curl", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "barbell preacher curl", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "barbell lying extension", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "cable curl", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "cable pushdown", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "lever bicep curl", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "lever triceps extension", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "band concentration curl", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "close-grip push-up", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "diamond push-up", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "bench dip (knees bent)", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "bench dip on floor", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "ring dips", "difficulty": "advanced", "is_compound": true, "home_friendly": false }
+    {
+      "name": "dumbbell biceps curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell hammer curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell incline curl",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell preacher curl",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell kickback",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "barbell curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "ez barbell curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "barbell preacher curl",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "barbell lying extension",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "cable curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "cable pushdown",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "lever bicep curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "lever triceps extension",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "band concentration curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "close-grip push-up",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "diamond push-up",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "bench dip (knees bent)",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "bench dip on floor",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "ring dips",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": false
+    }
   ],
   "upper legs": [
-    { "name": "dumbbell squat", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "dumbbell goblet squat", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "band squat", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "curtsey squat", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "barbell full squat", "difficulty": "intermediate", "is_compound": true, "home_friendly": false },
-    { "name": "barbell front squat", "difficulty": "advanced", "is_compound": true, "home_friendly": false },
-    { "name": "dumbbell plyo squat", "difficulty": "advanced", "is_compound": true, "home_friendly": true },
-    { "name": "forward lunge (male)", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "dumbbell lunge", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "dumbbell rear lunge", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "barbell lunge", "difficulty": "intermediate", "is_compound": true, "home_friendly": false },
-    { "name": "dumbbell step-up", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "band step-up", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "glute bridge march", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "band hip lift", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "barbell glute bridge", "difficulty": "intermediate", "is_compound": true, "home_friendly": false },
-    { "name": "dumbbell deadlift", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "band stiff leg deadlift", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "barbell romanian deadlift", "difficulty": "intermediate", "is_compound": true, "home_friendly": false },
-    { "name": "barbell deadlift", "difficulty": "advanced", "is_compound": true, "home_friendly": false },
-    { "name": "barbell sumo deadlift", "difficulty": "advanced", "is_compound": true, "home_friendly": false },
-    { "name": "barbell good morning", "difficulty": "advanced", "is_compound": true, "home_friendly": false },
-    { "name": "farmers walk", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "glute-ham raise", "difficulty": "advanced", "is_compound": true, "home_friendly": false }
+    {
+      "name": "dumbbell squat",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell goblet squat",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "band squat",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "curtsey squat",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "barbell full squat",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "barbell front squat",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "dumbbell plyo squat",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "forward lunge (male)",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true,
+      "name_ko": "앞으로 런지"
+    },
+    {
+      "name": "dumbbell lunge",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell rear lunge",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "barbell lunge",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "dumbbell step-up",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "band step-up",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "glute bridge march",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "band hip lift",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "barbell glute bridge",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "dumbbell deadlift",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "band stiff leg deadlift",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "barbell romanian deadlift",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "barbell deadlift",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "barbell sumo deadlift",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "barbell good morning",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "farmers walk",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "glute-ham raise",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "split squats",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "walking lunge",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "pelvic tilt into bridge",
+      "name_ko": "글루트 브릿지",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "march sit (wall)",
+      "name_ko": "월 싯 마치",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "side hip abduction",
+      "name_ko": "사이드 힙 어브덕션",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "one leg squat",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": true
+    }
   ],
   "waist": [
-    { "name": "crunch floor", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "curl-up", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "half sit-up (male)", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "3/4 sit-up", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "dead bug", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "air bike", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "alternate heel touchers", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "cross body crunch", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "knee touch crunch", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "oblique crunches floor", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "frog crunch", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "lying leg-hip raise", "difficulty": "intermediate", "is_compound": false, "home_friendly": true },
-    { "name": "front plank with twist", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "inchworm", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "jackknife sit-up", "difficulty": "intermediate", "is_compound": false, "home_friendly": true },
-    { "name": "decline crunch", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "decline sit-up", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "cable kneeling crunch", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "hanging leg raise", "difficulty": "advanced", "is_compound": false, "home_friendly": false },
-    { "name": "hanging leg hip raise", "difficulty": "advanced", "is_compound": false, "home_friendly": false }
+    {
+      "name": "crunch floor",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "curl-up",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "half sit-up (male)",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true,
+      "name_ko": "하프 싯업"
+    },
+    {
+      "name": "3/4 sit-up",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dead bug",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "air bike",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "alternate heel touchers",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "cross body crunch",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "knee touch crunch",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "oblique crunches floor",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "frog crunch",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "lying leg-hip raise",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "front plank with twist",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "inchworm",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "jackknife sit-up",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "decline crunch",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "decline sit-up",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "cable kneeling crunch",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "hanging leg raise",
+      "difficulty": "advanced",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "hanging leg hip raise",
+      "difficulty": "advanced",
+      "is_compound": false,
+      "home_friendly": false
+    }
   ],
   "lower legs": [
-    { "name": "standing calves", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "one leg floor calf raise", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "ankle circles", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "calf stretch with rope", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "lever standing calf raise", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "lever seated calf raise", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "cable standing calf raise", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "barbell floor calf raise", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "barbell seated calf raise", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "donkey calf raise", "difficulty": "intermediate", "is_compound": false, "home_friendly": false },
-    { "name": "smith toe raise", "difficulty": "beginner", "is_compound": false, "home_friendly": false }
+    {
+      "name": "standing calves",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "one leg floor calf raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "ankle circles",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "calf stretch with rope",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "lever standing calf raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "lever seated calf raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "cable standing calf raise",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "barbell floor calf raise",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "barbell seated calf raise",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "donkey calf raise",
+      "difficulty": "intermediate",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "smith toe raise",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "bodyweight standing calf raise",
+      "name_ko": "맨몸 카프 레이즈",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    }
   ],
   "lower arms": [
-    { "name": "band wrist curl", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "band reverse wrist curl", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "wrist circles", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "dumbbell finger curls", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "finger curls", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "barbell wrist curl", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "cable wrist curl", "difficulty": "beginner", "is_compound": false, "home_friendly": false },
-    { "name": "side wrist pull stretch", "difficulty": "beginner", "is_compound": false, "home_friendly": true }
+    {
+      "name": "band wrist curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "band reverse wrist curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "wrist circles",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "dumbbell finger curls",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "finger curls",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "barbell wrist curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "cable wrist curl",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": false
+    },
+    {
+      "name": "side wrist pull stretch",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    }
   ],
   "cardio": [
-    { "name": "jump rope", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "high knee against wall", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "jack jump (male)", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "star jump (male)", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "back and forth step", "difficulty": "beginner", "is_compound": true, "home_friendly": true },
-    { "name": "mountain climber", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "bear crawl", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "skater hops", "difficulty": "intermediate", "is_compound": true, "home_friendly": true },
-    { "name": "burpee", "difficulty": "advanced", "is_compound": true, "home_friendly": true },
-    { "name": "run", "difficulty": "beginner", "is_compound": true, "home_friendly": false },
-    { "name": "stationary bike walk", "difficulty": "beginner", "is_compound": true, "home_friendly": false }
+    {
+      "name": "jump rope",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "high knee against wall",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "jack jump (male)",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true,
+      "name_ko": "잭 점프"
+    },
+    {
+      "name": "star jump (male)",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true,
+      "name_ko": "스타 점프"
+    },
+    {
+      "name": "back and forth step",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "mountain climber",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "bear crawl",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "skater hops",
+      "difficulty": "intermediate",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "burpee",
+      "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "run",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    },
+    {
+      "name": "stationary bike walk",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": false
+    }
   ],
   "neck": [
-    { "name": "neck side stretch", "difficulty": "beginner", "is_compound": false, "home_friendly": true },
-    { "name": "side push neck stretch", "difficulty": "beginner", "is_compound": false, "home_friendly": true }
+    {
+      "name": "neck side stretch",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    },
+    {
+      "name": "side push neck stretch",
+      "difficulty": "beginner",
+      "is_compound": false,
+      "home_friendly": true
+    }
   ]
 }

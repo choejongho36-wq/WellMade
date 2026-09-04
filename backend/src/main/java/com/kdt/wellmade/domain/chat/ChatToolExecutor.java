@@ -419,6 +419,8 @@ public class ChatToolExecutor {
     private static final int WORKOUT_MEMO_DAYS = 7;
     /** 같은 추천이 반복되지 않게 훑어볼 최근 챗봇 답변 수 */
     private static final int RECENT_REPLY_LIMIT = 10;
+    /** 답변 한 건에서 넘길 길이. 운동 이름은 앞부분에 나오므로 이만큼이면 다 잡힌다 */
+    private static final int RECENT_REPLY_MAX_CHARS = 500;
     /** 답변 아래에 붙일 영상 버튼 수 상한 - 넘치면 말풍선이 링크 목록이 된다 */
     private static final int MAX_VIDEO_LINKS = 3;
 
@@ -471,7 +473,9 @@ public class ChatToolExecutor {
         return chatMessageRepository
                 .findByUserOrderByCreatedAtDesc(user, PageRequest.of(0, RECENT_REPLY_LIMIT)).stream()
                 .filter(m -> "assistant".equals(m.getRole()))
-                .map(ChatMessageEntity::getContent)
+                .map(m -> m.getContent().length() <= RECENT_REPLY_MAX_CHARS
+                        ? m.getContent()
+                        : m.getContent().substring(0, RECENT_REPLY_MAX_CHARS))
                 .toList();
     }
 

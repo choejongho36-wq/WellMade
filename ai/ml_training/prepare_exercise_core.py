@@ -72,7 +72,9 @@ def build() -> dict:
             picked.append({
                 "id": source_row["id"],
                 "name": source_row["name"],
-                "name_ko": source_row.get("name_ko") or source_row["name"],
+                # 시드가 이름을 덧씌웠으면 그걸 쓴다(원본의 "(male)" 표기 등)
+                "name_ko": entry.get("name_ko") or source_row.get("name_ko") or source_row["name"],
+                "name_ko_source": source_row.get("name_ko") or source_row["name"],
                 "body_part": source_row["body_part"],
                 "equipment": source_row["equipment"],
                 "target": source_row["target"],
