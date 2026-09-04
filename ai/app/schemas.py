@@ -384,14 +384,48 @@ class BmiInsightResponse(BaseModel):
 # ---- 운동 추천 v1 (챗봇 "운동 추천" 메뉴) ----
 
 
+class RecentWorkout(BaseModel):
+    """운동 메모 한 건. 자유 텍스트에서 부위 키워드만 읽는다(형태소 분석은 하지 않는다)."""
+
+    date: str = Field(..., description="기록한 날짜 (yyyy-MM-dd)")
+    text: str = Field("", description="메모 원문")
+
+
 class ExerciseRecommendRequest(BaseModel):
     """운동 추천(/ai/exercise/recommend) 요청.
 
-    부위는 필수, 장비는 선택. 난이도·자유질문은 백엔드 챗봇이 생성 단계에서 참고하므로
-    이 요청으로는 넘기지 않는다(AI 서버는 후보 필터링만 담당)."""
+    부위만 필수고 나머지는 선택이다. 목표·나이·최근 기록이 오면 세트/횟수와 조언까지
+    여기서 정해서 내려보낸다 - 그걸 모델이 지어내게 두면 같은 목표에도 답이 흔들린다."""
 
     body_part: str = Field(..., description="운동할 부위. 한국어('하체','가슴')나 영문 body_part 키 모두 허용")
     equipment: Optional[str] = Field(None, description="장비/환경 힌트. '맨몸','덤벨' 등. 생략하면 부위 전체에서 뽑음")
+    goal: Optional[Literal["LOSE", "GAIN", "MAINTAIN"]] = Field(
+        None, description="프로필 목표(백엔드 Goal enum 이름). 세트/횟수 처방이 여기서 갈린다. 없으면 유지 기준"
+    )
+    age: Optional[int] = Field(None, ge=1, le=120, description="나이. 50세 이상이면 고급 동작을 후보에서 뺀다")
+    recent_workouts: list[RecentWorkout] = Field(
+        default_factory=list, description="최근 7일 운동 메모. '어제 하체 하셨네요' 같은 조언에만 쓴다"
+    )
+    exclude: list[str] = Field(
+        default_factory=list, description="최근에 이미 추천한 운동 이름. 같은 답이 반복되지 않게 뺀다"
+    )
+    exclude_from_text: list[str] = Field(
+        default_factory=list,
+        description="최근 챗봇 답변 원문. 여기 등장한 운동 이름을 빼서 같은 추천이 반복되지 않게 한다 "
+                    "(운동 이름 목록은 이 서버에만 있으므로 백엔드는 원문만 넘긴다)",
+    )
+
+
+class ExerciseVideo(BaseModel):
+    """국민체력100 참고 영상. 운동명이 아니라 타겟 근육으로 이었으므로 '관련 영상'이다."""
+
+    name: str
+    level: Optional[str] = Field(None, description="초급/중급/고급 (원본에 없으면 None)")
+    place: Optional[str] = None
+    tool: Optional[str] = None
+    duration_sec: Optional[int] = None
+    video_url: str
+    muscles_ko: Optional[str] = None
 
 
 class ExerciseCandidate(BaseModel):
@@ -399,15 +433,25 @@ class ExerciseCandidate(BaseModel):
     body_part: str
     equipment: str
     target: str
+    difficulty: str = Field("", description="초급/중급/고급 (사람이 붙인 큐레이션 태그)")
+    is_compound: bool = False
+    home_friendly: bool = False
+    sets_reps: str = Field("", description="목표에 따라 정해진 세트/횟수")
     # 챗봇이 운동 방법을 지어내지 않도록 후보마다 한국어 설명을 같이 준다(자세한 배경은
     # app/exercise/recommend.py의 candidates 주석 참고).
     instructions_ko: str = ""
+    related_video: Optional[ExerciseVideo] = None
 
 
 class ExerciseRecommendResponse(BaseModel):
     body_part: str = Field(..., description="필터에 사용한 영문 body_part (부위 매핑 실패 시 빈 문자열)")
+    body_part_ko: Optional[str] = None
     matched: int = Field(..., description="조건에 맞은 운동 총 개수")
+    goal: Optional[str] = Field(None, description="처방에 사용한 목표 이름 (설정 안 했으면 None)")
+    plan: Optional[str] = Field(None, description="세트/횟수 + 휴식 한 줄")
     candidates: list[ExerciseCandidate]
+    cautions: list[str] = Field(default_factory=list, description="부위·나이에 따른 주의사항")
+    workout_note: Optional[str] = Field(None, description="최근 운동 기록을 근거로 한 조언 한 줄")
     note: Optional[str] = Field(None, description="후보가 없을 때 사용자에게 보여줄 안내 문구")
 
 

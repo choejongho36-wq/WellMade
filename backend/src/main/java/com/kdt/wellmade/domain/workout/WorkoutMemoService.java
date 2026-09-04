@@ -2,6 +2,7 @@ package com.kdt.wellmade.domain.workout;
 
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
@@ -71,6 +72,17 @@ public class WorkoutMemoService {
             result.put(memo.getMemoDate().toString(), preview(memo.getContent()));
         }
         return result;
+    }
+
+    /**
+     * 날짜 범위의 메모 원문. 챗봇 운동 추천이 "최근에 무슨 부위를 했는지" 읽는 데 쓴다 -
+     * 여기서는 미리보기가 아니라 원문이 필요하다(부위 키워드가 뒤쪽에 있을 수 있다).
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, String>> getBetween(User user, LocalDate from, LocalDate to) {
+        return workoutMemoRepository.findByUserAndMemoDateBetween(user, from, to).stream()
+                .map(memo -> Map.of("date", memo.getMemoDate().toString(), "text", memo.getContent()))
+                .toList();
     }
 
     static String preview(String content) {

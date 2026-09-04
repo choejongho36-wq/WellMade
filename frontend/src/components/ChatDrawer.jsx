@@ -125,14 +125,15 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
     }
 
     sendChat(content, applyStream, followUpId)
-      .then(({ content: reply, action }) => {
+      .then(({ content: reply, action, links }) => {
         setMessages((prev) => {
           const copy = [...prev]
           const last = copy[copy.length - 1]
+          const done = { role: 'assistant', content: reply, action, links }
           if (last?.role === 'assistant' && last.streaming) {
-            copy[copy.length - 1] = { role: 'assistant', content: reply, action }
+            copy[copy.length - 1] = done
           } else {
-            copy.push({ role: 'assistant', content: reply, action })
+            copy.push(done)
           }
           return copy
         })
@@ -277,6 +278,23 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
                     <div className="chat-bubble">
                       {m.role === 'assistant' ? stripCodeFences(m.content) : m.content}
                     </div>
+                    {/* 도구가 실어 보낸 바깥 링크(국민체력100 운동 영상). 모델이 만든 주소가
+                        아니라 서버가 데이터에서 꺼낸 주소라 그대로 열어도 된다 */}
+                    {m.links?.length > 0 && (
+                      <div className="chat-link-list">
+                        {m.links.map((link) => (
+                          <a
+                            key={link.url}
+                            className="chat-link-btn"
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            ▶ {link.label}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                     {ACTION_BUTTONS[m.action] && (
                       <button
                         className="chat-action-btn"

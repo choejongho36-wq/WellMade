@@ -237,6 +237,31 @@
 .chat-action-btn:hover {
   background: #c0241a;
 }
+/* 도구가 실어 보낸 운동 영상 링크. 답변 버튼(chat-action-btn)과 달리 앱 밖으로 나가므로
+   빨간 채움 대신 테두리만 둬서 "이건 바깥 링크"라는 게 보이게 한다 */
+.chat-link-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+}
+.chat-link-btn {
+  display: inline-block;
+  max-width: 100%;
+  border: 1px solid #d8d6cf;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font: 600 12px 'Noto Sans KR', sans-serif;
+  padding: 7px 12px;
+  text-decoration: none;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.chat-link-btn:hover {
+  border-color: #da291c;
+  color: #da291c;
+}
 .chat-bubble-row.user .chat-bubble {
   background: #da291c;
   color: #fff;
