@@ -24,9 +24,12 @@ v1과 달라진 것:
 
 import json
 import logging
+import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
+
+from app.exercise.movements import movements_of_exercise
 
 log = logging.getLogger(__name__)
 
@@ -66,8 +69,10 @@ BODY_PART_LABEL = {
     "lower legs": "종아리", "neck": "목", "cardio": "유산소",
 }
 
-# 맨몸/집 운동으로 볼 표현
-BODYWEIGHT_HINTS = {"맨몸", "집", "무기구", "홈트", "bodyweight", "body weight", "none", "없음"}
+# "맨몸"과 "집"은 다른 조건이다. 사용자에게 맨몸은 "기구 없음"인데, 덤벨·밴드 운동도
+# home_friendly=True로 태그돼 있어서 둘을 같이 묶으면 "맨몸 하체"에 덤벨 스쿼트가 나온다.
+EQUIPMENT_FREE_HINTS = {"맨몸", "무기구", "없음", "bodyweight", "body weight", "none"}
+HOME_HINTS = {"집", "홈트", "홈", "home"}
 
 # 목표별 처방. 백엔드 프로필의 Goal enum 이름(LOSE/GAIN/MAINTAIN)을 그대로 키로 쓴다 -
 # 중간에 이름을 바꾸면 양쪽이 어긋났을 때 조용히 기본값으로 떨어진다.
@@ -76,19 +81,23 @@ GOAL_PLANS = {
         "label": "근육량 증가",
         "sets_reps": "3세트 x 8~12회",
         "rest": "세트 사이 60~90초 휴식",
+        # 유산소는 세트로 하는 운동이 아니라 시간으로 처방하고, 세트 휴식도 붙이지 않는다
         "cardio_sets_reps": "5~10분 가볍게 (본 운동 전 준비운동)",
+        "cardio_rest": None,
     },
     "LOSE": {
         "label": "체중 감량",
         "sets_reps": "서킷 3라운드 (동작당 40초 수행 / 20초 휴식)",
         "rest": "라운드 사이 60초 휴식",
         "cardio_sets_reps": "20~30분 연속 (숨이 조금 찰 정도)",
+        "cardio_rest": "숨이 너무 차면 걷기로 속도를 낮춰 이어가세요",
     },
     "MAINTAIN": {
         "label": "체중 유지",
         "sets_reps": "2세트 x 12~15회",
         "rest": "세트 사이 60초 휴식",
         "cardio_sets_reps": "15~20분 연속",
+        "cardio_rest": None,
     },
 }
 # 목표를 아직 설정하지 않은 사용자. 유지 기준이 가장 무난하다.
@@ -136,9 +145,10 @@ def _load_core() -> dict:
 
 
 def _load_videos() -> dict:
+    """동작 이름 -> 국민체력100 영상 목록 (app/exercise/movements.py 기준)"""
     global _video_cache
     if _video_cache is None:
-        _video_cache = json.loads(VIDEO_PATH.read_text(encoding="utf-8"))["by_target"]
+        _video_cache = json.loads(VIDEO_PATH.read_text(encoding="utf-8"))["by_movement"]
     return _video_cache
 
 
@@ -239,15 +249,39 @@ def _workout_note(target: str, days_ago: dict) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-def _matches_equipment(exercise: dict, equipment: str) -> bool:
-    if equipment in BODYWEIGHT_HINTS:
-        return exercise["home_friendly"]
-    return equipment in exercise["equipment"].lower()
+def _narrow_by_equipment(pool: list, equipment: str) -> tuple:
+    """
+    장비 조건으로 후보를 좁힌다. (좁힌 후보, 안내 문구) - 조건을 그대로 지키지 못했을 때만 문구가 붙는다.
+
+    "맨몸"은 기구 없이(equipment == "body weight") 할 수 있는 것만이다. 다만 어깨처럼 맨몸
+    동작이 데이터에 거의 없는 부위가 있어서, 그때는 조건을 한 단계씩 넓히고 넓혔다는 사실을
+    사용자에게 알린다 - 조용히 덤벨 운동을 내주면 "맨몸이라고 했는데?"가 된다.
+    """
+    if not equipment:
+        return pool, None
+
+    if any(hint in equipment for hint in EQUIPMENT_FREE_HINTS):
+        bodyweight = [e for e in pool if e["equipment"] == "body weight"]
+        if len(bodyweight) >= MIN_PICKS:
+            return bodyweight, None
+        home = [e for e in pool if e["home_friendly"]]
+        if len(home) >= MIN_PICKS:
+            return home, "이 부위는 기구 없이 하는 동작이 많지 않아, 집에서 할 수 있는 가벼운 도구 운동도 같이 골랐어요."
+        return pool, "이 부위는 기구 없이 하는 동작이 많지 않아 장비 조건을 넓혀서 골랐어요."
+
+    if any(hint in equipment for hint in HOME_HINTS):
+        home = [e for e in pool if e["home_friendly"]]
+        if len(home) >= MIN_PICKS:
+            return home, None
+        return pool, "집에서 할 수 있는 동작이 많지 않아 장비 조건을 넓혀서 골랐어요."
+
+    narrowed = [e for e in pool if equipment in e["equipment"].lower()]
+    return (narrowed, None) if narrowed else (pool, None)
 
 
 def _sort_key(exercise: dict, prefer_home: bool) -> tuple:
     """
-    결정적 정렬. 앞의 항목일수록 먼저 추천된다.
+    결정적 정렬. 앞의 항목일수록 좋은 후보다.
 
     복합운동을 먼저 두는 이유: 시간당 자극이 크고, 3~4개짜리 루틴에서 고립운동만 나오면
     정작 큰 근육을 안 쓰게 된다. 난이도는 낮은 것부터 - 이 앱 사용자는 대부분 초보다.
@@ -270,28 +304,83 @@ def names_in_text(pool: list, texts: Optional[list]) -> set:
     joined = " ".join(texts or [])
     if not joined:
         return set()
-    return {e["name_ko"] for e in pool if e["name_ko"] and e["name_ko"] in joined}
+
+    # 짧은 이름이 긴 이름 안에 그대로 들어 있다("푸시업" ⊂ "닐링 푸시업", "풀업" ⊂ "보조 풀업").
+    # 단순 부분 문자열로 세면 "닐링 푸시업"만 추천했는데 "푸시업"까지 제외돼 후보가 깎인다.
+    # 한국어는 조사가 이름에 바로 붙어서("워킹 런지를") 단어 경계 정규식도 못 쓴다.
+    # 그래서 긴 이름부터 맞춰보고, 이미 다른 이름이 차지한 자리는 건너뛴다.
+    claimed = [False] * len(joined)
+    found = set()
+    for exercise in sorted(pool, key=lambda e: -len(e["name_ko"] or "")):
+        name = exercise["name_ko"]
+        if not name:
+            continue
+        for match in re.finditer(re.escape(name), joined):
+            if any(claimed[match.start():match.end()]):
+                continue
+            for index in range(match.start(), match.end()):
+                claimed[index] = True
+            found.add(name)
+            break
+    return found
 
 
 def _pick(pool: list, prefer_home: bool, exclude: set) -> list:
-    """최근 추천한 것을 뺀 뒤 정렬해서 앞에서부터 고른다. 다 빼면 제외를 포기한다."""
+    """
+    최근 추천한 것을 뺀 뒤, 정렬 1등부터 시작해 "겹치지 않는 것"을 이어 붙인다.
+
+    정렬만으로 앞에서 4개를 자르면 이름순 때문에 비슷한 게 뭉친다 - 실제로 "덤벨 고블릿
+    스쿼트 / 덤벨 런지 / 덤벨 리어 런지 / 덤벨 스쿼트"처럼 스쿼트 둘 + 런지 둘이 나왔다.
+    그래서 다음 후보를 고를 때 아직 안 쓴 타겟 근육 -> 아직 안 쓴 장비 순으로 우선한다.
+    무작위가 아니라 순위 기반이라 결과는 매번 같다.
+    """
     remaining = [e for e in pool if e["name_ko"] not in exclude and e["name"] not in exclude]
     if len(remaining) < MIN_PICKS:
         remaining = pool
+
     ordered = sorted(remaining, key=lambda e: _sort_key(e, prefer_home))
-    return ordered[:MAX_PICKS] if len(ordered) >= MAX_PICKS else ordered[:MIN_PICKS]
+    if len(ordered) <= MIN_PICKS:
+        return ordered
+
+    picks = [ordered[0]]
+    rest = list(enumerate(ordered))[1:]
+    while rest and len(picks) < MAX_PICKS:
+        used_targets = {e["target"] for e in picks}
+        used_equipment = {e["equipment"] for e in picks}
+        rank, best = min(
+            rest,
+            key=lambda pair: (
+                0 if pair[1]["target"] not in used_targets else 1,
+                0 if pair[1]["equipment"] not in used_equipment else 1,
+                pair[0],  # 같은 조건이면 원래 순위대로
+            ),
+        )
+        picks.append(best)
+        rest = [pair for pair in rest if pair[0] != rank]
+    return picks
 
 
 def _video_for(exercise: dict, index: int) -> Optional[dict]:
     """
-    추천한 운동에 붙일 국민체력100 영상 1건. 타겟 근육이 같은 영상 중에서 고른다.
+    추천한 운동에 붙일 국민체력100 영상 1건. 같은 '동작'인 영상만 붙이고, 없으면 안 붙인다.
 
-    난이도 태그가 맞는 것을 우선하고, 같은 부위 운동끼리 같은 영상이 반복되지 않게
-    순번으로 어긋나게 집는다(무작위가 아니라 위치 기반이라 결과는 매번 같다).
+    예전엔 타겟 근육으로 이었는데 "덤벨 런지" 아래에 "Clamshell"이 붙었다 - 근육은 같아도
+    사용자 눈에는 남의 운동이다. 붙는 운동이 줄더라도 맞는 것만 붙이는 편이 낫다.
+
+    난이도 태그가 맞는 것을 우선하고, 같은 동작이 여러 개면 순번으로 어긋나게 집는다
+    (무작위가 아니라 위치 기반이라 결과는 매번 같다).
     """
-    bucket = _load_videos().get(exercise["target"]) or []
+    videos = _load_videos()
+    bucket: list = []
+    seen_urls = set()
+    for movement in movements_of_exercise(exercise["name"]):
+        for video in videos.get(movement) or []:
+            if video["video_url"] not in seen_urls:
+                seen_urls.add(video["video_url"])
+                bucket.append(video)
     if not bucket:
         return None
+
     wanted_level = VIDEO_LEVEL_BY_DIFFICULTY[exercise["difficulty"]]
     leveled = [v for v in bucket if v["level"] == wanted_level]
     pool = leveled or bucket
@@ -322,7 +411,8 @@ def recommend(
                       엉뚱한 부위를 던지면 챗봇이 그걸로 헛소리를 만든다.
     :param equipment: 장비/환경 힌트. "맨몸"/"집" 계열이면 집에서 되는 것만, 그 외 문자열이면
                       equipment 부분일치로 좁힌다. 좁힌 결과가 비면 부위 필터까지만 적용한다.
-    :param goal: 프로필의 목표(WEIGHT_LOSS/MUSCLE_GAIN/WEIGHT_MAINTAIN). 세트·횟수가 여기서 갈린다.
+    :param goal: 프로필의 목표. 백엔드 Goal enum 이름 그대로 LOSE / GAIN / MAINTAIN 셋 중 하나다
+                 (다른 문자열이 오면 조용히 MAINTAIN 기준으로 처방된다). 세트·횟수가 여기서 갈린다.
     :param age: 나이. 50대 이상이면 고급 동작을 후보에서 뺀다.
     :param recent_workouts: 최근 운동 메모 [{"date","text"}]. 조언 한 줄을 만드는 데만 쓴다.
     :param exclude: 최근에 이미 추천한 운동 이름. 같은 답이 반복되지 않게 뺀다.
@@ -341,11 +431,8 @@ def recommend(
     pool = list(_load_core().get(target) or [])
 
     eq = (equipment or "").strip().lower()
-    prefer_home = eq in BODYWEIGHT_HINTS
-    if eq:
-        narrowed = [e for e in pool if _matches_equipment(e, eq)]
-        if narrowed:
-            pool = narrowed
+    prefer_home = any(hint in eq for hint in EQUIPMENT_FREE_HINTS | HOME_HINTS) if eq else False
+    pool, equipment_note = _narrow_by_equipment(pool, eq)
 
     # 나이가 있으면 감당하기 어려운 동작을 아예 후보에서 뺀다. 다 빠지면 원래 풀로 되돌린다.
     if age is not None and age >= NO_ADVANCED_AGE:
@@ -364,7 +451,9 @@ def recommend(
     excluded = set(exclude or []) | names_in_text(pool, exclude_from_text)
     picks = _pick(pool, prefer_home, excluded)
     plan = GOAL_PLANS.get(goal or DEFAULT_GOAL, GOAL_PLANS[DEFAULT_GOAL])
-    sets_reps = plan["cardio_sets_reps"] if target == "cardio" else plan["sets_reps"]
+    is_cardio = target == "cardio"
+    sets_reps = plan["cardio_sets_reps"] if is_cardio else plan["sets_reps"]
+    rest = plan["cardio_rest"] if is_cardio else plan["rest"]
 
     candidates = []
     for index, exercise in enumerate(picks):
@@ -390,12 +479,28 @@ def recommend(
         "body_part_ko": BODY_PART_LABEL[target],
         "matched": len(pool),
         "goal": plan["label"] if goal else None,
-        "plan": f"{sets_reps} · {plan['rest']}",
+        "plan": f"{sets_reps} · {rest}" if rest else sets_reps,
         "candidates": candidates,
         "cautions": _cautions(target, picks, age),
+        # 장비 조건을 그대로 지키지 못했으면 그 사실을 알린다(조용히 넓히면 거짓말이 된다)
+        "note": equipment_note,
         "workout_note": _workout_note(target, parse_recent_body_parts(recent_workouts, today)),
-        "note": None,
     }
+
+
+_override_cache: Optional[dict] = None
+
+
+def _core_name_overrides() -> dict:
+    """큐레이션에서 덧씌운 한국어 이름 -> 원본 영문 이름"""
+    global _override_cache
+    if _override_cache is None:
+        _override_cache = {}
+        for rows in _load_core().values():
+            for e in rows:
+                if e["name_ko"] != e.get("name_ko_source"):
+                    _override_cache[_normalize_name(e["name_ko"])] = e
+    return _override_cache
 
 
 def _normalize_name(raw: str) -> str:
@@ -420,6 +525,15 @@ def find_detail(name: str) -> dict:
     key = _normalize_name(name)
     if not key:
         return {"found": False, "note": "어떤 운동인지 알려주시면 설명해드릴게요."}
+
+    # 추천 목록에서는 시드가 덧씌운 이름("앞으로 런지")을 보여줬을 수 있다. 사용자가 그 이름으로
+    # 되물으면 원본에는 없는 이름이라 못 찾으므로, 덧씌운 이름 -> 원본 이름을 먼저 되돌린다.
+    override = _core_name_overrides().get(key)
+    if override:
+        for e in exercises:
+            if e["name"] == override["name"]:
+                # 설명은 원본 것이지만 이름은 추천에 보여준 이름으로 돌려준다
+                return {**_detail_of(e), "name": override["name_ko"]}
 
     # 1) 정확히 같은 이름 (추천 목록에서 그대로 지목한 흔한 경우)
     for e in exercises:

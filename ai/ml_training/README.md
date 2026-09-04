@@ -37,8 +37,8 @@
 
 | 스크립트 | 만드는 것 | 용도 | 입력 |
 |---|---|---|---|
-| `prepare_exercise_core.py` | `app/exercise/data/exercises_core.json` | 추천 후보로 쓸 기본 동작 152건 (부위별 8~24건) | `exercise_core_seed.json`(사람이 고른 목록) + `app/rag/data/exercises_ko.json` |
-| `prepare_exercise_videos.py` | `app/exercise/data/exercise_videos.json` | 추천에 붙일 국민체력100 참고 영상 (근육 18종 x 8건) | `app/rag/data/videos.json` |
+| `prepare_exercise_core.py` | `app/exercise/data/exercises_core.json` | 추천 후보로 쓸 기본 동작 160건 (부위별 2~30건) | `exercise_core_seed.json`(사람이 고른 목록) + `app/rag/data/exercises_ko.json` |
+| `prepare_exercise_videos.py` | `app/exercise/data/exercise_videos.json` | 추천에 붙일 국민체력100 운동 영상 (동작 18종, 영상 37건) | `app/rag/data/videos.json` + `app/exercise/movements.py` |
 
 **왜 큐레이션인가** — 추천 후보를 1,324건 전부로 두면 "덤벨 하이트 플라이" 같은 변형이
 "덤벨 플라이"보다 먼저 나오고 초보자가 알아보지 못한다. 부위별 기본 동작만 남기고
@@ -47,10 +47,16 @@
 커버리지는 그대로다. 운동을 추가·수정하려면 시드 JSON만 고치고 스크립트를 다시 돌리면 된다
 (시드에 원본에 없는 이름을 적으면 그 목록을 출력하고 실패한다).
 
-**영상 매칭** — 운동명이 아니라 근육으로 잇는다. `exercises_ko`의 `target`(pectorals 등)과
-국민체력100의 `trng_mscl_eng_nm`(Pectoralis Major 등)을 `TARGET_TO_MUSCLES` 사전으로 이었다.
-원본 30,090행은 대부분 같은 영상의 구간 레코드라 운동명 기준으로는 1,816종이고,
-그중 근육 정보가 붙은 것만 추리면 900여 종이다.
+**영상 매칭** — 같은 **동작**일 때만 붙인다(`app/exercise/movements.py`). 처음에는 타겟 근육으로
+이었는데(pectorals ↔ Pectoralis Major) 그러면 "덤벨 런지" 아래에 "Clamshell" 영상이 붙는다 -
+근육은 같아도 사용자 눈에는 남의 운동이다. 영상이 일부 운동에만 붙더라도 "이 운동 영상"이
+맞는 편이 낫다는 판단으로, 스쿼트↔"앉았다 일어서기", 푸시업↔"팔 굽혀 펴기" 같은 동작 사전을
+두고 이름으로 잇는다. 동작이 안 맞으면 영상을 붙이지 않는다.
+
+원본 30,090행은 대부분 같은 영상의 구간 레코드다. URL 기준으로 중복을 없애고, 난이도
+태그(초급/중급/고급)가 있는 것만 남긴 뒤 동작으로 이으면 37건이 된다. 난이도가 없는 영상을
+빼는 이유는 화면에 "초급 · 실내 · 매트"로 보여줄 정보가 없기 때문이다
+(원본의 "1~5", "3" 같은 값은 난이도가 아니라 체력측정 등급이다).
 
 **임베딩/벡터 검색을 아직 넣지 않은 이유** — "허리 안 아프게 하는 등 운동"처럼 필터로 못 잡는
 자유 표현이 실제로 들어오는지부터 봐야 한다. 부위 매칭에 실패한 요청은
