@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import './MyPage.css'
 import { useAuth } from '../lib/auth.js'
+import { todayStr } from '../lib/dates.js'
 import PageShell from '../components/PageShell.jsx'
 import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
 import profileImg from '../assets/profile.webp'
@@ -309,11 +310,6 @@ function InbodyPanel({ inbody, history, aside, goalLabel, onEdit, onDelete }) {
   )
 }
 
-function todayStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 function InbodyUploadModal({ replaceLatest, onClose, onExtract, onConfirm }) {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -587,20 +583,20 @@ function MyPage() {
 
   useEffect(() => {
     if (user) getTodayTotal(todayStr()).then(setTodaySummary).catch(() => {})
-  }, [user])
+  }, [user, getTodayTotal])
 
   useEffect(() => {
     if (user) getTodayMeals(todayStr()).then(setTodayMeals).catch(() => {})
-  }, [user])
+  }, [user, getTodayMeals])
 
   useEffect(() => {
     if (user) getNutrientTarget().then(setNutrientTarget).catch(() => {})
-  }, [user])
+  }, [user, getNutrientTarget])
 
   // inbody(최신 레코드)가 바뀌면 = 새로 등록됐으면 추이도 다시 불러옴
   useEffect(() => {
     if (user) getInbodyHistory().then(setInbodyHistory).catch(() => {})
-  }, [user, inbody])
+  }, [user, inbody, getInbodyHistory])
 
   // BMI 또래 비교(AI 서버). 성별·출생년도가 없으면 비교 자체가 불가능해서 건너뛴다.
   // 실패하면 null이 와서 아래 섹션이 그냥 안 보인다 - 인바디 화면 자체는 영향받지 않는다

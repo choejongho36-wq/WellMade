@@ -10,10 +10,11 @@
  *   - 기록 입력 흐름(파싱 결과 확인, 후보 교체, 직접 입력) -> components/DietLogModal.jsx
  *   - 끼니 한 줄의 수정/삭제/항목 편집                     -> components/MealRow.jsx
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import './DietPage.css'
 import '../components/ChatDrawer.css'
 import { useAuth } from '../lib/auth.js'
+import { todayStr } from '../lib/dates.js'
 import PageShell from '../components/PageShell.jsx'
 import Calendar from '../components/Calendar.jsx'
 import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
@@ -21,11 +22,6 @@ import DietLogModal from '../components/DietLogModal.jsx'
 import MealRow from '../components/MealRow.jsx'
 import Modal from '../components/Modal.jsx'
 import { MEAL_TYPE_LABEL } from '../lib/mealTypes.js'
-
-function todayStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 /**
  * 같은 끼니에 여러 번 기록해도 화면에선 끼니 하나로 묶는다 - 점심을 세 번 나눠 적으면
@@ -73,8 +69,10 @@ function DietPage() {
   const [memoSaved, setMemoSaved] = useState(false)   // 저장 직후 확인 표시
   const [memoEditing, setMemoEditing] = useState(false)  // 저장된 메모를 다시 고치는 중
   const [confirmMemoDelete, setConfirmMemoDelete] = useState(false)
-  // 캘린더는 자기 안에서 월 데이터를 불러오므로, 저장 후 다시 읽게 하려면 신호가 필요하다
-  const [calendarKey, setCalendarKey] = useState(0)
+  // 캘린더는 자기 안에서 월 데이터를 불러오므로, 저장 후 다시 읽게 하려면 신호가 필요하다.
+  // 칼로리와 메모를 나눠 두는 이유: 하나로 합치면 식단을 저장할 때마다 메모 월 조회까지 같이 나간다.
+  const [caloriesKey, setCaloriesKey] = useState(0)
+  const [memoKey, setMemoKey] = useState(0)
 
   const isToday = selectedDate === todayStr()
 
@@ -85,8 +83,8 @@ function DietPage() {
 
   /* ===== 조회 ===== */
 
-  /** 선택한 날짜의 끼니 목록 + 합계를 다시 불러옴. 저장/수정/삭제 후 매번 호출 */
-  const refresh = (date) => {
+  /** 선택한 날짜의 끼니 목록 + 합계를 다시 불러옴 */
+  const refresh = useCallback((date) => {
     // 조용히 실패하면 "저장이 안 됐나?" 하고 다시 누르게 되므로 실패는 알린다
     // (토큰 만료 401도 여기로 올라와 "다시 로그인해주세요"가 표시됨)
     Promise.all([getTodayMeals(date), getTodayTotal(date)])
@@ -95,18 +93,28 @@ function DietPage() {
         setTotal(dailyTotal)
       })
       .catch((e) => setNotice(e.message || '식단 기록을 불러오지 못했어요'))
-  }
+  }, [getTodayMeals, getTodayTotal])
+
+  /**
+   * 기록을 저장/수정/삭제한 뒤. 오른쪽 타임라인만 다시 읽으면 왼쪽 달력의 그날 숫자와 히트맵은
+   * 옛 값 그대로 남는다(월을 넘겼다 돌아와야 맞았음). 달력 쪽도 같이 다시 읽게 신호를 올린다.
+   * 날짜만 바꾸는 경우엔 월 합계가 달라질 리 없으므로 refresh()만 부른다.
+   */
+  const refreshAfterChange = useCallback((date) => {
+    refresh(date)
+    setCaloriesKey((k) => k + 1)
+  }, [refresh])
 
   useEffect(() => {
     if (user) refresh(selectedDate)
     // 날짜를 바꿔 다른 날 기록을 보러 갈 때는 펼쳐둔 항목을 접는다
     // (저장 직후의 refresh()에서는 접히면 안 되므로 여기서만 리셋)
     setExpandedMealId(null)
-  }, [user, selectedDate])
+  }, [user, selectedDate, refresh])
 
   useEffect(() => {
     if (user) getNutrientTarget().then(setNutrientTarget).catch(() => {})
-  }, [user])
+  }, [user, getNutrientTarget])
 
   // 날짜를 바꾸면 그 날 메모를 다시 읽는다. 못 읽어도 화면을 막지 않고 빈 칸으로 둔다 -
   // 메모는 부가 기능이라 실패가 식단 기록까지 가리면 안 된다.
@@ -129,7 +137,7 @@ function DietPage() {
       })
     // 날짜를 빠르게 넘기면 늦게 온 응답이 최신 날짜의 메모를 덮어쓸 수 있어 무효화한다
     return () => { stale = true }
-  }, [user, selectedDate])
+  }, [user, selectedDate, getWorkoutMemo])
 
   const handleSaveMemo = () => {
     setMemoSaving(true)
@@ -139,7 +147,7 @@ function DietPage() {
         setSavedMemo(content)
         setMemoSaved(true)
         setMemoEditing(false)   // 저장하면 아래 "기록된 메모" 카드로 돌아간다
-        setCalendarKey((k) => k + 1)   // 캘린더의 "메모 있는 날" 점을 바로 반영
+        setMemoKey((k) => k + 1)   // 캘린더의 "메모 있는 날" 점을 바로 반영
       })
       .catch((e) => setNotice(e.message || '메모를 저장하지 못했어요'))
       .finally(() => setMemoSaving(false))
@@ -155,7 +163,7 @@ function DietPage() {
         setSavedMemo('')
         setMemoSaved(false)
         setMemoEditing(false)
-        setCalendarKey((k) => k + 1)
+        setMemoKey((k) => k + 1)
       })
       .catch((e) => setNotice(e.message || '메모를 삭제하지 못했어요'))
       .finally(() => setMemoSaving(false))
@@ -167,7 +175,7 @@ function DietPage() {
     setConfirmDeleteId(null)
     setDeletingId(id)
     deleteMeal(id)
-      .then(() => refresh(selectedDate))
+      .then(() => refreshAfterChange(selectedDate))
       .catch((e) => setNotice(e.message || '삭제에 실패했어요'))
       .finally(() => setDeletingId(null))
   }
@@ -186,10 +194,12 @@ function DietPage() {
               selected={selectedDate}
               onSelect={setSelectedDate}
               maxDateStr={todayStr()}
+              targetKcal={nutrientTarget?.kcal ?? 0}
               getMonthCalories={getMonthCalories}
               getHolidays={getHolidays}
               getWorkoutMemoMonth={getWorkoutMemoMonth}
-              refreshKey={calendarKey}
+              caloriesKey={caloriesKey}
+              memoKey={memoKey}
             />
 
             {/* 운동이든 컨디션이든 자유롭게 적는 칸. 식단처럼 구조화하지 않은 이유는
@@ -307,7 +317,7 @@ function DietPage() {
                         meal={meal}
                         expanded={expandedMealId === meal.id}
                         onToggleExpand={() => setExpandedMealId((prev) => (prev === meal.id ? null : meal.id))}
-                        onChanged={() => refresh(selectedDate)}
+                        onChanged={() => refreshAfterChange(selectedDate)}
                         onError={setNotice}
                         onRequestDelete={() => setConfirmDeleteId(meal.id)}
                         deleting={deletingId === meal.id}
@@ -343,7 +353,7 @@ function DietPage() {
           mealType={mealType}
           onMealTypeChange={setMealType}
           onClose={() => setLogModalOpen(false)}
-          onSaved={() => refresh(selectedDate)}
+          onSaved={() => refreshAfterChange(selectedDate)}
           onError={setNotice}
         />
       )}

@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import iconGoogle from '../assets/icon-google.png'
 import iconKakao from '../assets/icon-kakao.png'
@@ -51,13 +51,16 @@ function useAuthState() {
   const codeExchanged = useRef(false)
   const navigate = useNavigate()
 
-  const handleLogout = () => {
+  // 아래 API 함수들은 useEffect 안에서 불리는 게 많은데, 매 렌더 새로 만들어지면 의존성 배열에
+  // 넣을 수가 없어서 exhaustive-deps를 끄고 쓰게 된다(그러면 진짜 빠뜨린 의존성도 같이 묻힌다).
+  // 뿌리인 handleLogout/authFetch부터 고정해두면 그 위의 함수들도 같이 고정할 수 있다.
+  const handleLogout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(USER_CACHE_KEY)
     setUser(null)
     setProfile(null)
     setInbody(null)
-  }
+  }, [])
 
   /**
    * 토큰을 붙여 API를 호출하고 Response를 그대로 돌려준다(본문 파싱은 호출부 몫 -
@@ -67,7 +70,7 @@ function useAuthState() {
    * 같은 엉뚱한 메시지만 던지고 로그인 상태는 그대로 남아 있었다. 401을 여기서 한 번에
    * 처리해서 로그아웃시키고 만료된 것을 알린다.
    */
-  const authFetch = async (path, options = {}) => {
+  const authFetch = useCallback(async (path, options = {}) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) throw new Error('로그인이 필요합니다')
 
@@ -84,14 +87,14 @@ function useAuthState() {
       throw new Error('로그인이 만료됐어요. 다시 로그인해주세요')
     }
     return res
-  }
+  }, [handleLogout])
 
   // 응답 본문이 있는 표준 케이스 - 실패하면 주어진 메시지로 예외를 던진다
-  const authJson = async (path, options, failMessage) => {
+  const authJson = useCallback(async (path, options, failMessage) => {
     const res = await authFetch(path, options)
     if (!res.ok) throw new Error(failMessage)
     return res.json()
-  }
+  }, [authFetch])
 
   // 서버가 실패 사유를 본문에 담아주는 케이스(닉네임 중복 등)
   const authJsonWithServerError = async (path, options, failMessage) => {
@@ -178,8 +181,8 @@ function useAuthState() {
         .then(setInbody),
     )
 
-  const getInbodyHistory = () =>
-    authJson('/api/users/me/inbody/history', {}, '인바디 이력을 불러오지 못했어요')
+  const getInbodyHistory = useCallback(() =>
+    authJson('/api/users/me/inbody/history', {}, '인바디 이력을 불러오지 못했어요'), [authJson])
 
   // 성별/키/출생연도. 목표 칼로리·기초대사량이 이 값으로 계산되므로 저장 후 프로필 상태도 같이 갱신함
   const updateBody = ({ gender, heightCm, birthYear }) =>
@@ -277,13 +280,15 @@ function useAuthState() {
     authJson('/api/users/me/chat/nutrient-advice', { method: 'POST' }, '분석을 받지 못했어요')
 
   // 날짜별 메모. 내용을 비워서 저장하면 서버가 그 날 메모를 지운다.
-  const getWorkoutMemo = (date) =>
+  const getWorkoutMemo = useCallback((date) =>
     authJson(`/api/users/me/workout-memos/${date}`, {}, '메모를 불러오지 못했어요')
-      .then((data) => data.content ?? '')
+      .then((data) => data.content ?? ''), [authJson])
 
-  // 캘린더가 "메모 있는 날"을 표시하려고 한 달치를 한 번에 받는다 (날짜 -> 내용)
-  const getWorkoutMemoMonth = (year, month) =>
-    authJson(`/api/users/me/workout-memos?year=${year}&month=${month}`, {}, '메모를 불러오지 못했어요')
+  // 캘린더가 "메모 있는 날"을 표시하려고 한 달치를 한 번에 받는다.
+  // 값은 본문 전체가 아니라 앞 30자 미리보기다(툴팁용) - 내용은 날짜를 고를 때 따로 받아간다.
+  const getWorkoutMemoMonth = useCallback((year, month) =>
+    authJson(`/api/users/me/workout-memos?year=${year}&month=${month}`, {}, '메모를 불러오지 못했어요'),
+    [authJson])
 
   const saveWorkoutMemo = (date, content) =>
     authJson(`/api/users/me/workout-memos/${date}`, {
@@ -311,24 +316,29 @@ function useAuthState() {
       body: JSON.stringify({ foodName, kcal, mealType: mealType || null, date: date || null }),
     }, '직접 기록에 실패했어요')
 
-  const getTodayMeals = (date) =>
-    authJson(`/api/diet/meals/today${date ? `?date=${date}` : ''}`, {}, '식단 기록을 불러오지 못했어요')
+  const getTodayMeals = useCallback((date) =>
+    authJson(`/api/diet/meals/today${date ? `?date=${date}` : ''}`, {}, '식단 기록을 불러오지 못했어요'),
+    [authJson])
 
-  const getTodayTotal = (date) =>
-    authJson(`/api/diet/meals/today/total${date ? `?date=${date}` : ''}`, {}, '합계를 불러오지 못했어요')
+  const getTodayTotal = useCallback((date) =>
+    authJson(`/api/diet/meals/today/total${date ? `?date=${date}` : ''}`, {}, '합계를 불러오지 못했어요'),
+    [authJson])
 
   // 달력 칸에 날짜별 칼로리를 표시하기 위한 월 단위 합계. { "2026-08-05": 1850, ... } 형태
-  const getMonthCalories = (year, month) =>
-    authJson(`/api/diet/meals/month?year=${year}&month=${month}`, {}, '월별 기록을 불러오지 못했어요')
+  const getMonthCalories = useCallback((year, month) =>
+    authJson(`/api/diet/meals/month?year=${year}&month=${month}`, {}, '월별 기록을 불러오지 못했어요'),
+    [authJson])
 
   // 달력 칸에 공휴일을 표시하기 위한 월 단위 조회. { "2026-01-01": "신정", ... } 형태
   // (서버가 공공데이터포털 API로 조회 - 키 미설정이면 그냥 빈 객체가 옴)
-  const getHolidays = (year, month) =>
-    authJson(`/api/calendar/holidays?year=${year}&month=${month}`, {}, '공휴일 정보를 불러오지 못했어요')
+  const getHolidays = useCallback((year, month) =>
+    authJson(`/api/calendar/holidays?year=${year}&month=${month}`, {}, '공휴일 정보를 불러오지 못했어요'),
+    [authJson])
 
   // 목표+인바디가 아직 없으면 서버가 204(본문 없음)를 주므로 null로 처리
-  const getNutrientTarget = () =>
-    authFetch('/api/diet/meals/target').then((res) => (res.status === 200 ? res.json() : null))
+  const getNutrientTarget = useCallback(() =>
+    authFetch('/api/diet/meals/target').then((res) => (res.status === 200 ? res.json() : null)),
+    [authFetch])
 
   const updateNutrientTarget = ({ kcal, proteinG, carbsG, fatG }) =>
     authFetch('/api/diet/meals/target', {

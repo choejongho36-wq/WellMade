@@ -48,6 +48,26 @@
   border-color: #da291c;
   color: #da291c;
 }
+/* 몇 달 뒤로 넘어갔을 때 한 번에 돌아오는 버튼. 이미 오늘이면 비활성 */
+.cal-today {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid #d8d6cf;
+  background: #fff;
+  color: #111;
+  font: 700 11px 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.cal-today:hover:not(:disabled) {
+  border-color: #da291c;
+  color: #da291c;
+}
+.cal-today:disabled {
+  color: #c9c7c1;
+  cursor: default;
+}
 .cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -170,6 +190,51 @@
 }
 .cal-cell:disabled {
   cursor: not-allowed;
+}
+
+/* 칸 색이 무슨 뜻인지 알려주는 범례. 목표가 있으면 기준이 목표 대비로 바뀐다(Calendar.jsx) */
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e6e4de;
+  font-size: 10.5px;
+  color: #6f6e6a;
+}
+.cal-legend-title {
+  font-weight: 700;
+  color: #9b9a96;
+}
+.cal-legend-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.cal-legend-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.cal-legend-chip {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid #e0ded8;
+}
+.cal-legend-chip.k1 { background: #fdf3f2; }
+.cal-legend-chip.k2 { background: #fbe6e4; }
+.cal-legend-chip.k3 { background: #f6cdc9; }
+.cal-legend-chip.k4 { background: #efb0aa; }
+
+/* 월 데이터를 못 읽었을 때. 달력 자체는 계속 쓸 수 있으므로 한 줄만 */
+.cal-error {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #da291c;
 }
 
 /* ============ 모바일 (~768px) ============

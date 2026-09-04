@@ -11,7 +11,11 @@ import com.kdt.wellmade.global.time.AppTime;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -39,6 +43,8 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/diet/meals")
+// /month의 year/month 제약을 실제로 검사하게 한다 (없으면 month=13이 LocalDate.of에서 500)
+@Validated
 public class DietMealController {
 
     private final MealLoggingService mealLoggingService;
@@ -93,8 +99,8 @@ public class DietMealController {
     @GetMapping("/month")
     public Map<String, Double> getMonthCalories(
             @AuthenticationPrincipal Long userId,
-            @RequestParam int year,
-            @RequestParam int month
+            @RequestParam @Min(2000) @Max(2100) int year,
+            @RequestParam @Min(1) @Max(12) int month
     ) {
         return mealLoggingService.getDailyCaloriesForMonth(userId, year, month);
     }
