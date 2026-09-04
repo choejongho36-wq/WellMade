@@ -13,11 +13,11 @@ import org.springframework.stereotype.Service;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.kdt.wellmade.global.time.AppTime;
  
 /**
  * "오늘 뭐 먹었는지" 기록하고 조회하는 서비스.
@@ -130,7 +130,7 @@ public class MealLoggingService {
 
         // 저장된 id가 필요함 - 기록 직후 그 자리에서 "다른 음식인가요?" 후보를 고칠 수 있어야 해서
         Object[] params = {
-                userId, loggedDate != null ? loggedDate : LocalDate.now(), resolvedMealType, menuNameSummary, rawMessage,
+                userId, loggedDate != null ? loggedDate : AppTime.today(), resolvedMealType, menuNameSummary, rawMessage,
                 Math.round(totalCalories), totalProtein, totalCarbs, totalFat, foodItemsJson
         };
         KeyHolder keyHolder = new GeneratedKeyHolder();
@@ -186,7 +186,7 @@ public class MealLoggingService {
                  kcal, protein_g, carbs_g, fat_g, food_items)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                userId, loggedDate != null ? loggedDate : LocalDate.now(), resolvedMealType, name, name,
+                userId, loggedDate != null ? loggedDate : AppTime.today(), resolvedMealType, name, name,
                 Math.round(kcal), 0, 0, 0, toJson(List.of(manualItem))
         );
 
@@ -448,7 +448,7 @@ public class MealLoggingService {
     }
 
     private String inferMealTypeByTime() {
-        int hour = LocalTime.now().getHour();
+        int hour = AppTime.nowTime().getHour();
         if (hour < 11) return "BREAKFAST";
         if (hour < 15) return "LUNCH";
         if (hour < 21) return "DINNER";

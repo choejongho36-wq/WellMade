@@ -33,15 +33,16 @@ const CHAT_MENU_ITEMS = [
   { id: 'inbody-trend', label: '체중 추세', send: '요즘 체중 변화 어때?', menu: true },
   // 전용 API(/nutrient-advice) - 목표 대비 분석을 서버가 계산해서 넘긴다
   { id: 'nutrient-advice', label: '영양소 분석', action: 'nutrient-advice' },
-  // 운동 추천: 버튼 -> 봇이 부위/난이도를 되묻고(followUp) -> 사용자 답을 wrap으로 감싸
-  // 일반 채팅으로 보냄. 서버가 recommend_exercises 도구를 호출해 후보를 가져오고 모델이 추천문을 만든다.
+  // 운동 추천: 버튼 -> 봇이 부위/장비를 되묻고(followUp) -> 사용자 답을 id와 함께 일반 채팅으로 보냄.
+  // 예전엔 여기 있던 wrap으로 감싼 문장만 서버에 저장돼서, 새로고침하면 앞 두 말풍선이 사라지고
+  // 사용자 말풍선도 감싼 문장으로 바뀌어 보였다. 이제 감싸기도 이력 저장도 서버가 한다
+  // (ChatService.FOLLOW_UPS) - send/followUp 문구는 그쪽과 맞춰야 새로고침 후에도 같아 보인다.
   {
     id: 'exercise-recommend',
     label: '운동 추천',
     send: '운동 추천받고 싶어요',
     followUp: '어느 부위를 운동하고 싶으세요? 사용할 장비(맨몸, 덤벨 등)가 있으면 같이 알려주세요.',
     placeholder: '예: 하체, 맨몸',
-    wrap: (t) => `운동을 추천받고 싶어요. 원하는 조건: ${t}`,
   },
   { id: 'diet-manage', label: '캘린더', path: '/mealplan' },
 ]
@@ -98,10 +99,11 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
     }
   }, [loggedIn])
 
-  const sendMessage = (content, display) => {
+  // followUpId가 있으면 되묻기에 대한 답이라는 뜻 - 서버가 문맥 문장으로 감싸 모델에게 보낸다
+  const sendMessage = (content, followUpId) => {
     if (loading) return
 
-    setMessages((prev) => [...prev, { role: 'user', content, display }])
+    setMessages((prev) => [...prev, { role: 'user', content }])
     setInput('')
     setPendingFollowUp(null)
     setLoading(true)
@@ -122,7 +124,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
       })
     }
 
-    sendChat(content, applyStream)
+    sendChat(content, applyStream, followUpId)
       .then(({ content: reply, action }) => {
         setMessages((prev) => {
           const copy = [...prev]
@@ -192,10 +194,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
     if (!text || loading) return
 
     if (pendingFollowUp) {
-      // wrap이 있으면 사용자 답을 문맥 문장으로 감싸 모델에게 보내고(말풍선엔 원문만 표시),
-      // 없으면 원문 그대로 보낸다.
-      const { wrap } = pendingFollowUp
-      sendMessage(wrap ? wrap(text) : text, text)
+      sendMessage(text, pendingFollowUp.id)
       return
     }
 
@@ -276,7 +275,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
                   )}
                   <div className="chat-bubble-col">
                     <div className="chat-bubble">
-                      {m.role === 'assistant' ? stripCodeFences(m.content) : (m.display ?? m.content)}
+                      {m.role === 'assistant' ? stripCodeFences(m.content) : m.content}
                     </div>
                     {ACTION_BUTTONS[m.action] && (
                       <button

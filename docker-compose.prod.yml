@@ -37,6 +37,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       # nginx(HTTPS) 뒤에 있으므로 OAuth 콜백 URL이 외부 도메인으로 만들어지도록
       SERVER_FORWARD_HEADERS_STRATEGY: framework
+      # 날짜 기준을 MySQL(--default-time-zone=+09:00)과 맞춘다
+      TZ: Asia/Seoul
     expose:
       - "8080"
 

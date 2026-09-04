@@ -28,27 +28,25 @@ import com.kdt.wellmade.global.exception.ExternalServiceException;
  * 사용자向 예외로 변환. 대화 구성이나 도구 실행은 ChatService/ChatToolExecutor 쪽 일이다.
  */
 @Component
-public class OllamaClient {
+public class HttpOllamaClient implements OllamaClient {
 
-    private static final Logger log = LoggerFactory.getLogger(OllamaClient.class);
-
-    static final String AI_UNAVAILABLE_MSG = "AI 챗봇은 지금 준비 중이에요. 잠시 후 다시 시도해 주세요.";
+    private static final Logger log = LoggerFactory.getLogger(HttpOllamaClient.class);
 
     private final RestClient ollamaRestClient;
     private final String model;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    public OllamaClient(RestClient ollamaRestClient, @Value("${ollama.model}") String model) {
+    public HttpOllamaClient(
+            RestClient ollamaRestClient, @Value("${ollama.model}") String model, ObjectMapper objectMapper) {
         this.ollamaRestClient = ollamaRestClient;
         this.model = model;
+        this.objectMapper = objectMapper;
     }
-
-    /** 스트리밍 한 번의 결과 - 흘려보낸 본문과, 모델이 요청한 도구 호출 목록 */
-    public record StreamResult(String content, List<OllamaMessage.ToolCall> toolCalls) {}
 
     private record OllamaChatResponse(OllamaMessage message) {
     }
 
+    @Override
     public OllamaMessage chatCompletion(List<OllamaMessage> messages, boolean includeTools) {
         OllamaChatResponse response;
         try {
@@ -68,11 +66,7 @@ public class OllamaClient {
         return response.message();
     }
 
-    /**
-     * Ollama /api/chat 를 stream 모드로 호출해서, 응답으로 오는 NDJSON 각 줄의
-     * message.content 조각을 받는 대로 {@code onDelta}에 넘긴다.
-     * tools를 포함해 호출한 경우 도중에 오는 message.tool_calls를 모아서 돌려준다.
-     */
+    @Override
     public StreamResult chatCompletionStream(
             List<OllamaMessage> messages, boolean includeTools, Consumer<String> onDelta
     ) {
@@ -96,7 +90,13 @@ public class OllamaClient {
                                 String delta = message.path("content").asText("");
                                 if (!delta.isEmpty()) {
                                     content.append(delta);
-                                    onDelta.accept(delta);
+                                    try {
+                                        onDelta.accept(delta);
+                                    } catch (RuntimeException e) {
+                                        // 받는 쪽(SSE)이 던진 것 - 아래 catch에서 Ollama 장애로
+                                        // 오해하지 않도록 표시해서 올려보낸다
+                                        throw new DeltaConsumerException(e);
+                                    }
                                 }
                                 collectToolCalls(message, toolCalls);
 
@@ -109,10 +109,26 @@ public class OllamaClient {
                         }
                         return null;
                     });
+        } catch (DeltaConsumerException e) {
+            // 흔한 원인은 사용자가 답변 도중 창을 닫은 것(SseEmitter 전송 실패). Ollama는 멀쩡하므로
+            // "AI 준비 중" 안내로 바꾸지 않고 원래 예외를 그대로 올린다.
+            throw e.getCause();
         } catch (RestClientException | UncheckedIOException e) {
             throw aiUnavailable(e);
         }
         return new StreamResult(content.toString(), toolCalls);
+    }
+
+    /** onDelta(응답을 받아가는 쪽)가 던진 예외를 Ollama 자체의 실패와 구분하기 위한 표시 */
+    private static final class DeltaConsumerException extends RuntimeException {
+        DeltaConsumerException(RuntimeException cause) {
+            super(cause);
+        }
+
+        @Override
+        public synchronized RuntimeException getCause() {
+            return (RuntimeException) super.getCause();
+        }
     }
 
     /** 스트림 조각에 들어있는 tool_calls를 자바 객체로 옮겨 담는다 (없으면 아무것도 안 함) */

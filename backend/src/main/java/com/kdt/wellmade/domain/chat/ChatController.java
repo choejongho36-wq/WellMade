@@ -43,9 +43,6 @@ public class ChatController {
     private static final Logger log = LoggerFactory.getLogger(ChatController.class);
     private static final long STREAM_TIMEOUT_MS = 120_000L;
 
-    // 이 프로젝트는 starter-web을 안 써서 ObjectMapper 자동 빈이 없음(ChatService도 직접 생성해 씀)
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
     /**
      * 답변을 만들고 있는 사용자 목록. 프론트에는 전송 중 버튼을 막는 가드가 있지만 API를 직접
      * 호출하면 소용없고, 요청 하나가 GPU를 한동안 붙잡으므로 서버에서도 사용자당 1건으로 막는다.
@@ -56,11 +53,21 @@ public class ChatController {
     private final ChatService chatService;
     private final UserService userService;
     private final ExecutorService chatStreamExecutor;
+    // starter-websocket이 starter-web을 끌고 오므로 스프링이 구성한 ObjectMapper 빈이 있다
+    private final ObjectMapper objectMapper;
 
     @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(@AuthenticationPrincipal Long userId, @RequestBody ChatRequest request) {
         User user = userService.getUser(userId);
+        // 검증은 워커에 넘기기 전에. executor 안에서 던지면 아래 catch (Exception)에 걸려
+        // "답변을 받지 못했어요"로 뭉개진다 - 여기서 던져야 GlobalExceptionHandler가 400으로 답한다.
+        String message = chatService.validateAndTrim(request.message());
+
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
+        // 진단용. 타임아웃/전송 실패 자체는 스프링이 조용히 처리하고 generating은 finally로 풀리지만,
+        // 어떤 이유로 스트림이 끝났는지가 로그에 안 남으면 나중에 확인할 방법이 없다.
+        emitter.onTimeout(() -> log.warn("챗봇 SSE 타임아웃 userId={} ({}ms)", userId, STREAM_TIMEOUT_MS));
+        emitter.onError(e -> log.warn("챗봇 SSE 오류 userId={}: {}", userId, e.toString()));
 
         if (!generating.add(userId)) {
             sendJsonQuietly(emitter, Map.of("error", "아직 이전 질문에 답하고 있어요. 잠시만 기다려 주세요."));
@@ -70,12 +77,28 @@ public class ChatController {
 
         chatStreamExecutor.execute(() -> {
             try {
-                String action = chatService.replyStream(
-                        user, request.message(), delta -> sendJson(emitter, Map.of("t", delta)));
+                String action = chatService.replyStream(user, message, request.followUpId(),
+                        new ChatService.ReplyStream() {
+                            @Override
+                            public void delta(String text) {
+                                sendJson(emitter, Map.of("t", text));
+                            }
+
+                            @Override
+                            public void reset() {
+                                // 도구를 부른 턴에서 최종 답변을 다시 스트리밍하기 직전 - 앞에 흘러간
+                                // 조각(예고 문장 등)을 지우고 다시 그리라는 신호
+                                sendJson(emitter, Map.of("reset", true));
+                            }
+                        });
                 // 답변 뒤에 한 번만 - 프론트가 말풍선 아래에 버튼을 그린다 (예: 인바디 등록하러 가기)
                 if (action != null) {
                     sendJsonQuietly(emitter, Map.of("action", action));
                 }
+            } catch (UncheckedIOException e) {
+                // 사용자가 답변 도중 창을 닫았을 때(sendJson 실패). 보낼 곳이 없으니 안내도 못 하고,
+                // 여기까지 만든 답변은 ChatService가 이미 저장했다.
+                log.info("챗봇 스트리밍 중 클라이언트 연결이 끊김 userId={}", userId);
             } catch (ExternalServiceException e) {
                 // 원인은 ChatService 에서 이미 적절한 레벨로 로깅함. 안내 문구만 그대로 전달
                 sendJsonQuietly(emitter, Map.of("error", e.getMessage()));
@@ -135,7 +158,7 @@ public class ChatController {
         }
     }
 
-    private void sendJson(SseEmitter emitter, Map<String, String> payload) {
+    private void sendJson(SseEmitter emitter, Map<String, ?> payload) {
         try {
             emitter.send(SseEmitter.event().data(objectMapper.writeValueAsString(payload)));
         } catch (IOException e) {
@@ -144,7 +167,7 @@ public class ChatController {
         }
     }
 
-    private void sendJsonQuietly(SseEmitter emitter, Map<String, String> payload) {
+    private void sendJsonQuietly(SseEmitter emitter, Map<String, ?> payload) {
         try {
             emitter.send(SseEmitter.event().data(objectMapper.writeValueAsString(payload)));
         } catch (IOException ignored) {

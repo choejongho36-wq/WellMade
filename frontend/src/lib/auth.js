@@ -210,10 +210,13 @@ function useAuthState() {
 
   // 대화 이력을 이제 서버가 갖고 있어서(9번 패치), 매번 전체 배열이 아니라 새 메시지 하나만 보내면 됨.
   // 응답은 SSE 스트림 - 토큰이 올 때마다 onDelta(누적문자열)를 호출하고, 최종 전체 문자열을 반환함.
-  const sendChat = async (message, onDelta) => {
+  //
+  // followUpId는 봇이 되물은 뒤 받는 답일 때만 채운다(운동 추천). 모델에게 보낼 문장으로 감싸는 것도,
+  // 앞의 두 말풍선을 이력에 남기는 것도 서버가 한다 - 여기선 사용자가 친 말 그대로 보낸다.
+  const sendChat = async (message, onDelta, followUpId = null) => {
     const res = await authFetch('/api/users/me/chat', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, followUpId }),
     })
     if (!res.ok || !res.body) throw new Error('답변을 받지 못했어요')
 
@@ -249,6 +252,12 @@ function useAuthState() {
         }
         if (parsed.error) throw new Error(parsed.error)
         if (parsed.action) action = parsed.action
+        // 도구를 부른 턴에서 최종 답변을 다시 흘리기 직전에 온다. 그 전에 나온 조각
+        // ("찾아볼게요" 같은 예고문)은 답변이 아니므로 말풍선을 비우고 다시 그린다
+        if (parsed.reset) {
+          full = ''
+          onDelta?.(full)
+        }
         if (parsed.t) {
           full += parsed.t
           onDelta?.(full)

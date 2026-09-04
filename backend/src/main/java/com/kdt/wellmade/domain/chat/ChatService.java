@@ -6,7 +6,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,7 +13,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
@@ -27,6 +25,7 @@ import com.kdt.wellmade.domain.nutrition.MealLoggingService;
 import com.kdt.wellmade.domain.nutrition.NutrientTarget;
 import com.kdt.wellmade.domain.nutrition.NutrientTargetCalculator;
 import com.kdt.wellmade.domain.user.User;
+import com.kdt.wellmade.global.time.AppTime;
 
 /**
  * 사용자의 goal/인바디 값을 시스템 프롬프트로 얹어 로컬 Ollama 채팅을 중계한다.
@@ -121,7 +120,7 @@ public class ChatService {
     private final NutrientTargetCalculator nutrientTargetCalculator;
     private final OllamaClient ollamaClient;
     private final ChatToolExecutor toolExecutor;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     public ChatService(
             UserProfileService userProfileService,
@@ -130,7 +129,8 @@ public class ChatService {
             ChatMessageRepository chatMessageRepository,
             NutrientTargetCalculator nutrientTargetCalculator,
             OllamaClient ollamaClient,
-            ChatToolExecutor toolExecutor
+            ChatToolExecutor toolExecutor,
+            ObjectMapper objectMapper
     ) {
         this.userProfileService = userProfileService;
         this.inbodyService = inbodyService;
@@ -139,43 +139,120 @@ public class ChatService {
         this.nutrientTargetCalculator = nutrientTargetCalculator;
         this.ollamaClient = ollamaClient;
         this.toolExecutor = toolExecutor;
+        this.objectMapper = objectMapper;
     }
 
     /**
-     * 새 사용자 메시지 하나를 받아서, DB에 저장된 최근 이력 + 이번 메시지로 컨텍스트를 구성하고
-     * 최종 답변을 토큰 단위로 {@code onDelta}에 흘려보낸다. 스트림이 끝나면 이번 턴을 저장한다.
-     *
-     * 도구 호출이 필요한 질문은 먼저 (비스트리밍) 도구를 해소한 뒤 최종 답변만 스트리밍한다.
+     * 스트리밍 답변을 받아가는 쪽(컨트롤러의 SSE). 토큰 조각과, 화면을 비우라는 신호를 받는다.
      */
-    public String replyStream(User user, String rawMessage, Consumer<String> onDelta) {
+    public interface ReplyStream {
+
+        void delta(String text);
+
+        /**
+         * 도구를 부른 턴에서 최종 답변(2라운드) 스트리밍을 시작하기 직전에 한 번 온다.
+         * 1라운드에서 이미 흘려보낸 조각("어깨 운동을 찾아볼게요" 같은 예고문이나 뒤늦게 섞여나온
+         * 툴콜 텍스트)이 최종 답변 앞에 그대로 붙어 보이므로, 말풍선을 비우고 다시 그리라는 뜻.
+         */
+        void reset();
+    }
+
+    /**
+     * "버튼 -> 봇이 되묻기 -> 사용자 답" 흐름. wrapPrefix를 붙인 문장은 모델에게만 가고,
+     * 이력에는 사용자가 실제로 친 말이 남는다.
+     */
+    private record FollowUp(String userLabel, String question, String wrapPrefix) {
+        String wrap(String answer) {
+            return wrapPrefix + answer;
+        }
+    }
+
+    /**
+     * 되묻기 목록. 예전엔 이 세 말풍선이 전부 프론트에만 있었고 서버엔 감싼 문장 하나만 저장돼서,
+     * 새로고침하면 앞 두 말풍선이 사라지고 사용자 말풍선은 감싼 문장으로 바뀌어 보였다.
+     * 이제 감싸기와 저장을 서버가 한다 - 문구는 ChatDrawer.jsx의 CHAT_MENU_ITEMS와 맞춰야 함.
+     */
+    private static final Map<String, FollowUp> FOLLOW_UPS = Map.of(
+            "exercise-recommend", new FollowUp(
+                    "운동 추천받고 싶어요",
+                    "어느 부위를 운동하고 싶으세요? 사용할 장비(맨몸, 덤벨 등)가 있으면 같이 알려주세요.",
+                    "운동을 추천받고 싶어요. 원하는 조건: "));
+
+    /**
+     * 새 사용자 메시지 하나를 받아서, DB에 저장된 최근 이력 + 이번 메시지로 컨텍스트를 구성하고
+     * 최종 답변을 토큰 단위로 {@code out}에 흘려보낸다.
+     *
+     * 도구 호출이 필요한 질문은 먼저 도구를 해소한 뒤 최종 답변을 다시 스트리밍한다.
+     */
+    public String replyStream(User user, String rawMessage, String followUpId, ReplyStream out) {
         String userMessage = validateAndTrim(rawMessage);
+        FollowUp followUp = followUpId == null ? null : FOLLOW_UPS.get(followUpId);
+        if (followUpId != null && followUp == null) {
+            // 프론트가 새 되묻기를 추가했는데 서버가 아직 모르는 경우. 사용자의 답을 버릴 이유는
+            // 없으므로 감싸지 않고 일반 대화로 처리한다.
+            log.warn("모르는 followUpId라 일반 대화로 처리함: {}", followUpId);
+        }
 
         List<OllamaMessage> messages = new ArrayList<>();
         messages.add(OllamaMessage.system(buildSystemPrompt(user)));
         for (ChatMessageEntity h : loadRecentHistory(user, CONTEXT_HISTORY_LIMIT)) {
             messages.add(new OllamaMessage(h.getRole(), truncateForContext(h.getContent()), null, null));
         }
-        messages.add(OllamaMessage.user(userMessage));
+        if (followUp != null) {
+            messages.add(OllamaMessage.user(followUp.userLabel()));
+            messages.add(OllamaMessage.assistant(followUp.question()));
+        }
+        messages.add(OllamaMessage.user(followUp == null ? userMessage : followUp.wrap(userMessage)));
+
+        // 사용자 메시지는 스트리밍을 시작하기 '전에' 저장한다. 예전엔 두 저장이 모두 스트림 뒤에
+        // 있었는데, 실제로 흔한 실패는 답변이 흘러가는 중에 사용자가 창을 닫는 것이다
+        // (sendJson -> UncheckedIOException으로 여기를 빠져나감). 그러면 방금 보낸 질문까지
+        // 통째로 사라져서, 다시 들어오면 대화가 없던 일이 됐다.
+        if (followUp != null) {
+            save(user, "user", followUp.userLabel());
+            save(user, "assistant", followUp.question());
+        }
+        save(user, "user", userMessage);
 
         StringBuilder full = new StringBuilder();
-        String action = resolveToolsThenStream(user, messages, delta -> {
-            full.append(delta);
-            onDelta.accept(delta);
-        });
+        String action;
+        try {
+            action = resolveToolsThenStream(user, messages, new ReplyStream() {
+                @Override
+                public void delta(String text) {
+                    full.append(text);
+                    out.delta(text);
+                }
+
+                @Override
+                public void reset() {
+                    full.setLength(0);
+                    out.reset();
+                }
+            });
+        } catch (RuntimeException e) {
+            // 만들다 만 답이라도 남긴다 - 아무것도 안 남기면 사용자 질문만 덩그러니 남는다.
+            if (!full.isEmpty()) {
+                save(user, "assistant", full + "\n\n(답변이 도중에 끊겼어요.)");
+            }
+            throw e;
+        }
 
         // 모델이 아무것도 내놓지 않는 경우가 드물게 있다(도구도 안 부르고 content도 비어서 옴).
-        // 그대로 두면 화면에 빈 말풍선만 남고 이력에도 빈 답변이 저장되므로 안내 문구로 대체한다.
+        // 텍스트로 샌 툴콜을 회수하지 못해 통째로 버린 턴도 여기로 온다.
         if (full.isEmpty()) {
             String fallback = "답변을 만들지 못했어요. 조금 더 구체적으로 다시 물어봐 주세요.";
             full.append(fallback);
-            onDelta.accept(fallback);
+            out.delta(fallback);
         }
 
-        // Ollama 호출(느릴 수 있음)이 끝난 뒤에 저장함 - 트랜잭션을 외부 HTTP 호출 동안 붙잡고
-        // 있지 않으려는 의도. 두 저장 사이에 실패가 나도 사용자 메시지 한 줄만 남는 정도라 치명적이지 않음.
-        chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(userMessage).build());
-        chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(full.toString()).build());
+        save(user, "assistant", full.toString());
         return action;
+    }
+
+    private void save(User user, String role, String content) {
+        chatMessageRepository.save(
+                ChatMessageEntity.builder().user(user).role(role).content(content).build());
     }
 
     /**
@@ -190,7 +267,7 @@ public class ChatService {
     private record MenuTool(String userLabel, String toolName, Map<String, Object> arguments) {}
 
     private MenuTool menuTool(String menuId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = AppTime.today();
         return switch (menuId) {
             case "meals-today" -> new MenuTool(
                     "오늘 뭐 먹었지?", "get_meals_for_date", Map.of("date", today.toString()));
@@ -225,8 +302,8 @@ public class ChatService {
             reply = phraseToolResult(user, menu, toolResult);
         }
 
-        chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(menu.userLabel()).build());
-        chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(reply).build());
+        save(user, "user", menu.userLabel());
+        save(user, "assistant", reply);
         return new ChatResponse(reply, inbodyActionFor(user, List.of(menu.toolName())));
     }
 
@@ -250,6 +327,16 @@ public class ChatService {
      * 도구 결과를 문장으로만 옮기게 한다. 모델이 도구를 호출한 뒤와 똑같은 형태의 컨텍스트를
      * 만들어 주므로(assistant tool_calls + tool 결과), 일반 대화의 마지막 라운드와 같은 경로다.
      */
+    private static final String NO_REPLY_FALLBACK = "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.";
+
+    /**
+     * Ollama가 content를 null이나 빈 문자열로 돌려주는 턴이 있다. 이력 컬럼은 nullable=false라
+     * 그대로 저장하면 500이 나고, 저장이 되더라도 빈 말풍선만 남는다.
+     */
+    private String orFallback(String reply) {
+        return reply == null || reply.isBlank() ? NO_REPLY_FALLBACK : reply;
+    }
+
     private String phraseToolResult(User user, MenuTool menu, String toolResult) {
         String callId = "menu-" + menu.toolName();
         List<OllamaMessage> messages = new ArrayList<>();
@@ -259,10 +346,7 @@ public class ChatService {
                 callId, new OllamaMessage.FunctionCall(menu.toolName(), menu.arguments()))), null));
         messages.add(OllamaMessage.tool(toolResult, callId));
 
-        String reply = ollamaClient.chatCompletion(messages, false).content();
-        return reply == null || reply.isBlank()
-                ? "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요."
-                : reply;
+        return orFallback(ollamaClient.chatCompletion(messages, false).content());
     }
 
     /**
@@ -305,7 +389,7 @@ public class ChatService {
 
     /** 빈 메시지 거부 + 길이 상한. 예전엔 클라이언트가 배열 통째로 보내서 role 위조가 가능했지만,
      *  이제 문자열 하나만 받으므로 검증할 것도 이 정도로 단순해짐. */
-    private String validateAndTrim(String rawMessage) {
+    String validateAndTrim(String rawMessage) {
         if (rawMessage == null || rawMessage.isBlank()) {
             throw new IllegalArgumentException("메시지를 입력해주세요.");
         }
@@ -325,7 +409,7 @@ public class ChatService {
      * 순차적으로 여러 번 도구를 불러야 하는 질문은 지원하지 않는다(이 앱의 도구는 한 라운드에서
      * 병렬 호출로 충분함). tools를 뺀 마지막 호출이라 모델은 반드시 텍스트로 답한다.
      */
-    private String resolveToolsThenStream(User user, List<OllamaMessage> messages, Consumer<String> onDelta) {
+    String resolveToolsThenStream(User user, List<OllamaMessage> messages, ReplyStream out) {
         // 1라운드 본문은 앞부분만 붙잡아두고 흘린다. Qwen이 도구 호출을 구조화된 tool_calls 대신
         // <tool_call>{"name":...} 텍스트로 흘리는 턴이 있는데(재현됨), 그대로 스트리밍하면 화면에
         // JSON이 뜬다. 도구를 부를지는 본문 앞부분만 보면 판별돼서, 홀드 비용은 몇 백 ms 수준이다.
@@ -333,26 +417,42 @@ public class ChatService {
         boolean[] releasedToUser = {false};
         var first = ollamaClient.chatCompletionStream(messages, true, delta -> {
             if (releasedToUser[0]) {
-                onDelta.accept(delta);
+                out.delta(delta);
                 return;
             }
             held.append(delta);
-            if (held.length() >= TOOLCALL_SNIFF_CHARS && !looksLikeToolCallText(held.toString())) {
+            if (held.length() >= TOOLCALL_SNIFF_CHARS && !ToolCallTextParser.looksLikeToolCall(held.toString())) {
                 releasedToUser[0] = true;
-                onDelta.accept(held.toString());
+                out.delta(held.toString());
             }
         });
 
         List<OllamaMessage.ToolCall> toolCalls = first.toolCalls().isEmpty()
-                ? parseToolCallsFromText(first.content())
+                ? ToolCallTextParser.parse(first.content())
                 : first.toolCalls();
 
         if (toolCalls.isEmpty()) {
-            // 도구 없이 답한 턴(인사·잡담). 짧아서 아직 못 내보낸 앞부분을 마저 흘린다.
-            if (!releasedToUser[0]) {
-                onDelta.accept(held.toString());
+            if (releasedToUser[0]) {
+                return null;
             }
+            // 홀드를 푼 적이 없으면 held가 본문 전체다. 툴콜처럼 보여서 붙잡아둔 건데 회수까지
+            // 실패했다면(도구 두 개를 텍스트로 흘려서 첫 '{'~마지막 '}' 사이에 JSON 두 덩어리가
+            // 들어오는 경우 등) 그대로 내보내면 화면에 JSON이 뜬다. 붙잡아둔 이유가 "보여줄 게
+            // 아니라서"였으니 여기서 버리고, 빈 답변으로 두면 replyStream이 폴백 문구로 대체한다.
+            if (ToolCallTextParser.looksLikeToolCall(held.toString())) {
+                log.warn("툴콜 텍스트로 보였지만 회수하지 못해 버림: {}", held);
+                return null;
+            }
+            // 도구 없이 답한 턴(인사·잡담). 짧아서 아직 못 내보낸 앞부분을 마저 흘린다.
+            out.delta(held.toString());
             return null;
+        }
+
+        // 1라운드에서 이미 흘려보낸 게 있으면(예고 문장 뒤에 툴콜을 이어붙이는 턴) 최종 답변 앞에
+        // 그대로 남는다. 앞 48자만 보고 판별하는 구조라 이런 턴은 홀드로는 못 막으므로,
+        // 2라운드를 시작하기 전에 말풍선을 비우라고 알린다.
+        if (releasedToUser[0]) {
+            out.reset();
         }
 
         // 도구를 부르는 턴이면 홀드분(툴콜 텍스트나 "확인해볼게요" 예고)은 화면에도 컨텍스트에도 넣지 않는다.
@@ -362,7 +462,7 @@ public class ChatService {
             messages.add(OllamaMessage.tool(result, call.id()));
         }
 
-        ollamaClient.chatCompletionStream(messages, false, onDelta);
+        ollamaClient.chatCompletionStream(messages, false, out::delta);
         return inbodyActionFor(user, toolCalls.stream().map(c -> c.function().name()).toList());
     }
 
@@ -370,61 +470,6 @@ public class ChatService {
     private String inbodyActionFor(User user, List<String> usedToolNames) {
         boolean needsInbody = usedToolNames.stream().anyMatch(INBODY_TOOLS::contains);
         return needsInbody && inbodyService.getLatest(user).isEmpty() ? ACTION_REGISTER_INBODY : null;
-    }
-
-    /**
-     * 홀드 중인 본문이 모델이 텍스트로 흘린 도구 호출인지. 정상 답변이 이렇게 시작할 일은 없다.
-     *
-     * 도구 이름까지 보는 이유: 예전엔 {@code <tool_call>} 태그나 {@code "name"} 키만 찾았는데,
-     * 모델이 그 둘 없이 `recommend_exercises {"body_part": "어깨"}` 처럼 이름 + 인자만 흘리는
-     * 턴이 실제로 나왔다(사용자 화면에 그대로 노출됨). 도구 이름은 정상 한국어 답변에 나올 말이 아니다.
-     */
-    boolean looksLikeToolCallText(String content) {
-        if (content.contains("<tool_call>") || content.contains("\"name\"")) {
-            return true;
-        }
-        return ChatToolExecutor.TOOL_NAMES.stream().anyMatch(content::contains);
-    }
-
-    /**
-     * Ollama가 파싱하지 못하고 본문으로 흘려보낸 도구 호출을 회수한다. 앞뒤에 잡토큰(`leton`,
-     * `</tool_call>`)이 붙어 나오므로 첫 '{'부터 마지막 '}'까지만 떼어 파싱한다.
-     * 실패하면 빈 목록 - 그냥 도구 없이 답한 턴으로 처리된다.
-     */
-    List<OllamaMessage.ToolCall> parseToolCallsFromText(String content) {
-        int start = content.indexOf('{');
-        int end = content.lastIndexOf('}');
-        if (start < 0 || end <= start) {
-            return List.of();
-        }
-        try {
-            JsonNode node = objectMapper.readTree(content.substring(start, end + 1));
-
-            // 형태 1 - {"name": "...", "arguments": {...}}
-            String name = node.path("name").asText("");
-            if (!name.isEmpty()) {
-                Map<String, Object> arguments = objectMapper.convertValue(
-                        node.path("arguments"), new TypeReference<Map<String, Object>>() {});
-                log.warn("모델이 도구 호출을 본문 텍스트로 흘려서 회수함: {}", name);
-                return List.of(new OllamaMessage.ToolCall(null, new OllamaMessage.FunctionCall(name, arguments)));
-            }
-
-            // 형태 2 - `recommend_exercises {"body_part": "어깨"}` 처럼 이름이 JSON 밖에 있고
-            // 중괄호 안은 인자만 있는 경우. 이때는 JSON 전체가 arguments다.
-            String bareName = ChatToolExecutor.TOOL_NAMES.stream()
-                    .filter(n -> content.lastIndexOf(n, start) >= 0)
-                    .findFirst()
-                    .orElse(null);
-            if (bareName == null) {
-                return List.of();
-            }
-            Map<String, Object> arguments = objectMapper.convertValue(
-                    node, new TypeReference<Map<String, Object>>() {});
-            log.warn("모델이 도구 호출을 '이름 + 인자' 텍스트로 흘려서 회수함: {}", bareName);
-            return List.of(new OllamaMessage.ToolCall(null, new OllamaMessage.FunctionCall(bareName, arguments)));
-        } catch (Exception e) {
-            return List.of();
-        }
     }
 
     /**
@@ -444,7 +489,7 @@ public class ChatService {
             return ChatResponse.of("목표가 설정되어 있지 않아요. 마이페이지에서 목표(체중감량/근육증가/체중유지)를 먼저 설정해주세요.");
         }
 
-        MealLoggingService.DailyTotal actual = mealLoggingService.getTotalForDate(userId, LocalDate.now());
+        MealLoggingService.DailyTotal actual = mealLoggingService.getTotalForDate(userId, AppTime.today());
         if (actual.mealCount() == 0) {
             return ChatResponse.of("오늘 기록된 식사가 아직 없어요. 식단을 기록하면 목표 대비 분석해드릴게요.");
         }
@@ -456,11 +501,11 @@ public class ChatService {
         messages.add(OllamaMessage.system(buildSystemPrompt(user) + "\n\n" + buildAdviceContext(goal, target, actual)));
         String userLabel = "오늘 내가 먹은 식단이 목표 대비 어떤지 분석해서 부족하거나 초과된 영양소를 짚어주고 조언해줘.";
         messages.add(OllamaMessage.user(userLabel));
-        String reply = ollamaClient.chatCompletion(messages, false).content();
+        String reply = orFallback(ollamaClient.chatCompletion(messages, false).content());
 
         // 이 흐름도 같은 대화창(ChatDrawer)에 이어서 보여지므로, 새로고침 후에도 이어지도록 이력에 남김
-        chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("user").content(userLabel).build());
-        chatMessageRepository.save(ChatMessageEntity.builder().user(user).role("assistant").content(reply).build());
+        save(user, "user", userLabel);
+        save(user, "assistant", reply);
 
         return ChatResponse.of(reply);
     }
@@ -483,7 +528,7 @@ public class ChatService {
         InbodyRecord inbody = inbodyService.getLatest(user).orElse(null);
 
         StringBuilder sb = new StringBuilder(SYSTEM_PROMPT)
-                .append("\n\n오늘 날짜: ").append(LocalDate.now())
+                .append("\n\n오늘 날짜: ").append(AppTime.today())
                 .append(" (사용자가 '어제', '이번 주'처럼 상대적으로 말하면 이 날짜를 기준으로 계산해서 도구를 호출할 것)");
 
         boolean hasGoal = profile != null && profile.getGoal() != null;
@@ -500,7 +545,7 @@ public class ChatService {
             List<String> body = new ArrayList<>();
             if (profile.getGender() != null) body.add(profile.getGender() == Gender.MALE ? "남성" : "여성");
             if (profile.getHeightCm() != null) body.add("키 " + profile.getHeightCm() + "cm");
-            if (profile.getBirthYear() != null) body.add("만 " + (LocalDate.now().getYear() - profile.getBirthYear()) + "세");
+            if (profile.getBirthYear() != null) body.add("만 " + (AppTime.today().getYear() - profile.getBirthYear()) + "세");
             if (!body.isEmpty()) {
                 sb.append("\n- 신체 정보: ").append(String.join(", ", body));
             }

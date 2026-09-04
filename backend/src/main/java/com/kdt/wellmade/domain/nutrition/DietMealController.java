@@ -7,6 +7,7 @@ import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileService;
 import com.kdt.wellmade.domain.user.User;
 import com.kdt.wellmade.domain.user.UserService;
+import com.kdt.wellmade.global.time.AppTime;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -63,7 +64,7 @@ public class DietMealController {
     @PostMapping
     public MealLoggingService.MealLogResult logMeal(@AuthenticationPrincipal Long userId, @RequestBody LogMealRequest request) {
         LocalDate date = request.date();
-        if (date != null && date.isAfter(LocalDate.now())) {
+        if (date != null && date.isAfter(AppTime.today())) {
             throw new IllegalArgumentException("아직 오지 않은 날짜에는 기록할 수 없어요.");
         }
         return mealLoggingService.logMeal(userId, request.message(), request.mealType(), date);
@@ -75,7 +76,7 @@ public class DietMealController {
             @AuthenticationPrincipal Long userId, @RequestBody LogManualMealRequest request
     ) {
         LocalDate date = request.date();
-        if (date != null && date.isAfter(LocalDate.now())) {
+        if (date != null && date.isAfter(AppTime.today())) {
             throw new IllegalArgumentException("아직 오지 않은 날짜에는 기록할 수 없어요.");
         }
         return mealLoggingService.logManualMeal(userId, request.foodName(), request.kcal(), request.mealType(), date);
@@ -86,7 +87,7 @@ public class DietMealController {
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        return mealLoggingService.getMealsForDate(userId, date != null ? date : LocalDate.now());
+        return mealLoggingService.getMealsForDate(userId, date != null ? date : AppTime.today());
     }
 
     @GetMapping("/month")
@@ -103,7 +104,7 @@ public class DietMealController {
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        return mealLoggingService.getTotalForDate(userId, date != null ? date : LocalDate.now());
+        return mealLoggingService.getTotalForDate(userId, date != null ? date : AppTime.today());
     }
 
     @PutMapping("/{id}")

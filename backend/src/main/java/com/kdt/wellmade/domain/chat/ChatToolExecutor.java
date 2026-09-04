@@ -26,6 +26,7 @@ import com.kdt.wellmade.domain.nutrition.MealLoggingService;
 import com.kdt.wellmade.domain.nutrition.NutrientTarget;
 import com.kdt.wellmade.domain.nutrition.NutrientTargetCalculator;
 import com.kdt.wellmade.domain.user.User;
+import com.kdt.wellmade.global.time.AppTime;
 
 /**
  * 챗봇 툴콜링에서 모델이 호출할 수 있는 도구들. 도구 스펙({@link #TOOLS})과 실제 실행({@link #execute})을
@@ -147,20 +148,22 @@ public class ChatToolExecutor {
     private final MealLoggingService mealLoggingService;
     private final NutrientTargetCalculator nutrientTargetCalculator;
     private final RestClient aiRestClient;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     public ChatToolExecutor(
             UserProfileService userProfileService,
             InbodyService inbodyService,
             MealLoggingService mealLoggingService,
             NutrientTargetCalculator nutrientTargetCalculator,
-            RestClient aiRestClient
+            RestClient aiRestClient,
+            ObjectMapper objectMapper
     ) {
         this.userProfileService = userProfileService;
         this.inbodyService = inbodyService;
         this.mealLoggingService = mealLoggingService;
         this.nutrientTargetCalculator = nutrientTargetCalculator;
         this.aiRestClient = aiRestClient;
+        this.objectMapper = objectMapper;
     }
 
     String execute(User user, String name, Map<String, Object> arguments) {
@@ -442,7 +445,7 @@ public class ChatToolExecutor {
     private LocalDate parseDateArgOrToday(Map<String, Object> args) {
         String raw = argString(args, "date", null);
         if (raw == null) {
-            return LocalDate.now();
+            return AppTime.today();
         }
         try {
             return LocalDate.parse(raw);
@@ -450,7 +453,7 @@ public class ChatToolExecutor {
             // 모델이 날짜 형식을 잘못 넣으면(예: "어제"를 계산 안 하고 그대로 보냄) 오늘로 대체.
             // 여기서 예외를 던지면 도구 호출 자체가 실패해서 답변을 아예 못 받는 게 더 나쁨.
             log.warn("도구 호출의 date 인자를 파싱하지 못해 오늘 날짜로 대체함: {}", raw);
-            return LocalDate.now();
+            return AppTime.today();
         }
     }
 
