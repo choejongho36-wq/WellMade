@@ -37,8 +37,13 @@
 
 | 스크립트 | 만드는 것 | 용도 | 입력 |
 |---|---|---|---|
-| `prepare_exercise_core.py` | `app/exercise/data/exercises_core.json` | 추천 후보로 쓸 기본 동작 160건 (부위별 2~30건) | `exercise_core_seed.json`(사람이 고른 목록) + `app/rag/data/exercises_ko.json` |
+| `prepare_exercise_core.py` | `app/exercise/data/exercises_core.json` | 추천 후보로 쓸 기본 동작 162건 (부위별 2~32건) | `exercise_core_seed.json`(사람이 고른 목록) + `app/rag/data/exercises_ko.json` |
 | `prepare_exercise_videos.py` | `app/exercise/data/exercise_videos.json` | 추천에 붙일 국민체력100 운동 영상 (동작 18종, 영상 37건) | `app/rag/data/videos.json` + `app/exercise/movements.py` |
+
+**기본 동작 이름** — 원본에는 그냥 `squat` / `lunge` / `glute bridge` 같은 항목이 없고 전부 변형
+이름이다. 그래서 가장 가까운 항목을 고르고 시드의 `name_ko`로 기본 동작 이름을 덧씌운다
+(예: `potty squat with support` → "맨몸 스쿼트"). 덧씌운 이름으로 사용자가 되물어도 설명이
+나오도록 `find_detail`이 그 이름을 원본으로 되돌려 찾는다.
 
 **왜 큐레이션인가** — 추천 후보를 1,324건 전부로 두면 "덤벨 하이트 플라이" 같은 변형이
 "덤벨 플라이"보다 먼저 나오고 초보자가 알아보지 못한다. 부위별 기본 동작만 남기고

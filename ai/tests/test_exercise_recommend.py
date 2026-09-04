@@ -314,3 +314,37 @@ def test_최근_답변에_나온_운동도_제외한다():
     second = recommend(body_part="어깨", exclude_from_text=[reply])
 
     assert not ({c["name"] for c in first["candidates"]} & {c["name"] for c in second["candidates"]})
+
+
+def test_초보에게_고급_동작을_주지_않는다():
+    """
+    다양성 키에 난이도가 빠져 있던 동안, 햄스트링 타겟이 비었다는 이유로 맨몸 글루트햄
+    레이즈(고급)가 초급 런지들을 밀어내고 들어왔다. 초보가 그대로 따라 하면 다친다.
+    """
+    result = recommend(body_part="하체", equipment="맨몸", age=30)
+    names = [c["name"] for c in result["candidates"]]
+
+    assert all(c["difficulty"] != "고급" for c in result["candidates"]), names
+    assert "글루트햄 레이즈" not in names
+
+
+def test_나이와_무관하게_고급을_뺀다():
+    """고급은 사용자가 명시적으로 원할 때 주는 것이지, 나이로만 거를 일이 아니다."""
+    for age in (None, 20, 30, 65):
+        result = recommend(body_part="하체", age=age)
+        assert all(c["difficulty"] != "고급" for c in result["candidates"]), age
+
+
+def test_난이도가_복합운동보다_먼저다():
+    """복합운동을 먼저 두면 "복근 맨몸"에서 인치웜(중급)이 3/4 싯업(초급)보다 앞에 나왔다."""
+    result = recommend(body_part="복근", equipment="맨몸")
+
+    assert result["candidates"][0]["difficulty"] == "초급"
+    assert all(c["difficulty"] == "초급" for c in result["candidates"])
+
+
+def test_하체_맨몸_루틴에_스쿼트가_들어간다():
+    """원본에 plain squat 항목이 없어 시드에서 이름을 덧씌워 채웠다 - 없으면 바로 이상하다."""
+    names = [c["name"] for c in recommend(body_part="하체", equipment="맨몸")["candidates"]]
+
+    assert any("스쿼트" in name for name in names), names
