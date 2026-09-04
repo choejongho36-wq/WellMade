@@ -13,6 +13,12 @@ BMI 또래 비교 + 비만도 분류 (인바디 수치 해석의 첫 항목).
 체지방률·골격근량은 이 통계에 없어서(2024 국민건강통계의 신체계측은 신장/체중/허리둘레/
 BMI까지) 또래 비교를 할 수 없다. 그 항목들은 별도 기준이 확보되기 전까지 다루지 않는다.
 
+상식 범위를 벗어난 BMI:
+- 인바디 OCR이 2.5나 250으로 잘못 읽어도 그대로 "저체중"/"3단계 비만"으로 분류되면 안 된다.
+  사람이 가질 수 있는 범위(10~60)를 벗어나면 분류도 비교도 하지 않고 거절한다.
+- 키·체중을 같이 받으면 BMI를 다시 계산해 교차검증한다. 크게 다르면 어느 쪽이 맞는지는
+  알 수 없으므로 값을 바꾸지 않고 경고만 붙인다.
+
 백분위 계산 방식:
 - 원 통계가 7개 지점(5/10/25/50/75/90/95)만 공개하므로 그 사이는 선형보간한다.
 - 양 끝(5 미만, 95 초과)은 보간할 구간이 없어 "5% 미만"/"95% 초과"로만 말한다 —
@@ -46,6 +52,14 @@ BMI_CATEGORIES = [
     (0.0, "저체중"),
 ]
 
+# 사람이 가질 수 있는 BMI 범위. 이 밖은 측정/입력 오류로 본다
+MIN_PLAUSIBLE_BMI = 10.0
+MAX_PLAUSIBLE_BMI = 60.0
+
+# 키·체중으로 다시 계산한 BMI와 이만큼 넘게 벌어지면 둘 중 하나가 틀린 것이다.
+# 키가 자가 신고라 조금은 어긋날 수 있어 여유를 둔다(BMI 1.5는 170cm 기준 약 4.3kg).
+BMI_CROSS_CHECK_TOLERANCE = 1.5
+
 _reference_cache: Optional[dict] = None
 
 
@@ -62,6 +76,33 @@ def to_age_bracket(age: int) -> Optional[str]:
         if low <= age <= high:
             return label
     return OLDEST_BRACKET if age >= 70 else None
+
+
+def is_plausible_bmi(bmi: Optional[float]) -> bool:
+    return bmi is not None and MIN_PLAUSIBLE_BMI <= bmi <= MAX_PLAUSIBLE_BMI
+
+
+def bmi_from_body(height_cm: Optional[float], weight_kg: Optional[float]) -> Optional[float]:
+    """프로필 키 + 인바디 체중으로 BMI를 다시 계산한다. 둘 중 하나라도 없으면 None."""
+    if not height_cm or not weight_kg or height_cm <= 0:
+        return None
+    return weight_kg / (height_cm / 100) ** 2
+
+
+def cross_check_warning(
+    bmi: float, height_cm: Optional[float], weight_kg: Optional[float]
+) -> Optional[str]:
+    """
+    기록된 BMI와 키·체중으로 계산한 BMI가 크게 다르면 경고 문구. 어느 쪽이 맞는지는 알 수
+    없으므로(키가 틀렸을 수도, OCR이 틀렸을 수도) 값을 고치지는 않는다.
+    """
+    computed = bmi_from_body(height_cm, weight_kg)
+    if computed is None or abs(computed - bmi) <= BMI_CROSS_CHECK_TOLERANCE:
+        return None
+    return (
+        f"기록된 체질량지수({round(bmi, 1)})가 키·체중으로 계산한 값({round(computed, 1)})과 "
+        "달라요. 인바디 수치나 프로필 키를 한 번 확인해 주세요."
+    )
 
 
 def classify_bmi(bmi: float) -> str:
@@ -89,12 +130,46 @@ def estimate_percentile(bmi: float, percentiles: dict) -> Optional[float]:
     return None
 
 
-def compute_bmi_insight(bmi: float, gender: str, age: int) -> dict:
+def compute_bmi_insight(
+    bmi: float,
+    gender: str,
+    age: int,
+    height_cm: Optional[float] = None,
+    weight_kg: Optional[float] = None,
+) -> dict:
+    """
+    넘겨받은 BMI 한 건(= 가장 최근 인바디 기록)에 대한 분류와 또래 위치만 말한다.
+    과거 기록과의 추이는 여기서 다루지 않는다 - 이 API의 답은 "지금 내가 어디쯤인가" 하나다.
+
+    :param age: 연령 구간을 고르는 데 쓰는 나이. 프로필이 생년만 갖고 있으면 연 나이라
+                만 나이보다 최대 1살 많을 수 있다(app/insight/age.py 참고).
+    :param height_cm, weight_kg: 있으면 BMI를 다시 계산해 교차검증한다(값은 안 바꾸고 경고만).
+    """
     reference = _load_reference()
+
+    if not is_plausible_bmi(bmi):
+        # 여기서 걸러내지 않으면 OCR이 잘못 읽은 2.5가 그대로 "저체중"으로 확정된다
+        return {
+            "bmi": round(float(bmi), 1),
+            "category": "",
+            "age_bracket": "",
+            "sample_size": 0,
+            "peer_mean": None,
+            "percentile": None,
+            "warning": (
+                f"기록된 체질량지수({round(float(bmi), 1)})가 사람이 가질 수 있는 범위"
+                f"({MIN_PLAUSIBLE_BMI:.0f}~{MAX_PLAUSIBLE_BMI:.0f})를 벗어나요. "
+                "인바디 수치를 다시 확인해 주세요."
+            ),
+            "message": "체질량지수 값이 정상 범위를 벗어나 분류와 또래 비교를 하지 않았어요.",
+            "source": reference["source"],
+        }
+
     bracket = to_age_bracket(age)
     group = reference["groups"].get(gender, {}).get(bracket) if bracket else None
 
     category = classify_bmi(bmi)
+    warning = cross_check_warning(bmi, height_cm, weight_kg)
     bmi = round(float(bmi), 1)
 
     if not group:
@@ -105,6 +180,7 @@ def compute_bmi_insight(bmi: float, gender: str, age: int) -> dict:
             "sample_size": 0,
             "peer_mean": None,
             "percentile": None,
+            "warning": warning,
             "message": f"체질량지수 {bmi}로 '{category}'에 해당해요. 비교할 또래 통계가 없어 또래 비교는 생략했어요.",
             "source": reference["source"],
         }
@@ -127,6 +203,7 @@ def compute_bmi_insight(bmi: float, gender: str, age: int) -> dict:
         "sample_size": int(group.get("sample_size") or 0),
         "peer_mean": group["mean"],
         "percentile": percentile,
+        "warning": warning,
         "message": f"체질량지수 {bmi}로 '{category}'에 해당해요. {comparison}",
         "source": reference["source"],
     }

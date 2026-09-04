@@ -5,59 +5,12 @@
  * 여기는 인증 없는 AI 서버를 부른다. 두 서버는 주소도 인증 방식도 달라서 섞으면
  * "이 함수는 어느 서버를 부르는가"가 흐려진다.
  *
- * 실패는 던지지 않고 null을 돌려준다 — 또래 비교는 부가 정보라, 못 가져왔다고 해서
- * 인바디나 영양소 화면 자체가 막히면 안 된다(호출부에서 그냥 섹션을 숨긴다).
+ * (2026-09-04) 또래 비교(BMI/영양)는 여기서 빠졌다 - 브라우저가 인증 없이 AI 서버를 직접
+ * 두드리던 경로였고, 같은 기능을 챗봇은 이미 백엔드를 거쳐 쓰고 있어 경로가 둘이었다.
+ * 이제 auth.js의 getBmiInsight / getNutritionPeerCompare(=> /api/users/me/insights/...)를 쓴다.
+ * 여기 남은 건 실시간 자세 코칭처럼 브라우저가 프레임을 직접 흘려보내야 하는 호출뿐이다.
  */
 
-// auth.js 의 API_BASE 와 같은 방식 - 빌드 시 VITE_AI_BASE 로 주입, 없으면 로컬 기본값
-const AI_BASE = import.meta.env.VITE_AI_BASE || 'http://localhost:8000'
-
-/** 프로필의 성별 표기(MALE/FEMALE)를 AI 서버가 쓰는 참조 통계 표기(M/F)로 바꾼다 */
-function toReferenceGender(gender) {
-  if (gender === 'MALE') return 'M'
-  if (gender === 'FEMALE') return 'F'
-  return null
-}
-
-async function postJson(path, body) {
-  try {
-    const res = await fetch(`${AI_BASE}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    return res.ok ? await res.json() : null
-  } catch {
-    return null // AI 서버가 꺼져 있어도 화면은 그대로 동작해야 한다
-  }
-}
-
-/**
- * BMI 또래 비교 + 비만도 분류.
- * 성별/출생년도가 없으면(프로필 미입력) 비교 자체가 불가능하므로 호출하지 않는다.
- */
-export function getBmiInsight({ bmi, gender, birthYear }) {
-  const referenceGender = toReferenceGender(gender)
-  if (!bmi || !referenceGender || !birthYear) return Promise.resolve(null)
-
-  return postJson('/ai/inbody/bmi-insight', {
-    bmi,
-    gender: referenceGender,
-    birth_year: birthYear,
-  })
-}
-
-/** 하루 섭취량을 같은 성별·연령대 평균과 비교 */
-export function getNutritionPeerCompare({ total, gender, birthYear }) {
-  const referenceGender = toReferenceGender(gender)
-  if (!total || !referenceGender || !birthYear) return Promise.resolve(null)
-
-  return postJson('/ai/nutrition/peer-compare', {
-    gender: referenceGender,
-    birth_year: birthYear,
-    energy_kcal: total.totalCalories,
-    protein_g: total.totalProteinG,
-    carbs_g: total.totalCarbsG,
-    fat_g: total.totalFatG,
-  })
-}
+// 실시간 코칭 계열은 아직 브라우저가 직접 부른다(hooks/useSquatCoachingSession.js 등).
+// 이 파일에 공통 헬퍼만 남겨두면 "AI 서버를 직접 부르는 곳"이 어디인지 한눈에 보인다.
+export const AI_BASE = import.meta.env.VITE_AI_BASE || 'http://localhost:8000'

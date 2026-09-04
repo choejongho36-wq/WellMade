@@ -4,7 +4,6 @@ AI 서버의 시작점.
 """
 
 import os
-from datetime import date
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -57,6 +56,7 @@ from app.coaching.photo_summary_llm import summarize_photo_analysis
 from app.coaching.realtime import judge_realtime_coaching
 from app.exercise.recommend import find_detail as find_exercise_detail
 from app.exercise.recommend import recommend as recommend_exercises
+from app.insight.age import resolve_age
 from app.insight.bmi_percentile import compute_bmi_insight
 from app.insight.nutrition_peer import compare_with_peers
 from app.insight.posture_percentile import compute_posture_insight
@@ -345,7 +345,8 @@ def posture_insight(
         request.front_landmarks
     )
 
-    age = date.today().year - request.birth_year
+    # 연 나이(만 나이보다 최대 1살 많음) - 계산 근거는 app/insight/age.py 한곳에 모아둔다
+    age, _ = resolve_age(request.birth_year)
 
     result = compute_posture_insight(
         shoulder_tilt_deg=shoulder_tilt_deg,
@@ -378,9 +379,13 @@ def nutrition_peer_compare(
     posture-insight와 달리 백분위가 아니라 "평균 대비 몇 %"를 낸다 —
     원 통계가 집계값(평균+표준오차)만 공개해 분포가 없기 때문이다.
     정상/이상 판정은 하지 않는다(목표 대비 판정은 백엔드의 목표 섭취량 계산이 담당).
+
+    넘어오는 섭취량은 "하루 전체"여야 한다 - 진행 중인 오늘의 부분 합계를 비교하면
+    무의미한 비율이 나온다. 그 판단은 날짜·시각을 아는 백엔드가 한다.
     """
 
-    age = date.today().year - request.birth_year
+    # 생년만 있으면 연 나이라 만 나이보다 최대 1살 많다(구간 경계에서 그룹이 바뀔 수 있음)
+    age, _ = resolve_age(request.birth_year, request.birth_date)
 
     result = compare_with_peers(
         intake={
@@ -415,14 +420,19 @@ def bmi_insight(
     백분위수 대비 위치를 함께 돌려준다.
 
     체지방률·골격근량은 이 통계에 없어 또래 비교를 할 수 없다 — BMI만 지원한다.
+
+    비교는 넘겨받은 BMI 한 건(백엔드가 고른 가장 최근 인바디 기록)에 대해서만 한다.
+    키·체중을 같이 주면 그 값으로 BMI를 다시 계산해 교차검증한다.
     """
 
-    age = date.today().year - request.birth_year
+    age, _ = resolve_age(request.birth_year, request.birth_date)
 
     result = compute_bmi_insight(
         bmi=request.bmi,
         gender=request.gender,
         age=age,
+        height_cm=request.height_cm,
+        weight_kg=request.weight_kg,
     )
 
     return BmiInsightResponse(**result)

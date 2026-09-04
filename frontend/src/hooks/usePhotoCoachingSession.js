@@ -43,8 +43,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { usePoseLandmarker } from './usePoseLandmarker.js'
 import { buildFrontMetrics, buildSideMetrics, editablePointsToLandmarksArray, KEY_LANDMARKS, landmarksToEditablePoints } from '../lib/squatPose.js'
+import { AI_BASE } from '../lib/aiApi.js'
 
-const AI_BASE = import.meta.env.VITE_AI_BASE || 'http://localhost:8000'
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10MB — 업로드 버튼 아래 안내 문구와 동일한 기준
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png']
