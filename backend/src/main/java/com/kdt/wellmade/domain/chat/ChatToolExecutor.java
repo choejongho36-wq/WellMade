@@ -3,6 +3,7 @@ package com.kdt.wellmade.domain.chat;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -504,17 +505,29 @@ public class ChatToolExecutor {
         return toJson(result);
     }
 
-    /** 후보에 붙어 온 국민체력100 영상을 말풍선 아래 버튼으로 그릴 형태로 바꾼다 */
-    private List<Map<String, String>> videoLinks(JsonNode response) {
+    /**
+     * 후보에 붙어 온 국민체력100 영상을 말풍선 아래 버튼으로 그릴 형태로 바꾼다.
+     *
+     * 같은 영상이 여러 운동에 붙을 수 있어서(잭 점프/스타 점프 -> 같은 점핑잭 영상) URL로
+     * 중복을 없앤다. 난이도 태그는 운동 난이도와 같을 때만 보여준다 - 영상 데이터에 초급이
+     * 적어서 "초급 운동 ▶ (중급) 영상"이 자주 나오는데, 그 조합은 사용자에게 혼란만 준다.
+     */
+    List<Map<String, String>> videoLinks(JsonNode response) {
         List<Map<String, String>> links = new ArrayList<>();
+        Set<String> seenUrls = new HashSet<>();
         for (JsonNode candidate : response.path("candidates")) {
             JsonNode video = candidate.path("related_video");
             String url = video.path("video_url").asText("");
-            if (url.isBlank() || links.size() >= MAX_VIDEO_LINKS) {
+            if (url.isBlank() || links.size() >= MAX_VIDEO_LINKS || !seenUrls.add(url)) {
                 continue;
             }
+
             List<String> tags = new ArrayList<>();
-            for (String field : new String[] {"level", "place", "tool"}) {
+            String level = video.path("level").asText("");
+            if (!level.isBlank() && level.equals(candidate.path("difficulty").asText(""))) {
+                tags.add(level);
+            }
+            for (String field : new String[] {"place", "tool"}) {
                 String tag = video.path(field).asText("");
                 if (!tag.isBlank()) {
                     tags.add(tag);

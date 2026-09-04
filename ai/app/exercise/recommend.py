@@ -249,6 +249,23 @@ def _workout_note(target: str, days_ago: dict) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
+def _drop_advanced(pool: list, age: Optional[int]) -> list:
+    """
+    고급 동작을 후보에서 뺀다. 초·중급만으로 채울 수 있으면 나이와 무관하게 뺀다 -
+    "하체 맨몸"에 맨몸 글루트햄 레이즈가 나오면 초보자는 그대로 다치거나 포기한다.
+    고급은 사용자가 명시적으로 원할 때 주는 게 맞는데, 지금은 그렇게 말할 통로가 없다.
+
+    초·중급이 MIN_PICKS도 안 되는 부위(데이터가 얇은 경우)에는 어쩔 수 없이 채우되,
+    50세 이상이면 개수가 모자라더라도 고급은 넣지 않는다.
+    """
+    safer = [e for e in pool if e["difficulty"] != "advanced"]
+    if len(safer) >= MIN_PICKS:
+        return safer
+    if age is not None and age >= NO_ADVANCED_AGE and safer:
+        return safer
+    return pool
+
+
 def _narrow_by_equipment(pool: list, equipment: str) -> tuple:
     """
     장비 조건으로 후보를 좁힌다. (좁힌 후보, 안내 문구) - 조건을 그대로 지키지 못했을 때만 문구가 붙는다.
@@ -283,12 +300,14 @@ def _sort_key(exercise: dict, prefer_home: bool) -> tuple:
     """
     결정적 정렬. 앞의 항목일수록 좋은 후보다.
 
-    복합운동을 먼저 두는 이유: 시간당 자극이 크고, 3~4개짜리 루틴에서 고립운동만 나오면
-    정작 큰 근육을 안 쓰게 된다. 난이도는 낮은 것부터 - 이 앱 사용자는 대부분 초보다.
+    난이도를 맨 앞에 두는 이유: 이 앱 사용자는 대부분 초보다. 복합운동을 먼저 두면
+    "복근 맨몸"에서 인치웜(중급)이 3/4 싯업(초급)보다 앞에 나온다 - 자극의 효율보다
+    "지금 따라 할 수 있는가"가 먼저다. 복합운동 우선은 같은 난이도 안에서만 적용한다
+    (3~4개짜리 루틴이 고립운동으로만 차면 정작 큰 근육을 안 쓰게 되므로).
     """
     return (
-        0 if exercise["is_compound"] else 1,
         DIFFICULTY_ORDER[exercise["difficulty"]],
+        0 if exercise["is_compound"] else 1,
         0 if (prefer_home and exercise["home_friendly"]) else 1,
         exercise["name_ko"],
     )
@@ -351,6 +370,9 @@ def _pick(pool: list, prefer_home: bool, exclude: set) -> list:
             rest,
             key=lambda pair: (
                 0 if pair[1]["target"] not in used_targets else 1,
+                # 다양성보다 난이도가 먼저다. 이게 빠져 있어서 "하체 맨몸"에 햄스트링 타겟이
+                # 비었다는 이유로 글루트햄 레이즈(고급)가 초급 런지들을 밀어냈다.
+                DIFFICULTY_ORDER[pair[1]["difficulty"]],
                 0 if pair[1]["equipment"] not in used_equipment else 1,
                 pair[0],  # 같은 조건이면 원래 순위대로
             ),
@@ -434,11 +456,7 @@ def recommend(
     prefer_home = any(hint in eq for hint in EQUIPMENT_FREE_HINTS | HOME_HINTS) if eq else False
     pool, equipment_note = _narrow_by_equipment(pool, eq)
 
-    # 나이가 있으면 감당하기 어려운 동작을 아예 후보에서 뺀다. 다 빠지면 원래 풀로 되돌린다.
-    if age is not None and age >= NO_ADVANCED_AGE:
-        safer = [e for e in pool if e["difficulty"] != "advanced"]
-        if len(safer) >= MIN_PICKS:
-            pool = safer
+    pool = _drop_advanced(pool, age)
 
     if not pool:
         return {

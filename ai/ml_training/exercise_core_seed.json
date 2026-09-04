@@ -14,7 +14,8 @@
     "기계적으로 매기면 '바벨=고급'처럼 실제와 어긋난다(바벨 컬은 초보도 한다).",
     "",
     "name_ko: 원본 이름을 그대로 쓰기 곤란할 때만 덧씌운다(예: ExerciseDB의 '(male)' 성별 변형 표기).",
-    "덧씌운 이름으로 사용자가 되물어도 설명을 찾을 수 있도록, find_detail이 이 이름도 같이 훑는다."
+    "덧씌운 이름으로 사용자가 되물어도 설명을 찾을 수 있도록, find_detail이 이 이름도 같이 훑는다.",
+    "원본에는 그냥 'squat'/'lunge'/'glute bridge' 같은 기본 동작 항목이 없다(전부 변형 이름이다). 그래서 가장 가까운 항목을 골라 name_ko로 기본 동작 이름을 덧씌운다 - '하체 맨몸 루틴'에 스쿼트가 없으면 사용자가 바로 이상하게 느낀다."
   ],
   "chest": [
     {
@@ -669,6 +670,20 @@
     {
       "name": "one leg squat",
       "difficulty": "advanced",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "potty squat with support",
+      "name_ko": "맨몸 스쿼트",
+      "difficulty": "beginner",
+      "is_compound": true,
+      "home_friendly": true
+    },
+    {
+      "name": "squat to overhead reach",
+      "name_ko": "맨몸 스쿼트 (팔 위로 뻗기)",
+      "difficulty": "beginner",
       "is_compound": true,
       "home_friendly": true
     }

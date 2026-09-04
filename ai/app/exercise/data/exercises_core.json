@@ -1835,6 +1835,42 @@
         "difficulty": "advanced",
         "is_compound": true,
         "home_friendly": true
+      },
+      {
+        "id": "3132",
+        "name": "potty squat with support",
+        "name_ko": "맨몸 스쿼트",
+        "name_ko_source": "포티 스쿼트 & 서포트",
+        "body_part": "upper legs",
+        "equipment": "body weight",
+        "target": "glutes",
+        "secondary_muscles": [
+          "quadriceps",
+          "hamstrings",
+          "calves"
+        ],
+        "instructions_ko": "어깨 너비로 발을 벌리고 발끝이 약간 바깥쪽을 향하도록 서 있습니다. 균형을 위해 의자나 벽과 같은 안정적인 지지대를 잡습니다. 무릎을 구부리고 엉덩이를 뒤로 밀면서 스쿼트 자세로 몸을 낮춥니다. 가슴을 펴고 등은 쭉 펴진 상태로 움직입니다. 바닥에서 잠깐 멈춘 후 발뒤꿈치를 밀어 처음 자세로 돌아옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
+      },
+      {
+        "id": "1685",
+        "name": "squat to overhead reach",
+        "name_ko": "맨몸 스쿼트 (팔 위로 뻗기)",
+        "name_ko_source": "스쿼트 까지 오버헤드 리치",
+        "body_part": "upper legs",
+        "equipment": "body weight",
+        "target": "quads",
+        "secondary_muscles": [
+          "glutes",
+          "hamstrings",
+          "core"
+        ],
+        "instructions_ko": "발을 어깨너비로 벌리고 발가락을 약간 바깥쪽으로 향하게 하면서 서 있습니다. 무릎을 구부리고 엉덩이를 뒤로 밀면서 몸을 스쿼트 자세로 낮춥니다. 스쿼트에서 일어나면서 팔을 머리 위로 펴고 천장을 향해 뻗습니다. 팔을 내리고 무릎을 구부려 다시 스쿼트 자세로 낮추면서 시작 자세로 돌아옵니다. 원하는 횟수만큼 반복합니다.",
+        "difficulty": "beginner",
+        "is_compound": true,
+        "home_friendly": true
       }
     ],
     "waist": [
