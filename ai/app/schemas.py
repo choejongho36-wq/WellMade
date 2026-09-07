@@ -11,6 +11,7 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
 필드가 없다.
 """
 
+from datetime import date
 from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
@@ -317,7 +318,16 @@ class NutritionPeerCompareRequest(BaseModel):
     들고 있지 않다 — 무상태 설계). 넘기지 않은 영양소는 비교에서 빠진다."""
 
     gender: Gender
-    birth_year: int = Field(..., ge=1900, le=2026, description="출생년도. 서버가 현재 연도 기준으로 연령대를 계산한다")
+    birth_year: int = Field(
+        ...,
+        ge=1900,
+        le=2026,
+        description="출생년도. 이것만 있으면 연 나이(현재 연도 - 출생년도)로 계산하므로 "
+                    "만 나이 기준인 원 통계와 최대 1살 어긋난다. birth_date를 같이 주면 정확해진다",
+    )
+    birth_date: Optional[date] = Field(
+        None, description="생년월일. 있으면 정확한 만 나이로 연령 구간을 고른다"
+    )
     energy_kcal: Optional[float] = Field(None, ge=0)
     protein_g: Optional[float] = Field(None, ge=0)
     carbs_g: Optional[float] = Field(None, ge=0)
@@ -351,11 +361,26 @@ class BmiInsightRequest(BaseModel):
     """BMI 인사이트(/ai/inbody/bmi-insight) 요청.
 
     BMI는 백엔드(인바디 기록)가 이미 갖고 있는 값을 그대로 넘긴다 - 키/몸무게로 다시
-    계산하지 않는다(인바디 기기가 낸 값과 우리가 계산한 값이 미세하게 달라지는 걸 피함)."""
+    계산하지 않는다(인바디 기기가 낸 값과 우리가 계산한 값이 미세하게 달라지는 걸 피함).
 
-    bmi: float = Field(..., gt=0, le=100)
+    비교 대상은 항상 "가장 최근 인바디 기록 1건"이다 - 과거 기록과의 추이는 다루지 않는다."""
+
+    # 인바디 OCR이 2.5나 250으로 잘못 읽는 일이 있는데, 그대로 두면 "저체중"/"3단계 비만"으로
+    # 확정돼 버린다. 사람이 가질 수 있는 범위 밖은 아예 받지 않는다.
+    bmi: float = Field(..., ge=10, le=60)
     gender: Gender
-    birth_year: int = Field(..., ge=1900, le=2026)
+    birth_year: int = Field(
+        ...,
+        ge=1900,
+        le=2026,
+        description="출생년도. 이것만 있으면 연 나이로 계산해 만 나이보다 최대 1살 많을 수 있다",
+    )
+    birth_date: Optional[date] = Field(
+        None, description="생년월일. 있으면 정확한 만 나이로 연령 구간을 고른다"
+    )
+    # 키·체중을 같이 주면 BMI를 다시 계산해 교차검증한다(값은 안 바꾸고 warning만 붙는다)
+    height_cm: Optional[float] = Field(None, gt=0, le=300)
+    weight_kg: Optional[float] = Field(None, gt=0, le=500)
 
 
 class BmiInsightResponse(BaseModel):
@@ -367,6 +392,9 @@ class BmiInsightResponse(BaseModel):
     percentile: Optional[float] = Field(
         None, description="같은 성별·연령대에서 이 BMI 이하인 비율(%). 공개 백분위수(5~95) 밖이면 None"
     )
+    warning: Optional[str] = Field(
+        None, description="키·체중으로 다시 계산한 BMI와 크게 다를 때의 경고. 정상이면 None"
+    )
     message: str
     source: str
 
@@ -374,14 +402,48 @@ class BmiInsightResponse(BaseModel):
 # ---- 운동 추천 v1 (챗봇 "운동 추천" 메뉴) ----
 
 
+class RecentWorkout(BaseModel):
+    """운동 메모 한 건. 자유 텍스트에서 부위 키워드만 읽는다(형태소 분석은 하지 않는다)."""
+
+    date: str = Field(..., description="기록한 날짜 (yyyy-MM-dd)")
+    text: str = Field("", description="메모 원문")
+
+
 class ExerciseRecommendRequest(BaseModel):
     """운동 추천(/ai/exercise/recommend) 요청.
 
-    부위는 필수, 장비는 선택. 난이도·자유질문은 백엔드 챗봇이 생성 단계에서 참고하므로
-    이 요청으로는 넘기지 않는다(AI 서버는 후보 필터링만 담당)."""
+    부위만 필수고 나머지는 선택이다. 목표·나이·최근 기록이 오면 세트/횟수와 조언까지
+    여기서 정해서 내려보낸다 - 그걸 모델이 지어내게 두면 같은 목표에도 답이 흔들린다."""
 
     body_part: str = Field(..., description="운동할 부위. 한국어('하체','가슴')나 영문 body_part 키 모두 허용")
     equipment: Optional[str] = Field(None, description="장비/환경 힌트. '맨몸','덤벨' 등. 생략하면 부위 전체에서 뽑음")
+    goal: Optional[Literal["LOSE", "GAIN", "MAINTAIN"]] = Field(
+        None, description="프로필 목표(백엔드 Goal enum 이름). 세트/횟수 처방이 여기서 갈린다. 없으면 유지 기준"
+    )
+    age: Optional[int] = Field(None, ge=1, le=120, description="나이. 50세 이상이면 고급 동작을 후보에서 뺀다")
+    recent_workouts: list[RecentWorkout] = Field(
+        default_factory=list, description="최근 7일 운동 메모. '어제 하체 하셨네요' 같은 조언에만 쓴다"
+    )
+    exclude: list[str] = Field(
+        default_factory=list, description="최근에 이미 추천한 운동 이름. 같은 답이 반복되지 않게 뺀다"
+    )
+    exclude_from_text: list[str] = Field(
+        default_factory=list,
+        description="최근 챗봇 답변 원문. 여기 등장한 운동 이름을 빼서 같은 추천이 반복되지 않게 한다 "
+                    "(운동 이름 목록은 이 서버에만 있으므로 백엔드는 원문만 넘긴다)",
+    )
+
+
+class ExerciseVideo(BaseModel):
+    """국민체력100 참고 영상. 운동명이 아니라 타겟 근육으로 이었으므로 '관련 영상'이다."""
+
+    name: str
+    level: Optional[str] = Field(None, description="초급/중급/고급 (원본에 없으면 None)")
+    place: Optional[str] = None
+    tool: Optional[str] = None
+    duration_sec: Optional[int] = None
+    video_url: str
+    muscles_ko: Optional[str] = None
 
 
 class ExerciseCandidate(BaseModel):
@@ -389,13 +451,47 @@ class ExerciseCandidate(BaseModel):
     body_part: str
     equipment: str
     target: str
+    difficulty: str = Field("", description="초급/중급/고급 (사람이 붙인 큐레이션 태그)")
+    is_compound: bool = False
+    home_friendly: bool = False
+    sets_reps: str = Field("", description="목표에 따라 정해진 세트/횟수")
+    # 챗봇이 운동 방법을 지어내지 않도록 후보마다 한국어 설명을 같이 준다(자세한 배경은
+    # app/exercise/recommend.py의 candidates 주석 참고).
+    instructions_ko: str = ""
+    related_video: Optional[ExerciseVideo] = None
 
 
 class ExerciseRecommendResponse(BaseModel):
     body_part: str = Field(..., description="필터에 사용한 영문 body_part (부위 매핑 실패 시 빈 문자열)")
+    body_part_ko: Optional[str] = None
     matched: int = Field(..., description="조건에 맞은 운동 총 개수")
+    goal: Optional[str] = Field(None, description="처방에 사용한 목표 이름 (설정 안 했으면 None)")
+    plan: Optional[str] = Field(None, description="세트/횟수 + 휴식 한 줄")
     candidates: list[ExerciseCandidate]
+    cautions: list[str] = Field(default_factory=list, description="부위·나이에 따른 주의사항")
+    workout_note: Optional[str] = Field(None, description="최근 운동 기록을 근거로 한 조언 한 줄")
     note: Optional[str] = Field(None, description="후보가 없을 때 사용자에게 보여줄 안내 문구")
+
+
+class ExerciseDetailRequest(BaseModel):
+    """운동 상세(/ai/exercise/detail) 요청. 추천 목록에서 사용자가 지목한 운동 하나."""
+
+    name: str = Field(..., description="운동 이름. 추천 목록에 보여준 한국어 이름이거나 그 일부")
+
+
+class ExerciseDetailResponse(BaseModel):
+    """
+    한 운동의 한국어 수행 방법. 챗봇이 설명을 지어내지 않고 이 값을 옮겨쓰게 하려는 응답이라
+    instructions_ko 를 반드시 함께 준다(없으면 found=False).
+    """
+
+    found: bool
+    name: Optional[str] = None
+    body_part: Optional[str] = None
+    equipment: Optional[str] = None
+    target: Optional[str] = None
+    instructions_ko: Optional[str] = Field(None, description="데이터셋의 한국어 수행 방법 원문")
+    note: Optional[str] = Field(None, description="못 찾았을 때 사용자에게 보여줄 안내 문구")
 
 
 # ---- 하네스 오케스트레이션 (AI-07) ----

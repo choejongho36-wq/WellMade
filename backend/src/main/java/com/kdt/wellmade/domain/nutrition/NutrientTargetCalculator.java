@@ -1,11 +1,11 @@
 package com.kdt.wellmade.domain.nutrition;
 
-import java.time.LocalDate;
 
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
 import com.kdt.wellmade.domain.mapage.Gender;
 import com.kdt.wellmade.domain.mapage.Goal;
 import com.kdt.wellmade.domain.mapage.UserProfile;
+import com.kdt.wellmade.global.time.AppTime;
 
 import org.springframework.stereotype.Component;
 
@@ -58,7 +58,7 @@ public class NutrientTargetCalculator {
             return weight * 24;
         }
 
-        int age = Math.max(1, LocalDate.now().getYear() - birthYear);
+        int age = Math.max(1, AppTime.today().getYear() - birthYear);
         double base = 10 * weight + 6.25 * heightCm - 5 * age;
         return gender == Gender.MALE ? base + 5 : base - 161;
     }

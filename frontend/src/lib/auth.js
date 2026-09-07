@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import iconGoogle from '../assets/icon-google.png'
 import iconKakao from '../assets/icon-kakao.png'
@@ -51,13 +51,16 @@ function useAuthState() {
   const codeExchanged = useRef(false)
   const navigate = useNavigate()
 
-  const handleLogout = () => {
+  // 아래 API 함수들은 useEffect 안에서 불리는 게 많은데, 매 렌더 새로 만들어지면 의존성 배열에
+  // 넣을 수가 없어서 exhaustive-deps를 끄고 쓰게 된다(그러면 진짜 빠뜨린 의존성도 같이 묻힌다).
+  // 뿌리인 handleLogout/authFetch부터 고정해두면 그 위의 함수들도 같이 고정할 수 있다.
+  const handleLogout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
     sessionStorage.removeItem(USER_CACHE_KEY)
     setUser(null)
     setProfile(null)
     setInbody(null)
-  }
+  }, [])
 
   /**
    * 토큰을 붙여 API를 호출하고 Response를 그대로 돌려준다(본문 파싱은 호출부 몫 -
@@ -67,7 +70,7 @@ function useAuthState() {
    * 같은 엉뚱한 메시지만 던지고 로그인 상태는 그대로 남아 있었다. 401을 여기서 한 번에
    * 처리해서 로그아웃시키고 만료된 것을 알린다.
    */
-  const authFetch = async (path, options = {}) => {
+  const authFetch = useCallback(async (path, options = {}) => {
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) throw new Error('로그인이 필요합니다')
 
@@ -84,14 +87,14 @@ function useAuthState() {
       throw new Error('로그인이 만료됐어요. 다시 로그인해주세요')
     }
     return res
-  }
+  }, [handleLogout])
 
   // 응답 본문이 있는 표준 케이스 - 실패하면 주어진 메시지로 예외를 던진다
-  const authJson = async (path, options, failMessage) => {
+  const authJson = useCallback(async (path, options, failMessage) => {
     const res = await authFetch(path, options)
     if (!res.ok) throw new Error(failMessage)
     return res.json()
-  }
+  }, [authFetch])
 
   // 서버가 실패 사유를 본문에 담아주는 케이스(닉네임 중복 등)
   const authJsonWithServerError = async (path, options, failMessage) => {
@@ -178,8 +181,8 @@ function useAuthState() {
         .then(setInbody),
     )
 
-  const getInbodyHistory = () =>
-    authJson('/api/users/me/inbody/history', {}, '인바디 이력을 불러오지 못했어요')
+  const getInbodyHistory = useCallback(() =>
+    authJson('/api/users/me/inbody/history', {}, '인바디 이력을 불러오지 못했어요'), [authJson])
 
   // 성별/키/출생연도. 목표 칼로리·기초대사량이 이 값으로 계산되므로 저장 후 프로필 상태도 같이 갱신함
   const updateBody = ({ gender, heightCm, birthYear }) =>
@@ -210,10 +213,13 @@ function useAuthState() {
 
   // 대화 이력을 이제 서버가 갖고 있어서(9번 패치), 매번 전체 배열이 아니라 새 메시지 하나만 보내면 됨.
   // 응답은 SSE 스트림 - 토큰이 올 때마다 onDelta(누적문자열)를 호출하고, 최종 전체 문자열을 반환함.
-  const sendChat = async (message, onDelta) => {
+  //
+  // followUpId는 봇이 되물은 뒤 받는 답일 때만 채운다(운동 추천). 모델에게 보낼 문장으로 감싸는 것도,
+  // 앞의 두 말풍선을 이력에 남기는 것도 서버가 한다 - 여기선 사용자가 친 말 그대로 보낸다.
+  const sendChat = async (message, onDelta, followUpId = null) => {
     const res = await authFetch('/api/users/me/chat', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, followUpId }),
     })
     if (!res.ok || !res.body) throw new Error('답변을 받지 못했어요')
 
@@ -221,6 +227,8 @@ function useAuthState() {
     const decoder = new TextDecoder()
     let buffer = ''
     let full = ''
+    let action = null   // 스트림 끝에 한 번 오는 후속 행동 신호 (예: register_inbody)
+    let links = []      // 도구가 실어 보낸 바깥 링크 (운동 추천의 국민체력100 영상)
 
     for (;;) {
       const { done, value } = await reader.read()
@@ -247,13 +255,21 @@ function useAuthState() {
           continue
         }
         if (parsed.error) throw new Error(parsed.error)
+        if (parsed.action) action = parsed.action
+        if (parsed.links) links = parsed.links
+        // 도구를 부른 턴에서 최종 답변을 다시 흘리기 직전에 온다. 그 전에 나온 조각
+        // ("찾아볼게요" 같은 예고문)은 답변이 아니므로 말풍선을 비우고 다시 그린다
+        if (parsed.reset) {
+          full = ''
+          onDelta?.(full)
+        }
         if (parsed.t) {
           full += parsed.t
           onDelta?.(full)
         }
       }
     }
-    return full
+    return { content: full, action, links }
   }
 
   const getChatHistory = () =>
@@ -264,16 +280,17 @@ function useAuthState() {
 
   const getNutrientAdvice = () =>
     authJson('/api/users/me/chat/nutrient-advice', { method: 'POST' }, '분석을 받지 못했어요')
-      .then((data) => data.content)
 
   // 날짜별 메모. 내용을 비워서 저장하면 서버가 그 날 메모를 지운다.
-  const getWorkoutMemo = (date) =>
+  const getWorkoutMemo = useCallback((date) =>
     authJson(`/api/users/me/workout-memos/${date}`, {}, '메모를 불러오지 못했어요')
-      .then((data) => data.content ?? '')
+      .then((data) => data.content ?? ''), [authJson])
 
-  // 캘린더가 "메모 있는 날"을 표시하려고 한 달치를 한 번에 받는다 (날짜 -> 내용)
-  const getWorkoutMemoMonth = (year, month) =>
-    authJson(`/api/users/me/workout-memos?year=${year}&month=${month}`, {}, '메모를 불러오지 못했어요')
+  // 캘린더가 "메모 있는 날"을 표시하려고 한 달치를 한 번에 받는다.
+  // 값은 본문 전체가 아니라 앞 30자 미리보기다(툴팁용) - 내용은 날짜를 고를 때 따로 받아간다.
+  const getWorkoutMemoMonth = useCallback((year, month) =>
+    authJson(`/api/users/me/workout-memos?year=${year}&month=${month}`, {}, '메모를 불러오지 못했어요'),
+    [authJson])
 
   const saveWorkoutMemo = (date, content) =>
     authJson(`/api/users/me/workout-memos/${date}`, {
@@ -283,9 +300,9 @@ function useAuthState() {
 
   // 메뉴 버튼 답변. 자유 대화(sendChat)와 달리 서버가 도구를 직접 실행하므로 스트리밍이 아니다 -
   // 대신 라운드가 하나 줄고, 기록이 없으면 LLM 없이 즉시 응답한다.
+  // { content, action } 을 그대로 넘긴다 - action 은 말풍선 아래 버튼을 그리라는 신호
   const sendChatMenu = (menuId) =>
     authJson(`/api/users/me/chat/menu/${menuId}`, { method: 'POST' }, '답변을 받지 못했어요')
-      .then((data) => data.content)
 
   // date를 넘기면 그 날짜로 기록된다(깜빡한 지난 끼니 채워넣기). 생략하면 서버가 오늘로 처리
   const logMeal = (message, mealType, date) =>
@@ -301,24 +318,46 @@ function useAuthState() {
       body: JSON.stringify({ foodName, kcal, mealType: mealType || null, date: date || null }),
     }, '직접 기록에 실패했어요')
 
-  const getTodayMeals = (date) =>
-    authJson(`/api/diet/meals/today${date ? `?date=${date}` : ''}`, {}, '식단 기록을 불러오지 못했어요')
+  const getTodayMeals = useCallback((date) =>
+    authJson(`/api/diet/meals/today${date ? `?date=${date}` : ''}`, {}, '식단 기록을 불러오지 못했어요'),
+    [authJson])
 
-  const getTodayTotal = (date) =>
-    authJson(`/api/diet/meals/today/total${date ? `?date=${date}` : ''}`, {}, '합계를 불러오지 못했어요')
+  const getTodayTotal = useCallback((date) =>
+    authJson(`/api/diet/meals/today/total${date ? `?date=${date}` : ''}`, {}, '합계를 불러오지 못했어요'),
+    [authJson])
 
   // 달력 칸에 날짜별 칼로리를 표시하기 위한 월 단위 합계. { "2026-08-05": 1850, ... } 형태
-  const getMonthCalories = (year, month) =>
-    authJson(`/api/diet/meals/month?year=${year}&month=${month}`, {}, '월별 기록을 불러오지 못했어요')
+  const getMonthCalories = useCallback((year, month) =>
+    authJson(`/api/diet/meals/month?year=${year}&month=${month}`, {}, '월별 기록을 불러오지 못했어요'),
+    [authJson])
+
+  /**
+   * 또래 비교(BMI / 영양). 예전엔 브라우저가 AI 서버(/ai/...)를 인증 없이 직접 불렀는데,
+   * 이제 백엔드가 JWT를 확인하고 DB에서 값을 읽어 AI 서버를 대신 부른다(PeerInsightService).
+   * 비교할 값을 클라이언트가 넘기지 않으므로 "내 기록"에 대한 답이라는 게 보장된다.
+   *
+   * 실패하거나 비교 불가면 { error } 가 담겨 오거나 null이다 - 부가 정보라 화면을 막지 않는다.
+   */
+  const getBmiInsight = useCallback(() =>
+    authFetch('/api/users/me/insights/bmi')
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null), [authFetch])
+
+  const getNutritionPeerCompare = useCallback((date) =>
+    authFetch(`/api/users/me/insights/nutrition${date ? `?date=${date}` : ''}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null), [authFetch])
 
   // 달력 칸에 공휴일을 표시하기 위한 월 단위 조회. { "2026-01-01": "신정", ... } 형태
   // (서버가 공공데이터포털 API로 조회 - 키 미설정이면 그냥 빈 객체가 옴)
-  const getHolidays = (year, month) =>
-    authJson(`/api/calendar/holidays?year=${year}&month=${month}`, {}, '공휴일 정보를 불러오지 못했어요')
+  const getHolidays = useCallback((year, month) =>
+    authJson(`/api/calendar/holidays?year=${year}&month=${month}`, {}, '공휴일 정보를 불러오지 못했어요'),
+    [authJson])
 
   // 목표+인바디가 아직 없으면 서버가 204(본문 없음)를 주므로 null로 처리
-  const getNutrientTarget = () =>
-    authFetch('/api/diet/meals/target').then((res) => (res.status === 200 ? res.json() : null))
+  const getNutrientTarget = useCallback(() =>
+    authFetch('/api/diet/meals/target').then((res) => (res.status === 200 ? res.json() : null)),
+    [authFetch])
 
   const updateNutrientTarget = ({ kcal, proteinG, carbsG, fatG }) =>
     authFetch('/api/diet/meals/target', {
@@ -368,6 +407,7 @@ function useAuthState() {
     sessionExpired, dismissSessionExpired: () => setSessionExpired(false),
     deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory,
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
+    getBmiInsight, getNutritionPeerCompare,
     logManualMeal,
     updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
     sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu,

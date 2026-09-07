@@ -4,7 +4,6 @@ AI 서버의 시작점.
 """
 
 import os
-from datetime import date
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -22,6 +21,8 @@ load_dotenv()
 from app.schemas import (
     CoachingFrameRequest,
     CoachingFrameResponse,
+    ExerciseDetailRequest,
+    ExerciseDetailResponse,
     ExerciseRecommendRequest,
     ExerciseRecommendResponse,
     ModelCompareRequest,
@@ -53,7 +54,9 @@ from app.schemas import (
 from app.coaching.llm_model_compare import compare_models
 from app.coaching.photo_summary_llm import summarize_photo_analysis
 from app.coaching.realtime import judge_realtime_coaching
+from app.exercise.recommend import find_detail as find_exercise_detail
 from app.exercise.recommend import recommend as recommend_exercises
+from app.insight.age import resolve_age
 from app.insight.bmi_percentile import compute_bmi_insight
 from app.insight.nutrition_peer import compare_with_peers
 from app.insight.posture_percentile import compute_posture_insight
@@ -344,7 +347,8 @@ def posture_insight(
         request.front_landmarks
     )
 
-    age = date.today().year - request.birth_year
+    # 연 나이(만 나이보다 최대 1살 많음) - 계산 근거는 app/insight/age.py 한곳에 모아둔다
+    age, _ = resolve_age(request.birth_year)
 
     result = compute_posture_insight(
         shoulder_tilt_deg=shoulder_tilt_deg,
@@ -377,9 +381,13 @@ def nutrition_peer_compare(
     posture-insight와 달리 백분위가 아니라 "평균 대비 몇 %"를 낸다 —
     원 통계가 집계값(평균+표준오차)만 공개해 분포가 없기 때문이다.
     정상/이상 판정은 하지 않는다(목표 대비 판정은 백엔드의 목표 섭취량 계산이 담당).
+
+    넘어오는 섭취량은 "하루 전체"여야 한다 - 진행 중인 오늘의 부분 합계를 비교하면
+    무의미한 비율이 나온다. 그 판단은 날짜·시각을 아는 백엔드가 한다.
     """
 
-    age = date.today().year - request.birth_year
+    # 생년만 있으면 연 나이라 만 나이보다 최대 1살 많다(구간 경계에서 그룹이 바뀔 수 있음)
+    age, _ = resolve_age(request.birth_year, request.birth_date)
 
     result = compare_with_peers(
         intake={
@@ -414,14 +422,19 @@ def bmi_insight(
     백분위수 대비 위치를 함께 돌려준다.
 
     체지방률·골격근량은 이 통계에 없어 또래 비교를 할 수 없다 — BMI만 지원한다.
+
+    비교는 넘겨받은 BMI 한 건(백엔드가 고른 가장 최근 인바디 기록)에 대해서만 한다.
+    키·체중을 같이 주면 그 값으로 BMI를 다시 계산해 교차검증한다.
     """
 
-    age = date.today().year - request.birth_year
+    age, _ = resolve_age(request.birth_year, request.birth_date)
 
     result = compute_bmi_insight(
         bmi=request.bmi,
         gender=request.gender,
         age=age,
+        height_cm=request.height_cm,
+        weight_kg=request.weight_kg,
     )
 
     return BmiInsightResponse(**result)
@@ -438,20 +451,44 @@ def bmi_insight(
 )
 def exercise_recommend(request: ExerciseRecommendRequest):
     """
-    운동 추천 후보 조회 API (v1).
+    운동 추천 API (v2).
 
-    exercises_ko.json에서 부위(+장비)로 필터링한 후보 목록만 돌려준다. 자연어 추천문은
-    백엔드 챗봇이 기존 스트리밍 경로로 생성한다(도구 결과를 문장으로 옮기는 패턴).
-    RAG/임베딩 없이 정형 필터 — body_part 값이 10종뿐이고 조건도 단순해서 충분하다.
-    난이도는 데이터에 없어 여기서 거르지 않는다(생성 단계에서 참고).
+    "무엇을 몇 세트 할지"까지 규칙으로 정해서 내려보낸다 — 자연어 추천문만 백엔드 챗봇이
+    기존 스트리밍 경로로 만든다(도구 결과를 문장으로 옮기는 패턴). 세트/횟수와 주의사항을
+    모델이 지어내게 두면 같은 목표에도 답이 흔들리고 근거를 댈 수 없다.
+
+    후보는 사람이 고른 기본 동작(exercises_core.json)에서만 뽑고, 순서는 결정적이다.
+    임베딩/벡터 검색은 쓰지 않는다 — 자세한 판단 근거는 app/exercise/recommend.py 참고.
     """
 
     result = recommend_exercises(
         body_part=request.body_part,
         equipment=request.equipment or "",
+        goal=request.goal,
+        age=request.age,
+        recent_workouts=[w.model_dump() for w in request.recent_workouts],
+        exclude=request.exclude,
+        exclude_from_text=request.exclude_from_text,
     )
 
     return ExerciseRecommendResponse(**result)
+
+
+@app.post(
+    "/ai/exercise/detail",
+    response_model=ExerciseDetailResponse,
+)
+def exercise_detail(request: ExerciseDetailRequest):
+    """
+    운동 하나의 한국어 수행 방법 조회.
+
+    추천 목록을 보여준 뒤 사용자가 "플랭크는 어떻게 해?"처럼 하나를 지목했을 때 쓴다.
+    예전에는 이 단계에서 챗봇이 도구 없이 설명을 직접 지어냈는데, 근거 없는 자유 생성이라
+    Qwen이 중국어로 새는 턴이 나왔다(실측). 데이터셋 1,324건 전부에 instructions_ko 가
+    있으므로 그걸 그대로 넘겨 "창작"을 "옮겨쓰기"로 바꾼다.
+    """
+
+    return ExerciseDetailResponse(**find_exercise_detail(request.name))
 
 
 # ===========================================================================

@@ -13,11 +13,11 @@ import org.springframework.stereotype.Service;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.kdt.wellmade.global.time.AppTime;
  
 /**
  * "오늘 뭐 먹었는지" 기록하고 조회하는 서비스.
@@ -130,7 +130,7 @@ public class MealLoggingService {
 
         // 저장된 id가 필요함 - 기록 직후 그 자리에서 "다른 음식인가요?" 후보를 고칠 수 있어야 해서
         Object[] params = {
-                userId, loggedDate != null ? loggedDate : LocalDate.now(), resolvedMealType, menuNameSummary, rawMessage,
+                userId, loggedDate != null ? loggedDate : AppTime.today(), resolvedMealType, menuNameSummary, rawMessage,
                 Math.round(totalCalories), totalProtein, totalCarbs, totalFat, foodItemsJson
         };
         KeyHolder keyHolder = new GeneratedKeyHolder();
@@ -186,7 +186,7 @@ public class MealLoggingService {
                  kcal, protein_g, carbs_g, fat_g, food_items)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                userId, loggedDate != null ? loggedDate : LocalDate.now(), resolvedMealType, name, name,
+                userId, loggedDate != null ? loggedDate : AppTime.today(), resolvedMealType, name, name,
                 Math.round(kcal), 0, 0, 0, toJson(List.of(manualItem))
         );
 
@@ -313,7 +313,7 @@ public class MealLoggingService {
 
     /**
      * food_items 배열 중 한 항목의 그램 수를 고쳐서, 그 항목만 영양정보를 다시 조회하고
-     * 끼니 전체 합계(kcal/protein/carbs/fat)를 재계산해서 반영함 (본인 소유 레코드만).
+     * 끼니 전체 합계(kcal/protein/carbs/fat)를 재계산해서 반영함 (본인 소유 레코드만)
      * 사용자가 그램을 직접 지정하는 행위이므로 인분수 환산은 거치지 않고 그대로 씀.
      *
      * @param itemIndex food_items 배열에서의 0부터 시작하는 인덱스
@@ -448,7 +448,7 @@ public class MealLoggingService {
     }
 
     private String inferMealTypeByTime() {
-        int hour = LocalTime.now().getHour();
+        int hour = AppTime.nowTime().getHour();
         if (hour < 11) return "BREAKFAST";
         if (hour < 15) return "LUNCH";
         if (hour < 21) return "DINNER";

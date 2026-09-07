@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { getNutritionPeerCompare } from '../lib/aiApi.js'
 import { useAuth } from '../lib/auth.js'
 import Modal from './Modal.jsx'
 import './NutrientDetailModal.css'
@@ -155,20 +154,18 @@ function TargetEditForm({ target, onSaved, onCancel }) {
   )
 }
 
-function NutrientDetailModal({ summary, target, onClose, onTargetChange, title = '오늘 영양소' }) {
-  const { profile } = useAuth()
+function NutrientDetailModal({ summary, target, date, onClose, onTargetChange, title = '오늘 영양소' }) {
+  const { getNutritionPeerCompare } = useAuth()
   const [editing, setEditing] = useState(false)
   const [peer, setPeer] = useState(null)
 
-  // 같은 성별·연령대 평균과 비교(AI 서버). 프로필이 없거나 AI 서버가 꺼져 있으면
-  // null이 와서 아래 섹션이 안 보일 뿐, 영양소 화면 자체는 그대로 동작한다
+  // 같은 성별·연령대 평균과 비교. 섭취량은 백엔드가 그 날짜로 다시 집계하므로 날짜만 넘긴다
+  // (예전엔 이 화면이 AI 서버를 직접 부르면서 합계까지 실어 보냈다).
+  // 프로필이 없거나 AI 서버가 꺼져 있으면 error가 담겨 와서 아래 섹션이 안 보일 뿐,
+  // 영양소 화면 자체는 그대로 동작한다.
   useEffect(() => {
-    getNutritionPeerCompare({
-      total: summary,
-      gender: profile?.gender,
-      birthYear: profile?.birthYear,
-    }).then(setPeer)
-  }, [summary, profile?.gender, profile?.birthYear])
+    getNutritionPeerCompare(date).then((data) => setPeer(data?.error ? null : data))
+  }, [date, getNutritionPeerCompare])
 
   const handleSaved = (newTarget) => {
     onTargetChange?.(newTarget)
@@ -237,7 +234,7 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
 
             {/* 또래 비교 - 목표 대비(위 게이지)와 다른 축의 정보다.
                 목표를 안 정한 사용자에게도 "많이 먹었나 적게 먹었나" 감각을 준다 */}
-            {peer && peer.comparisons.length > 0 && (
+            {peer && peer.comparisons?.length > 0 && (
               <div className="nutrient-peer">
                 <div className="nutrient-peer-head">
                   같은 {peer.age_bracket}세 평균과 비교
@@ -252,6 +249,9 @@ function NutrientDetailModal({ summary, target, onClose, onTargetChange, title =
                     <span className="nutrient-peer-pct">{c.percent_of_peer}%</span>
                   </div>
                 ))}
+                {/* 아직 끝나지 않은 오늘을 비교하면 "평균의 28%"처럼 낮게 나온다 -
+                    적게 먹었다는 뜻이 아니므로 서버가 실어 보낸 안내를 그대로 보여준다 */}
+                {peer.note && <div className="nutrient-peer-note">{peer.note}</div>}
                 <div className="nutrient-peer-source">{peer.source}</div>
               </div>
             )}

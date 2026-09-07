@@ -3,9 +3,12 @@ package com.kdt.wellmade.domain.chat;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,13 +20,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
 import com.kdt.wellmade.domain.inbody.InbodyService;
-import com.kdt.wellmade.domain.mapage.Gender;
 import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileService;
 import com.kdt.wellmade.domain.nutrition.MealLoggingService;
 import com.kdt.wellmade.domain.nutrition.NutrientTarget;
 import com.kdt.wellmade.domain.nutrition.NutrientTargetCalculator;
+import com.kdt.wellmade.domain.insight.PeerInsightService;
 import com.kdt.wellmade.domain.user.User;
+import com.kdt.wellmade.domain.workout.WorkoutMemoService;
+import com.kdt.wellmade.global.time.AppTime;
+import org.springframework.data.domain.PageRequest;
 
 /**
  * 챗봇 툴콜링에서 모델이 호출할 수 있는 도구들. 도구 스펙({@link #TOOLS})과 실제 실행({@link #execute})을
@@ -100,9 +106,10 @@ public class ChatToolExecutor {
             ),
             toolDef(
                     "recommend_exercises",
-                    "사용자가 운동 추천을 원할 때, 부위와 장비 조건에 맞는 운동 후보 목록을 가져온다. "
-                  + "'하체 운동 추천해줘', '집에서 할 수 있는 등 운동' 같은 요청에 쓸 것. 부위를 모르면 "
-                  + "먼저 사용자에게 물어보고, 부위가 정해지면 이 도구를 호출해 그 결과 안에서만 추천할 것.",
+                    "사용자가 운동 추천을 원할 때, 부위와 장비 조건에 맞는 운동 목록과 목표별 세트/횟수, "
+                  + "주의사항을 가져온다. '하체 운동 추천해줘', '집에서 할 수 있는 등 운동' 같은 요청에 쓸 것. "
+                  + "부위를 모르면 먼저 사용자에게 물어보고, 부위가 정해지면 이 도구를 호출해 그 결과 안에서만 "
+                  + "추천할 것. 세트 수와 횟수는 직접 정하지 말고 결과의 sets_reps 를 그대로 인용할 것.",
                     Map.of(
                             "body_part", Map.of(
                                     "type", "string",
@@ -114,45 +121,94 @@ public class ChatToolExecutor {
                             )
                     ),
                     List.of("body_part")
+            ),
+            toolDef(
+                    "get_exercise_detail",
+                    "운동 하나의 한국어 수행 방법을 가져온다. 추천한 운동 중 사용자가 하나를 지목하거나 "
+                  + "('플랭크는 어떻게 해?', '각 운동 설명해줘') 특정 운동의 방법을 물으면 반드시 이 도구를 "
+                  + "부를 것. 설명을 직접 지어내지 말 것 - 여러 개를 물으면 운동마다 한 번씩 호출할 것.",
+                    Map.of(
+                            "name", Map.of(
+                                    "type", "string",
+                                    "description", "운동 이름. 추천 목록에 보여준 한국어 이름 그대로 넣을 것."
+                            )
+                    ),
+                    List.of("name")
             )
     );
+
+    /**
+     * TOOLS에 정의된 도구 이름 모음. 모델이 툴콜을 구조화된 tool_calls 대신 본문 텍스트로 흘렸을 때
+     * 그게 툴콜인지 판별하고 회수하는 데 쓴다({@code ChatService.looksLikeToolCallText} 참고) -
+     * 도구를 추가하면 여기도 자동으로 따라오도록 TOOLS에서 뽑아 쓴다.
+     */
+    @SuppressWarnings("unchecked")
+    static final Set<String> TOOL_NAMES = TOOLS.stream()
+            .map(t -> (String) ((Map<String, Object>) t.get("function")).get("name"))
+            .collect(Collectors.toUnmodifiableSet());
 
     private final UserProfileService userProfileService;
     private final InbodyService inbodyService;
     private final MealLoggingService mealLoggingService;
     private final NutrientTargetCalculator nutrientTargetCalculator;
     private final RestClient aiRestClient;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+    private final PeerInsightService peerInsightService;
+    private final WorkoutMemoService workoutMemoService;
+    private final ChatMessageRepository chatMessageRepository;
 
     public ChatToolExecutor(
             UserProfileService userProfileService,
             InbodyService inbodyService,
             MealLoggingService mealLoggingService,
             NutrientTargetCalculator nutrientTargetCalculator,
-            RestClient aiRestClient
+            RestClient aiRestClient,
+            ObjectMapper objectMapper,
+            PeerInsightService peerInsightService,
+            WorkoutMemoService workoutMemoService,
+            ChatMessageRepository chatMessageRepository
     ) {
         this.userProfileService = userProfileService;
         this.inbodyService = inbodyService;
         this.mealLoggingService = mealLoggingService;
         this.nutrientTargetCalculator = nutrientTargetCalculator;
         this.aiRestClient = aiRestClient;
+        this.objectMapper = objectMapper;
+        this.peerInsightService = peerInsightService;
+        this.workoutMemoService = workoutMemoService;
+        this.chatMessageRepository = chatMessageRepository;
     }
 
-    String execute(User user, String name, Map<String, Object> arguments) {
+    /**
+     * 도구 실행 결과.
+     *
+     * json은 모델에게 줄 내용이고, links는 모델을 거치지 않고 화면에 그대로 그릴 버튼이다
+     * (운동 추천의 국민체력100 영상). URL을 모델에게 주면 답변 안에 주소를 그대로 뱉거나
+     * 없는 주소를 지어내므로, 링크는 모델을 통과시키지 않는다.
+     */
+    record ToolResult(String json, List<Map<String, String>> links) {
+        static ToolResult of(String json) {
+            return new ToolResult(json, List.of());
+        }
+    }
+
+    ToolResult execute(User user, String name, Map<String, Object> arguments) {
         try {
             return switch (name) {
-                case "get_meals_for_date" -> toolGetMealsForDate(user.getId(), arguments);
-                case "get_daily_total" -> toolGetDailyTotal(user.getId(), arguments);
-                case "get_inbody_history" -> toolGetInbodyHistory(user, arguments);
-                case "get_bmi_peer_comparison" -> toolGetBmiPeerComparison(user);
-                case "get_nutrition_peer_comparison" -> toolGetNutritionPeerComparison(user, user.getId(), arguments);
-                case "calculate_nutrient_target" -> toolCalculateNutrientTarget(user);
-                case "recommend_exercises" -> toolRecommendExercises(arguments);
-                default -> toJson(Map.of("error", "알 수 없는 도구입니다: " + name));
+                case "get_meals_for_date" -> ToolResult.of(toolGetMealsForDate(user.getId(), arguments));
+                case "get_daily_total" -> ToolResult.of(toolGetDailyTotal(user.getId(), arguments));
+                case "get_inbody_history" -> ToolResult.of(toolGetInbodyHistory(user, arguments));
+                case "get_bmi_peer_comparison" -> ToolResult.of(toolGetBmiPeerComparison(user));
+                case "get_nutrition_peer_comparison" ->
+                        ToolResult.of(toolGetNutritionPeerComparison(user, user.getId(), arguments));
+                case "calculate_nutrient_target" -> ToolResult.of(toolCalculateNutrientTarget(user));
+                case "recommend_exercises" -> toolRecommendExercises(user, arguments);
+                case "get_exercise_detail" -> ToolResult.of(toolGetExerciseDetail(arguments));
+                default -> ToolResult.of(toJson(Map.of("error", "알 수 없는 도구입니다: " + name)));
             };
         } catch (Exception e) {
             log.error("도구 실행 실패: {}", name, e);
-            return toJson(Map.of("error", "도구 실행 중 문제가 발생했어요."));
+            return ToolResult.of(toJson(Map.of("error", "도구 실행 중 문제가 발생했어요.")));
         }
     }
 
@@ -278,83 +334,24 @@ public class ChatToolExecutor {
         return toJson(result);
     }
 
+    // 또래 비교의 실제 내용(프로필 검증, BMI 유효성·교차검증, 오늘 비교 주의문구, AI 서버 호출)은
+    // PeerInsightService에 있다 - 마이페이지/영양소 화면도 같은 서비스를 쓴다. 여기서는 모델이
+    // 읽을 필드만 남기는 일만 한다.
     private String toolGetBmiPeerComparison(User user) {
-        UserProfile profile = getProfileOrNull(user);
-        String peerError = peerProfileError(profile);
-        if (peerError != null) {
-            return toJson(Map.of("error", peerError));
-        }
-
-        InbodyRecord inbody = inbodyService.getLatest(user).orElse(null);
-        if (inbody == null || inbody.getBmi() == null) {
-            return toJson(Map.of("error", "인바디 기록이 없어서 또래 비교를 할 수 없어요."));
-        }
-
-        return callAiServer("/ai/inbody/bmi-insight", Map.of(
-                "bmi", inbody.getBmi(),
-                "gender", referenceGender(profile.getGender()),
-                "birth_year", profile.getBirthYear()
-        ), "category", "percentile", "peer_mean", "age_bracket", "message", "source");
+        return trim(peerInsightService.bmiInsight(user),
+                "error", "category", "percentile", "peer_mean", "age_bracket", "warning", "message", "source");
     }
 
     private String toolGetNutritionPeerComparison(User user, Long userId, Map<String, Object> args) {
-        UserProfile profile = getProfileOrNull(user);
-        String peerError = peerProfileError(profile);
-        if (peerError != null) {
-            return toJson(Map.of("error", peerError));
-        }
-
-        LocalDate date = parseDateArgOrToday(args);
-        MealLoggingService.DailyTotal total = mealLoggingService.getTotalForDate(userId, date);
-        if (total.mealCount() == 0) {
-            return toJson(Map.of("date", date.toString(),
-                    "note", date + "에 기록된 식사가 없어서 또래 비교를 할 수 없어요.",
-                    "instruction", "없다고만 답하고 수치를 지어내지 마세요."));
-        }
-
-        return callAiServer("/ai/nutrition/peer-compare", Map.of(
-                "gender", referenceGender(profile.getGender()),
-                "birth_year", profile.getBirthYear(),
-                "energy_kcal", total.totalCalories(),
-                "protein_g", total.totalProteinG(),
-                "carbs_g", total.totalCarbsG(),
-                "fat_g", total.totalFatG()
-        ), "age_bracket", "message", "source");
-    }
-
-    /** 또래 비교는 성별×연령대 통계라 둘 중 하나만 없어도 비교 자체가 불가능하다. */
-    private String peerProfileError(UserProfile profile) {
-        if (profile == null || profile.getGender() == null || profile.getBirthYear() == null) {
-            return "성별과 출생연도가 있어야 또래 비교를 할 수 있어요. 마이페이지에서 프로필을 먼저 채워주세요.";
-        }
-        return null;
-    }
-
-    /** 프로필의 MALE/FEMALE을 AI 서버 참조 통계 표기(M/F)로 (frontend/src/lib/aiApi.js와 같은 규칙) */
-    private String referenceGender(Gender gender) {
-        return gender == Gender.MALE ? "M" : "F";
+        return trim(peerInsightService.nutritionPeerCompare(user, user.getId(), parseDateArgOrToday(args)),
+                "error", "date", "note", "instruction", "age_bracket", "message", "source");
     }
 
     /**
-     * AI 서버(FastAPI)를 부르고, 응답에서 {@code keep}에 적힌 필드만 남긴다. 응답 전체(끼니별
-     * 비교 배열 등)를 그대로 넘기면 같은 내용이 message와 중복돼 컨텍스트만 잡아먹는다.
-     *
-     * AI 서버는 평소 꺼져 있을 수 있고 여기서 부르는 기능(또래 비교, 운동 추천)은 부가 정보라,
-     * 실패해도 대화 전체를 끊지 않고 도구 결과를 error로 돌려준다 - 모델이 "지금은 확인이
-     * 안 된다"고 답하게 된다.
+     * 도구 결과에서 {@code keep}에 적힌 필드만 남긴다. 응답 전체(끼니별 비교 배열 등)를 그대로
+     * 넘기면 같은 내용이 message와 중복돼 컨텍스트만 잡아먹는다.
      */
-    private String callAiServer(String path, Map<String, Object> body, String... keep) {
-        JsonNode response;
-        try {
-            response = aiRestClient.post().uri(path).body(body).retrieve().body(JsonNode.class);
-        } catch (RestClientException e) {
-            log.info("AI 서버 호출 실패 ({}): {}", path, e.getMessage());
-            return toJson(Map.of("error", "AI 서버에서 정보를 가져오지 못했어요. 잠시 후 다시 시도해 주세요."));
-        }
-        if (response == null) {
-            return toJson(Map.of("error", "AI 서버에서 정보를 가져오지 못했어요. 잠시 후 다시 시도해 주세요."));
-        }
-
+    private String trim(JsonNode response, String... keep) {
         Map<String, Object> trimmed = new LinkedHashMap<>();
         for (String field : keep) {
             JsonNode value = response.get(field);
@@ -363,6 +360,31 @@ public class ChatToolExecutor {
             }
         }
         return toJson(trimmed);
+    }
+
+    /**
+     * AI 서버(FastAPI)를 부르고, 응답에서 {@code keep}에 적힌 필드만 남긴다.
+     *
+     * AI 서버는 평소 꺼져 있을 수 있고 여기서 부르는 기능(운동 추천)은 부가 정보라,
+     * 실패해도 대화 전체를 끊지 않고 도구 결과를 error로 돌려준다 - 모델이 "지금은 확인이
+     * 안 된다"고 답하게 된다.
+     */
+    private String callAiServer(String path, Map<String, Object> body, String... keep) {
+        JsonNode response = callAiServerRaw(path, body);
+        if (response == null) {
+            return toJson(Map.of("error", AI_UNAVAILABLE));
+        }
+        return trim(response, keep);
+    }
+
+    /** 응답을 손대지 않고 그대로 돌려준다. 실패하면 null (호출부가 안내 문구를 만든다) */
+    private JsonNode callAiServerRaw(String path, Map<String, Object> body) {
+        try {
+            return aiRestClient.post().uri(path).body(body).retrieve().body(JsonNode.class);
+        } catch (RestClientException e) {
+            log.info("AI 서버 호출 실패 ({}): {}", path, e.getMessage());
+            return null;
+        }
     }
 
     private String toolCalculateNutrientTarget(User user) {
@@ -392,20 +414,147 @@ public class ChatToolExecutor {
      * 자연어 추천문은 이 도구 결과를 받은 모델이 (기존 도구 결과 옮기기 경로로) 생성한다.
      * 난이도·기타 조건은 모델이 candidates 중에서 고를 때 참고하게 둔다.
      */
-    private String toolRecommendExercises(Map<String, Object> args) {
+    /** 최근 운동 메모를 읽을 기간. AI 서버의 RECENT_DAYS와 맞춰야 함 */
+    private static final String AI_UNAVAILABLE = "AI 서버에서 정보를 가져오지 못했어요. 잠시 후 다시 시도해 주세요.";
+
+    private static final int WORKOUT_MEMO_DAYS = 7;
+    /** 같은 추천이 반복되지 않게 훑어볼 최근 챗봇 답변 수 */
+    private static final int RECENT_REPLY_LIMIT = 10;
+    /** 답변 한 건에서 넘길 길이. 운동 이름은 앞부분에 나오므로 이만큼이면 다 잡힌다 */
+    private static final int RECENT_REPLY_MAX_CHARS = 500;
+    /** 답변 아래에 붙일 영상 버튼 수 상한 - 넘치면 말풍선이 링크 목록이 된다 */
+    private static final int MAX_VIDEO_LINKS = 3;
+
+    /**
+     * 운동 추천. 부위·장비만 넘기던 것에서 목표·나이·최근 운동 기록까지 같이 넘기도록 바뀌었다.
+     *
+     * 무엇을 몇 세트 할지는 AI 서버가 규칙으로 정하고(app/exercise/recommend.py), 모델은 그
+     * 결과를 문장으로 옮기기만 한다 - 메뉴 경로에서 이미 검증한 분담이다. 세트/횟수를 모델이
+     * 지어내게 두면 같은 목표에도 답이 흔들리고 근거를 댈 수 없다.
+     */
+    private ToolResult toolRecommendExercises(User user, Map<String, Object> args) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("body_part", argString(args, "body_part", ""));
         String equipment = argString(args, "equipment", null);
         if (equipment != null) {
             body.put("equipment", equipment);
         }
-        return callAiServer("/ai/exercise/recommend", body, "body_part", "matched", "candidates", "note");
+
+        UserProfile profile = getProfileOrNull(user);
+        if (profile != null) {
+            if (profile.getGoal() != null) {
+                body.put("goal", profile.getGoal().name());
+            }
+            if (profile.getBirthYear() != null) {
+                // 연 나이(만 나이보다 최대 1살 많음). 여기서는 "50대 이상이면 고급 동작 제외"
+                // 정도로만 쓰이므로 그 오차가 결과를 바꾸지 않는다.
+                body.put("age", AppTime.today().getYear() - profile.getBirthYear());
+            }
+        }
+        body.put("recent_workouts", recentWorkouts(user));
+        // 최근 답변 원문을 넘기면 AI 서버가 그 안에 등장한 운동 이름을 빼준다. 운동 이름 목록은
+        // 그쪽 큐레이션 파일에만 있으므로, 양쪽에 이름을 복제하지 않으려는 분담이다.
+        body.put("exclude_from_text", recentAssistantReplies(user));
+
+        JsonNode response = callAiServerRaw("/ai/exercise/recommend", body);
+        if (response == null) {
+            return ToolResult.of(toJson(Map.of("error", AI_UNAVAILABLE)));
+        }
+        // 모델에게는 URL을 주지 않는다 - 영상은 아래 links로 화면에 직접 그린다.
+        return new ToolResult(trimRecommendation(response), videoLinks(response));
+    }
+
+    /** 최근 며칠간의 운동 메모 원문. 부위 키워드를 읽는 건 AI 서버 몫(사전이 거기 있음) */
+    private List<Map<String, String>> recentWorkouts(User user) {
+        LocalDate today = AppTime.today();
+        return workoutMemoService.getBetween(user, today.minusDays(WORKOUT_MEMO_DAYS), today);
+    }
+
+    private List<String> recentAssistantReplies(User user) {
+        return chatMessageRepository
+                .findByUserOrderByCreatedAtDesc(user, PageRequest.of(0, RECENT_REPLY_LIMIT)).stream()
+                .filter(m -> "assistant".equals(m.getRole()))
+                .map(m -> m.getContent().length() <= RECENT_REPLY_MAX_CHARS
+                        ? m.getContent()
+                        : m.getContent().substring(0, RECENT_REPLY_MAX_CHARS))
+                .toList();
+    }
+
+    /**
+     * 모델에게 줄 추천 결과. 후보에서 영상(URL)과 화면용 필드를 빼고, 문장을 만드는 데 필요한
+     * 것만 남긴다 - 응답을 통째로 넘기면 컨텍스트만 잡아먹고 URL이 답변에 새어나온다.
+     */
+    private String trimRecommendation(JsonNode response) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (String field : new String[] {"body_part_ko", "goal", "plan", "workout_note", "cautions", "note"}) {
+            JsonNode value = response.get(field);
+            if (value != null && !value.isNull()) {
+                result.put(field, objectMapper.convertValue(value, Object.class));
+            }
+        }
+
+        List<Map<String, Object>> candidates = new ArrayList<>();
+        for (JsonNode candidate : response.path("candidates")) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            for (String field : new String[] {"name", "difficulty", "equipment", "sets_reps", "instructions_ko"}) {
+                row.put(field, candidate.path(field).asText(""));
+            }
+            candidates.add(row);
+        }
+        result.put("candidates", candidates);
+        return toJson(result);
+    }
+
+    /**
+     * 후보에 붙어 온 국민체력100 영상을 말풍선 아래 버튼으로 그릴 형태로 바꾼다.
+     *
+     * 같은 영상이 여러 운동에 붙을 수 있어서(잭 점프/스타 점프 -> 같은 점핑잭 영상) URL로
+     * 중복을 없앤다. 난이도 태그는 운동 난이도와 같을 때만 보여준다 - 영상 데이터에 초급이
+     * 적어서 "초급 운동 ▶ (중급) 영상"이 자주 나오는데, 그 조합은 사용자에게 혼란만 준다.
+     */
+    List<Map<String, String>> videoLinks(JsonNode response) {
+        List<Map<String, String>> links = new ArrayList<>();
+        Set<String> seenUrls = new HashSet<>();
+        for (JsonNode candidate : response.path("candidates")) {
+            JsonNode video = candidate.path("related_video");
+            String url = video.path("video_url").asText("");
+            if (url.isBlank() || links.size() >= MAX_VIDEO_LINKS || !seenUrls.add(url)) {
+                continue;
+            }
+
+            List<String> tags = new ArrayList<>();
+            String level = video.path("level").asText("");
+            if (!level.isBlank() && level.equals(candidate.path("difficulty").asText(""))) {
+                tags.add(level);
+            }
+            for (String field : new String[] {"place", "tool"}) {
+                String tag = video.path(field).asText("");
+                if (!tag.isBlank()) {
+                    tags.add(tag);
+                }
+            }
+            String name = video.path("name").asText("운동 영상");
+            String label = tags.isEmpty() ? name : name + " (" + String.join(" · ", tags) + ")";
+            links.add(Map.of("label", label, "url", url));
+        }
+        return links;
+    }
+
+    /**
+     * 지목한 운동 1건의 한국어 수행 방법. 이 도구가 없던 시절엔 모델이 설명을 직접 지어냈고,
+     * 근거 없는 자유 생성이라 중국어로 새는 턴이 나왔다(실측) - 데이터에 있는 한국어 설명을
+     * 넘겨서 "창작"을 "옮겨쓰기"로 바꾼다.
+     */
+    private String toolGetExerciseDetail(Map<String, Object> args) {
+        String name = argString(args, "name", "");
+        return callAiServer("/ai/exercise/detail", Map.of("name", name),
+                "found", "name", "target", "equipment", "instructions_ko", "note");
     }
 
     private LocalDate parseDateArgOrToday(Map<String, Object> args) {
         String raw = argString(args, "date", null);
         if (raw == null) {
-            return LocalDate.now();
+            return AppTime.today();
         }
         try {
             return LocalDate.parse(raw);
@@ -413,7 +562,7 @@ public class ChatToolExecutor {
             // 모델이 날짜 형식을 잘못 넣으면(예: "어제"를 계산 안 하고 그대로 보냄) 오늘로 대체.
             // 여기서 예외를 던지면 도구 호출 자체가 실패해서 답변을 아예 못 받는 게 더 나쁨.
             log.warn("도구 호출의 date 인자를 파싱하지 못해 오늘 날짜로 대체함: {}", raw);
-            return LocalDate.now();
+            return AppTime.today();
         }
     }
 

@@ -77,3 +77,52 @@ def test_음수_BMI는_거부한다():
     )
 
     assert response.status_code == 422
+
+
+def test_상식_범위를_벗어난_BMI는_엔드포인트가_거부한다():
+    # 인바디 OCR이 소수점을 놓치거나(2.5) 자릿수를 잘못 읽으면(250) 그대로 분류돼버린다
+    for bmi in (2.5, 250):
+        response = client.post(
+            "/ai/inbody/bmi-insight",
+            json={"bmi": bmi, "gender": "M", "birth_year": 1990},
+        )
+        assert response.status_code == 422
+
+
+def test_범위_밖_BMI는_분류도_비교도_하지_않는다():
+    # 스키마를 거치지 않고 함수를 직접 부르는 경로(다른 서비스에서의 재사용)도 막는다
+    result = compute_bmi_insight(bmi=2.5, gender="M", age=35)
+
+    assert result["category"] == ""
+    assert result["percentile"] is None
+    assert "벗어나요" in result["warning"]
+
+
+def test_키_체중으로_다시_계산한_BMI와_다르면_경고한다():
+    # 175cm 70kg => 22.9. 기록된 26.4와 3.5 차이면 둘 중 하나가 틀린 것이다
+    result = compute_bmi_insight(
+        bmi=26.4, gender="M", age=35, height_cm=175, weight_kg=70
+    )
+
+    assert result["warning"] is not None
+    assert "22.9" in result["warning"]
+    # 어느 쪽이 맞는지 모르므로 값 자체는 고치지 않는다
+    assert result["bmi"] == 26.4
+    assert result["category"] == "1단계 비만"
+
+
+def test_키_체중이_기록과_맞으면_경고하지_않는다():
+    result = compute_bmi_insight(
+        bmi=22.9, gender="M", age=35, height_cm=175, weight_kg=70
+    )
+
+    assert result["warning"] is None
+
+
+def test_최신_기록_한_건에_대해서만_말한다():
+    """추이를 덧붙이면 "지금 내가 어디쯤인가"라는 이 API의 답이 흐려진다."""
+    result = compute_bmi_insight(bmi=24.0, gender="M", age=35)
+
+    assert "trend" not in result
+    assert result["message"].startswith("체질량지수 24.0")
+    assert "지금은" not in result["message"]

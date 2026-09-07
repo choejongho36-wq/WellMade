@@ -5,13 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 /**
  * 메뉴 경로는 기록이 없을 때 LLM을 아예 부르지 않고 도구가 준 문구를 그대로 사용자에게 보여준다.
  * 그 판정이 틀리면 (a) 빈 결과인데 LLM이 불려서 지어내거나 (b) 값이 있는데 note를 답으로 내보낸다.
  */
 class ChatServiceMenuTest {
 
-    private final ChatService service = new ChatService(null, null, null, null, null, null, null);
+    private final ChatService service = new ChatService(null, null, null, null, null, null, null, new ObjectMapper());
 
     @Test
     void emptyMealsReturnsUserFacingNote() {

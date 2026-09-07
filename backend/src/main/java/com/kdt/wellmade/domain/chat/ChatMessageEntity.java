@@ -49,14 +49,27 @@ public class ChatMessageEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    /**
+     * 답변에 딸려 나간 버튼/링크를 JSON 문자열로 담아둔다 ({"action":..., "links":[...]}).
+     *
+     * 예전엔 이것들이 SSE로만 나가서 새로고침하면 사라졌다. 인바디 등록 버튼(action)은 없어져도
+     * 그만이지만, 운동 영상 링크는 사용자가 나중에 다시 보고 싶어 하는 정보라 이력에 남긴다.
+     * 컬럼을 늘리지 않고 JSON 한 칸으로 둔 이유: 여기 담기는 값은 화면에 그대로 넘겨주는
+     * 표시용이라 서버가 조건으로 검색할 일이 없다.
+     */
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String meta;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    public ChatMessageEntity(User user, String role, String content) {
+    public ChatMessageEntity(User user, String role, String content, String meta) {
         this.user = user;
         this.role = role;
         this.content = content;
+        this.meta = meta;
     }
 
     @PrePersist

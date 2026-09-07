@@ -1,8 +1,7 @@
 # 오프라인 전처리 스크립트
 
 `app/`는 FastAPI 서버 실행 코드이고, 이 폴더(`ml_training/`)는 그 서버가 쓰는 참조 분포
-데이터(`app/insight/data/posture_reference.json`)를 만들어내는 **오프라인 스크립트**
-모음이다. 서버가 직접 이 폴더의 코드를 import하지 않는다 — 전처리는 사람이 필요할 때 한 번
+데이터(`app/insight/data/*.json`)를 만들어내는 **오프라인 스크립트** 모음이다. 서버가 직접 이 폴더의 코드를 import하지 않는다 — 전처리는 사람이 필요할 때 한 번
 실행하는 작업이고, 그 결과물만 서버가 로딩해서 쓴다.
 
 ## 스쿼트/런지 ML 학습 스크립트는 삭제됨 (2026-08-21)
@@ -16,18 +15,72 @@
 스크립트, 특징 추출(`app/ml/features.py`), 저장된 모델 파일(`app/ml/models/*.joblib`),
 `/ai/ml/lunge/analyze`·`/ai/ml/squat/analyze` 엔드포인트 모두 함께 제거했다.
 
-## 참조 분포 데이터 (자세 비교 인사이트, AI-15)
+## 참조 분포 데이터 (또래 비교 인사이트)
 
-| 스크립트 | 만드는 것 | 용도 | 데이터 출처 |
+| 스크립트 | 만드는 것 | 용도 | 데이터 출처 | 통계 연도 |
+|---|---|---|---|---|
+| `prepare_posture_reference.py` | `app/insight/data/posture_reference.json` | 성별×연령대별 어깨/골반 기울기 백분위 비교 | 세종특별자치시_자세 측정 내역 (공공데이터포털) | 2024 측정분 |
+| `prepare_bmi_reference.py` | `app/insight/data/bmi_reference.json` | 성별×연령대별 BMI 백분위 비교 (`/ai/inbody/bmi-insight`) | 질병관리청 국민건강통계 표15-4 체질량지수 분포 | **2024 (스크립트에 하드코딩)** |
+| `prepare_nutrition_reference.py` | `app/insight/data/nutrition_reference.json` | 성별×연령대별 영양 섭취 평균 비교 (`/ai/nutrition/peer-compare`) | 질병관리청 국민건강통계 (국민건강영양조사) | **2024 (스크립트에 하드코딩)** |
+
+이건 분류 모델을 학습하는 게 아니라, "같은 성별·연령대에서 내 값이 어디쯤인지"를 계산할 때 쓸
+참조 데이터를 미리 만들어두는 전처리 스크립트다. 자세한 배경(왜 원본을 그대로 안 쓰는지,
+백분위/평균 대비 비율을 어떻게 정의했는지)은 각 스크립트와 `app/insight/*.py` 주석 참고.
+
+> **통계 연도는 자동으로 갱신되지 않는다.** BMI/영양 두 스크립트는 엑셀에서 `'24` 열을 찾도록
+> 연도가 박혀 있고(`SURVEY_YEAR_HEADER`, 표 레이아웃 상수), 결과 JSON의 `source`/`survey_year`도
+> 그 값을 그대로 쓴다. 2025 국민건강통계가 나오면 **스크립트의 연도 상수를 고치고 다시 실행**해야
+> 하며, 표 레이아웃이 바뀌었을 수 있으니 열 위치 상수도 함께 확인해야 한다.
+> (자세 데이터는 세종시가 파일을 새로 올릴 때만 갱신 대상이다.)
+
+## 운동 추천 데이터
+
+| 스크립트 | 만드는 것 | 용도 | 입력 |
 |---|---|---|---|
-| `prepare_posture_reference.py` | `app/insight/data/posture_reference.json` | 성별×연령대별 어깨/골반 기울기 백분위 비교 | 세종특별자치시_자세 측정 내역 (공공데이터포털) |
+| `prepare_exercise_core.py` | `app/exercise/data/exercises_core.json` | 추천 후보로 쓸 기본 동작 162건 (부위별 2~32건) | `exercise_core_seed.json`(사람이 고른 목록) + `app/rag/data/exercises_ko.json` |
+| `prepare_exercise_videos.py` | `app/exercise/data/exercise_videos.json` | 추천에 붙일 국민체력100 운동 영상 (동작 18종, 영상 37건) | `app/rag/data/videos.json` + `app/exercise/movements.py` |
 
-이건 분류 모델을 학습하는 게 아니라, "같은 성별·연령대에서 내 기울기가 몇 %에 해당하는지"
-백분위를 계산할 때 쓸 참조 분포(정렬된 각도 리스트)를 미리 만들어두는 전처리 스크립트다.
-자세한 배경(왜 원본 CSV를 그대로 안 쓰는지, 백분위를 어떻게 정의했는지)은
-`prepare_posture_reference.py`와 `app/insight/posture_percentile.py` 주석 참고.
+**기본 동작 이름** — 원본에는 그냥 `squat` / `lunge` / `glute bridge` 같은 항목이 없고 전부 변형
+이름이다. 그래서 가장 가까운 항목을 고르고 시드의 `name_ko`로 기본 동작 이름을 덧씌운다
+(예: `potty squat with support` → "맨몸 스쿼트"). 덧씌운 이름으로 사용자가 되물어도 설명이
+나오도록 `find_detail`이 그 이름을 원본으로 되돌려 찾는다.
 
-**데이터 준비**
+**왜 큐레이션인가** — 추천 후보를 1,324건 전부로 두면 "덤벨 하이트 플라이" 같은 변형이
+"덤벨 플라이"보다 먼저 나오고 초보자가 알아보지 못한다. 부위별 기본 동작만 남기고
+`difficulty` / `is_compound` / `home_friendly` 태그를 사람이 붙였다(`exercise_core_seed.json`).
+나머지 1,000여 건은 버리는 게 아니라 `get_exercise_detail`(이름으로 설명 찾기)에서 계속 쓰이므로
+커버리지는 그대로다. 운동을 추가·수정하려면 시드 JSON만 고치고 스크립트를 다시 돌리면 된다
+(시드에 원본에 없는 이름을 적으면 그 목록을 출력하고 실패한다).
+
+**영상 매칭** — 같은 **동작**일 때만 붙인다(`app/exercise/movements.py`). 처음에는 타겟 근육으로
+이었는데(pectorals ↔ Pectoralis Major) 그러면 "덤벨 런지" 아래에 "Clamshell" 영상이 붙는다 -
+근육은 같아도 사용자 눈에는 남의 운동이다. 영상이 일부 운동에만 붙더라도 "이 운동 영상"이
+맞는 편이 낫다는 판단으로, 스쿼트↔"앉았다 일어서기", 푸시업↔"팔 굽혀 펴기" 같은 동작 사전을
+두고 이름으로 잇는다. 동작이 안 맞으면 영상을 붙이지 않는다.
+
+원본 30,090행은 대부분 같은 영상의 구간 레코드다. URL 기준으로 중복을 없애고, 난이도
+태그(초급/중급/고급)가 있는 것만 남긴 뒤 동작으로 이으면 37건이 된다. 난이도가 없는 영상을
+빼는 이유는 화면에 "초급 · 실내 · 매트"로 보여줄 정보가 없기 때문이다
+(원본의 "1~5", "3" 같은 값은 난이도가 아니라 체력측정 등급이다).
+
+**임베딩/벡터 검색을 아직 넣지 않은 이유** — "허리 안 아프게 하는 등 운동"처럼 필터로 못 잡는
+자유 표현이 실제로 들어오는지부터 봐야 한다. 부위 매칭에 실패한 요청은
+`app/exercise/recommend.py`의 `log_freeform_request`가 INFO 로그로 남기므로, 그 로그가 쌓이면
+그때 큐레이션 152건 + 영상 설명문에만 좁게 임베딩(bge-m3 / multilingual-e5, CPU로 충분)을 걸어
+`recommend`의 전처리 단계로 넣으면 된다. 30,090건 영상에 그대로 벡터 검색을 거는 건 중복이 많아
+검색 품질이 오히려 떨어지고, 지금 단계에서 벡터 DB를 세우는 비용 대비 효과가 낮다.
+
+**실행**
+
+```bash
+cd ai
+python -m ml_training.prepare_exercise_core
+python -m ml_training.prepare_exercise_videos
+```
+
+원본(`exercises_ko.json`, `videos.json`)이 이미 커밋돼 있어 별도 다운로드 없이 바로 돌아간다.
+
+## 자세 참조 분포 데이터 준비
 
 ```
 https://www.data.go.kr/data/15128996/fileData.do

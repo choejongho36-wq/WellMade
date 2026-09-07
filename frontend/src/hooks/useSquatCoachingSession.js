@@ -15,8 +15,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePoseLandmarker } from './usePoseLandmarker.js'
 import { buildSideMetrics, drawSkeleton } from '../lib/squatPose.js'
+import { AI_BASE } from '../lib/aiApi.js'
 
-const AI_BASE = import.meta.env.VITE_AI_BASE || 'http://localhost:8000'
 
 const SAMPLE_INTERVAL_MS = 200 // 실시간 판독 주기 — 대려 5fps
 const BUFFER_MAX = 30 // 롤돁링 버퍼 최대 프레임 수(약 6초 분량)
