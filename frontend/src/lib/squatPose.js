@@ -78,11 +78,9 @@ export const SKELETON_CONNECTIONS = [
 export const LEFT_COLOR = '#00b894'
 export const RIGHT_COLOR = '#e6432b'
 
-// 사진 코칭 "정면/측면 사진 미리보기"의 드래그 가능한 좌표 점 색상(2026-09-02) — 실시간
-// 코칭(LEFT_COLOR/RIGHT_COLOR, 웹캠 스켈레톤)과는 별도 용도라 색을 공유하지 않는다.
-// (2026-09-03 변경) 예전엔 분홍/파랑이었으나, "MlTestPage.jsx 테스트 페이지와 똑같이
-// 나오게 해달라"는 요청으로 그 페이지의 LEFT_COLOR/RIGHT_COLOR(시안/마젠타)와 동일한
-// 값으로 맞췄다.
+// 사진 코칭 "정면/측면 사진 미리보기"의 드래그 가능한 좌표 점 색상. MlTestPage.jsx
+// 테스트 페이지의 LEFT_COLOR/RIGHT_COLOR(시안/마젠타)와 동일한 값이고, 실시간 코칭
+// 웹캠 스켈레톤(drawSkeleton)도 같은 색을 쓴다.
 export const PHOTO_DOT_LEFT_COLOR = '#00e5ff'
 export const PHOTO_DOT_RIGHT_COLOR = '#ff3df0'
 
@@ -94,8 +92,6 @@ export const PART_LABELS = {
   heel: '발뒤꿈치',
   knee_valgus: '무릎 모임',
   knee_over_toe: '무릎-발끝',
-  back_rounded: '등 굽음',
-  center_of_mass: '무게중심',
   form_pattern: '전체 움직임 패턴',
   movement: '움직임',
   data: '데이터',
@@ -120,8 +116,9 @@ export const KNEE_VALGUS_RATIO_THRESHOLD = 0.9
 // 단독(측면 없음) 판정일 때 프론트가 서버를 거치지 않고 직접 issue를 만들 때 쓴다.
 export const KNEE_VALGUS_MESSAGE = '무릎이 안쪽으로 모이고 있어요. 무릎이 발끝과 같은 방향을 향하도록 밀어주세요.'
 
-// 사진 코칭 "분석 결과" 패널에 보여줄 지표 정의 — ai/app/pose/rules.py의 NORMAL_RANGES와
-// 각 임곗값(threshold) 상수를 그대로 미러링한 표시용 설정이다.
+// 사진 코칭 "분석 결과" 옆 "상세 보기"를 펼치면 나오는 막대그래프용 지표 정의 —
+// ai/app/pose/rules.py의 NORMAL_RANGES와 각 임곗값(threshold) 상수를 그대로 미러링한
+// 표시용 설정이다(PhotoCoachingPage.jsx의 MetricsDetailPanel 참고).
 //
 // (2026-09-02 검수) 원래 디자인 시안에는 "무릎 각도 92°(권장 범위 85~100°)" · "등 기울기
 // 38°" · "좌우 균형 96%" 같은 수치가 있었는데, claude/wellmade-squat-criteria-checklist.md와
@@ -133,9 +130,14 @@ export const KNEE_VALGUS_MESSAGE = '무릎이 안쪽으로 모이고 있어요. 
 //    이상) 지표와 등 굽음(torso_length_ratio, 온보딩 캘리브레이션 필요) 지표가 서로 다른
 //    걸 재는데, 어느 쪽인지 알 수 없는 이름이었다. 아래 목록은 실제로 계산 가능한 "시선·목
 //    기울기"만 넣었다.
-// 3) "좌우 균형"(무릎 모임/좌우 비대칭)은 정면 카메라 랜드마크가 있어야 계산되는 값
-//    (knee_valgus_ratio)인데, 사진 코칭은 측면 사진 한 장만 다루는 흐름이라 애초에 계산할
-//    수 없다 — 아래 목록에서 뺐고, 대신 페이지 쪽에 "정면 촬영이 필요해요" 안내를 별도로 둔다.
+// 3) "좌우 균형"(무릎 모임/좌우 비대칭, knee_valgus_ratio)은 정면 카메라 랜드마크가 있어야
+//    계산되는 값이다 — frontalOnly:true로 표시해, 정면 사진이 없을 때는 막대 대신 "정면"
+//    안내만 보여준다(MetricsDetailPanel 참고).
+//
+// (2026-09-07) 무게중심(torso_shin_lean_gap_deg 기반 center_of_mass) 지표는 여기 목록에
+// 넣지 않는다 — 실제 라벨링된 사진으로 재검증한 결과 정상/과신전/등굽음 사례가 이 지표
+// 값 범위에서 서로 크게 겹쳐(ReliabilityNotice 참고) 정상 구간(ok)을 선 하나로 그어
+// 보여주면 없앤 판정과 똑같은 잘못된 확신을 다시 심어주게 된다.
 //
 // gated:true인 지표는 무릎이 충분히 굽혀졌을 때(knee_angle < STANDING_KNEE_ANGLE_MIN)만
 // 서버가 실제로 판정한다 — 그 전에는 값 자체는 보여주되 배지는 "판정 보류"로 표시한다.
@@ -193,14 +195,15 @@ export const ANALYSIS_METRICS = [
     ok: [-0.4, 0.2],
   },
   {
-    part: 'center_of_mass',
-    label: '무게중심 정렬',
-    field: 'torso_shin_lean_gap_deg',
-    unit: '°',
-    rangeText: '25° 이하면 정상 (깊게 앉았을 때 기준)',
-    gated: true,
-    scale: [-10, 50],
-    ok: [-10, 25],
+    part: 'knee_valgus',
+    label: '무릎 모임',
+    field: 'knee_valgus_ratio',
+    unit: '',
+    rangeText: '0.9 이상이면 정상',
+    gated: false,
+    frontalOnly: true,
+    scale: [0.5, 1.6],
+    ok: [0.9, 1.6],
   },
 ]
 
@@ -230,6 +233,18 @@ export function selectSide(landmarks, side = 'auto') {
       (landmarks[RIGHT_ANKLE].visibility ?? 1)) /
     3
   return leftScore >= rightScore ? 'left' : 'right'
+}
+
+// 발목/뒤꿈치/발끝 visibility가 낮으면 카메라 프레임 밖으로 발이 잘려 나간 것으로 본다 —
+// 이 상태에서는 무릎-발끝, 뒤꿈치 들림 같은 발 기준 지표가 신뢰할 수 없어지고, 실제로는
+// 하체가 안 보이는 것뿐인데 "정상 자세"로 오판될 수 있다(2026-09-07). selectSide로 고른
+// 쪽(측면 촬영에서 카메라를 보는 쪽) 다리 기준으로만 확인한다.
+const MIN_FULL_BODY_VISIBILITY = 0.5
+
+export function isFullBodyVisible(landmarks) {
+  const side = selectSide(landmarks)
+  const idx = side === 'left' ? [LEFT_ANKLE, LEFT_HEEL, LEFT_FOOT_INDEX] : [RIGHT_ANKLE, RIGHT_HEEL, RIGHT_FOOT_INDEX]
+  return idx.every((i) => (landmarks[i]?.visibility ?? 0) >= MIN_FULL_BODY_VISIBILITY)
 }
 
 // 엉덩이-무릎-발목 3점. 180도에 가까울수록 다리를 편 상태.
@@ -461,7 +476,8 @@ export function boxToImagePoint(bx, by, imageAspect, boxAspect = PHOTO_BOX_ASPEC
 
 // 33개 랜드마크 중 핵심 관절만 웹캠 화면 위에 스켈레톤으로 그린다(디버그용 라벨 없이,
 // 실제 사용자 화면에 보여줄 수 있는 깔끔한 버전 — MlTestPage.jsx의 drawLandmarks와 달리
-// 이름표/시각화 좌표를 찍지 않는다).
+// 이름표/시각화 좌표를 찍지 않는다). 점/선 색상은 사진 코칭 좌표 점과 통일해
+// PHOTO_DOT_LEFT_COLOR/PHOTO_DOT_RIGHT_COLOR를 그대로 쓴다.
 export function drawSkeleton(videoEl, canvasEl, landmarks) {
   if (!videoEl || !canvasEl || !landmarks) return
   const width = videoEl.clientWidth
@@ -477,7 +493,7 @@ export function drawSkeleton(videoEl, canvasEl, landmarks) {
     const pa = landmarks[KEY_LANDMARKS[a]]
     const pb = landmarks[KEY_LANDMARKS[b]]
     if (!pa || !pb) return
-    ctx.strokeStyle = a.startsWith('left') ? LEFT_COLOR : RIGHT_COLOR
+    ctx.strokeStyle = a.startsWith('left') ? PHOTO_DOT_LEFT_COLOR : PHOTO_DOT_RIGHT_COLOR
     ctx.beginPath()
     ctx.moveTo(pa.x * width, pa.y * height)
     ctx.lineTo(pb.x * width, pb.y * height)
@@ -491,7 +507,7 @@ export function drawSkeleton(videoEl, canvasEl, landmarks) {
     ctx.globalAlpha = Math.max(visibility, 0.3)
     ctx.beginPath()
     ctx.arc(lm.x * width, lm.y * height, 5, 0, Math.PI * 2)
-    ctx.fillStyle = name.startsWith('left') ? LEFT_COLOR : RIGHT_COLOR
+    ctx.fillStyle = name.startsWith('left') ? PHOTO_DOT_LEFT_COLOR : PHOTO_DOT_RIGHT_COLOR
     ctx.fill()
     ctx.globalAlpha = 1
   })

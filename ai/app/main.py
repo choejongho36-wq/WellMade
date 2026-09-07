@@ -151,7 +151,7 @@ def coaching_frame(request: CoachingFrameRequest):
         request.angle_history,
         hip_calibration=request.hip_calibration,
         pending_llm_job_id=request.pending_llm_job_id,
-        is_photo=request.is_photo,
+        view=request.view,
     )
 
     return CoachingFrameResponse(
@@ -163,7 +163,6 @@ def coaching_frame(request: CoachingFrameRequest):
             for issue in result["issues"]
         ],
         pending_llm_job_id=result["pending_llm_job_id"],
-        center_of_mass_notice=result["center_of_mass_notice"],
     )
 
 

@@ -83,6 +83,7 @@
   border-radius: 14px;
   padding: 22px;
   max-width: 520px;
+  margin: 0 auto;
 }
 
 .squat-error {
@@ -121,35 +122,37 @@
 .squat-idle {
   text-align: center;
 }
-.squat-idle-icon {
-  font-size: 40px;
-  margin-bottom: 10px;
-}
 .squat-idle-title {
   font-size: 18px;
   font-weight: 700;
   color: #111;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
-.squat-idle-desc {
+.squat-idle-steps {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  counter-reset: squat-step;
+  text-align: left;
   font-size: 13px;
   line-height: 1.7;
   color: #55534d;
-  margin-bottom: 14px;
 }
-.squat-idle-tips {
-  list-style: none;
-  text-align: left;
-  font-size: 12.5px;
-  color: #8c8b88;
-  line-height: 1.8;
-  margin-bottom: 18px;
-  padding-left: 4px;
+.squat-idle-steps li {
+  position: relative;
+  padding-left: 26px;
+  counter-increment: squat-step;
 }
-.squat-idle-tips li::before {
-  content: '· ';
+.squat-idle-steps li + li {
+  margin-top: 10px;
+}
+.squat-idle-steps li::before {
+  content: counter(squat-step) '.';
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-weight: 800;
   color: #da291c;
-  font-weight: 700;
 }
 
 /* ---- 카메라 미리보기 — 사진 코칭/실시간 코칭 공통 ---- */

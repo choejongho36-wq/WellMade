@@ -82,8 +82,8 @@ def test_coaching_frame_holding_at_bottom_normal():
 def test_coaching_frame_holding_gaze_forward_flagged():
     # 무릎/엉덩이는 정상 범위인데 shoulder_forward_lean_deg만 임계값(40.0)을 넘게(고개가
     # 앞으로 떨어짐) 들어온 경우 -> 이상 감지돼야 함. (2026-08-26: 이 신호는 원래 "어깨
-    # 말림"도 같이 판정했으나, 어깨 말림/등 굽음은 back_rounded로 통합하고 여기는 목/시선
-    # 전용 신호(part="gaze")로 분리했다 — rules.py/realtime.py 주석 참고. 2026-08-27:
+    # 말림"도 같이 판정했으나, 지금은 목/시선 전용 신호(part="gaze")로만 쓴다 —
+    # rules.py/realtime.py 주석 참고. 2026-08-27:
     # 임곗값이 20.0 -> 40.0으로 올라가(실측 정상 사례 확장 + 귀 랜드마크 노이즈 감안,
     # rules.py 주석 참고) 테스트 입력값도 그에 맞춰 올림.)
     angle_history = [
@@ -863,150 +863,6 @@ def test_coaching_frame_without_knee_over_toe_field_still_works():
     assert not any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
 
 
-# (2026-08-27) 무게중심(get_torso_shin_lean_gap_deg 기반) 판정 테스트. knee_over_toe와
-# 동일하게 is_deep_hold(무릎이 충분히 굽혀진 상태)에서만 검사한다 — rules.py의
-# TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG 주석 참고. 나쁜 사례 표본이 2건뿐인 잠정 임계값이라,
-# 팀 확정 전까지 이 값(25.0)은 언제든 바뀔 수 있다.
-from app.pose.rules import TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG  # noqa: E402
-
-
-def test_coaching_frame_center_of_mass_flagged_when_deep_hold():
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG + 2.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(center of mass, deep hold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert data["is_normal"] is False, data
-    assert any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
-
-
-def test_coaching_frame_without_center_of_mass_field_still_works():
-    # torso_shin_lean_gap_deg 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
-    angle_history = [
-        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(no torso_shin_lean_gap_deg field):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
-
-
-# (2026-09-03, 세 번째 정정) 사진 코칭(is_photo=True)에서 무게중심(center_of_mass)은
-# 여전히 계산·비교되지만, 정식 판정(issues/is_normal)에는 들어가지 않고 임곗값을 넘을
-# 때만 별도 필드 center_of_mass_notice에 참고용 문구가 채워진다 — "아치"/"정상" 참고
-# 이미지 재검토 대화에서 사용자가 최종 결정(처음엔 이 검사를 사진에서 아예 뺐었는데,
-# "정식 판정에서는 빼되 의심되면 하단에 따로 설명은 보여달라"는 요청으로 다시 바뀌었다).
-# app/coaching/realtime.py의 center_of_mass 블록 참고.
-def test_coaching_frame_center_of_mass_photo_mode_notice_but_not_issue_when_above_threshold():
-    # is_photo=True + 임곗값 초과 → issues에는 안 들어가고(정식 판정에서 제외,
-    # is_normal에 영향 없음), center_of_mass_notice 필드에만 참고용 문구가 채워진다.
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG + 20.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history, "is_photo": True}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(center of mass, photo mode, above threshold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
-    assert data["is_normal"] is True, data
-    assert data["center_of_mass_notice"], data
-    assert "참고" in data["center_of_mass_notice"], data
-
-
-def test_coaching_frame_center_of_mass_photo_mode_no_notice_below_threshold():
-    # is_photo=True + 임곗값 미만(정상 범위) → issues에도 안 들어가고, notice 필드도
-    # None이어야 한다(임곗값을 넘을 때만 채워짐).
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG - 5.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history, "is_photo": True}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(center of mass, photo mode, below threshold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
-    assert data["center_of_mass_notice"] is None, data
-
-
-def test_coaching_frame_center_of_mass_photo_mode_no_notice_without_field():
-    # torso_shin_lean_gap_deg 필드 자체가 없으면(정면 전용 등) 사진 모드여도 당연히
-    # issues도 notice도 아무 것도 안 채워진다.
-    angle_history = [
-        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
-    ]
-    body = {"angle_history": angle_history, "is_photo": True}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(no torso_shin_lean_gap_deg, photo mode):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
-    assert data["center_of_mass_notice"] is None, data
-
-
-def test_coaching_frame_center_of_mass_video_mode_notice_always_none():
-    # is_photo=False(영상 경로)에서는 임곗값을 넘어도 기존처럼 issues에 정식 판정으로
-    # 들어가고, center_of_mass_notice는 이 경로에서 쓰지 않으므로 항상 None이어야 한다.
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG + 2.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history, "is_photo": False}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(center of mass, video mode, above threshold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
-    assert data["is_normal"] is False, data
-    assert data["center_of_mass_notice"] is None, data
-
-
-def test_coaching_frame_center_of_mass_video_mode_still_uses_threshold():
-    # is_photo를 False로 보내면(또는 생략, 하위 호환) 기존 임곗값 판정 그대로 유지된다 —
-    # 임곗값 미만이면 안내가 안 붙어야 한다(위 사진 모드 테스트와 대조).
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG - 5.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history, "is_photo": False}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(center of mass, video mode, below threshold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
 
 
 # (2026-08-27) DTW(동적 시간 워핑) 렙 패턴 유사도 판정 테스트. 다른 검사들과 달리 이
@@ -1328,102 +1184,6 @@ def test_coaching_frame_hyperextension_llm_hybrid_end_to_end(monkeypatch):
     assert data2["pending_llm_job_id"] is None, data2
 
 
-# (2026-08-24) 등 굽음(척추 굴곡) 규칙기반 검사의 단위 테스트(get_torso_length_ratio
-# 직접 호출)와 그 /ai/pose/analyze 통합 테스트가 이 자리에 있었다 — AI-03 삭제(위 주석
-# 참고)와 함께 get_torso_length_ratio() 자체가 angles.py에서 제거되며 같이 삭제했다.
-# 아래 test_coaching_frame_back_rounded_* 테스트들이 실시간 코칭(AI-06) 경로로 같은
-# 판정(hip_calibration.standing_shoulder_hip_ratio 기준 비교)을 계속 검증한다.
-
-
-def _calibration_with_baseline(standing_shoulder_hip_ratio=1.5):
-    return {
-        "standing_hip_angle": 178,
-        "max_flex_hip_angle": 118,
-        "standing_shoulder_hip_ratio": standing_shoulder_hip_ratio,
-    }
-
-
-def test_coaching_frame_back_rounded_flagged_when_deep_hold():
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "torso_length_ratio": 1.0,  # 1.5 * 0.85 = 1.275보다 작음 -> 등 굽음으로 판정돼야 함
-        }
-        for i in range(10)
-    ]
-    body = {
-        "angle_history": angle_history,
-        "hip_calibration": _calibration_with_baseline(),
-    }
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(back rounded, deep hold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "back_rounded" for issue in data["issues"]), data
-
-
-def test_coaching_frame_back_rounded_ignored_while_standing():
-    # 서 있는 상태(is_deep_hold=False)에서는 다른 깊게-앉은-상태 전용 검사들과 마찬가지로
-    # torso_length_ratio가 낮아도 검사 대상이 아니다.
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 175 + (i % 2),
-            "hip_angle": 170 + (i % 2),
-            "torso_length_ratio": 1.0,
-        }
-        for i in range(10)
-    ]
-    body = {
-        "angle_history": angle_history,
-        "hip_calibration": _calibration_with_baseline(),
-    }
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(back rounded while standing):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
-
-
-def test_coaching_frame_back_rounded_ignored_without_baseline():
-    # torso_length_ratio 필드는 보내더라도, hip_calibration.standing_shoulder_hip_ratio가
-    # 없으면(하위 호환) 기준값이 없어 등 굽음(이상 유무) 자체는 판정하지 않는다 — 다만
-    # 조용히 건너뛰지 않고, 캘리브레이션이 필요하다는 안내(data 항목)는 대신 나가야 한다
-    # (2026-08-26: 어깨 말림까지 이 검사로 흡수된 뒤로 추가된 동작).
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "torso_length_ratio": 1.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(back rounded, no baseline):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
-    assert any(issue["part"] == "data" and "캘리브레이션" in issue["message"] for issue in data["issues"]), data
-
-
-def test_coaching_frame_without_torso_length_ratio_field_still_works():
-    # torso_length_ratio 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
-    angle_history = [
-        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
-    ]
-    body = {
-        "angle_history": angle_history,
-        "hip_calibration": _calibration_with_baseline(),
-    }
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(no torso_length_ratio field):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
 
 
 # (2026-08-24) 어깨 말림 판정 지표(get_shoulder_forward_lean_deg) 단위 테스트가 이 자리에
@@ -1475,17 +1235,6 @@ if __name__ == "__main__":
     test_coaching_frame_without_frontal_fields_still_works()
     test_coaching_frame_knee_over_toe_flagged_when_deep_hold()
     test_coaching_frame_without_knee_over_toe_field_still_works()
-    test_coaching_frame_back_rounded_flagged_when_deep_hold()
-    test_coaching_frame_back_rounded_ignored_while_standing()
-    test_coaching_frame_back_rounded_ignored_without_baseline()
-    test_coaching_frame_without_torso_length_ratio_field_still_works()
-    test_coaching_frame_center_of_mass_flagged_when_deep_hold()
-    test_coaching_frame_without_center_of_mass_field_still_works()
-    test_coaching_frame_center_of_mass_photo_mode_notice_but_not_issue_when_above_threshold()
-    test_coaching_frame_center_of_mass_photo_mode_no_notice_below_threshold()
-    test_coaching_frame_center_of_mass_photo_mode_no_notice_without_field()
-    test_coaching_frame_center_of_mass_video_mode_notice_always_none()
-    test_coaching_frame_center_of_mass_video_mode_still_uses_threshold()
     test_coaching_frame_dtw_form_pattern_not_flagged_for_real_normal_rep()
     test_coaching_frame_dtw_form_pattern_flagged_when_severely_distorted()
     test_coaching_frame_dtw_skipped_when_optional_fields_missing()

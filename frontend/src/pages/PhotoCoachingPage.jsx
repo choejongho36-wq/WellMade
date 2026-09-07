@@ -17,7 +17,10 @@
  *    좌표로 재계산한다(hooks/usePhotoCoachingSession.js 참고).
  * 5. "분석 결과"의 각도 숫자 막대(예전 ANALYSIS_METRICS)는 없애고, 규칙 기반 판정
  *    결과를 LLM(Nova, app/coaching/photo_summary_llm.py)이 정리한 문장으로 보여준다 —
- *    판정 자체는 여전히 규칙 기반이고 문장만 LLM이 담당.
+ *    판정 자체는 여전히 규칙 기반이고 문장만 LLM이 담당. (2026-09-07 추가) 다만 근거를
+ *    보고 싶은 사람을 위해 "분석 결과" 옆 "상세 보기"를 누르면 ANALYSIS_METRICS 기반
+ *    막대그래프(MetricsDetailPanel)를 접어서 볼 수 있게 되살렸다 — 기본 화면은 여전히
+ *    요약 문장이고, 막대그래프는 그 아래 선택적 보조 자료다.
  * 6. 미리보기 박스를 3:2(가로로 긴 형태)로 고정하고(어떤 크기 사진을 올리든 항상 동일한
  *    크기로 표시, 2026-09-02: 이중 박스였을 때의 바깥 박스와 같은 높이가 되도록 3:4에서
  *    3:2로 변경),
@@ -52,7 +55,7 @@ import PhotoLandmarkEditor from '../components/PhotoLandmarkEditor.jsx'
 import PersonPickerOverlay from '../components/PersonPickerOverlay.jsx'
 import PhotoCropOverlay from '../components/PhotoCropOverlay.jsx'
 import { usePhotoCoachingSession } from '../hooks/usePhotoCoachingSession.js'
-import { PHOTO_DOT_LEFT_COLOR, PHOTO_DOT_RIGHT_COLOR } from '../lib/squatPose.js'
+import { ANALYSIS_METRICS, PHOTO_DOT_LEFT_COLOR, PHOTO_DOT_RIGHT_COLOR } from '../lib/squatPose.js'
 import './squatShared.css'
 import './PhotoCoachingPage.css'
 
@@ -65,13 +68,10 @@ function UploadNoticeModal({ onClose }) {
       <ul className="upload-notice-list">
         <li>전신이 옆모습(측면)으로 잘 보이는 사진을 올려주세요.</li>
         <li>사진이 흐리거나 신체 일부가 가려지면 분석이 부정확하거나 실패할 수 있어요.</li>
-        {/* (2026-09-03, 세 번째 정정) 무게중심(허리 젖혀짐/과신전)은 "정상/이상" 정식
-            판정(분석 결과)에는 포함하지 않는다(app/coaching/realtime.py의
-            center_of_mass 블록, is_photo 분기 참고) — 사진 한 장으로는 이 지표의 정식
-            판정 신뢰도를 보장할 수 없다고 판단했기 때문. 다만 의심되는 경우엔
-            AnalysisPanel 아래 별도 영역(CenterOfMassNotice)에 참고용으로만 안내한다 —
-            여기 모달은 그 한계를 미리 알려주는 용도. */}
-        <li>무게중심은 사진 한 장만으로 정확히 판단하긴 어려워요. 의심되는 경우 분석 결과 아래에 참고용으로만 안내해드리고, 정식 판정에는 포함하지 않아요. 정확히 확인하고 싶다면 실시간 영상 코칭을 이용해주세요.</li>
+        {/* (2026-09-07) 과신전(무게중심)·등굽음은 사진 한 장 기준 신뢰도가 낮다는 게
+            실측으로 확인돼, 정식 판정(issues)에는 넣지 않고 분석 결과 아래에 항상
+            고정 안내문으로만 보여준다(PhotoCoachingPage.jsx의 ReliabilityNotice 참고). */}
+        <li>과신전(허리 젖힘)·등굽음은 사진 한 장만으로는 정확히 판별하기 어려워요. 분석 결과 아래에서 항상 안내해드리니, 정확히 확인하고 싶다면 실시간 영상 코칭을 이용해주세요.</li>
         <li>이 분석 결과는 일반인 기준이에요. 통증이 있다면 무리하지 말고 전문가와 상담해주세요.</li>
       </ul>
     </Modal>
@@ -216,16 +216,72 @@ function AnalysisPanel({ session }) {
   )
 }
 
-// (2026-09-03 추가) 무게중심(허리 젖혀짐/과신전) 참고용 별도 안내 — "분석 결과"(정식
-// 판정)와는 별개 영역에, 서버가 center_of_mass_notice를 내려줬을 때만 보여준다. 정식
-// 판정(judgeResult.is_normal/issues)에는 영향을 주지 않는다는 걸 시각적으로도 구분하기
-// 위해 AnalysisPanel과 다른 카드로 분리했다.
-function CenterOfMassNotice({ notice }) {
-  if (!notice) return null
+// (2026-09-07 추가) "분석 결과" 옆 "상세 보기"를 눌렀을 때 펼쳐지는 막대그래프 —
+// squatPose.js의 ANALYSIS_METRICS 정의(label/field/unit/scale/ok)를 그대로 읽어서,
+// 전체 범위(scale) 안에 정상 구간(ok)을 색칠하고 실제 값 위치에 마커를 찍는다.
+// frontalOnly 지표(무릎 모임)는 정면 사진이 없어 값이 없으면 막대 대신 안내 문구만
+// 보여준다. 무게중심(center_of_mass)은 ANALYSIS_METRICS 자체에 없으므로 여기서도
+// 자동으로 제외된다.
+function MetricsDetailPanel({ metrics }) {
   return (
-    <div className="squat-card photo-panel photo-panel-full center-of-mass-notice">
+    <div className="metrics-detail">
+      {ANALYSIS_METRICS.map((metric) => {
+        const value = metrics[metric.field]
+        const hasValue = value !== null && value !== undefined
+
+        if (!hasValue) {
+          if (!metric.frontalOnly) return null
+          return (
+            <div key={metric.part} className="metric-row">
+              <div className="metric-row-head">
+                <span className="metric-label">
+                  {metric.label} <span className="photo-optional-badge">정면</span>
+                </span>
+              </div>
+              <p className="metric-caption">정면 사진이 있을 때만 확인할 수 있어요.</p>
+            </div>
+          )
+        }
+
+        const [scaleMin, scaleMax] = metric.scale
+        const [okMin, okMax] = metric.ok
+        const toPercent = (n) => ((Math.min(scaleMax, Math.max(scaleMin, n)) - scaleMin) / (scaleMax - scaleMin)) * 100
+        const okLeft = toPercent(okMin)
+        const okWidth = toPercent(okMax) - okLeft
+        const markerLeft = toPercent(value)
+
+        return (
+          <div key={metric.part} className="metric-row">
+            <div className="metric-row-head">
+              <span className="metric-label">
+                {metric.label}
+                {metric.frontalOnly && <span className="photo-optional-badge">정면</span>}
+              </span>
+              <span className="metric-value">{value.toFixed(metric.unit === '°' ? 1 : 2)}{metric.unit}</span>
+            </div>
+            <div className="metric-bar-track">
+              <div className="metric-bar-ok-zone" style={{ left: `${okLeft}%`, width: `${okWidth}%` }} />
+              <div className="metric-bar-marker" style={{ left: `${markerLeft}%` }} />
+            </div>
+            <p className="metric-caption">{metric.rangeText}</p>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// (2026-09-07 추가) 과신전(무게중심)·등굽음 신뢰도 안내 — 사진 한 장 기준으로는 이
+// 두 판정의 신뢰도를 보장할 수 없다는 게 실측(참고 이미지 재검토)으로 확인돼, 조건 없이
+// "분석 결과" 패널 아래에 항상 고정으로 보여준다(이전엔 서버가 계산한 무게중심 값이
+// 임계값을 넘을 때만 뜨는 조건부 안내였는데, 등굽음까지 포함해 고정 안내로 바꿨다).
+function ReliabilityNotice() {
+  return (
+    <div className="squat-card photo-panel photo-panel-full reliability-notice">
       <div className="photo-panel-head">참고로 확인해보세요</div>
-      <p className="center-of-mass-notice-text">{notice}</p>
+      <p className="reliability-notice-text">
+        과신전(허리 젖힘)·등굽음은 사진 한 장만으로는 정확히 판별하기 어려워요. 실시간 코칭으로 동작 중 자세를 확인해보세요.
+      </p>
     </div>
   )
 }
@@ -234,6 +290,9 @@ function PhotoCoachingPage() {
   const session = usePhotoCoachingSession()
   // 초깃값 true — 이 페이지에 들어올 때마다(컴포넌트가 새로 마운트될 때) 자동으로 뜬다.
   const [noticeOpen, setNoticeOpen] = useState(true)
+  // (2026-09-07 추가) "분석 결과" 옆 "상세 보기" 토글 — 기본은 접힘. 재분석해도 굳이
+  // 자동으로 닫지 않는다(펼쳐둔 채로 새 결과를 보고 싶을 수 있어서).
+  const [detailOpen, setDetailOpen] = useState(false)
 
   return (
     <PageShell>
@@ -262,11 +321,19 @@ function PhotoCoachingPage() {
       </div>
 
       <div className="squat-card photo-panel photo-panel-full">
-        <div className="photo-panel-head">분석 결과</div>
+        <div className="photo-panel-head">
+          <span>분석 결과</span>
+          {session.metricsDetail && (
+            <button type="button" className="photo-detail-toggle-btn" onClick={() => setDetailOpen((open) => !open)}>
+              {detailOpen ? '상세 보기 접기' : '상세 보기'}
+            </button>
+          )}
+        </div>
         <AnalysisPanel session={session} />
+        {detailOpen && session.metricsDetail && <MetricsDetailPanel metrics={session.metricsDetail} />}
       </div>
 
-      <CenterOfMassNotice notice={session.centerOfMassNotice} />
+      <ReliabilityNotice />
 
       <p className="photo-back-link">
         <Link to="/exercises">← 코칭 모드 다시 고르기</Link>

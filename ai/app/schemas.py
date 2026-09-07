@@ -45,16 +45,6 @@ class HipFlexibilityCalibration(BaseModel):
     max_flex_hip_angle: float = Field(
         ..., description="무리하지 않는 선에서 최대한 숙였을 때 측정한 hip_angle (많이 숙일수록 작은 값)"
     )
-    standing_shoulder_hip_ratio: Optional[float] = Field(
-        None,
-        description="편하게 서 있을 때(standing_hip_angle과 같은 순간) 측정한 어깨-엉덩이 "
-        "직선거리/발 길이 비율(app/pose/angles.py의 get_torso_length_ratio 참고). "
-        "등이 곧게 펴진 상태의 기준값으로 써서, 실제 자세에서 이 비율이 얼마나 "
-        "줄었는지로 '등이 둥글게 말렸는지'(척추 굴곡)를 판정한다. hip_angle 캘리브레이션과 "
-        "같은 '편하게 서 있기' 측정 한 번으로 같이 얻을 수 있는 값이라 이 모델에 함께 둔다. "
-        "선택 필드 — 없으면(하위 호환) 등 굽음 검사만 건너뛰고 나머지 캘리브레이션은 그대로 "
-        "동작한다.",
-    )
 
 
 class PoseIssue(BaseModel):
@@ -125,9 +115,8 @@ class AngleFrame(BaseModel):
     torso_length_ratio: Optional[float] = Field(
         None,
         description="어깨-엉덩이 직선거리/발 길이 비율(app/pose/angles.py의 "
-        "get_torso_length_ratio 참고). hip_calibration에 standing_shoulder_hip_ratio가 함께 "
-        "있을 때만 '등이 둥글게 말렸는지' 판정에 쓰인다(기준값 없이는 이 숫자 하나만으로는 "
-        "판단 불가). 선택 필드 — 없으면 등 굽음 검사를 건너뛴다(하위 호환).",
+        "get_torso_length_ratio 참고). DTW 렙 패턴 비교(app/pose/dtw_matching.py)의 "
+        "지표 중 하나로 쓰인다. 선택 필드 — 없으면 DTW 비교에서 이 지표만 제외된다(하위 호환).",
     )
     torso_shin_lean_gap_deg: Optional[float] = Field(
         None,
@@ -165,16 +154,12 @@ class CoachingFrameRequest(BaseModel):
         "조회한다(app/coaching/hyperextension_llm_check.py 참고). 대기 중인 job이 없으면 "
         "생략한다.",
     )
-    is_photo: bool = Field(
-        False,
-        description="이 호출이 사진 코칭(정지 프레임, 3프레임 복제)에서 온 것인지. True면 "
-        "무게중심(torso_shin_lean_gap_deg 기반 center_of_mass)을 issues(정식 판정, "
-        "is_normal 계산에 포함)에는 넣지 않고, 임곗값을 넘을 때만 응답의 "
-        "center_of_mass_notice 필드에 참고용 문구를 담아 돌려준다(2026-09-03 — 사진 "
-        "한 장으로는 이 지표의 정식 판정 신뢰도를 보장할 수 없다고 판단, "
-        "app/coaching/realtime.py의 center_of_mass 블록 참고). 실시간 영상 호출(기본값 "
-        "False)은 기존처럼 issues에 바로 넣는 임곗값 판정을 유지하고, "
-        "center_of_mass_notice는 항상 None이다.",
+    view: Literal["side", "front"] = Field(
+        "side",
+        description="이번 요청이 측면 세션인지 정면 세션인지. 정면(front)이면 측면 각도 기반 "
+        "판정(동작 단계·얕은 스쿼트·발뒤꿈치·목/시선·DTW 등)을 전부 건너뛰고 무릎모임"
+        "(knee_valgus_ratio)만 검사한다 — 정면 랜드마크로는 knee_angle/hip_angle 같은 시상면 "
+        "각도 자체가 의미가 없기 때문이다. 기본값 side는 기존 동작과 동일(하위 호환).",
     )
 
 
@@ -192,13 +177,6 @@ class CoachingFrameResponse(BaseModel):
         "값을 저장해뒀다가 다음 호출들의 요청에 그대로 실어 보내면 된다. None이면 지금 "
         "기다릴 job이 없다는 뜻(방금 결과를 이슈로 받았거나, 애초에 없었음)이라 프론트가 "
         "들고 있던 이전 job id는 지워도 된다.",
-    )
-    center_of_mass_notice: Optional[str] = Field(
-        None,
-        description="사진 코칭(is_photo=True)에서 무게중심이 임곗값을 넘었을 때만 채워지는 "
-        "참고용 안내 문구(2026-09-03 추가). issues(정식 판정)에는 포함되지 않으므로 "
-        "is_normal 계산에 영향을 주지 않는다 — 프론트는 '분석 결과' 패널이 아니라 별도 "
-        "하단 영역에 보여줘야 한다. 실시간 영상 호출(is_photo=False)에서는 항상 None.",
     )
 
 

@@ -31,6 +31,7 @@
 }
 .photo-panel {
   max-width: none;
+  margin: 0;
 }
 .photo-panel-head {
   display: flex;
@@ -40,6 +41,25 @@
   font-weight: 800;
   color: #111;
   margin-bottom: 14px;
+}
+/* (2026-09-07) "분석 결과" 헤더 오른쪽에 붙는 상세 보기 토글 버튼(PhotoCoachingPage.jsx의
+   MetricsDetailPanel 참고) — margin-left: auto로 photo-panel-head(flex) 안에서 오른쪽 끝에 붙는다. */
+.photo-detail-toggle-btn {
+  margin-left: auto;
+  flex: none;
+  padding: 4px 12px;
+  border: 1px solid #dcd9d3;
+  border-radius: 999px;
+  background: #fff;
+  color: #55534d;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.photo-detail-toggle-btn:hover {
+  border-color: #da291c;
+  color: #da291c;
 }
 .photo-req-badge,
 .photo-optional-badge {
@@ -243,15 +263,77 @@
   color: #33322f;
 }
 
-/* (2026-09-03 추가) 무게중심(허리 젖혀짐/과신전) 참고용 별도 안내 카드 — "분석
-   결과"(정식 판정) 패널과 시각적으로 구분되도록 은은한 노란빛 톤을 쓴다(경고/에러가
-   아니라 "참고용"이라는 뉘앙스). photo-panel-full 클래스를 공유해 위 분석 결과 패널과
-   같은 폭/여백을 유지한다. */
-.center-of-mass-notice {
+/* (2026-09-07) 분석 결과 "상세 보기" — 지표별 정상범위 막대그래프(squatPose.js의
+   ANALYSIS_METRICS, PhotoCoachingPage.jsx의 MetricsDetailPanel). 기본은 접혀 있고
+   .photo-detail-toggle-btn으로 펼친다. 정면 사진에서만 계산되는 지표(무릎 모임 등)는
+   값이 없을 때 막대 대신 안내 문구(.metric-caption)만 보여준다. */
+.metrics-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed #e5e3dd;
+}
+.metric-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.metric-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #33322f;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.metric-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #55534d;
+  white-space: nowrap;
+}
+.metric-bar-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: #f0efe9;
+}
+.metric-bar-ok-zone {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: #cdeee0;
+}
+.metric-bar-marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #da291c;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(218, 41, 28, 0.4);
+  transform: translate(-50%, -50%);
+}
+.metric-caption {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: #9b9a96;
+}
+
+/* (2026-09-07) 과신전·등굽음 신뢰도 고정 안내 카드 — "분석 결과"(정식 판정) 패널과
+   시각적으로 구분되도록 은은한 노란빛 톤을 쓴다(경고/에러가 아니라 "참고용"이라는
+   뉘앙스). photo-panel-full 클래스를 공유해 위 분석 결과 패널과 같은 폭/여백을 유지한다. */
+.reliability-notice {
   background: #fdf8ee;
   border: 1px solid #eee0bd;
 }
-.center-of-mass-notice-text {
+.reliability-notice-text {
   margin: 0;
   font-size: 13px;
   line-height: 1.8;
