@@ -269,7 +269,7 @@ function PhotoCoachingPage() {
       <CenterOfMassNotice notice={session.centerOfMassNotice} />
 
       <p className="photo-back-link">
-        <Link to="/squat">← 코칭 모드 다시 고르기</Link>
+        <Link to="/exercises">← 코칭 모드 다시 고르기</Link>
       </p>
 
       {noticeOpen && <UploadNoticeModal onClose={() => setNoticeOpen(false)} />}

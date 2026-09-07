@@ -5,7 +5,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-const EXERCISES = [{ id: 'squat', label: '스쿼트' }]
+const EXERCISES = [
+  { id: 'squat', label: '스쿼트' },
+  { id: 'lunge', label: '런지' },
+  { id: 'plank', label: '플랭크' },
+]
 
 function ExerciseSelectDropdown({ value = 'squat', onChange }) {
   const [open, setOpen] = useState(false)
