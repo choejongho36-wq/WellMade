@@ -151,6 +151,7 @@ def coaching_frame(request: CoachingFrameRequest):
         request.angle_history,
         hip_calibration=request.hip_calibration,
         pending_llm_job_id=request.pending_llm_job_id,
+        view=request.view,
     )
 
     return CoachingFrameResponse(

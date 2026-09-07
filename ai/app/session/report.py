@@ -52,7 +52,6 @@ PART_LABELS = {
     "knee": "무릎",
     "hip": "엉덩이(고관절)",
     "gaze": "시선/고개",
-    "back_rounded": "등(자세)",
     "movement": "움직임 안정성",
     "data": "판정 데이터",
     "hip_hyperextension": "고관절 과신전",
@@ -241,18 +240,19 @@ def aggregate_session_stats(
     # -----------------------------------------------------------------------
 
     improvement_vs_previous_pct = None
+    previous_normal_ratio = None
 
     if previous_sessions:
         # previous_sessions는 호출부가 시간순으로 전달한다고 전제한다.
         previous = previous_sessions[-1]
 
-        previous_ratio = previous.get(
+        previous_normal_ratio = previous.get(
             "normal_ratio"
         )
 
-        if previous_ratio is not None:
+        if previous_normal_ratio is not None:
             improvement_vs_previous_pct = round(
-                (normal_ratio - previous_ratio) * 100,
+                (normal_ratio - previous_normal_ratio) * 100,
                 1,
             )
 
@@ -273,6 +273,7 @@ def aggregate_session_stats(
             most_frequent_issue_part
         ),
         "issue_counts_by_part": part_counts,
+        "previous_normal_ratio": previous_normal_ratio,
         "improvement_vs_previous_pct": (
             improvement_vs_previous_pct
         ),
@@ -301,16 +302,13 @@ def _fallback_summary_message(
     근거 없는 내용을 생성하지 않는다.
     """
 
-    minutes = round(
-        session_duration_sec / 60,
-        1,
-    )
+    seconds = round(session_duration_sec)
 
     parts = [
         (
-            f"오늘 약 {minutes}분 동안 운동하셨고, "
-            f"전체 동작 중 "
-            f"{stats['normal_ratio'] * 100:.0f}%가 "
+            f"오늘 약 {seconds}초 동안 자세를 확인했고, "
+            f"총 스쿼트는 {stats['total_reps']}회 하셨어요. "
+            f"그중 {stats['normal_ratio'] * 100:.0f}%가 "
             "정상 자세였어요."
         )
     ]
@@ -395,6 +393,7 @@ def _generate_llm_summary(
         "세션 리포트 작성기입니다. "
         "아래에 제공되는 집계 수치만 근거로 삼아 "
         "사용자의 오늘 스쿼트 세션을 요약하세요. "
+        "첫 문장에서 세션 시간(초)과 총 스쿼트 반복 횟수를 함께 언급하세요. "
         "한국어 해요체를 사용하고, "
         "3~4문장 정도로 작성하세요. "
         "사용자를 격려하되 과장하지 마세요. "
@@ -410,7 +409,8 @@ def _generate_llm_summary(
         f"- 정상 자세 비율: "
         f"{stats['normal_ratio'] * 100:.0f}%\n"
         f"- 세션 시간: "
-        f"{round(session_duration_sec / 60, 1)}분\n"
+        f"{round(session_duration_sec)}초 "
+        f"(약 {round(session_duration_sec / 60, 1)}분)\n"
         f"- 평균 편차: "
         f"{stats['avg_deviation_deg']}도\n"
         f"- 가장 자주 감지된 부위: {issue_part}\n"
@@ -524,6 +524,7 @@ def generate_session_report(
         if generated:
             return {
                 **stats,
+                "session_duration_sec": session_duration_sec,
                 "summary_message": generated,
                 "generation_source": "llm",
             }
@@ -531,6 +532,7 @@ def generate_session_report(
     # 5. LLM 실패 → fallback
     return {
         **stats,
+        "session_duration_sec": session_duration_sec,
         "summary_message": fallback_message,
         "generation_source": "fallback",
     }

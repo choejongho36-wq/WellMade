@@ -45,16 +45,6 @@ class HipFlexibilityCalibration(BaseModel):
     max_flex_hip_angle: float = Field(
         ..., description="무리하지 않는 선에서 최대한 숙였을 때 측정한 hip_angle (많이 숙일수록 작은 값)"
     )
-    standing_shoulder_hip_ratio: Optional[float] = Field(
-        None,
-        description="편하게 서 있을 때(standing_hip_angle과 같은 순간) 측정한 어깨-엉덩이 "
-        "직선거리/발 길이 비율(app/pose/angles.py의 get_torso_length_ratio 참고). "
-        "등이 곧게 펴진 상태의 기준값으로 써서, 실제 자세에서 이 비율이 얼마나 "
-        "줄었는지로 '등이 둥글게 말렸는지'(척추 굴곡)를 판정한다. hip_angle 캘리브레이션과 "
-        "같은 '편하게 서 있기' 측정 한 번으로 같이 얻을 수 있는 값이라 이 모델에 함께 둔다. "
-        "선택 필드 — 없으면(하위 호환) 등 굽음 검사만 건너뛰고 나머지 캘리브레이션은 그대로 "
-        "동작한다.",
-    )
 
 
 class PoseIssue(BaseModel):
@@ -125,9 +115,8 @@ class AngleFrame(BaseModel):
     torso_length_ratio: Optional[float] = Field(
         None,
         description="어깨-엉덩이 직선거리/발 길이 비율(app/pose/angles.py의 "
-        "get_torso_length_ratio 참고). hip_calibration에 standing_shoulder_hip_ratio가 함께 "
-        "있을 때만 '등이 둥글게 말렸는지' 판정에 쓰인다(기준값 없이는 이 숫자 하나만으로는 "
-        "판단 불가). 선택 필드 — 없으면 등 굽음 검사를 건너뛴다(하위 호환).",
+        "get_torso_length_ratio 참고). DTW 렙 패턴 비교(app/pose/dtw_matching.py)의 "
+        "지표 중 하나로 쓰인다. 선택 필드 — 없으면 DTW 비교에서 이 지표만 제외된다(하위 호환).",
     )
     torso_shin_lean_gap_deg: Optional[float] = Field(
         None,
@@ -164,6 +153,13 @@ class CoachingFrameRequest(BaseModel):
         "서버는 세션을 기억하지 않고(무상태 설계 유지), 이 id로 job이 끝났는지만 그때그때 "
         "조회한다(app/coaching/hyperextension_llm_check.py 참고). 대기 중인 job이 없으면 "
         "생략한다.",
+    )
+    view: Literal["side", "front"] = Field(
+        "side",
+        description="이번 요청이 측면 세션인지 정면 세션인지. 정면(front)이면 측면 각도 기반 "
+        "판정(동작 단계·얕은 스쿼트·발뒤꿈치·목/시선·DTW 등)을 전부 건너뛰고 무릎모임"
+        "(knee_valgus_ratio)만 검사한다 — 정면 랜드마크로는 knee_angle/hip_angle 같은 시상면 "
+        "각도 자체가 의미가 없기 때문이다. 기본값 side는 기존 동작과 동일(하위 호환).",
     )
 
 
@@ -594,7 +590,12 @@ class SessionReportRequest(BaseModel):
 
 
 class SessionReportResponse(BaseModel):
+    total_reps: int = Field(..., description="세션에서 완료한 스쿼트 반복(렙) 횟수. 프론트가 무릎 각도로 감지한 렙 단위 이력을 보내면 그 개수, 아니면(하위 호환) 전달받은 frame_history 개수를 그대로 쓴다.")
+    normal_reps: int = Field(..., description="정상 자세로 완료한 반복 횟수")
+    abnormal_reps: int = Field(..., description="이상 자세가 감지된 반복 횟수")
+    session_duration_sec: float = Field(..., description="세션 진행 시간(초). 요청의 session_duration_sec를 그대로 돌려준다 — 프론트가 리포트 화면에 바로 쓸 수 있게.")
     normal_ratio: float = Field(..., description="세션 전체 정상 자세 비율(0~1)")
+    previous_normal_ratio: Optional[float] = Field(None, description='직전 세션의 정상 자세 비율(0~1). previous_sessions가 없으면 None — 프론트가 "지난 세션(65%) 대비" 같은 문구를 만들 때 쓴다.')
     avg_deviation_deg: Optional[float] = Field(None, description="이상 소견의 평균 편차(도). deviation_deg가 제공된 소견이 하나도 없으면 None")
     most_frequent_issue_part: Optional[str] = Field(None, description="가장 자주 감지된 이상 부위. 이상 소견이 없으면 None")
     issue_counts_by_part: Dict[str, int] = Field(

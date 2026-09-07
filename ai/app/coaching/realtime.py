@@ -25,9 +25,6 @@ from app.coaching.hyperextension_llm_check import (
     start_hyperextension_analysis as _start_hyperextension_analysis,
 )
 from app.pose.coaching_messages import (
-    BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE,
-    BACK_ROUNDED_MESSAGE,
-    CENTER_OF_MASS_SHIFT_MESSAGE,
     DTW_FORM_MISMATCH_MESSAGE,
     HEEL_LIFT_MESSAGE,
     HIP_HYPEREXTENSION_LLM_MESSAGE,
@@ -43,7 +40,6 @@ from app.pose.dtw_matching import (
 )
 from app.pose.dtw_template_store import load_templates_for_store
 from app.pose.rules import (
-    BACK_ROUNDING_RATIO_THRESHOLD,
     DTW_AMBIGUOUS_LOWER_DISTANCE,
     DTW_AMBIGUOUS_UPPER_DISTANCE,
     DTW_NEAREST_DISTANCE_THRESHOLD,
@@ -53,7 +49,6 @@ from app.pose.rules import (
     MIN_DTW_REP_FRAMES,
     NORMAL_RANGES,
     SHOULDER_FORWARD_LEAN_THRESHOLD_DEG,
-    TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG,
     personalized_hip_range,
 )
 from app.schemas import AngleFrame, HipFlexibilityCalibration
@@ -205,6 +200,7 @@ def judge_realtime_coaching(
     angle_history: list[AngleFrame],
     hip_calibration: HipFlexibilityCalibration | None = None,
     pending_llm_job_id: str | None = None,
+    view: str = "side",
 ) -> dict:
     """
     최근 N프레임의 무릎/엉덩이 각도 시계열을 보고
@@ -216,6 +212,12 @@ def judge_realtime_coaching(
     pending_llm_job_id: 이전 호출에서 시작된 고관절 과신전 LLM 2차 확인 job이 있으면
     프론트가 그대로 실어 보낸다 — app/coaching/hyperextension_llm_check.py 모듈
     docstring, schemas.py의 CoachingFrameRequest/Response 필드 설명 참고.
+
+    view: "side"(기본) | "front". "front"이면 아래 측면 각도 기반 판정(동작 단계, 정상범위,
+    발뒤꿈치, 목/시선, 무릎-발끝, DTW/LLM 등)을 전부 건너뛰고 무릎모임(knee_valgus_ratio)만
+    검사한다 — get_knee_angle/get_hip_angle(app/pose/angles.py)은 시상면(옆에서 본) 기준이라
+    정면 랜드마크로 계산하면 실제 굽힘 각도를 반영하지 못하기 때문이다(2026-09-07 실시간
+    코칭 측면→정면 2단계 흐름 추가와 함께 도입).
     """
     issues: list[dict] = []
     # 이번 응답에서 프론트가 계속 들고 있어야 할 job id — 기본은 "기다릴 것 없음"이고,
@@ -234,6 +236,23 @@ def judge_realtime_coaching(
             "is_normal": True,
             "confidence": round(len(angle_history) / MIN_FRAMES * 0.3, 2),
             "issues": [],
+            "pending_llm_job_id": None,
+        }
+
+    # --- 정면(front) 세션: 무릎모임만 본다 ---
+    # 측면 각도(knee_angle/hip_angle) 기반의 동작 단계·정상범위 판정, DTW/LLM 2차 확인은
+    # 정면 랜드마크로는 의미가 없어 전부 건너뛰고, 매 프레임 knee_valgus_ratio만 상시
+    # 검사한다(깊이 게이트 없이 — 무릎모임은 측면 세션에서도 is_deep_hold 조건 없이 검사하는
+    # 것과 동일한 이유, 위 (2) 블록 주석 참고).
+    if view == "front":
+        latest_knee_valgus = angle_history[-1].knee_valgus_ratio
+        if latest_knee_valgus is not None and latest_knee_valgus < KNEE_VALGUS_RATIO_THRESHOLD:
+            issues.append({"part": "knee_valgus", "message": KNEE_VALGUS_MESSAGE})
+        return {
+            "phase": "holding",
+            "is_normal": len(issues) == 0,
+            "confidence": 1.0 if latest_knee_valgus is not None else 0.3,
+            "issues": issues,
             "pending_llm_job_id": None,
         }
 
@@ -258,13 +277,6 @@ def judge_realtime_coaching(
     latest_knee_valgus = angle_history[-1].knee_valgus_ratio  # 선택 필드라 None일 수 있음
     # 무릎-발끝 — 측면 랜드마크 기준이라 정면 카메라 여부와 무관하게 선택 필드다.
     latest_knee_over_toe = angle_history[-1].knee_over_toe_ratio  # 선택 필드라 None일 수 있음
-    # 등 굽음 — 측면 랜드마크 기준. hip_calibration.standing_shoulder_hip_ratio라는
-    # 기준값이 함께 있어야만 실제 판정에 쓰인다(rules.py의 BACK_ROUNDING_RATIO_THRESHOLD 주석 참고).
-    latest_torso_length_ratio = angle_history[-1].torso_length_ratio  # 선택 필드라 None일 수 있음
-    # 무게중심(상체가 정강이보다 얼마나 더 기울었는지) — 측면 랜드마크 기준, knee_over_toe와
-    # 동일하게 정면 카메라 여부와 무관한 선택 필드다(rules.py의
-    # TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG 주석 참고 — 나쁜 사례 표본이 2건뿐인 잠정 신호).
-    latest_torso_shin_lean_gap = angle_history[-1].torso_shin_lean_gap_deg  # 선택 필드라 None일 수 있음
 
     knee_slope, knee_r2 = _linear_fit(timestamps, knee_series)
     knee_deltas = [b - a for a, b in zip(knee_series, knee_series[1:])]
@@ -325,9 +337,8 @@ def judge_realtime_coaching(
         # 목/시선(고개가 앞으로 떨어졌는지)은 무릎/엉덩이와 달리 "깊게 앉았을 때"만이 아니라
         # 정지한 어느 시점에서든 확인할 문제라, is_deep_hold 조건 없이 검사한다(상시검사).
         # shoulder_forward_lean_deg가 없으면(하위 호환 — 프론트가 아직 안 보내는 경우) 검사를
-        # 건너뛴다. 원래 이 신호는 "어깨 말림"도 같이 판정했으나, 어깨 말림/등 굽음은 원인을
-        # "등이 굽었다"로 단정해 아래 back_rounded(등 굽음) 판정으로 통합했다 — 그쪽은
-        # is_deep_hold 조건이 있어 여기와 달리 상시검사가 아니다(트레이드오프로 수용).
+        # 건너뛴다. 원래 이 신호는 "어깨 말림"도 같이 판정했으나, 지금은 목/시선
+        # 전용 신호로만 쓴다.
         if latest_shoulder_forward_lean is not None and latest_shoulder_forward_lean > SHOULDER_FORWARD_LEAN_THRESHOLD_DEG:
             issues.append(
                 {
@@ -371,34 +382,6 @@ def judge_realtime_coaching(
             and latest_knee_over_toe > KNEE_OVER_TOE_RATIO_THRESHOLD
         ):
             issues.append({"part": "knee_over_toe", "message": KNEE_OVER_TOE_MESSAGE})
-        # 무게중심도 무릎-발끝과 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 동작
-        # 중(내려가는/올라오는 도중)에는 상체-정강이 기울기 차이가 과도기적으로 커질 수 있다.
-        if (
-            is_deep_hold
-            and latest_torso_shin_lean_gap is not None
-            and latest_torso_shin_lean_gap > TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG
-        ):
-            issues.append({"part": "center_of_mass", "message": CENTER_OF_MASS_SHIFT_MESSAGE})
-        # 등 굽음도 같은 이유로 "깊게 앉아 멈춘 상태"에서만 검사한다 — 기준값
-        # (hip_calibration.standing_shoulder_hip_ratio)이 없으면(캘리브레이션을 안 한 기존
-        # 클라이언트) 검사 자체를 건너뛴다.
-        back_rounding_baseline = (
-            hip_calibration.standing_shoulder_hip_ratio if hip_calibration is not None else None
-        )
-        # 등 굽음 판정은 "등 굽음"과 "어깨 말림"을 하나의 원인("등이 굽었다")으로 묶어서
-        # 알려준다 — 원래 어깨 말림 전용이었던 shoulder_forward_lean_deg 상시검사를 대체한다.
-        if (
-            is_deep_hold
-            and latest_torso_length_ratio is not None
-            and back_rounding_baseline is not None
-            and latest_torso_length_ratio < back_rounding_baseline * BACK_ROUNDING_RATIO_THRESHOLD
-        ):
-            issues.append({"part": "back_rounded", "message": BACK_ROUNDED_MESSAGE})
-        elif is_deep_hold and latest_torso_length_ratio is not None and back_rounding_baseline is None:
-            # 캘리브레이션이 없어 기준값 자체가 없는 경우 — 조용히 건너뛰지 않고, 왜 이
-            # 검사가 빠졌는지 알려준다(어깨 말림까지 여기로 흡수된 뒤로는 이 검사가 하는
-            # 역할이 커져서, 조용한 스킵보다 명시적 안내가 낫다고 판단).
-            issues.append({"part": "data", "message": BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE})
     else:
         # 동작 중에는 "정상범위 하한보다 훨씬 더 굽혀지는" 과도한 굽힘만 위험 신호로 본다.
         # (무릎에 부담이 되는 과도한 가동범위는 동작 단계와 무관하게 바로 감지해야 하기 때문)

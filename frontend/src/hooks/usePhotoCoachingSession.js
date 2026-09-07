@@ -291,6 +291,11 @@ export function usePhotoCoachingSession() {
   const [judgeError, setJudgeError] = useState('')
   const [summary, setSummary] = useState(null) // { summary_message, generation_source }
   const [summaryError, setSummaryError] = useState('')
+  // (2026-09-07 추가) "분석 결과" 옆 "상세 보기"를 펼치면 보여줄 막대그래프용 원시 지표 —
+  // squatPose.js의 ANALYSIS_METRICS가 이 값들을 읽어 정상 구간 대비 위치를 그린다
+  // (PhotoCoachingPage.jsx의 MetricsDetailPanel 참고). 서버에 보내는 것과 같은 값이라
+  // 여기서 별도로 다시 계산하지 않고 그대로 상태에 담아둔다.
+  const [metricsDetail, setMetricsDetail] = useState(null)
 
   const canAnalyze = side.phase === 'ready' && !analyzing
 
@@ -302,6 +307,7 @@ export function usePhotoCoachingSession() {
     setSummaryError('')
     setJudgeResult(null)
     setSummary(null)
+    setMetricsDetail(null)
 
     const hasFront = front.phase === 'ready' && !!front.points
 
@@ -312,6 +318,7 @@ export function usePhotoCoachingSession() {
       // 건너뛴다).
       const frontMetrics = hasFront ? buildFrontMetrics(editablePointsToLandmarksArray(front.points)) : {}
       const metrics = { ...sideMetrics, ...frontMetrics }
+      setMetricsDetail(metrics)
 
       const angle_history = [0, 0.1, 0.2].map((timestamp) => ({ timestamp, ...metrics }))
       const res = await fetch(`${AI_BASE}/ai/coaching/frame`, {
@@ -358,6 +365,7 @@ export function usePhotoCoachingSession() {
     judgeError,
     summary,
     summaryError,
+    metricsDetail,
     runAnalysis,
   }
 }

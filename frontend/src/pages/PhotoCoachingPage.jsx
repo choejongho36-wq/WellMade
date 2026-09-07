@@ -17,7 +17,10 @@
  *    좌표로 재계산한다(hooks/usePhotoCoachingSession.js 참고).
  * 5. "분석 결과"의 각도 숫자 막대(예전 ANALYSIS_METRICS)는 없애고, 규칙 기반 판정
  *    결과를 LLM(Nova, app/coaching/photo_summary_llm.py)이 정리한 문장으로 보여준다 —
- *    판정 자체는 여전히 규칙 기반이고 문장만 LLM이 담당.
+ *    판정 자체는 여전히 규칙 기반이고 문장만 LLM이 담당. (2026-09-07 추가) 다만 근거를
+ *    보고 싶은 사람을 위해 "분석 결과" 옆 "상세 보기"를 누르면 ANALYSIS_METRICS 기반
+ *    막대그래프(MetricsDetailPanel)를 접어서 볼 수 있게 되살렸다 — 기본 화면은 여전히
+ *    요약 문장이고, 막대그래프는 그 아래 선택적 보조 자료다.
  * 6. 미리보기 박스를 3:2(가로로 긴 형태)로 고정하고(어떤 크기 사진을 올리든 항상 동일한
  *    크기로 표시, 2026-09-02: 이중 박스였을 때의 바깥 박스와 같은 높이가 되도록 3:4에서
  *    3:2로 변경),
@@ -36,19 +39,23 @@
  * 복제해 보내면 "정지" 상태로 인식해 실제 임계값 비교를 그대로 적용해준다는 점은 이전과
  * 동일 — 측면 사진은 항상 있으므로 AI-06은 매번 호출되고, 정면 사진이 있으면 무릎 모임
  * 값을 추가로 얹어 보낸다.
+ *
+ * (2026-09-03 추가) 운동 선택 드롭다운/운동방법 버튼을 이 페이지 헤더에서 빼서
+ * SquatModeSelectPage(사진모드/동영상모드를 고르는 화면)의 헤더로 옮겼다 — 모드를
+ * 먼저 고르기 전에 운동/운동방법을 한 번만 확인하면 되게 하려는 목적("사진모드
+ * 안에 들어가서 일일이 누르기 힘들다"는 요청). 같은 이유로 "분석하기" 버튼도
+ * 별도 줄이 아니라 "사진 코칭" 타이틀이 있는 section-head 줄 오른쪽으로 옮겼다.
  */
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import PageShell from '../components/PageShell.jsx'
 import Modal from '../components/Modal.jsx'
-import ExerciseGuideModal from '../components/ExerciseGuideModal.jsx'
-import ExerciseSelectDropdown from '../components/ExerciseSelectDropdown.jsx'
 import PhotoLandmarkEditor from '../components/PhotoLandmarkEditor.jsx'
 import PersonPickerOverlay from '../components/PersonPickerOverlay.jsx'
 import PhotoCropOverlay from '../components/PhotoCropOverlay.jsx'
 import { usePhotoCoachingSession } from '../hooks/usePhotoCoachingSession.js'
-import { PHOTO_DOT_LEFT_COLOR, PHOTO_DOT_RIGHT_COLOR } from '../lib/squatPose.js'
+import { ANALYSIS_METRICS, PHOTO_DOT_LEFT_COLOR, PHOTO_DOT_RIGHT_COLOR } from '../lib/squatPose.js'
 import './squatShared.css'
 import './PhotoCoachingPage.css'
 
@@ -61,7 +68,11 @@ function UploadNoticeModal({ onClose }) {
       <ul className="upload-notice-list">
         <li>전신이 옆모습(측면)으로 잘 보이는 사진을 올려주세요.</li>
         <li>사진이 흐리거나 신체 일부가 가려지면 분석이 부정확하거나 실패할 수 있어요.</li>
-        <li>이 분석 결과는 참고용이에요. 통증이 있다면 무리하지 말고 전문가와 상담해주세요.</li>
+        {/* (2026-09-07) 과신전(무게중심)·등굽음은 사진 한 장 기준 신뢰도가 낮다는 게
+            실측으로 확인돼, 정식 판정(issues)에는 넣지 않고 분석 결과 아래에 항상
+            고정 안내문으로만 보여준다(PhotoCoachingPage.jsx의 ReliabilityNotice 참고). */}
+        <li>과신전(허리 젖힘)·등굽음은 사진 한 장만으로는 정확히 판별하기 어려워요. 분석 결과 아래에서 항상 안내해드리니, 정확히 확인하고 싶다면 실시간 영상 코칭을 이용해주세요.</li>
+        <li>이 분석 결과는 일반인 기준이에요. 통증이 있다면 무리하지 말고 전문가와 상담해주세요.</li>
       </ul>
     </Modal>
   )
@@ -71,7 +82,7 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
   return (
     <div className="squat-card photo-panel photo-slot-panel">
       <div className="photo-panel-head">
-        사진 미리보기 · {label}
+         {label}
         <span className={required ? 'photo-req-badge' : 'photo-optional-badge'}>{required ? '필수' : '선택'}</span>
       </div>
 
@@ -80,7 +91,7 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
           {slot.phase === 'idle' && (
             <button type="button" className="preview-placeholder" onClick={slot.openFilePicker}>
               <span className="preview-placeholder-icon">📷</span>
-              {label} 사진을 업로드해주세요
+              여기를 눌러 {label} 사진을 업로드해주세요
               {/* (2026-09-03) 별도 "사진 업로드" 버튼을 없애고 이 영역 클릭만으로 업로드하게
                   되면서, 그 버튼 아래 있던 파일 형식 안내 문구를 이 자리로 옮겨왔다. */}
               <span className="preview-placeholder-hint">JPG · PNG · 최대 10MB</span>
@@ -205,26 +216,103 @@ function AnalysisPanel({ session }) {
   )
 }
 
+// (2026-09-07 추가) "분석 결과" 옆 "상세 보기"를 눌렀을 때 펼쳐지는 막대그래프 —
+// squatPose.js의 ANALYSIS_METRICS 정의(label/field/unit/scale/ok)를 그대로 읽어서,
+// 전체 범위(scale) 안에 정상 구간(ok)을 색칠하고 실제 값 위치에 마커를 찍는다.
+// frontalOnly 지표(무릎 모임)는 정면 사진이 없어 값이 없으면 막대 대신 안내 문구만
+// 보여준다. 무게중심(center_of_mass)은 ANALYSIS_METRICS 자체에 없으므로 여기서도
+// 자동으로 제외된다.
+function MetricsDetailPanel({ metrics }) {
+  return (
+    <div className="metrics-detail">
+      {ANALYSIS_METRICS.map((metric) => {
+        const value = metrics[metric.field]
+        const hasValue = value !== null && value !== undefined
+
+        if (!hasValue) {
+          if (!metric.frontalOnly) return null
+          return (
+            <div key={metric.part} className="metric-row">
+              <div className="metric-row-head">
+                <span className="metric-label">
+                  {metric.label} <span className="photo-optional-badge">정면</span>
+                </span>
+              </div>
+              <p className="metric-caption">정면 사진이 있을 때만 확인할 수 있어요.</p>
+            </div>
+          )
+        }
+
+        const [scaleMin, scaleMax] = metric.scale
+        const [okMin, okMax] = metric.ok
+        const toPercent = (n) => ((Math.min(scaleMax, Math.max(scaleMin, n)) - scaleMin) / (scaleMax - scaleMin)) * 100
+        const okLeft = toPercent(okMin)
+        const okWidth = toPercent(okMax) - okLeft
+        const markerLeft = toPercent(value)
+
+        return (
+          <div key={metric.part} className="metric-row">
+            <div className="metric-row-head">
+              <span className="metric-label">
+                {metric.label}
+                {metric.frontalOnly && <span className="photo-optional-badge">정면</span>}
+              </span>
+              <span className="metric-value">{value.toFixed(metric.unit === '°' ? 1 : 2)}{metric.unit}</span>
+            </div>
+            <div className="metric-bar-track">
+              <div className="metric-bar-ok-zone" style={{ left: `${okLeft}%`, width: `${okWidth}%` }} />
+              <div className="metric-bar-marker" style={{ left: `${markerLeft}%` }} />
+            </div>
+            <p className="metric-caption">{metric.rangeText}</p>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// (2026-09-07 추가) 과신전(무게중심)·등굽음 신뢰도 안내 — 사진 한 장 기준으로는 이
+// 두 판정의 신뢰도를 보장할 수 없다는 게 실측(참고 이미지 재검토)으로 확인돼, 조건 없이
+// "분석 결과" 패널 아래에 항상 고정으로 보여준다(이전엔 서버가 계산한 무게중심 값이
+// 임계값을 넘을 때만 뜨는 조건부 안내였는데, 등굽음까지 포함해 고정 안내로 바꿨다).
+function ReliabilityNotice() {
+  return (
+    <div className="squat-card photo-panel photo-panel-full reliability-notice">
+      <div className="photo-panel-head">참고로 확인해보세요</div>
+      <p className="reliability-notice-text">
+        과신전(허리 젖힘)·등굽음은 사진 한 장만으로는 정확히 판별하기 어려워요. 실시간 코칭으로 동작 중 자세를 확인해보세요.
+      </p>
+    </div>
+  )
+}
+
 function PhotoCoachingPage() {
   const session = usePhotoCoachingSession()
-  const [guideOpen, setGuideOpen] = useState(false)
   // 초깃값 true — 이 페이지에 들어올 때마다(컴포넌트가 새로 마운트될 때) 자동으로 뜬다.
   const [noticeOpen, setNoticeOpen] = useState(true)
+  // (2026-09-07 추가) "분석 결과" 옆 "상세 보기" 토글 — 기본은 접힘. 재분석해도 굳이
+  // 자동으로 닫지 않는다(펼쳐둔 채로 새 결과를 보고 싶을 수 있어서).
+  const [detailOpen, setDetailOpen] = useState(false)
 
   return (
     <PageShell>
       <div className="page-eyebrow-row">
         <div className="page-index-tag">PHOTO COACHING</div>
-        <div className="photo-header-actions">
-          <ExerciseSelectDropdown value="squat" />
-          <button type="button" className="squat-btn squat-btn-outline photo-guide-btn" onClick={() => setGuideOpen(true)}>
-            운동방법
-          </button>
-        </div>
       </div>
 
       <div className="section-head">
         <div className="section-title">사진 코칭</div>
+        <div className="photo-analyze-inline">
+          <button
+            type="button"
+            className="squat-btn squat-btn-primary photo-analyze-btn"
+            onClick={session.runAnalysis}
+            disabled={!session.canAnalyze}
+          >
+            {session.analyzing ? '분석 중...' : '분석하기'}
+          </button>
+          {session.side.phase !== 'ready' && <p className="photo-analyze-hint">측면 사진을 먼저 올려주세요. 정면 사진은 선택이에요.</p>}
+        </div>
       </div>
 
       <div className="photo-upload-row">
@@ -232,28 +320,25 @@ function PhotoCoachingPage() {
         <PhotoSlotPanel slot={session.front} label="정면" required={false} alt="업로드한 정면 스쿼트 자세" />
       </div>
 
-      <div className="photo-analyze-row">
-        <button
-          type="button"
-          className="squat-btn squat-btn-primary photo-analyze-btn"
-          onClick={session.runAnalysis}
-          disabled={!session.canAnalyze}
-        >
-          {session.analyzing ? '분석 중...' : '분석하기'}
-        </button>
-        {session.side.phase !== 'ready' && <p className="photo-analyze-hint">측면 사진을 먼저 올려주세요. 정면 사진은 선택이에요.</p>}
+      <div className="squat-card photo-panel photo-panel-full">
+        <div className="photo-panel-head">
+          <span>분석 결과</span>
+          {session.metricsDetail && (
+            <button type="button" className="photo-detail-toggle-btn" onClick={() => setDetailOpen((open) => !open)}>
+              {detailOpen ? '상세 보기 접기' : '상세 보기'}
+            </button>
+          )}
+        </div>
+        <AnalysisPanel session={session} />
+        {detailOpen && session.metricsDetail && <MetricsDetailPanel metrics={session.metricsDetail} />}
       </div>
 
-      <div className="squat-card photo-panel photo-panel-full">
-        <div className="photo-panel-head">분석 결과</div>
-        <AnalysisPanel session={session} />
-      </div>
+      <ReliabilityNotice />
 
       <p className="photo-back-link">
-        <Link to="/squat">← 코칭 모드 다시 고르기</Link>
+        <Link to="/exercises">← 코칭 모드 다시 고르기</Link>
       </p>
 
-      {guideOpen && <ExerciseGuideModal onClose={() => setGuideOpen(false)} />}
       {noticeOpen && <UploadNoticeModal onClose={() => setNoticeOpen(false)} />}
     </PageShell>
   )

@@ -1,6 +1,78 @@
 /* ---- active session (idle/camera-wrap/video는 squatShared.css 공통 스타일 사용) ---- */
+/* (2026-09-07) 카메라(.squat-active) + 오른쪽 코칭 로그(.squat-coaching-log) 2단 레이아웃.
+   폭 제한을 두지 않고 콘텐츠 영역 전체 너비를 쓴다(사이드바는 이미 이 컨테이너 바깥의
+   별도 flex 영역이라 자연히 제외됨) — 카메라는 코칭 로그 폭을 뺀 나머지를 모두 차지한다.
+   스켈레톤 좌표는 영상 원본 비율 그대로일 때만 정확하므로(drawSkeleton 참고), 높이를
+   강제로 늘리거나 잘라내지(object-fit: cover) 않고 폭만 키운다 — 세로는 비율에 맞춰
+   같이 커진다. */
+.squat-active-layout {
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+}
 .squat-active {
-  max-width: 520px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 세션 동안 화면 배지/음성으로 나간 멘트를 시간순(최신이 위)으로 보여주는 패널
+   (useSquatCoachingSession.js의 coachingLog, SquatCoachingPage.jsx의 CoachingLogPanel). */
+.squat-coaching-log {
+  flex: none;
+  width: 220px;
+  /* 로그가 계속 쌓여도 박스 크기 자체는 화면 높이 기준으로 고정하고(align-items: stretch로
+     카메라 쪽과 비슷한 높이까지는 늘어나되 이 값을 넘지는 않음), 넘치는 내용만 박스 안에서
+     스크롤되게 한다. */
+  max-height: calc(100vh - 230px);
+  overflow-y: auto;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 14px;
+}
+.squat-coaching-log-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 10px;
+}
+.squat-coaching-log-empty {
+  margin: 0;
+  font-size: 12px;
+  color: #9b9a96;
+}
+.squat-coaching-log-item {
+  padding: 8px 0;
+  border-top: 1px dashed #e5e3dd;
+}
+.squat-coaching-log-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.squat-coaching-log-time {
+  color: #9b9a96;
+  font-size: 10.5px;
+  margin-right: 6px;
+}
+.squat-coaching-log-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #33322f;
+}
+.squat-coaching-log-item-warn .squat-coaching-log-text {
+  color: #da291c;
+  font-weight: 700;
+}
+
+/* (2026-09-07) 대기·진행·리포트 카드를 콘텐츠 영역 안에서 세로 가운데로 오게 한다.
+   page-shell-content는 다른 페이지도 같이 쓰는 공용 스타일이라 거기를 직접 바꾸지 않고,
+   이 페이지 전용 래퍼(.squat-page-body)에만 적용한다. */
+.squat-page-body {
+  min-height: calc(100vh - 260px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .squat-overlay {
   position: absolute;
@@ -32,6 +104,16 @@
 }
 .squat-feedback-warming {
   background: rgba(0, 0, 0, 0.55);
+}
+.squat-feedback-guide {
+  background: rgba(41, 98, 218, 0.85);
+}
+
+.squat-stage-label {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #55534d;
 }
 .squat-feedback-error {
   background: rgba(140, 139, 136, 0.85);
@@ -128,7 +210,424 @@
 
 /* ============ 모바일 (~768px) ============ */
 @media (max-width: 768px) {
+  .squat-active-layout {
+    flex-direction: column;
+    max-width: 100%;
+  }
   .squat-active {
     max-width: 100%;
   }
+  .squat-coaching-log {
+    width: 100%;
+    max-height: 240px;
+  }
+  /* 세로 가운데 정렬은 화면이 좁고 낮을 때 오히려 카드가 아래로 밀려 답답해 보여서 끈다 */
+  .squat-page-body {
+    min-height: auto;
+  }
+}
+
+/* ---- 통계 리포트 (그래프) — 2026-09-07 추가 ---- */
+.squat-stats-section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #55534d;
+  margin: 20px 0 10px;
+}
+.squat-meter-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.squat-meter-ring {
+  flex: 0 0 auto;
+}
+.squat-meter-text {
+  flex: 1;
+  min-width: 0;
+}
+.squat-meter-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #55534d;
+  margin-bottom: 2px;
+}
+.squat-meter-caption {
+  font-size: 12px;
+  color: #8c8b88;
+  margin-top: 4px;
+}
+.squat-meter-delta {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2e8b57;
+}
+.squat-meter-delta .prev {
+  font-weight: 400;
+  color: #9b9a96;
+}
+
+.squat-stat-tile-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.squat-stat-tile {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.squat-stat-tile-label {
+  font-size: 11px;
+  color: #8c8b88;
+  margin-bottom: 6px;
+}
+.squat-stat-tile-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111;
+}
+.squat-stat-tile-value .unit {
+  font-size: 11px;
+  font-weight: 600;
+  color: #55534d;
+  margin-left: 2px;
+}
+
+.squat-chart-card {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.squat-chart-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 2px;
+}
+.squat-chart-sub {
+  font-size: 11px;
+  color: #9b9a96;
+  margin-bottom: 12px;
+}
+
+.squat-bar-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.squat-bar-row:last-child {
+  margin-bottom: 0;
+}
+.squat-bar-label {
+  flex: 0 0 84px;
+  font-size: 11.5px;
+  color: #55534d;
+  padding-right: 8px;
+}
+.squat-bar-track {
+  flex: 1;
+  position: relative;
+  height: 22px;
+}
+.squat-bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: #da291c;
+  border-radius: 4px;
+  min-width: 4px;
+}
+.squat-bar-value {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #111;
+}
+
+.squat-trend-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.squat-timeline-legend {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.squat-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #55534d;
+}
+.squat-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.squat-legend-dot-ok {
+  background: #2eb872;
+}
+.squat-legend-dot-warn {
+  background: #da291c;
+}
+.squat-rep-dots {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.squat-rep-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.squat-rep-dot-ok {
+  background: #2eb872;
+}
+.squat-rep-dot-warn {
+  background: #da291c;
+}
+
+/* ---- 오늘 목표 달력 (실시간 코칭 화면 버튼/모달 + 리포트 화면) — 2026-09-07 추가 ---- */
+.squat-calendar-open-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e3dd;
+  border-radius: 50%;
+  background: #fff;
+  color: #55534d;
+  padding: 0;
+  cursor: pointer;
+}
+.squat-calendar-open-btn:hover {
+  border-color: #da291c;
+  color: #da291c;
+}
+
+.squat-calendar-modal {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+}
+
+.squat-today-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: stretch;
+  margin-bottom: 12px;
+}
+.squat-today-stats {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.squat-today-stat {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.squat-today-stat-label {
+  font-size: 11px;
+  color: #8c8b88;
+  margin-bottom: 6px;
+}
+.squat-today-stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111;
+}
+.squat-today-stat-value .unit {
+  font-size: 11px;
+  font-weight: 600;
+  color: #55534d;
+  margin-left: 2px;
+}
+
+/* 달력 + 오늘의 리포트 그래프를 나란히 두는 행 — 좁은 화면에서는 세로로 쌓인다 */
+.squat-calendar-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: stretch;
+  flex: 1 1 260px;
+}
+
+.squat-calendar-card {
+  flex: 1 1 240px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 14px;
+}
+.squat-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.squat-calendar-nav {
+  border: none;
+  background: none;
+  color: #55534d;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.squat-calendar-nav:hover {
+  color: #da291c;
+}
+.squat-calendar-month {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #111;
+}
+.squat-calendar-today-goal {
+  font-size: 11.5px;
+  color: #55534d;
+  background: #f9f8f5;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+.squat-calendar-no-goal {
+  color: #9b9a96;
+}
+.squat-calendar-weekdays,
+.squat-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.squat-calendar-weekdays {
+  margin-bottom: 4px;
+}
+.squat-calendar-weekdays span {
+  font-size: 10px;
+  color: #9b9a96;
+}
+.squat-calendar-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #55534d;
+  border-radius: 6px;
+}
+.squat-calendar-cell-empty {
+  visibility: hidden;
+}
+.squat-calendar-cell-met {
+  background: rgba(46, 184, 114, 0.35);
+  color: #111;
+  font-weight: 700;
+}
+.squat-calendar-cell-today {
+  box-shadow: inset 0 0 0 1.5px #da291c;
+  font-weight: 700;
+}
+
+/* 오늘의 리포트 그래프 카드 — 달력 오른쪽에 항상 붙어서 보인다 */
+.squat-today-graph-card {
+  flex: 1 1 180px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+}
+.squat-today-graph-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 10px;
+}
+.squat-today-graph-donut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.squat-today-graph-donut-caption {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #55534d;
+}
+.squat-today-graph-sub {
+  font-size: 11px;
+  color: #9b9a96;
+  margin-top: 3px;
+}
+.squat-today-graph-bar {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(218, 41, 28, 0.16);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.squat-today-graph-bar-normal {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: #2eb872;
+  border-radius: 5px;
+}
+.squat-today-graph-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: #55534d;
+}
+.squat-today-graph-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.squat-today-graph-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.squat-today-graph-dot-ok {
+  background: #2eb872;
+}
+.squat-today-graph-dot-warn {
+  background: #da291c;
+}
+.squat-today-graph-empty {
+  font-size: 12px;
+  color: #9b9a96;
+  flex: 1;
+  display: flex;
+  align-items: center;
 }
