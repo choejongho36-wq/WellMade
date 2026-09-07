@@ -18,6 +18,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePoseLandmarker } from './usePoseLandmarker.js'
 import { buildFrontMetrics, buildSideMetrics, drawSkeleton, isFullBodyVisible, STANDING_KNEE_ANGLE_MIN } from '../lib/squatPose.js'
 import { AI_BASE } from '../lib/aiApi.js'
+import { appendSquatSessionHistory, loadSquatSessionHistory } from '../lib/squatSessionHistory.js'
+import { addSquatDailyStats, loadSquatDailyStats, todayDateKey } from '../lib/squatDailyStats.js'
+import { getExerciseGoal } from '../lib/exerciseGoals.js'
 
 
 const SAMPLE_INTERVAL_MS = 200 // 실시간 판독 주기 — 대려 5fps
@@ -32,6 +35,10 @@ const END_CHECK_EVERY_N_FRAMES = 10 // 종료 판정 은 프레임마다 부를 
 const MIN_NEW_PHRASE_GAP_SEC = 4
 const REPEAT_SAME_TEXT_GAP_SEC = 5
 const FULL_BODY_WARNING_REPEAT_SEC = 10 // 전신 미노출 경고는 다른 문구보다 더 길게 쉬었다가 반복
+// 발목/뒤꿈치/발끝 visibility 값이 프레임마다(200ms) 경계값 근처에서 미세하게 흔들릴 수
+// 있어서, 연속 이 프레임 수 이상 같은 판정이 나올 때만 경고를 켜거나 끈다(히스테리시스) —
+// 안 그러면 '전신이 나오게...'와 다른 안내 문구가 매 프레임 번갈아 반복될 수 있다.
+const FULL_BODY_STREAK_THRESHOLD = 3
 
 // 전신이 보이고 자세도 정상인데 아직 앉지 않은(서 있는) 상태일 때, "인식 중"이라는 애매한
 // 문구 대신 스쿼트 방법을 한 단계씩 순서대로 안내한다(문구 출처: 프로젝트 문서
@@ -88,6 +95,16 @@ export function useSquatCoachingSession() {
   const [fullBodyWarning, setFullBodyWarning] = useState(false)
   const [sessionStage, setSessionStage] = useState('side') // 'side' | 'front'
   const [coachingLog, setCoachingLog] = useState([]) // { id, time, text, state: 'ok'|'warn' }
+  // 최근 세션 이력(날짜별 정상 비율) — 마이페이지 등 서버 저장소가 아직 없어 이 브라우저의
+  // localStorage에만 남긴다(squatSessionHistory.js 참고). 리포트 화면의 세션 추이 그래프에 쓴다.
+  const [sessionHistory, setSessionHistory] = useState(() => loadSquatSessionHistory().slice(-5))
+  // 이번 세션에서 완료된 렙별 요약 — 리포트 화면의 렙 타임라인에 쓴다(repHistoryRef 참고).
+  const [repHistory, setRepHistory] = useState([])
+  // 오늘(그리고 과거) 날짜별 누적 기록 — 총 시간/총 횟수/이상 자세 감지(squatDailyStats.js
+  // 참고). 실시간 코칭 화면의 달력 버튼과 리포트 화면의 '오늘' 요약 모두 이 값을 쓴다.
+  const [dailyStats, setDailyStats] = useState(() => loadSquatDailyStats())
+  // 마이페이지에서 설정한 스쿼트 하루 목표 횟수 — 없으면 null(달력이 목표 달성 표시를 생략한다).
+  const [squatGoalTarget, setSquatGoalTarget] = useState(() => getExerciseGoal('squat')?.targetReps ?? null)
 
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
@@ -97,8 +114,19 @@ export function useSquatCoachingSession() {
   const startTimeRef = useRef(0)
   const tickRunningRef = useRef(false)
   const framesRef = useRef([]) // { timestamp, landmarks, metrics }
+  // 전신 노출 판정 히스테리시스용 — 연속으로 같은 판정이 몇 프레임째인지(FULL_BODY_STREAK_THRESHOLD 참고)
+  const fullBodyMissingStreakRef = useRef(0)
+  const fullBodyVisibleStreakRef = useRef(0)
   const judgmentHistoryRef = useRef([]) // { timestamp, is_normal, issues[] }
   const frontJudgmentHistoryRef = useRef([]) // 정면 단계 전용 { timestamp, is_normal, issues[] }
+  // 최종 리포트 전용 — 무릎 각도가 STANDING_KNEE_ANGLE_MIN 아래로 내려갔다가 다시 그
+  // 이상으로 올라오는 구간 하나를 "스쿼트 1회"로 세서 쌓는다(측면 단계만 — 정면은 무릎
+  // 각도를 잴 수 없어 이번에는 반복 횟수에 포함하지 않는다). 세션 자동 종료 판단에 쓰는
+  // judgmentHistoryRef(프레임 단위)와는 용도가 달라 별도로 둔다.
+  const repHistoryRef = useRef([]) // { timestamp, is_normal, issues } — 완료된 렙별 요약
+  const repInProgressRef = useRef(false) // 지금 "내려간(깊게 앉은)" 구간 안에 있는지
+  const repHadIssueRef = useRef(false) // 이번 렙 동안 이상 자세가 한 번이라도 있었는지
+  const repIssuesRef = useRef([]) // 이번 렙 동안 발생한 이슈 부위(중복 제거)
   const lastSpokenRef = useRef('')
   const lastSpokenAtRef = useRef(-Infinity)
   const lastLoggedRef = useRef('')
@@ -165,28 +193,51 @@ export function useSquatCoachingSession() {
 
   const requestReport = useCallback(
     async (endReason) => {
-      // 측면 단계 이력 + 정면 단계 이력을 시간순으로 합쳐서 세션 전체를 하나의 리포트로 낸다.
-      const history = [...judgmentHistoryRef.current, ...frontJudgmentHistoryRef.current]
-      if (history.length === 0) {
+      // 측면 단계 이력 + 정면 단계 이력을 시간순으로 합쳐서 세션 시간을 계산한다(프레임
+      // 단위라 촘촘해서 "언제 끝났는지"를 정확히 반영한다).
+      const tickHistory = [...judgmentHistoryRef.current, ...frontJudgmentHistoryRef.current]
+      if (tickHistory.length === 0) {
         setPhase('idle')
         return
       }
+      // 리포트에 보낼 frame_history는 "몇 프레임 찍혔는지"가 아니라 "몇 렙(반복) 했는지"를
+      // 반영해야 한다 — 완료된 렙이 하나라도 있으면 그걸 쓰고, 없으면(세션이 너무 짧아
+      // 한 렙도 못 채운 경우 등) 기존처럼 프레임 단위로라도 보여준다.
+      const repHistory = repHistoryRef.current
+      const reportFrames = repHistory.length > 0 ? repHistory : tickHistory
       setReportLoading(true)
       setReportError('')
       setSessionReport(null)
       try {
         const data = await postJson('/ai/session/report', {
           session_id: `squat-${Date.now()}`,
-          frame_history: history.map(({ timestamp, is_normal, issues }) => ({
+          frame_history: reportFrames.map(({ timestamp, is_normal, issues }) => ({
             timestamp,
             is_normal,
             issues: (issues ?? []).map((issue) => ({ part: issue.part })),
           })),
-          session_duration_sec: history[history.length - 1].timestamp,
-          previous_sessions: [], // TODO: 마이페이지 등에 세션 이력이 쌓이면 최근 N회를 넘겨 개선폭을 보여줄 수 있다.
+          session_duration_sec: tickHistory[tickHistory.length - 1].timestamp,
+          previous_sessions: loadSquatSessionHistory()
+            .slice(-5)
+            .map((h) => ({ session_date: h.date, normal_ratio: h.normal_ratio })),
           end_reason: endReason === 'user_requested' ? 'user_requested' : 'target_sustained',
         })
         setSessionReport(data)
+        setRepHistory(repHistoryRef.current)
+        // 이번 세션 결과를 이력에 남겨서 다음 세션의 "지난 세션 대비"와 추이 그래프에 쓴다.
+        const updatedHistory = appendSquatSessionHistory({
+          date: new Date().toISOString().slice(0, 10),
+          normal_ratio: data.normal_ratio,
+        })
+        setSessionHistory(updatedHistory.slice(-5))
+        // 오늘 날짜에 이번 세션의 시간/횟수/이상 자세 감지를 더해서 누적한다 — 리포트의
+        // '오늘' 요약과 달력의 목표 달성 표시가 이 값을 쓴다.
+        const updatedDaily = addSquatDailyStats(todayDateKey(), {
+          reps: data.total_reps,
+          durationSec: data.session_duration_sec,
+          abnormalReps: data.abnormal_reps,
+        })
+        setDailyStats(updatedDaily)
         speak(data.summary_message, null, { force: true })
       } catch (err) {
         setReportError(`AI 서버 연결 실패: ${err.message}`)
@@ -230,6 +281,8 @@ export function useSquatCoachingSession() {
       framesRef.current = []
       setBufferCount(0)
       setFullBodyWarning(false)
+      fullBodyMissingStreakRef.current = 0
+      fullBodyVisibleStreakRef.current = 0
       setEndCheck(null)
       frontJudgmentHistoryRef.current = []
       lastSpokenRef.current = ''
@@ -272,13 +325,27 @@ export function useSquatCoachingSession() {
 
       // 발목/뒤꿈치/발끝이 화면 밖으로 잘려 전신이 안 보이면, 그 프레임은 판정에 쓰지 않고
       // 뒤로 물러나 달라고 안내한다 — 안 그러면 발 기준 지표가 다 신뢰할 수 없는 채로
-      // "정상 자세"까지 나올 수 있다.
-      if (!isFullBodyVisible(landmarks)) {
+      // "정상 자세"까지 나올 수 있다. visibility 값 자체가 프레임마다 흔들릴 수 있어(특히
+      // 발끝 쪽), 연속 FULL_BODY_STREAK_THRESHOLD 프레임 이상 같은 판정일 때만 경고를
+      // 켜거나 끈다 — 그 사이(흔들리는 구간)에는 상태를 바꾸지 않고 조용히 건너뛴다.
+      const bodyVisibleNow = isFullBodyVisible(landmarks)
+      if (bodyVisibleNow) {
+        fullBodyVisibleStreakRef.current += 1
+        fullBodyMissingStreakRef.current = 0
+      } else {
+        fullBodyMissingStreakRef.current += 1
+        fullBodyVisibleStreakRef.current = 0
+      }
+
+      if (fullBodyMissingStreakRef.current >= FULL_BODY_STREAK_THRESHOLD) {
         setFullBodyWarning(true)
         standingPhaseRef.current = null
         const warningText = '전신이 나오게 뒤로 한 발짝 물러나주세요.'
         speak(warningText, timestamp, { repeatGapSec: FULL_BODY_WARNING_REPEAT_SEC })
         logMessage(warningText, 'warn', timestamp)
+        return
+      }
+      if (fullBodyVisibleStreakRef.current < FULL_BODY_STREAK_THRESHOLD) {
         return
       }
       setFullBodyWarning(false)
@@ -328,6 +395,30 @@ export function useSquatCoachingSession() {
             { timestamp, is_normal: result.is_normal, issues: result.issues ?? [] },
           ]
           const isDeepHold = frame.metrics.knee_angle < STANDING_KNEE_ANGLE_MIN
+
+          // 렙(반복) 카운트 — 무릎이 깊게 굽혀졌다가(내려감) 다시 펴지는(올라옴) 구간
+          // 하나를 스쿼트 1회로 본다. 리포트 전용 집계라 세션 자동 종료 판단(judgmentHistoryRef)
+          // 과는 별개로 처리한다.
+          if (isDeepHold) {
+            repInProgressRef.current = true
+            if (!result.is_normal) {
+              repHadIssueRef.current = true
+              for (const issue of result.issues ?? []) {
+                if (!repIssuesRef.current.some((seen) => seen.part === issue.part)) {
+                  repIssuesRef.current.push({ part: issue.part })
+                }
+              }
+            }
+          } else if (repInProgressRef.current) {
+            // 방금 "내려갔다가 다시 올라온" 구간이 끝났다 — 렙 1개 완료.
+            repInProgressRef.current = false
+            repHistoryRef.current = [
+              ...repHistoryRef.current,
+              { timestamp, is_normal: !repHadIssueRef.current, issues: repIssuesRef.current },
+            ]
+            repHadIssueRef.current = false
+            repIssuesRef.current = []
+          }
 
           let standingStepText = ''
           if (result.is_normal && !isDeepHold) {
@@ -400,6 +491,8 @@ export function useSquatCoachingSession() {
     setReportError('')
     framesRef.current = []
     setBufferCount(0)
+    fullBodyMissingStreakRef.current = 0
+    fullBodyVisibleStreakRef.current = 0
     judgmentHistoryRef.current = []
     lastSpokenRef.current = ''
     lastSpokenAtRef.current = -Infinity
@@ -409,6 +502,10 @@ export function useSquatCoachingSession() {
     standingPhaseRef.current = null
     setSessionStage('side')
     frontJudgmentHistoryRef.current = []
+    repHistoryRef.current = []
+    repInProgressRef.current = false
+    repHadIssueRef.current = false
+    repIssuesRef.current = []
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
@@ -468,6 +565,10 @@ export function useSquatCoachingSession() {
     fullBodyWarning,
     coachingLog,
     sessionStage,
+    sessionHistory,
+    repHistory,
+    dailyStats,
+    squatGoalTarget,
     bufferCount,
     bufferMax: BUFFER_MAX,
     endCheck,

@@ -590,7 +590,12 @@ class SessionReportRequest(BaseModel):
 
 
 class SessionReportResponse(BaseModel):
+    total_reps: int = Field(..., description="세션에서 완료한 스쿼트 반복(렙) 횟수. 프론트가 무릎 각도로 감지한 렙 단위 이력을 보내면 그 개수, 아니면(하위 호환) 전달받은 frame_history 개수를 그대로 쓴다.")
+    normal_reps: int = Field(..., description="정상 자세로 완료한 반복 횟수")
+    abnormal_reps: int = Field(..., description="이상 자세가 감지된 반복 횟수")
+    session_duration_sec: float = Field(..., description="세션 진행 시간(초). 요청의 session_duration_sec를 그대로 돌려준다 — 프론트가 리포트 화면에 바로 쓸 수 있게.")
     normal_ratio: float = Field(..., description="세션 전체 정상 자세 비율(0~1)")
+    previous_normal_ratio: Optional[float] = Field(None, description='직전 세션의 정상 자세 비율(0~1). previous_sessions가 없으면 None — 프론트가 "지난 세션(65%) 대비" 같은 문구를 만들 때 쓴다.')
     avg_deviation_deg: Optional[float] = Field(None, description="이상 소견의 평균 편차(도). deviation_deg가 제공된 소견이 하나도 없으면 None")
     most_frequent_issue_part: Optional[str] = Field(None, description="가장 자주 감지된 이상 부위. 이상 소견이 없으면 None")
     issue_counts_by_part: Dict[str, int] = Field(

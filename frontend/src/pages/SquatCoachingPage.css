@@ -226,3 +226,408 @@
     min-height: auto;
   }
 }
+
+/* ---- 통계 리포트 (그래프) — 2026-09-07 추가 ---- */
+.squat-stats-section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #55534d;
+  margin: 20px 0 10px;
+}
+.squat-meter-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.squat-meter-ring {
+  flex: 0 0 auto;
+}
+.squat-meter-text {
+  flex: 1;
+  min-width: 0;
+}
+.squat-meter-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #55534d;
+  margin-bottom: 2px;
+}
+.squat-meter-caption {
+  font-size: 12px;
+  color: #8c8b88;
+  margin-top: 4px;
+}
+.squat-meter-delta {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2e8b57;
+}
+.squat-meter-delta .prev {
+  font-weight: 400;
+  color: #9b9a96;
+}
+
+.squat-stat-tile-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.squat-stat-tile {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.squat-stat-tile-label {
+  font-size: 11px;
+  color: #8c8b88;
+  margin-bottom: 6px;
+}
+.squat-stat-tile-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111;
+}
+.squat-stat-tile-value .unit {
+  font-size: 11px;
+  font-weight: 600;
+  color: #55534d;
+  margin-left: 2px;
+}
+
+.squat-chart-card {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.squat-chart-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 2px;
+}
+.squat-chart-sub {
+  font-size: 11px;
+  color: #9b9a96;
+  margin-bottom: 12px;
+}
+
+.squat-bar-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.squat-bar-row:last-child {
+  margin-bottom: 0;
+}
+.squat-bar-label {
+  flex: 0 0 84px;
+  font-size: 11.5px;
+  color: #55534d;
+  padding-right: 8px;
+}
+.squat-bar-track {
+  flex: 1;
+  position: relative;
+  height: 22px;
+}
+.squat-bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: #da291c;
+  border-radius: 4px;
+  min-width: 4px;
+}
+.squat-bar-value {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #111;
+}
+
+.squat-trend-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.squat-timeline-legend {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.squat-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #55534d;
+}
+.squat-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.squat-legend-dot-ok {
+  background: #2eb872;
+}
+.squat-legend-dot-warn {
+  background: #da291c;
+}
+.squat-rep-dots {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.squat-rep-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.squat-rep-dot-ok {
+  background: #2eb872;
+}
+.squat-rep-dot-warn {
+  background: #da291c;
+}
+
+/* ---- 오늘 목표 달력 (실시간 코칭 화면 버튼/모달 + 리포트 화면) — 2026-09-07 추가 ---- */
+.squat-calendar-open-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e3dd;
+  border-radius: 50%;
+  background: #fff;
+  color: #55534d;
+  padding: 0;
+  cursor: pointer;
+}
+.squat-calendar-open-btn:hover {
+  border-color: #da291c;
+  color: #da291c;
+}
+
+.squat-calendar-modal {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+}
+
+.squat-today-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: stretch;
+  margin-bottom: 12px;
+}
+.squat-today-stats {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.squat-today-stat {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.squat-today-stat-label {
+  font-size: 11px;
+  color: #8c8b88;
+  margin-bottom: 6px;
+}
+.squat-today-stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111;
+}
+.squat-today-stat-value .unit {
+  font-size: 11px;
+  font-weight: 600;
+  color: #55534d;
+  margin-left: 2px;
+}
+
+/* 달력 + 오늘의 리포트 그래프를 나란히 두는 행 — 좁은 화면에서는 세로로 쌓인다 */
+.squat-calendar-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: stretch;
+  flex: 1 1 260px;
+}
+
+.squat-calendar-card {
+  flex: 1 1 240px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 14px;
+}
+.squat-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.squat-calendar-nav {
+  border: none;
+  background: none;
+  color: #55534d;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.squat-calendar-nav:hover {
+  color: #da291c;
+}
+.squat-calendar-month {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #111;
+}
+.squat-calendar-today-goal {
+  font-size: 11.5px;
+  color: #55534d;
+  background: #f9f8f5;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+.squat-calendar-no-goal {
+  color: #9b9a96;
+}
+.squat-calendar-weekdays,
+.squat-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.squat-calendar-weekdays {
+  margin-bottom: 4px;
+}
+.squat-calendar-weekdays span {
+  font-size: 10px;
+  color: #9b9a96;
+}
+.squat-calendar-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #55534d;
+  border-radius: 6px;
+}
+.squat-calendar-cell-empty {
+  visibility: hidden;
+}
+.squat-calendar-cell-met {
+  background: rgba(46, 184, 114, 0.35);
+  color: #111;
+  font-weight: 700;
+}
+.squat-calendar-cell-today {
+  box-shadow: inset 0 0 0 1.5px #da291c;
+  font-weight: 700;
+}
+
+/* 오늘의 리포트 그래프 카드 — 달력 오른쪽에 항상 붙어서 보인다 */
+.squat-today-graph-card {
+  flex: 1 1 180px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+}
+.squat-today-graph-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 10px;
+}
+.squat-today-graph-donut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.squat-today-graph-donut-caption {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #55534d;
+}
+.squat-today-graph-sub {
+  font-size: 11px;
+  color: #9b9a96;
+  margin-top: 3px;
+}
+.squat-today-graph-bar {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(218, 41, 28, 0.16);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.squat-today-graph-bar-normal {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: #2eb872;
+  border-radius: 5px;
+}
+.squat-today-graph-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: #55534d;
+}
+.squat-today-graph-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.squat-today-graph-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.squat-today-graph-dot-ok {
+  background: #2eb872;
+}
+.squat-today-graph-dot-warn {
+  background: #da291c;
+}
+.squat-today-graph-empty {
+  font-size: 12px;
+  color: #9b9a96;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
