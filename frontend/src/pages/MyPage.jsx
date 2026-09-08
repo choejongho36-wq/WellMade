@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import './MyPage.css'
 import { useAuth } from '../lib/auth.js'
+import { todayStr } from '../lib/dates.js'
 import PageShell from '../components/PageShell.jsx'
 import NutrientDetailModal from '../components/NutrientDetailModal.jsx'
 import profileImg from '../assets/profile.webp'
-import { getBmiInsight } from '../lib/aiApi.js'
 import { MEAL_TYPE_LABEL } from '../lib/mealTypes.js'
+import { EXERCISE_OPTIONS, loadExerciseGoalState, saveExerciseGoals } from '../lib/exerciseGoals.js'
 
 const GOAL_LABEL = {
   LOSE: '체중 감량',
@@ -64,9 +65,7 @@ function Sparkline({ points, area }) {
   const last = points[points.length - 1]
 
   return (
-    // 선/면은 가로로 늘려야 해서 preserveAspectRatio="none"을 쓰는데, 그러면 SVG 안의 원이
-    // 가로세로 다른 배율로 눌려 타원이 된다. 마지막 점만 SVG 밖 HTML로 얹어 정원을 유지한다
-    // (컨테이너 폭이 유동적이라 뷰박스 안에서는 보정할 배율을 알 수 없음).
+   
     <div className="mp-spark-wrap">
       <svg className={`mp-spark${area ? ' mp-spark-lg' : ''}`} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
         {area && (
@@ -309,11 +308,6 @@ function InbodyPanel({ inbody, history, aside, goalLabel, onEdit, onDelete }) {
       )}
     </>
   )
-}
-
-function todayStr() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function InbodyUploadModal({ replaceLatest, onClose, onExtract, onConfirm }) {
@@ -563,9 +557,104 @@ function GoalPickerModal({ current, onClose, onSelect }) {
   )
 }
 
+// 운동별(스쿼트 등) 하루 목표 횟수를 설정하는 모달 — "신체 정보" 모달(BodyInfoModal)과 같은
+// 디자인 패턴을 쓴다. exerciseGoals.js 참고. 지금은 스쿼트만 실제로 코칭·집계되므로, 런지·
+// 플랭크는 드롭다운에 "(개발중)"으로 표시하고 목표 숫자만 저장될 뿐 리포트/달력에는 반영되지
+// 않는다(추후 실제로 붙으면 그때 연결).
+function ExerciseGoalModal({ goals, onClose, onSave }) {
+  const [rows, setRows] = useState(
+    goals.length > 0 ? goals.map((g) => ({ id: g.id, targetReps: g.targetReps })) : [{ id: 'squat', targetReps: 20 }],
+  )
+  const [saving, setSaving] = useState(false)
+
+  const updateRow = (idx, patch) => {
+    setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  }
+  const removeRow = (idx) => {
+    setRows((rs) => rs.filter((_, i) => i !== idx))
+  }
+  const addRow = () => {
+    const used = new Set(rows.map((r) => r.id))
+    const next = EXERCISE_OPTIONS.find((o) => !used.has(o.id))
+    if (!next) return
+    setRows((rs) => [...rs, { id: next.id, targetReps: 20 }])
+  }
+
+  const handleSave = () => {
+    setSaving(true)
+    const cleaned = rows.map((r) => ({
+      id: r.id,
+      name: EXERCISE_OPTIONS.find((o) => o.id === r.id)?.label ?? r.id,
+      targetReps: Math.max(0, Math.min(999, Number(r.targetReps) || 0)),
+    }))
+    onSave(cleaned)
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
+        <div className="modal-title">운동 목표</div>
+        <div className="modal-sub">
+          운동별 하루 목표 횟수를 정해두면, 스쿼트 코칭 리포트·달력에서 목표를 채운 날을 확인할 수
+          있어요.
+        </div>
+
+        {rows.map((row, idx) => {
+          const opt = EXERCISE_OPTIONS.find((o) => o.id === row.id)
+          return (
+            <div key={idx} className="mp-goal-modal-row">
+              <select
+                className="mp-goal-select-input"
+                value={row.id}
+                onChange={(e) => updateRow(idx, { id: e.target.value })}
+              >
+                {EXERCISE_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                    {o.devInProgress ? ' (개발중)' : ''}
+                  </option>
+                ))}
+              </select>
+              <span className="modal-review-input-wrap">
+                <input
+                  type="number"
+                  min="0"
+                  max="999"
+                  className="modal-review-input"
+                  value={row.targetReps}
+                  onChange={(e) => updateRow(idx, { targetReps: e.target.value })}
+                />
+                <span className="modal-review-unit">회/일</span>
+              </span>
+              {rows.length > 1 && (
+                <button type="button" className="link-btn mp-goal-remove" onClick={() => removeRow(idx)}>
+                  삭제
+                </button>
+              )}
+            </div>
+          )
+        })}
+
+        {rows.length < EXERCISE_OPTIONS.length && (
+          <button type="button" className="link-btn mp-goal-add-link" onClick={addRow}>
+            + 운동 추가
+          </button>
+        )}
+
+        <button className="modal-btn" onClick={handleSave} disabled={saving} style={{ marginTop: 16 }}>
+          {saving ? '저장 중...' : '저장하기'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function MyPage() {
   const [bmiInsight, setBmiInsight] = useState(null)
-  const { user, profile, inbody, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory, getTodayTotal, getTodayMeals, getNutrientTarget, deleteAccount } = useAuth()
+  const { user, profile, inbody, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory, getTodayTotal, getTodayMeals, getNutrientTarget, getBmiInsight, deleteAccount } = useAuth()
   const navigate = useNavigate()
   const [inbodyHistory, setInbodyHistory] = useState([])
   const [bodyModalOpen, setBodyModalOpen] = useState(false)
@@ -586,33 +675,34 @@ function MyPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  // '신체 정보'와 같은 패턴 — 저장 전엔 안내 카드, 저장 후엔 이메일 아래 요약 줄로 표시
+  const [goalState, setGoalState] = useState(() => loadExerciseGoalState())
+  const [goalSettingsOpen, setGoalSettingsOpen] = useState(false)
 
   useEffect(() => {
     if (user) getTodayTotal(todayStr()).then(setTodaySummary).catch(() => {})
-  }, [user])
+  }, [user, getTodayTotal])
 
   useEffect(() => {
     if (user) getTodayMeals(todayStr()).then(setTodayMeals).catch(() => {})
-  }, [user])
+  }, [user, getTodayMeals])
 
   useEffect(() => {
     if (user) getNutrientTarget().then(setNutrientTarget).catch(() => {})
-  }, [user])
+  }, [user, getNutrientTarget])
 
   // inbody(최신 레코드)가 바뀌면 = 새로 등록됐으면 추이도 다시 불러옴
   useEffect(() => {
     if (user) getInbodyHistory().then(setInbodyHistory).catch(() => {})
-  }, [user, inbody])
+  }, [user, inbody, getInbodyHistory])
 
-  // BMI 또래 비교(AI 서버). 성별·출생년도가 없으면 비교 자체가 불가능해서 건너뛴다.
-  // 실패하면 null이 와서 아래 섹션이 그냥 안 보인다 - 인바디 화면 자체는 영향받지 않는다
+  // BMI 또래 비교. 값은 서버가 DB에서 읽으므로 여기선 "다시 읽어라"는 신호(인바디 변경)만 준다.
+  // 프로필이 없거나 AI 서버가 꺼져 있으면 error가 담겨 와서 아래 섹션이 안 보인다 -
+  // 인바디 화면 자체는 영향받지 않는다.
   useEffect(() => {
-    getBmiInsight({
-      bmi: inbody?.bmi,
-      gender: profile?.gender,
-      birthYear: profile?.birthYear,
-    }).then(setBmiInsight)
-  }, [inbody?.bmi, profile?.gender, profile?.birthYear])
+    if (!user) return
+    getBmiInsight().then((data) => setBmiInsight(data?.error ? null : data))
+  }, [user, inbody?.bmi, getBmiInsight])
 
   const startEditName = () => {
     setNameDraft(profile?.name ?? '')
@@ -646,6 +736,11 @@ function MyPage() {
     updateBody(values).then(() => getNutrientTarget().then(setNutrientTarget).catch(() => {}))
 
   const hasBodyInfo = Boolean(profile?.gender && profile?.heightCm && profile?.birthYear)
+
+  const handleSaveGoals = (goals) => {
+    saveExerciseGoals(goals)
+    setGoalState({ configured: true, goals })
+  }
 
   // 첫 등록이면 추이 그래프가 왜 아직 안 보이는지 알려준다 (두 개부터 그려짐).
   // inbody는 등록 전 값이라 여기서 판단할 수 있음 - confirmInbody가 성공한 뒤 갱신된다
@@ -739,6 +834,15 @@ function MyPage() {
                     </button>
                   </>
                 )}
+                {goalState.configured && (
+                  <>
+                    {' · '}
+                    {goalState.goals.map((g) => `${g.name} ${g.targetReps}회/일`).join(', ')}
+                    <button className="link-btn mp-body-edit" onClick={() => setGoalSettingsOpen(true)}>
+                      수정
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             <button className="mp-withdraw-btn" onClick={() => setWithdrawModalOpen(true)}>
@@ -757,6 +861,21 @@ function MyPage() {
               </div>
               <button className="mp-inbody-btn" onClick={() => setBodyModalOpen(true)}>
                 입력하기
+              </button>
+            </div>
+          )}
+
+          {!goalState.configured && (
+            <div className="mp-body-prompt">
+              <div>
+                <div className="mp-goal-title">운동 목표를 설정해주세요</div>
+                <p className="mp-profile-sub">
+                  하루 목표 횟수를 정해두면, 스쿼트 코칭 리포트·달력에서 목표를 채운 날을 확인할
+                  수 있어요.
+                </p>
+              </div>
+              <button className="mp-inbody-btn" onClick={() => setGoalSettingsOpen(true)}>
+                설정하기
               </button>
             </div>
           )}
@@ -784,6 +903,11 @@ function MyPage() {
               {bmiInsight && (
                 <p className="mp-bmi-insight">
                   {bmiInsight.message}
+                  {/* 인바디에 적힌 BMI와 프로필 키·체중으로 계산한 값이 어긋날 때.
+                      어느 쪽이 틀렸는지는 알 수 없으므로 고치지 않고 확인만 요청한다 */}
+                  {bmiInsight.warning && (
+                    <span className="mp-bmi-warning">{bmiInsight.warning}</span>
+                  )}
                   <span className="mp-bmi-source">
                     {bmiInsight.source} 기준 · 대한비만학회 분류
                   </span>
@@ -804,7 +928,6 @@ function MyPage() {
               </div>
             </div>
           )}
-
         </>
       ) : (
         <p className="pcard-desc">로그인 후 프로필을 확인할 수 있습니다.</p>
@@ -870,6 +993,7 @@ function MyPage() {
         <NutrientDetailModal
           summary={todaySummary}
           target={nutrientTarget}
+          date={todayStr()}
           onTargetChange={setNutrientTarget}
           onClose={() => setNutrientModalOpen(false)}
         />
@@ -886,6 +1010,13 @@ function MyPage() {
           current={profile?.goal}
           onClose={() => setGoalModalOpen(false)}
           onSelect={selectGoal}
+        />
+      )}
+      {goalSettingsOpen && (
+        <ExerciseGoalModal
+          goals={goalState.goals}
+          onClose={() => setGoalSettingsOpen(false)}
+          onSave={handleSaveGoals}
         />
       )}
       {withdrawModalOpen && (

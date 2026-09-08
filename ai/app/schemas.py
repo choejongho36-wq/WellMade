@@ -11,6 +11,7 @@ AI 서버가 주고받는 요청/응답 데이터 형태(Pydantic 모델)를 정
 필드가 없다.
 """
 
+from datetime import date
 from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
@@ -43,16 +44,6 @@ class HipFlexibilityCalibration(BaseModel):
     standing_hip_angle: float = Field(..., description="편하게 서 있을 때 측정한 hip_angle (보통 180도 근처)")
     max_flex_hip_angle: float = Field(
         ..., description="무리하지 않는 선에서 최대한 숙였을 때 측정한 hip_angle (많이 숙일수록 작은 값)"
-    )
-    standing_shoulder_hip_ratio: Optional[float] = Field(
-        None,
-        description="편하게 서 있을 때(standing_hip_angle과 같은 순간) 측정한 어깨-엉덩이 "
-        "직선거리/발 길이 비율(app/pose/angles.py의 get_torso_length_ratio 참고). "
-        "등이 곧게 펴진 상태의 기준값으로 써서, 실제 자세에서 이 비율이 얼마나 "
-        "줄었는지로 '등이 둥글게 말렸는지'(척추 굴곡)를 판정한다. hip_angle 캘리브레이션과 "
-        "같은 '편하게 서 있기' 측정 한 번으로 같이 얻을 수 있는 값이라 이 모델에 함께 둔다. "
-        "선택 필드 — 없으면(하위 호환) 등 굽음 검사만 건너뛰고 나머지 캘리브레이션은 그대로 "
-        "동작한다.",
     )
 
 
@@ -124,9 +115,8 @@ class AngleFrame(BaseModel):
     torso_length_ratio: Optional[float] = Field(
         None,
         description="어깨-엉덩이 직선거리/발 길이 비율(app/pose/angles.py의 "
-        "get_torso_length_ratio 참고). hip_calibration에 standing_shoulder_hip_ratio가 함께 "
-        "있을 때만 '등이 둥글게 말렸는지' 판정에 쓰인다(기준값 없이는 이 숫자 하나만으로는 "
-        "판단 불가). 선택 필드 — 없으면 등 굽음 검사를 건너뛴다(하위 호환).",
+        "get_torso_length_ratio 참고). DTW 렙 패턴 비교(app/pose/dtw_matching.py)의 "
+        "지표 중 하나로 쓰인다. 선택 필드 — 없으면 DTW 비교에서 이 지표만 제외된다(하위 호환).",
     )
     torso_shin_lean_gap_deg: Optional[float] = Field(
         None,
@@ -139,7 +129,7 @@ class AngleFrame(BaseModel):
         "(자세한 배경은 checklist 2026-08-27 addendum 8번 참고). 측면 랜드마크만으로 계산 "
         "가능한 값이라 heel_lift_ratio/knee_over_toe_ratio와 동일하게 프론트가 매 프레임 직접 "
         "계산해서 보낸다. 선택 필드 — 없으면 이 검사를 건너뛴다(하위 호환). "
-        "TODO: 팀 확정 필요(중요) — 나쁜 사례 표본이 아직 2건뿐이라 임계값 검증이 매우 약하다.",
+        "NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.",
     )
 
 
@@ -164,6 +154,13 @@ class CoachingFrameRequest(BaseModel):
         "조회한다(app/coaching/hyperextension_llm_check.py 참고). 대기 중인 job이 없으면 "
         "생략한다.",
     )
+    view: Literal["side", "front"] = Field(
+        "side",
+        description="이번 요청이 측면 세션인지 정면 세션인지. 정면(front)이면 측면 각도 기반 "
+        "판정(동작 단계·얕은 스쿼트·발뒤꿈치·목/시선·DTW 등)을 전부 건너뛰고 무릎모임"
+        "(knee_valgus_ratio)만 검사한다 — 정면 랜드마크로는 knee_angle/hip_angle 같은 시상면 "
+        "각도 자체가 의미가 없기 때문이다. 기본값 side는 기존 동작과 동일(하위 호환).",
+    )
 
 
 class CoachingFrameResponse(BaseModel):
@@ -180,6 +177,35 @@ class CoachingFrameResponse(BaseModel):
         "값을 저장해뒀다가 다음 호출들의 요청에 그대로 실어 보내면 된다. None이면 지금 "
         "기다릴 job이 없다는 뜻(방금 결과를 이슈로 받았거나, 애초에 없었음)이라 프론트가 "
         "들고 있던 이전 job id는 지워도 된다.",
+    )
+
+
+# ---- 사진 코칭 "분석 결과" 자연어 요약 (app/coaching/photo_summary_llm.py, 2026-09-02) ----
+# 판정 자체는 여전히 규칙 기반(judge_realtime_coaching)이 담당하고, 이 API는 그 판정
+# 결과를 문장으로 정리만 한다. 측면 사진이 필수(정면은 선택)라 AI-06은 항상 호출된다 —
+# 정면 사진이 있으면 무릎모임 판정이 같이 얹혀서 넘어온다.
+
+
+class PhotoSummaryRequest(BaseModel):
+    is_normal: bool = Field(..., description="규칙 기반 판정 결과 — 전체 정상 여부.")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="규칙 기반 판정의 신뢰도(0~1).")
+    issues: List[PoseIssue] = Field(
+        default_factory=list, description="규칙 기반 판정에서 발견된 이상 소견 목록. 정상이면 빈 배열."
+    )
+    metrics: Dict[str, Optional[float]] = Field(
+        default_factory=dict,
+        description="판정에 쓰인 원본 각도·비율 수치(예: knee_angle, knee_valgus_ratio). "
+        "LLM이 근거로 삼을 참고 수치일 뿐 판정 자체를 다시 계산하지 않는다.",
+    )
+    has_front_photo: bool = Field(
+        ..., description="정면 사진이 함께 있었는지(선택 업로드, 2026-09-02: 측면이 필수로 바뀌면서 " "이 필드도 측면→정면 포함 여부로 바뀜) — 정면이 없으면 무릎모임 판정이 같이 없었다는 " "뜻이므로 문장에 그 한계를 자연스럽게 반영하도록 LLM에 알려준다."
+    )
+
+
+class PhotoSummaryResponse(BaseModel):
+    summary_message: str = Field(..., description="분석 결과를 정리한 한국어 문장(4~6문장).")
+    generation_source: Literal["llm", "fallback"] = Field(
+        ..., description="LLM이 직접 생성했는지, 규칙 기반 템플릿 문구로 대체했는지."
     )
 
 
@@ -270,7 +296,16 @@ class NutritionPeerCompareRequest(BaseModel):
     들고 있지 않다 — 무상태 설계). 넘기지 않은 영양소는 비교에서 빠진다."""
 
     gender: Gender
-    birth_year: int = Field(..., ge=1900, le=2026, description="출생년도. 서버가 현재 연도 기준으로 연령대를 계산한다")
+    birth_year: int = Field(
+        ...,
+        ge=1900,
+        le=2026,
+        description="출생년도. 이것만 있으면 연 나이(현재 연도 - 출생년도)로 계산하므로 "
+                    "만 나이 기준인 원 통계와 최대 1살 어긋난다. birth_date를 같이 주면 정확해진다",
+    )
+    birth_date: Optional[date] = Field(
+        None, description="생년월일. 있으면 정확한 만 나이로 연령 구간을 고른다"
+    )
     energy_kcal: Optional[float] = Field(None, ge=0)
     protein_g: Optional[float] = Field(None, ge=0)
     carbs_g: Optional[float] = Field(None, ge=0)
@@ -304,11 +339,26 @@ class BmiInsightRequest(BaseModel):
     """BMI 인사이트(/ai/inbody/bmi-insight) 요청.
 
     BMI는 백엔드(인바디 기록)가 이미 갖고 있는 값을 그대로 넘긴다 - 키/몸무게로 다시
-    계산하지 않는다(인바디 기기가 낸 값과 우리가 계산한 값이 미세하게 달라지는 걸 피함)."""
+    계산하지 않는다(인바디 기기가 낸 값과 우리가 계산한 값이 미세하게 달라지는 걸 피함).
 
-    bmi: float = Field(..., gt=0, le=100)
+    비교 대상은 항상 "가장 최근 인바디 기록 1건"이다 - 과거 기록과의 추이는 다루지 않는다."""
+
+    # 인바디 OCR이 2.5나 250으로 잘못 읽는 일이 있는데, 그대로 두면 "저체중"/"3단계 비만"으로
+    # 확정돼 버린다. 사람이 가질 수 있는 범위 밖은 아예 받지 않는다.
+    bmi: float = Field(..., ge=10, le=60)
     gender: Gender
-    birth_year: int = Field(..., ge=1900, le=2026)
+    birth_year: int = Field(
+        ...,
+        ge=1900,
+        le=2026,
+        description="출생년도. 이것만 있으면 연 나이로 계산해 만 나이보다 최대 1살 많을 수 있다",
+    )
+    birth_date: Optional[date] = Field(
+        None, description="생년월일. 있으면 정확한 만 나이로 연령 구간을 고른다"
+    )
+    # 키·체중을 같이 주면 BMI를 다시 계산해 교차검증한다(값은 안 바꾸고 warning만 붙는다)
+    height_cm: Optional[float] = Field(None, gt=0, le=300)
+    weight_kg: Optional[float] = Field(None, gt=0, le=500)
 
 
 class BmiInsightResponse(BaseModel):
@@ -320,8 +370,106 @@ class BmiInsightResponse(BaseModel):
     percentile: Optional[float] = Field(
         None, description="같은 성별·연령대에서 이 BMI 이하인 비율(%). 공개 백분위수(5~95) 밖이면 None"
     )
+    warning: Optional[str] = Field(
+        None, description="키·체중으로 다시 계산한 BMI와 크게 다를 때의 경고. 정상이면 None"
+    )
     message: str
     source: str
+
+
+# ---- 운동 추천 v1 (챗봇 "운동 추천" 메뉴) ----
+
+
+class RecentWorkout(BaseModel):
+    """운동 메모 한 건. 자유 텍스트에서 부위 키워드만 읽는다(형태소 분석은 하지 않는다)."""
+
+    date: str = Field(..., description="기록한 날짜 (yyyy-MM-dd)")
+    text: str = Field("", description="메모 원문")
+
+
+class ExerciseRecommendRequest(BaseModel):
+    """운동 추천(/ai/exercise/recommend) 요청.
+
+    부위만 필수고 나머지는 선택이다. 목표·나이·최근 기록이 오면 세트/횟수와 조언까지
+    여기서 정해서 내려보낸다 - 그걸 모델이 지어내게 두면 같은 목표에도 답이 흔들린다."""
+
+    body_part: str = Field(..., description="운동할 부위. 한국어('하체','가슴')나 영문 body_part 키 모두 허용")
+    equipment: Optional[str] = Field(None, description="장비/환경 힌트. '맨몸','덤벨' 등. 생략하면 부위 전체에서 뽑음")
+    goal: Optional[Literal["LOSE", "GAIN", "MAINTAIN"]] = Field(
+        None, description="프로필 목표(백엔드 Goal enum 이름). 세트/횟수 처방이 여기서 갈린다. 없으면 유지 기준"
+    )
+    age: Optional[int] = Field(None, ge=1, le=120, description="나이. 50세 이상이면 고급 동작을 후보에서 뺀다")
+    recent_workouts: list[RecentWorkout] = Field(
+        default_factory=list, description="최근 7일 운동 메모. '어제 하체 하셨네요' 같은 조언에만 쓴다"
+    )
+    exclude: list[str] = Field(
+        default_factory=list, description="최근에 이미 추천한 운동 이름. 같은 답이 반복되지 않게 뺀다"
+    )
+    exclude_from_text: list[str] = Field(
+        default_factory=list,
+        description="최근 챗봇 답변 원문. 여기 등장한 운동 이름을 빼서 같은 추천이 반복되지 않게 한다 "
+                    "(운동 이름 목록은 이 서버에만 있으므로 백엔드는 원문만 넘긴다)",
+    )
+
+
+class ExerciseVideo(BaseModel):
+    """국민체력100 참고 영상. 운동명이 아니라 타겟 근육으로 이었으므로 '관련 영상'이다."""
+
+    name: str
+    level: Optional[str] = Field(None, description="초급/중급/고급 (원본에 없으면 None)")
+    place: Optional[str] = None
+    tool: Optional[str] = None
+    duration_sec: Optional[int] = None
+    video_url: str
+    muscles_ko: Optional[str] = None
+
+
+class ExerciseCandidate(BaseModel):
+    name: str
+    body_part: str
+    equipment: str
+    target: str
+    difficulty: str = Field("", description="초급/중급/고급 (사람이 붙인 큐레이션 태그)")
+    is_compound: bool = False
+    home_friendly: bool = False
+    sets_reps: str = Field("", description="목표에 따라 정해진 세트/횟수")
+    # 챗봇이 운동 방법을 지어내지 않도록 후보마다 한국어 설명을 같이 준다(자세한 배경은
+    # app/exercise/recommend.py의 candidates 주석 참고).
+    instructions_ko: str = ""
+    related_video: Optional[ExerciseVideo] = None
+
+
+class ExerciseRecommendResponse(BaseModel):
+    body_part: str = Field(..., description="필터에 사용한 영문 body_part (부위 매핑 실패 시 빈 문자열)")
+    body_part_ko: Optional[str] = None
+    matched: int = Field(..., description="조건에 맞은 운동 총 개수")
+    goal: Optional[str] = Field(None, description="처방에 사용한 목표 이름 (설정 안 했으면 None)")
+    plan: Optional[str] = Field(None, description="세트/횟수 + 휴식 한 줄")
+    candidates: list[ExerciseCandidate]
+    cautions: list[str] = Field(default_factory=list, description="부위·나이에 따른 주의사항")
+    workout_note: Optional[str] = Field(None, description="최근 운동 기록을 근거로 한 조언 한 줄")
+    note: Optional[str] = Field(None, description="후보가 없을 때 사용자에게 보여줄 안내 문구")
+
+
+class ExerciseDetailRequest(BaseModel):
+    """운동 상세(/ai/exercise/detail) 요청. 추천 목록에서 사용자가 지목한 운동 하나."""
+
+    name: str = Field(..., description="운동 이름. 추천 목록에 보여준 한국어 이름이거나 그 일부")
+
+
+class ExerciseDetailResponse(BaseModel):
+    """
+    한 운동의 한국어 수행 방법. 챗봇이 설명을 지어내지 않고 이 값을 옮겨쓰게 하려는 응답이라
+    instructions_ko 를 반드시 함께 준다(없으면 found=False).
+    """
+
+    found: bool
+    name: Optional[str] = None
+    body_part: Optional[str] = None
+    equipment: Optional[str] = None
+    target: Optional[str] = None
+    instructions_ko: Optional[str] = Field(None, description="데이터셋의 한국어 수행 방법 원문")
+    note: Optional[str] = Field(None, description="못 찾았을 때 사용자에게 보여줄 안내 문구")
 
 
 # ---- 하네스 오케스트레이션 (AI-07) ----
@@ -387,61 +535,10 @@ class OrchestrateResponse(BaseModel):
     )
 
 
-# ---- RAG 지식베이스 검색·생성 (AI-08/09/14) ----
-# 요구사항 정의서 "3.RAG파이프라인" 시트에는 이 두 엔드포인트의 정확한 요청/응답 필드명이
-# 표로 정리돼 있지 않다(다른 엔드포인트는 "5.AI_API명세" 시트에 명시돼 있었지만 RAG는
-# 파이프라인 단계 설명만 있음) — 그래서 AI-15/ML 엔드포인트와 마찬가지로 기존 코드베이스
-# 관례(session_id, snake_case)를 따라 자체적으로 설계했다.
-# TODO: 팀 확정 필요 — 실제 프론트/백엔드 연동 시 필드명 재검토.
-
-
-class RagSource(BaseModel):
-    """RAG 응답에 실리는 출처 정보 1건. 요구사항 정의서 ⑦ 출처 표기 단계에 대응."""
-
-    title: str
-    source: str = Field(..., description="출처 기관명 (예: NASM, Mayo Clinic)")
-    source_url: Optional[str] = None
-    source_date: Optional[str] = Field(None, description="지식베이스 문서 작성/확인 시점 (YYYY-MM). knowledge_base.py 주석 참고")
-
-
-class RagGuideRequest(BaseModel):
-    """지시형 RAG 가이드(/ai/rag/guide, AI-09) 요청.
-    하네스(AI-07)가 trigger_rag_search를 선택하며 돌려준 search_query를 그대로 받는
-    흐름을 전제로 한다 — 즉 이 엔드포인트는 하네스 응답을 받은 백엔드/프론트가 이어서
-    호출하는 것을 기대한다(harness.py 모듈 docstring의 "결정과 실행은 분리" 설명 참고)."""
-
-    query: str = Field(..., min_length=1, description="검색 쿼리 (예: 이슈 종류 '무릎 모임', 'knee_valgus')")
-    session_id: Optional[str] = None
-
-
-class RagGuideResponse(BaseModel):
-    guidance_message: str = Field(..., description="근거 문서 기반 코칭 문구 (TTS로 바로 읽을 수 있는 한국어 텍스트)")
-    sources: List[RagSource]
-    matched: bool = Field(..., description="관련 지식베이스 문서를 찾았는지 여부. False면 일반 안내로 대체됨")
-    generation_source: Literal["llm", "fallback"] = Field(
-        ..., description="LLM이 직접 문구를 생성했는지, 문서에 준비된 고정 문구(short_message)로 대체했는지"
-    )
-
-
-class RagQnaRequest(BaseModel):
-    """설명형 RAG Q&A(/ai/rag/qna, AI-14) 요청. 사용자가 자유 형식으로 입력하는 질문을 받는다."""
-
-    question: str = Field(..., min_length=1)
-    session_id: Optional[str] = None
-
-
-class RagQnaResponse(BaseModel):
-    answer: str = Field(..., description="근거 문서 기반 답변")
-    sources: List[RagSource]
-    matched: bool = Field(..., description="관련 지식베이스 문서를 찾았는지 여부")
-    generation_source: Literal["llm", "fallback"] = Field(
-        ..., description="LLM이 직접 답변을 생성했는지, 검색된 문서를 그대로 발췌해 답했는지"
-    )
-
-
 # ---- 세션 리포트 생성 (AI-12) ----
-# TODO: 팀 확정 필요 — 이 기능의 ID가 시트마다 다르게 쓰여 있다(1.AI모듈상세=AI-12,
-# 8.요구사항정의서=AI-08). 여기서는 "1.AI모듈상세" 기준(AI-12)으로 구현했다.
+# ID 표기 확정(2026-09-02): 요구사항정의서 "1.AI모듈상세" 시트 기준 AI-12로 쓴다.
+# "8.요구사항정의서" 시트가 같은 번호를 세션 종료 판단(AI-13)에 재사용하는 건 그 시트
+# 쪽 오기로 보고 따르지 않는다 — 이 기능은 앞으로도 계속 AI-12로 표기한다.
 
 
 class SessionIssueRecord(BaseModel):
@@ -493,7 +590,12 @@ class SessionReportRequest(BaseModel):
 
 
 class SessionReportResponse(BaseModel):
+    total_reps: int = Field(..., description="세션에서 완료한 스쿼트 반복(렙) 횟수. 프론트가 무릎 각도로 감지한 렙 단위 이력을 보내면 그 개수, 아니면(하위 호환) 전달받은 frame_history 개수를 그대로 쓴다.")
+    normal_reps: int = Field(..., description="정상 자세로 완료한 반복 횟수")
+    abnormal_reps: int = Field(..., description="이상 자세가 감지된 반복 횟수")
+    session_duration_sec: float = Field(..., description="세션 진행 시간(초). 요청의 session_duration_sec를 그대로 돌려준다 — 프론트가 리포트 화면에 바로 쓸 수 있게.")
     normal_ratio: float = Field(..., description="세션 전체 정상 자세 비율(0~1)")
+    previous_normal_ratio: Optional[float] = Field(None, description='직전 세션의 정상 자세 비율(0~1). previous_sessions가 없으면 None — 프론트가 "지난 세션(65%) 대비" 같은 문구를 만들 때 쓴다.')
     avg_deviation_deg: Optional[float] = Field(None, description="이상 소견의 평균 편차(도). deviation_deg가 제공된 소견이 하나도 없으면 None")
     most_frequent_issue_part: Optional[str] = Field(None, description="가장 자주 감지된 이상 부위. 이상 소견이 없으면 None")
     issue_counts_by_part: Dict[str, int] = Field(

@@ -18,8 +18,7 @@ Y분 지속되면 종료"는 별도 학습 없이도 명확하게 정의할 수 
 
 from app.schemas import JudgmentRecord
 
-# TODO: 팀 확정 필요 — 기획 문서의 예시값을 그대로 초안으로 사용함(정상 비율 70% 이상,
-# 3분 지속). 실제 사용자 테스트를 거쳐 조정이 필요하다.
+# NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.
 TARGET_NORMAL_RATIO = 0.7
 TARGET_DURATION_SEC = 180
 

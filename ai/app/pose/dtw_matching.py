@@ -45,8 +45,7 @@ import numpy as np
 # 계산 가능한 것만 추렸다:
 #   - knee_angle, hip_angle: 스쿼트 깊이 궤적 자체 — DTW가 시간축을 맞출 때 기준이 되는
 #     동작의 "모양"을 잡아준다.
-#   - torso_length_ratio: 등 굽음 지표(get_torso_length_ratio, rules.py BACK_ROUNDING_RATIO_THRESHOLD와
-#     같은 원시값).
+#   - torso_length_ratio: 등 굽음과 관련된 원시 지표(get_torso_length_ratio).
 #   - shoulder_forward_lean_deg: 목/시선이되, 상체 정렬과 연동되는 시상면 신호라 포함.
 # knee_valgus_ratio(현재 고관절 과신전 의심 판정이 재해석해 쓰는 정면 지표)는 원래
 # 후보였으나 뺐다 — 실제 확보된 "정상" 템플릿 소스 중 정면 촬영은 1개뿐이라(체크리스트의
@@ -69,8 +68,8 @@ DEFAULT_METRIC_FIELDS: tuple[str, ...] = (
 
 
 class TemplateNotFoundError(RuntimeError):
-    """템플릿이 하나도 없을 때 — 조용히 빈 결과를 주지 않고 명시적으로 알린다(back_rounded
-    캘리브레이션 누락 안내와 같은 원칙: BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE 참고)."""
+    """템플릿이 하나도 없을 때 — 조용히 빈 결과를 주지 않고 명시적으로 알린다(캘리브레이션
+    누락 안내와 같은 원칙)."""
 
 
 @dataclass

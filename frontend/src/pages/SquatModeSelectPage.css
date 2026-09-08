@@ -1,0 +1,216 @@
+/* (2026-09-03 재작업) 사용자가 준 와이어프레임 그대로 — 운동 사진이 콘텐츠 영역 전체를
+   여백 없이 꽉 채우고(PageShell bleed), 그 위 오른쪽에 반투명 흰 패널이 뜬다.
+   패널 구성: 맨 위 빨간 띠 → [운동 드롭다운 + "운동 방법" 버튼] → 큰 타일 두 개. */
+
+.exercise-hero {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #1a1a1a; /* 사진 로딩 전/실패 시 대비용 */
+}
+
+/* (2026-09-07 추가) 운동을 바꾸면 사진이 겹쳐서 부드럽게 전환되도록(크로스페이드),
+   레이어를 여러 장 쌓아두고(컴포넌트 참고) 최신 레이어만 opacity 0→1로 페이드인한다. */
+.exercise-hero-bg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 1000ms ease;
+  /* object-position은 인라인 style로 운동마다 다르게 준다(컴포넌트 참고) */
+}
+.exercise-hero-bg.is-visible {
+  opacity: 1;
+}
+
+/* 와이어프레임 기준: 콘텐츠 폭의 약 35%, 오른쪽에서 약 9% 띄우고 세로 가운데.
+   (2026-09-07 추가) 패널 하나만 절대배치하던 것을, 패널 + 미구현 운동 안내문을 세로로
+   쌓는 .exercise-panel-stack으로 바꿨다 — 예전엔 런지/플랭크를 고르면 모달이 바로
+   떴는데, 이제는 드롭다운으로 고르기만 해서는 모달 없이 패널 아래 안내 박스만 보이고,
+   모달은 사진 코칭/실시간 코칭 타일을 실제로 눌렀을 때만 뜬다(컴포넌트 참고). */
+.exercise-panel-stack {
+  position: absolute;
+  top: 50%;
+  right: 15%;
+  transform: translateY(-50%);
+  width: min(360px, 38%);
+  max-height: calc(100% - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* (2026-09-03 추가 피드백: "바깥의 박스는 반투명으로" — 패널 자체를 더 투명하게 하고,
+   대신 backdrop-filter 블러를 키워서 뒤 사진이 비치면서도 글자는 읽히게 했다.
+   패널 안 타일(.exercise-mode-tile)은 반투명 대상이 아니라 그대로 불투명 유지. */
+.exercise-panel {
+  min-height: 0;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(218, 41, 28, 0.55);
+  border-radius: 18px;
+  /* 가로는 잘라서 둥근 모서리를 유지하고, 세로만 필요할 때 스크롤(작은 화면 대비) */
+  overflow: hidden auto;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+}
+
+/* 런지/플랭크처럼 아직 코칭이 없는 운동을 고르면 패널 바로 밑에 뜨는 안내 박스.
+   패널과 같은 톤(반투명 흰 + 빨간 테두리)으로 통일했다. */
+.exercise-notice {
+  flex: none;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(218, 41, 28, 0.55);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #a3271f;
+  text-align: center;
+}
+
+.exercise-panel-bar {
+  height: 30px;
+  background: rgba(218, 41, 28, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 14px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.exercise-panel-body {
+  padding: 18px 20px 20px;
+}
+
+.exercise-panel-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+/* 드롭다운은 공용 컴포넌트(squatShared.css의 알약 모양)를 그대로 쓰되, 이 패널 안에서만
+   와이어프레임처럼 "가로로 꽉 찬 사각 박스 + 가운데 라벨 + 오른쪽 화살표"로 맞춘다. */
+.exercise-panel-row .exercise-dropdown {
+  flex: 1;
+  min-width: 0;
+}
+.exercise-panel-row .exercise-dropdown-trigger {
+  position: relative;
+  width: 100%;
+  height: 44px;
+  justify-content: center;
+  padding: 0 30px;
+  border-radius: 10px;
+  border-color: #dcd9d3;
+  font-size: 15px;
+}
+.exercise-panel-row .exercise-dropdown-dot {
+  display: none;
+}
+.exercise-panel-row .exercise-dropdown-arrow {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  font-size: 10px;
+}
+/* 메뉴도 트리거 폭에 맞춰 펼쳐지게(기본은 오른쪽 정렬 + min-width 140px) */
+.exercise-panel-row .exercise-dropdown-menu {
+  left: 0;
+  right: 0;
+  min-width: 0;
+}
+
+.exercise-panel-guide-btn {
+  flex: none;
+  height: 44px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 10px;
+  background: #da291c;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.exercise-panel-guide-btn:hover {
+  background: #c0231a;
+}
+
+/* 큰 버튼 두 개 — 레이아웃 재작업 이전의 모드 선택 카드(미리보기 이미지 + 제목 + 설명)를
+   그대로 되살린 형태(2026-09-03, 사용자 요청). 카드 전체가 링크다.
+   (2026-09-03 추가: 미리보기 사진/자리표시 SVG 대신 작은 선형 아이콘 배지로 교체 —
+   패널이 작아서 사진을 꽉 채우면 답답하고, 아이콘이 더 깔끔하다는 피드백.) */
+.exercise-mode-tile {
+  display: block;
+  padding: 10px 12px 14px;
+  border-radius: 12px;
+  background: #f4f2ee;
+  border: 1px solid #e0ddd6;
+  color: #111;
+  text-align: center;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.exercise-mode-tile + .exercise-mode-tile {
+  margin-top: 12px;
+}
+.exercise-mode-tile:hover {
+  border-color: #da291c;
+  background: #faf6f4;
+}
+.exercise-mode-tile-img {
+  display: block;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  box-sizing: content-box;
+  padding: 15px;
+  margin: 2px auto 10px;
+  background: #fff;
+  border: 1px solid #e6e2d9;
+  border-radius: 50%;
+}
+.exercise-mode-tile-title {
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.exercise-mode-tile-desc {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: #55534d;
+}
+
+/* ============ 모바일 (~768px) ============
+   모바일에서는 네비가 위로 쌓이고 콘텐츠가 그 아래에 오는데, 이때 .page-shell-content가
+   자식 높이로 결정되므로 hero를 absolute로 두면 높이가 0이 된다 — relative + 고정 높이로
+   바꿔 사진 영역을 직접 만든다. 패널은 사진 아래쪽 가운데에 붙인다. */
+@media (max-width: 768px) {
+  .exercise-hero {
+    position: relative;
+    height: 78vh;
+  }
+  .exercise-panel-stack {
+    top: auto;
+    bottom: 16px;
+    right: 50%;
+    transform: translateX(50%);
+    width: min(340px, calc(100% - 32px));
+  }
+}

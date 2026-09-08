@@ -199,13 +199,68 @@
 .chat-bubble-row.assistant {
   justify-content: flex-start;
 }
-.chat-bubble {
+/* 말풍선 + (있으면) 후속 버튼을 한 덩어리로 세로로 쌓는다.
+   폭 제한이 .chat-bubble 에서 이 칸으로 올라왔다 - 버튼도 같은 폭 안에 들어와야 해서 */
+.chat-bubble-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
   max-width: calc(82% - 40px);
+}
+.chat-bubble-row.user .chat-bubble-col {
+  align-items: flex-end;
+}
+.chat-bubble-row.assistant .chat-bubble-col {
+  align-items: flex-start;
+}
+.chat-bubble {
+  max-width: 100%;
   padding: 12px 16px;
   border-radius: 14px;
   font-size: 13.5px;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+/* "인바디 등록하러 가기" 같은 후속 행동. 답변이 막다른 길로 끝나지 않게 다음 걸음을 붙인다 */
+.chat-action-btn {
+  flex: none;
+  background: #da291c;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font: 700 12.5px 'Noto Sans KR', sans-serif;
+  padding: 9px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.chat-action-btn:hover {
+  background: #c0241a;
+}
+/* 도구가 실어 보낸 운동 영상 링크. 답변 버튼(chat-action-btn)과 달리 앱 밖으로 나가므로
+   빨간 채움 대신 테두리만 둬서 "이건 바깥 링크"라는 게 보이게 한다 */
+.chat-link-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+}
+.chat-link-btn {
+  display: inline-block;
+  max-width: 100%;
+  border: 1px solid #d8d6cf;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font: 600 12px 'Noto Sans KR', sans-serif;
+  padding: 7px 12px;
+  text-decoration: none;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.chat-link-btn:hover {
+  border-color: #da291c;
+  color: #da291c;
 }
 .chat-bubble-row.user .chat-bubble {
   background: #da291c;

@@ -28,7 +28,7 @@ REFERENCE_PATH = Path(__file__).parent / "data" / "posture_reference.json"
 # ml_training/prepare_posture_reference.py 단계에서 "60대 이상" 하나로 합쳐뒀지만,
 # 그래도 남아있는 소표본 그룹(예: 10대 남성 n=41)을 호출부가 인지할 수 있도록
 # 최소 신뢰 표본 크기를 정의해 응답에 경고 플래그로 실어 보낸다.
-# TODO: 팀 확정 필요 — 사용자 테스트 후 임계값 조정.
+# NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.
 MIN_RELIABLE_SAMPLE = 50
 
 BRACKET_SIZE = 10

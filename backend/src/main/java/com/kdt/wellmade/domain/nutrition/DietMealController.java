@@ -7,10 +7,15 @@ import com.kdt.wellmade.domain.mapage.UserProfile;
 import com.kdt.wellmade.domain.mapage.UserProfileService;
 import com.kdt.wellmade.domain.user.User;
 import com.kdt.wellmade.domain.user.UserService;
+import com.kdt.wellmade.global.time.AppTime;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -38,6 +43,8 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/diet/meals")
+// /month의 year/month 제약을 실제로 검사하게 한다 (없으면 month=13이 LocalDate.of에서 500)
+@Validated
 public class DietMealController {
 
     private final MealLoggingService mealLoggingService;
@@ -63,7 +70,7 @@ public class DietMealController {
     @PostMapping
     public MealLoggingService.MealLogResult logMeal(@AuthenticationPrincipal Long userId, @RequestBody LogMealRequest request) {
         LocalDate date = request.date();
-        if (date != null && date.isAfter(LocalDate.now())) {
+        if (date != null && date.isAfter(AppTime.today())) {
             throw new IllegalArgumentException("아직 오지 않은 날짜에는 기록할 수 없어요.");
         }
         return mealLoggingService.logMeal(userId, request.message(), request.mealType(), date);
@@ -75,7 +82,7 @@ public class DietMealController {
             @AuthenticationPrincipal Long userId, @RequestBody LogManualMealRequest request
     ) {
         LocalDate date = request.date();
-        if (date != null && date.isAfter(LocalDate.now())) {
+        if (date != null && date.isAfter(AppTime.today())) {
             throw new IllegalArgumentException("아직 오지 않은 날짜에는 기록할 수 없어요.");
         }
         return mealLoggingService.logManualMeal(userId, request.foodName(), request.kcal(), request.mealType(), date);
@@ -86,14 +93,14 @@ public class DietMealController {
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        return mealLoggingService.getMealsForDate(userId, date != null ? date : LocalDate.now());
+        return mealLoggingService.getMealsForDate(userId, date != null ? date : AppTime.today());
     }
 
     @GetMapping("/month")
     public Map<String, Double> getMonthCalories(
             @AuthenticationPrincipal Long userId,
-            @RequestParam int year,
-            @RequestParam int month
+            @RequestParam @Min(2000) @Max(2100) int year,
+            @RequestParam @Min(1) @Max(12) int month
     ) {
         return mealLoggingService.getDailyCaloriesForMonth(userId, year, month);
     }
@@ -103,7 +110,7 @@ public class DietMealController {
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        return mealLoggingService.getTotalForDate(userId, date != null ? date : LocalDate.now());
+        return mealLoggingService.getTotalForDate(userId, date != null ? date : AppTime.today());
     }
 
     @PutMapping("/{id}")

@@ -8,7 +8,6 @@ RAG 양쪽이 같은 상수를 가져다 쓰도록 이 파일에 모아뒀다.
 
 스쿼트만 지원한다(런지 등 다른 종목 없음).
 
-# TODO: 팀 확정 필요 — 실제 사용자 테스트 후 문구 톤/길이 조정.
 """
 
 SHALLOW_SQUAT_MESSAGE = "무릎을 조금 더 굽혀서 허벅지가 바닥과 평행해질 때까지 앉아주세요."
@@ -18,18 +17,7 @@ KNEE_VALGUS_MESSAGE = "무릎이 안쪽으로 모이고 있어요. 무릎이 발
 HEEL_LIFT_MESSAGE = "발뒤꿈치가 바닥에서 떨어지고 있어요. 체중을 발뒤꿈치 쪽에 실어주세요."
 
 
-KNEE_OVER_TOE_MESSAGE = "무릎이 발끝보다 많이 앞으로 나갔어요. 무릎이 발끝을 넘지 않는 선에서 앉아주세요."
-
-BACK_ROUNDED_MESSAGE = "등이 둥글게 말려 있어요. 허리를 곧게 펴고 가슴을 살짝 든 상태를 유지해주세요."
-
-# 등 굽음 판정은 온보딩 캘리브레이션(HipFlexibilityCalibration.standing_shoulder_hip_ratio)
-# 기준값이 있어야만 가능하다(rules.py의 BACK_ROUNDING_RATIO_THRESHOLD 주석 참고). 캘리브레이션이
-# 없으면 이상 유무를 아예 알 수 없는데, 이걸 조용히 건너뛰면(경고 없이) 사용자는 "등 굽음은
-# 항상 정상"으로 오해할 수 있다 — 어깨 말림까지 이 검사 하나로 흡수한 뒤로는 그 오해의
-# 범위가 더 커져서, 왜 이 검사가 빠졌는지 명시적으로 알려준다.
-BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE = (
-    "등이 굽었는지 정확히 확인하려면 온보딩에서 자세 캘리브레이션을 먼저 진행해주세요."
-)
+KNEE_OVER_TOE_MESSAGE = "무릎이 발끝보다 과도하게 앞으로 나갔어요. 발 전체에 체중을 유지하면서 무릎이 발끝 방향으로 자연스럽게 움직이도록 앉아주세요."
 
 # (2026-08-27 폐기) 여기 있던 HIP_HYPEREXTENSION_MESSAGE(knee_valgus_ratio를 "고관절
 # 과신전 의심"으로 재해석해 쓰던 문구)는 그 재해석 로직 자체가 근거 부족으로 폐기되며
@@ -40,19 +28,8 @@ BACK_ROUNDED_CALIBRATION_MISSING_MESSAGE = (
 # 고개(귀)만 앞으로 떨어뜨려도 값이 커진다 — MediaPipe 랜드마크에 견갑골/어깨관절 회전을
 # 직접 보여주는 점이 없어 "어깨가 말렸는지"를 이 값만으로는 구분할 수 없다(목이 숙여진 건지
 # 어깨가 말린 건지 원리적으로 분간이 안 됨). 그래서 이 값은 이제 "어깨 말림"이 아니라
-# 목/시선(고개가 앞으로 떨어졌는지) 전용 신호로만 쓴다 — 어깨 말림/등 굽음은 별도 지표
-# (BACK_ROUNDED_MESSAGE, get_torso_length_ratio 기반)로 통합해서 판정한다.
+# 목/시선(고개가 앞으로 떨어졌는지) 전용 신호로만 쓴다.
 GAZE_FORWARD_MESSAGE = "시선을 편안하게 정면에 두고, 목은 자연스럽게 유지해주세요."
-
-# get_torso_shin_lean_gap_deg()가 반환하는 값(상체가 정강이보다 얼마나 더 기울었는지)이
-# 임계값을 넘을 때 쓰는 문구. 원인을 "무게중심이 무너졌다"고 단정하기보다, 실제 교정
-# 동작(무릎을 발끝 쪽으로 더 내밀어 정강이도 함께 기울이기)을 제안하는 톤을 유지한다 —
-# 표본이 2건뿐인 잠정 신호라(rules.py의 TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG 참고) 확신이
-# 낮은 만큼 HIP_HYPEREXTENSION_MESSAGE와 비슷하게 조심스러운 표현을 썼다.
-CENTER_OF_MASS_SHIFT_MESSAGE = (
-    "무게중심이 뒤로 쏠려 있는 것처럼 보여요. "
-    "무릎을 발끝 쪽으로 조금 더 내밀어서 정강이도 상체와 함께 앞으로 기울여주세요."
-)
 
 
 # (2026-08-27 추가) DTW 렙 패턴 유사도 판정(rules.py의 DTW_NEAREST_DISTANCE_THRESHOLD

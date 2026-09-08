@@ -9,8 +9,10 @@
 
 CREATE TABLE IF NOT EXISTS diet_meals (
     id           BIGINT       NOT NULL AUTO_INCREMENT,
-    user_id      BIGINT,
-    logged_date  DATE,
+    -- 둘 중 하나라도 NULL이면 조회(user_id + logged_date로만 찾음)에도 안 잡히고
+    -- 탈퇴 정리(UserService.withdraw)에서도 빠져 유령 행으로 남는다
+    user_id      BIGINT       NOT NULL,
+    logged_date  DATE         NOT NULL,
     diet_plan_id BIGINT,                 -- 레거시(구 diet_plans 설계) - 현재 코드는 안 씀
     meal_type    VARCHAR(20)  NOT NULL,
     menu_name    VARCHAR(200) NOT NULL,

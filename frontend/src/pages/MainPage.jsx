@@ -134,9 +134,11 @@ function MainPage() {
                 <span className="hero-tagline-small">For a</span>Better
               </p>
               <p className="hero-tagline-big">Tomorrow</p>
+              {/* draggable={false} - 히어로는 클릭 한 번으로 넘기는 화면인데, 사진을 끌면
+                  브라우저 기본 동작으로 반투명 썸네일이 딸려 나온다 (CSS user-select로는 안 막힘) */}
               <div className="hero-photo-wrap">
-                <img src={heroPhoto} alt="" className="hero-photo-tint" />
-                <img src={heroPhoto} alt="" className="hero-photo-base" />
+                <img src={heroPhoto} alt="" className="hero-photo-tint" draggable={false} />
+                <img src={heroPhoto} alt="" className="hero-photo-base" draggable={false} />
                 <PoseOverlay />
               </div>
             </div>

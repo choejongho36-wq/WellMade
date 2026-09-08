@@ -4,7 +4,6 @@ AI 서버의 시작점.
 """
 
 import os
-from datetime import date
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -22,21 +21,23 @@ load_dotenv()
 from app.schemas import (
     CoachingFrameRequest,
     CoachingFrameResponse,
+    ExerciseDetailRequest,
+    ExerciseDetailResponse,
+    ExerciseRecommendRequest,
+    ExerciseRecommendResponse,
     ModelCompareRequest,
     ModelCompareResponse,
     OrchestrateRequest,
     OrchestrateResponse,
     PoseIssue,
+    PhotoSummaryRequest,
+    PhotoSummaryResponse,
     BmiInsightRequest,
     BmiInsightResponse,
     NutritionPeerCompareRequest,
     NutritionPeerCompareResponse,
     PostureInsightRequest,
     PostureInsightResponse,
-    RagGuideRequest,
-    RagGuideResponse,
-    RagQnaRequest,
-    RagQnaResponse,
     SessionEndCheckRequest,
     SessionEndCheckResponse,
     SessionGuideRequest,
@@ -51,7 +52,11 @@ from app.schemas import (
 # ---------------------------------------------------------------------------
 
 from app.coaching.llm_model_compare import compare_models
+from app.coaching.photo_summary_llm import summarize_photo_analysis
 from app.coaching.realtime import judge_realtime_coaching
+from app.exercise.recommend import find_detail as find_exercise_detail
+from app.exercise.recommend import recommend as recommend_exercises
+from app.insight.age import resolve_age
 from app.insight.bmi_percentile import compute_bmi_insight
 from app.insight.nutrition_peer import compare_with_peers
 from app.insight.posture_percentile import compute_posture_insight
@@ -60,7 +65,6 @@ from app.pose.angles import (
     get_pelvis_tilt_angle,
     get_shoulder_tilt_angle,
 )
-from app.rag.generation import generate_guide, generate_qna
 from app.session.guide import get_next_guide
 from app.session.report import generate_session_report
 from app.session.termination import judge_session_end
@@ -147,6 +151,7 @@ def coaching_frame(request: CoachingFrameRequest):
         request.angle_history,
         hip_calibration=request.hip_calibration,
         pending_llm_job_id=request.pending_llm_job_id,
+        view=request.view,
     )
 
     return CoachingFrameResponse(
@@ -159,6 +164,35 @@ def coaching_frame(request: CoachingFrameRequest):
         ],
         pending_llm_job_id=result["pending_llm_job_id"],
     )
+
+
+# ===========================================================================
+# 사진 코칭 분석 결과 요약 (app/coaching/photo_summary_llm.py, 2026-09-02)
+# ===========================================================================
+
+
+@app.post(
+    "/ai/coaching/photo-summary",
+    response_model=PhotoSummaryResponse,
+)
+def coaching_photo_summary(request: PhotoSummaryRequest) -> PhotoSummaryResponse:
+    """
+    사진 코칭 "분석 결과" 자연어 요약 API.
+
+    /ai/coaching/frame(AI-06)이 이미 내린 규칙 기반 판정 결과를 받아, 그 결과를 사람이
+    읽기 편한 한국어 문장으로 정리해 돌려준다. 판정 자체(정상/이상 여부)는 이 API가
+    새로 계산하지 않는다 — 이미 결정된 판정을 설명만 한다.
+    """
+
+    result = summarize_photo_analysis(
+        is_normal=request.is_normal,
+        confidence=request.confidence,
+        issues=[issue.model_dump() for issue in request.issues],
+        metrics=request.metrics,
+        has_front_photo=request.has_front_photo,
+    )
+
+    return PhotoSummaryResponse(**result)
 
 
 # ===========================================================================
@@ -312,7 +346,8 @@ def posture_insight(
         request.front_landmarks
     )
 
-    age = date.today().year - request.birth_year
+    # 연 나이(만 나이보다 최대 1살 많음) - 계산 근거는 app/insight/age.py 한곳에 모아둔다
+    age, _ = resolve_age(request.birth_year)
 
     result = compute_posture_insight(
         shoulder_tilt_deg=shoulder_tilt_deg,
@@ -345,9 +380,13 @@ def nutrition_peer_compare(
     posture-insight와 달리 백분위가 아니라 "평균 대비 몇 %"를 낸다 —
     원 통계가 집계값(평균+표준오차)만 공개해 분포가 없기 때문이다.
     정상/이상 판정은 하지 않는다(목표 대비 판정은 백엔드의 목표 섭취량 계산이 담당).
+
+    넘어오는 섭취량은 "하루 전체"여야 한다 - 진행 중인 오늘의 부분 합계를 비교하면
+    무의미한 비율이 나온다. 그 판단은 날짜·시각을 아는 백엔드가 한다.
     """
 
-    age = date.today().year - request.birth_year
+    # 생년만 있으면 연 나이라 만 나이보다 최대 1살 많다(구간 경계에서 그룹이 바뀔 수 있음)
+    age, _ = resolve_age(request.birth_year, request.birth_date)
 
     result = compare_with_peers(
         intake={
@@ -382,17 +421,73 @@ def bmi_insight(
     백분위수 대비 위치를 함께 돌려준다.
 
     체지방률·골격근량은 이 통계에 없어 또래 비교를 할 수 없다 — BMI만 지원한다.
+
+    비교는 넘겨받은 BMI 한 건(백엔드가 고른 가장 최근 인바디 기록)에 대해서만 한다.
+    키·체중을 같이 주면 그 값으로 BMI를 다시 계산해 교차검증한다.
     """
 
-    age = date.today().year - request.birth_year
+    age, _ = resolve_age(request.birth_year, request.birth_date)
 
     result = compute_bmi_insight(
         bmi=request.bmi,
         gender=request.gender,
         age=age,
+        height_cm=request.height_cm,
+        weight_kg=request.weight_kg,
     )
 
     return BmiInsightResponse(**result)
+
+
+# ===========================================================================
+# 운동 추천 v1 (챗봇 "운동 추천" 메뉴)
+# ===========================================================================
+
+
+@app.post(
+    "/ai/exercise/recommend",
+    response_model=ExerciseRecommendResponse,
+)
+def exercise_recommend(request: ExerciseRecommendRequest):
+    """
+    운동 추천 API (v2).
+
+    "무엇을 몇 세트 할지"까지 규칙으로 정해서 내려보낸다 — 자연어 추천문만 백엔드 챗봇이
+    기존 스트리밍 경로로 만든다(도구 결과를 문장으로 옮기는 패턴). 세트/횟수와 주의사항을
+    모델이 지어내게 두면 같은 목표에도 답이 흔들리고 근거를 댈 수 없다.
+
+    후보는 사람이 고른 기본 동작(exercises_core.json)에서만 뽑고, 순서는 결정적이다.
+    임베딩/벡터 검색은 쓰지 않는다 — 자세한 판단 근거는 app/exercise/recommend.py 참고.
+    """
+
+    result = recommend_exercises(
+        body_part=request.body_part,
+        equipment=request.equipment or "",
+        goal=request.goal,
+        age=request.age,
+        recent_workouts=[w.model_dump() for w in request.recent_workouts],
+        exclude=request.exclude,
+        exclude_from_text=request.exclude_from_text,
+    )
+
+    return ExerciseRecommendResponse(**result)
+
+
+@app.post(
+    "/ai/exercise/detail",
+    response_model=ExerciseDetailResponse,
+)
+def exercise_detail(request: ExerciseDetailRequest):
+    """
+    운동 하나의 한국어 수행 방법 조회.
+
+    추천 목록을 보여준 뒤 사용자가 "플랭크는 어떻게 해?"처럼 하나를 지목했을 때 쓴다.
+    예전에는 이 단계에서 챗봇이 도구 없이 설명을 직접 지어냈는데, 근거 없는 자유 생성이라
+    Qwen이 중국어로 새는 턴이 나왔다(실측). 데이터셋 1,324건 전부에 instructions_ko 가
+    있으므로 그걸 그대로 넘겨 "창작"을 "옮겨쓰기"로 바꾼다.
+    """
+
+    return ExerciseDetailResponse(**find_exercise_detail(request.name))
 
 
 # ===========================================================================
@@ -429,55 +524,6 @@ def orchestrate(
         source=result["source"],
         fallback_reason=result.get("fallback_reason"),
     )
-
-
-# ===========================================================================
-# AI-09. RAG Guide
-# ===========================================================================
-
-
-@app.post(
-    "/ai/rag/guide",
-    response_model=RagGuideResponse,
-)
-def rag_guide(
-    request: RagGuideRequest,
-):
-    """
-    지시형 RAG 가이드 API (AI-09).
-
-    하네스가 trigger_rag_search를 선택했을 때 전달한
-    검색 질의를 기반으로 지식베이스를 검색하고,
-    근거 기반 코칭 문구를 생성한다.
-    """
-
-    result = generate_guide(request.query)
-
-    return RagGuideResponse(**result)
-
-
-# ===========================================================================
-# AI-14. RAG Q&A
-# ===========================================================================
-
-
-@app.post(
-    "/ai/rag/qna",
-    response_model=RagQnaResponse,
-)
-def rag_qna(
-    request: RagQnaRequest,
-):
-    """
-    설명형 RAG Q&A API (AI-14).
-
-    사용자의 자유 질문을 받아 관련 문서를 검색하고
-    근거 기반 답변을 생성한다.
-    """
-
-    result = generate_qna(request.question)
-
-    return RagQnaResponse(**result)
 
 
 # ===========================================================================

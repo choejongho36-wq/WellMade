@@ -25,6 +25,19 @@
   padding-bottom: 56px;
   border-left: 1px solid #da291c;
 }
+/* (2026-09-03 추가) PageShell bleed 변형 — 콘텐츠를 여백 없이 화면 끝까지 채운다.
+   운동 선택 화면(/exercises)처럼 콘텐츠 영역 전체가 배경 사진 한 장으로 덮이는 페이지용.
+   왼쪽 네비와 빨간 세로 구분선은 그대로 두고, 오른쪽 페이지 패딩과 콘텐츠 안쪽 패딩만
+   없앤다. position:relative는 그 안에서 사진/패널을 absolute로 배치하기 위한 기준점.
+   (모바일 미디어쿼리의 .page-shell 패딩은 아래쪽에 있어 그대로 우선 적용된다.) */
+.page-shell-bleed {
+  padding-right: 0;
+}
+.page-shell-bleed .page-shell-content {
+  position: relative;
+  padding: 0;
+}
+
 /* showNav={false}일 때(예: ml-test) — 사이드바가 없으니 구분선/왼쪽 여백도 같이 뺀다 */
 /* shared modal shell (인바디 등록, 영양소 상세 등) - 티켓 스텁 느낌:
    제목이 검정 헤더 블록으로 빠지고, 오른쪽에 레드 스큐 스트라이프, 헤더 아래엔 절취선. */

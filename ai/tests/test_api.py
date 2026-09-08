@@ -20,9 +20,7 @@ from app.main import app
 from app.pose.rules import personalized_hip_range, HEEL_LIFT_RATIO_THRESHOLD
 from app.schemas import AngleFrame, HipFlexibilityCalibration
 from app.orchestration.harness import decide_next_action
-from app.rag.retrieval import search as rag_search
-from app.rag.generation import generate_guide, generate_qna, AWS_REGION_ENV_VAR, MODEL_ENV_VAR as RAG_MODEL_ENV_VAR
-from app.session.report import generate_session_report, aggregate_session_stats, MODEL_ENV_VAR as REPORT_MODEL_ENV_VAR
+from app.session.report import generate_session_report, aggregate_session_stats, AWS_REGION_ENV_VAR, MODEL_ENV_VAR as REPORT_MODEL_ENV_VAR
 
 client = TestClient(app)
 
@@ -84,8 +82,8 @@ def test_coaching_frame_holding_at_bottom_normal():
 def test_coaching_frame_holding_gaze_forward_flagged():
     # 무릎/엉덩이는 정상 범위인데 shoulder_forward_lean_deg만 임계값(40.0)을 넘게(고개가
     # 앞으로 떨어짐) 들어온 경우 -> 이상 감지돼야 함. (2026-08-26: 이 신호는 원래 "어깨
-    # 말림"도 같이 판정했으나, 어깨 말림/등 굽음은 back_rounded로 통합하고 여기는 목/시선
-    # 전용 신호(part="gaze")로 분리했다 — rules.py/realtime.py 주석 참고. 2026-08-27:
+    # 말림"도 같이 판정했으나, 지금은 목/시선 전용 신호(part="gaze")로만 쓴다 —
+    # rules.py/realtime.py 주석 참고. 2026-08-27:
     # 임곗값이 20.0 -> 40.0으로 올라가(실측 정상 사례 확장 + 귀 랜드마크 노이즈 감안,
     # rules.py 주석 참고) 테스트 입력값도 그에 맞춰 올림.)
     angle_history = [
@@ -360,7 +358,7 @@ def _without_llm_env(fn):
     (2026-08-31) 하네스는 더 이상 LLM을 호출하지 않으므로 여기서 관리할 필요가 없어졌다 —
     RAG 생성·세션 리포트 두 모듈만 남았다."""
     saved = {}
-    for key in (AWS_REGION_ENV_VAR, RAG_MODEL_ENV_VAR, REPORT_MODEL_ENV_VAR):
+    for key in (AWS_REGION_ENV_VAR, REPORT_MODEL_ENV_VAR):
         saved[key] = os.environ.pop(key, None)
     try:
         return fn()
@@ -472,106 +470,6 @@ def test_harness_decide_next_action_ignores_env_vars():
         os.environ.pop("AWS_BEDROCK_REGION", None)
 
 
-def test_rag_search_finds_relevant_document():
-    # "무릎 모임"으로 검색하면 knee_valgus 문서가 최상위로 나와야 한다.
-    results = rag_search("무릎 모임", top_k=3)
-    print("rag_search(무릎 모임):", [(r["doc_id"], round(r["score"], 3)) for r in results])
-    assert results
-    assert results[0]["doc_id"] == "knee_valgus"
-
-
-def test_rag_search_unrelated_query_returns_empty():
-    # 전혀 무관한 문장은 검색 결과가 없어야 한다(MIN_SIMILARITY_SCORE 미만).
-    results = rag_search("오늘 저녁 뭐 먹지", top_k=3)
-    print("rag_search(무관한 문장):", results)
-    assert results == []
-
-
-def test_rag_guide_fallback_matched():
-    def run():
-        result = generate_guide("무릎 모임")
-        print("generate_guide(무릎 모임, fallback):", result)
-        assert result["matched"] is True
-        assert result["generation_source"] == "fallback"
-        assert result["guidance_message"] == SQUAT_COACHING_MESSAGES_KNEE_VALGUS
-        # (2026-08-27) knee_valgus 문서의 source가 NASM 인용에 Lorenzetti et al.
-        # (2018) 인용이 추가되며 길어졌다 — 정확 일치 대신 두 출처가 모두 포함됐는지만 확인.
-        assert "NASM" in result["sources"][0]["source"]
-        assert "Lorenzetti" in result["sources"][0]["source"]
-
-    _without_llm_env(run)
-
-
-def test_rag_guide_fallback_no_match_uses_generic_message():
-    def run():
-        result = generate_guide("완전히 무관한 검색어 아무말")
-        print("generate_guide(무관, fallback):", result)
-        assert result["matched"] is False
-        assert result["sources"] == []
-
-    _without_llm_env(run)
-
-
-def test_rag_qna_fallback_matched():
-    def run():
-        result = generate_qna("스쿼트 할 때 무릎이 안쪽으로 모여요 어떻게 하죠")
-        print("generate_qna(fallback):", result)
-        assert result["matched"] is True
-        assert result["generation_source"] == "fallback"
-        assert len(result["sources"]) > 0
-
-    _without_llm_env(run)
-
-
-def test_rag_qna_fallback_no_match():
-    def run():
-        result = generate_qna("오늘 저녁 뭐 먹지")
-        print("generate_qna(무관, fallback):", result)
-        assert result["matched"] is False
-        assert result["answer"] == NO_MATCH_QNA_MESSAGE
-
-    _without_llm_env(run)
-
-
-def test_rag_guide_llm_path_uses_generated_text():
-    os.environ[RAG_MODEL_ENV_VAR] = "fake-model-for-test"
-    try:
-        block = _text_block("무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요.")
-        fake_client = _FakeBedrockClient(content_blocks=[block])
-        result = generate_guide("무릎 모임", client=fake_client)
-        print("generate_guide(llm path):", result)
-        assert result["generation_source"] == "llm"
-        assert result["guidance_message"] == "무릎이 안쪽으로 모이지 않도록 밀어내며 앉아주세요."
-        assert result["matched"] is True
-    finally:
-        os.environ.pop(RAG_MODEL_ENV_VAR, None)
-
-
-def test_rag_guide_llm_failure_falls_back_to_short_message():
-    os.environ[RAG_MODEL_ENV_VAR] = "fake-model-for-test"
-    try:
-        fake_client = _FakeBedrockClient(exc=RuntimeError("network down"))
-        result = generate_guide("무릎 모임", client=fake_client)
-        print("generate_guide(llm failure -> fallback):", result)
-        assert result["generation_source"] == "fallback"
-        assert result["matched"] is True
-    finally:
-        os.environ.pop(RAG_MODEL_ENV_VAR, None)
-
-
-def test_rag_guide_endpoint_returns_valid_response():
-    def run():
-        res = client.post("/ai/rag/guide", json={"query": "무릎 모임"})
-        print("POST /ai/rag/guide:", res.status_code, res.json())
-        assert res.status_code == 200
-        data = res.json()
-        assert data["matched"] is True
-        assert data["generation_source"] == "fallback"
-        assert len(data["sources"]) > 0
-
-    _without_llm_env(run)
-
-
 def make_frame_history(normal_count, abnormal_count, part="knee", deviation_deg=15.0):
     """정상 프레임과 이상 프레임(지정한 부위/편차로)을 섞은 세션 리포트용 프레임 이력."""
     history = [{"timestamp": float(i), "is_normal": True, "issues": []} for i in range(normal_count)]
@@ -668,18 +566,6 @@ def test_session_report_endpoint_returns_valid_response():
     _without_llm_env(run)
 
 
-def test_rag_qna_endpoint_returns_valid_response():
-    def run():
-        res = client.post("/ai/rag/qna", json={"question": "스쿼트할 때 무릎이 발끝을 넘어가요"})
-        print("POST /ai/rag/qna:", res.status_code, res.json())
-        assert res.status_code == 200
-        data = res.json()
-        assert data["matched"] is True
-        assert isinstance(data["answer"], str) and len(data["answer"]) > 0
-
-    _without_llm_env(run)
-
-
 def _text_block(text):
     """Converse API 응답의 text 블록(dict)을 흉내 낸다."""
     return {"text": text}
@@ -688,7 +574,6 @@ def _text_block(text):
 # knowledge_base.py가 coaching_messages.py의 문구를 그대로 재사용하므로, 테스트에서도 같은
 # 상수를 참조해 "문구가 우연히 같다"가 아니라 "의도적으로 같은 출처를 쓴다"를 검증한다.
 from app.pose.coaching_messages import KNEE_VALGUS_MESSAGE
-from app.rag.generation import NO_MATCH_QNA_MESSAGE
 
 SQUAT_COACHING_MESSAGES_KNEE_VALGUS = KNEE_VALGUS_MESSAGE
 
@@ -978,43 +863,6 @@ def test_coaching_frame_without_knee_over_toe_field_still_works():
     assert not any(issue["part"] == "knee_over_toe" for issue in data["issues"]), data
 
 
-# (2026-08-27) 무게중심(get_torso_shin_lean_gap_deg 기반) 판정 테스트. knee_over_toe와
-# 동일하게 is_deep_hold(무릎이 충분히 굽혀진 상태)에서만 검사한다 — rules.py의
-# TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG 주석 참고. 나쁜 사례 표본이 2건뿐인 잠정 임계값이라,
-# 팀 확정 전까지 이 값(25.0)은 언제든 바뀔 수 있다.
-from app.pose.rules import TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG  # noqa: E402
-
-
-def test_coaching_frame_center_of_mass_flagged_when_deep_hold():
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "torso_shin_lean_gap_deg": TORSO_SHIN_LEAN_GAP_THRESHOLD_DEG + 2.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(center of mass, deep hold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert data["is_normal"] is False, data
-    assert any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
-
-
-def test_coaching_frame_without_center_of_mass_field_still_works():
-    # torso_shin_lean_gap_deg 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
-    angle_history = [
-        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(no torso_shin_lean_gap_deg field):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "center_of_mass" for issue in data["issues"]), data
 
 
 # (2026-08-27) DTW(동적 시간 워핑) 렙 패턴 유사도 판정 테스트. 다른 검사들과 달리 이
@@ -1336,102 +1184,6 @@ def test_coaching_frame_hyperextension_llm_hybrid_end_to_end(monkeypatch):
     assert data2["pending_llm_job_id"] is None, data2
 
 
-# (2026-08-24) 등 굽음(척추 굴곡) 규칙기반 검사의 단위 테스트(get_torso_length_ratio
-# 직접 호출)와 그 /ai/pose/analyze 통합 테스트가 이 자리에 있었다 — AI-03 삭제(위 주석
-# 참고)와 함께 get_torso_length_ratio() 자체가 angles.py에서 제거되며 같이 삭제했다.
-# 아래 test_coaching_frame_back_rounded_* 테스트들이 실시간 코칭(AI-06) 경로로 같은
-# 판정(hip_calibration.standing_shoulder_hip_ratio 기준 비교)을 계속 검증한다.
-
-
-def _calibration_with_baseline(standing_shoulder_hip_ratio=1.5):
-    return {
-        "standing_hip_angle": 178,
-        "max_flex_hip_angle": 118,
-        "standing_shoulder_hip_ratio": standing_shoulder_hip_ratio,
-    }
-
-
-def test_coaching_frame_back_rounded_flagged_when_deep_hold():
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "torso_length_ratio": 1.0,  # 1.5 * 0.85 = 1.275보다 작음 -> 등 굽음으로 판정돼야 함
-        }
-        for i in range(10)
-    ]
-    body = {
-        "angle_history": angle_history,
-        "hip_calibration": _calibration_with_baseline(),
-    }
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(back rounded, deep hold):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert any(issue["part"] == "back_rounded" for issue in data["issues"]), data
-
-
-def test_coaching_frame_back_rounded_ignored_while_standing():
-    # 서 있는 상태(is_deep_hold=False)에서는 다른 깊게-앉은-상태 전용 검사들과 마찬가지로
-    # torso_length_ratio가 낮아도 검사 대상이 아니다.
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 175 + (i % 2),
-            "hip_angle": 170 + (i % 2),
-            "torso_length_ratio": 1.0,
-        }
-        for i in range(10)
-    ]
-    body = {
-        "angle_history": angle_history,
-        "hip_calibration": _calibration_with_baseline(),
-    }
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(back rounded while standing):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
-
-
-def test_coaching_frame_back_rounded_ignored_without_baseline():
-    # torso_length_ratio 필드는 보내더라도, hip_calibration.standing_shoulder_hip_ratio가
-    # 없으면(하위 호환) 기준값이 없어 등 굽음(이상 유무) 자체는 판정하지 않는다 — 다만
-    # 조용히 건너뛰지 않고, 캘리브레이션이 필요하다는 안내(data 항목)는 대신 나가야 한다
-    # (2026-08-26: 어깨 말림까지 이 검사로 흡수된 뒤로 추가된 동작).
-    angle_history = [
-        {
-            "timestamp": i * 0.1,
-            "knee_angle": 85 + (i % 2),
-            "hip_angle": 80 + (i % 2),
-            "torso_length_ratio": 1.0,
-        }
-        for i in range(10)
-    ]
-    body = {"angle_history": angle_history}
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(back rounded, no baseline):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
-    assert any(issue["part"] == "data" and "캘리브레이션" in issue["message"] for issue in data["issues"]), data
-
-
-def test_coaching_frame_without_torso_length_ratio_field_still_works():
-    # torso_length_ratio 필드를 아예 안 보내는 기존 프론트 호출도 에러 없이 동작해야 한다(하위 호환).
-    angle_history = [
-        {"timestamp": i * 0.1, "knee_angle": 85 + (i % 2), "hip_angle": 80 + (i % 2)} for i in range(10)
-    ]
-    body = {
-        "angle_history": angle_history,
-        "hip_calibration": _calibration_with_baseline(),
-    }
-    res = client.post("/ai/coaching/frame", json=body)
-    print("coaching_frame(no torso_length_ratio field):", res.status_code, res.json())
-    assert res.status_code == 200
-    data = res.json()
-    assert not any(issue["part"] == "back_rounded" for issue in data["issues"]), data
 
 
 # (2026-08-24) 어깨 말림 판정 지표(get_shoulder_forward_lean_deg) 단위 테스트가 이 자리에
@@ -1465,18 +1217,8 @@ if __name__ == "__main__":
     test_orchestrate_fallback_low_visibility_requests_retake()
     test_orchestrate_fallback_user_requested_end_wins_over_low_confidence()
     test_orchestrate_fallback_repeated_issue_triggers_rag()
-    test_harness_llm_path_parses_tool_use_response()
-    test_harness_llm_failure_falls_back()
-    test_rag_search_finds_relevant_document()
-    test_rag_search_unrelated_query_returns_empty()
-    test_rag_guide_fallback_matched()
-    test_rag_guide_fallback_no_match_uses_generic_message()
-    test_rag_qna_fallback_matched()
-    test_rag_qna_fallback_no_match()
-    test_rag_guide_llm_path_uses_generated_text()
-    test_rag_guide_llm_failure_falls_back_to_short_message()
-    test_rag_guide_endpoint_returns_valid_response()
-    test_rag_qna_endpoint_returns_valid_response()
+    test_harness_decide_next_action_is_pure_rule_based()
+    test_harness_decide_next_action_ignores_env_vars()
     test_aggregate_session_stats_basic()
     test_aggregate_session_stats_issue_counts_by_part_multiple_parts()
     test_aggregate_session_stats_improvement_vs_previous()
@@ -1493,12 +1235,6 @@ if __name__ == "__main__":
     test_coaching_frame_without_frontal_fields_still_works()
     test_coaching_frame_knee_over_toe_flagged_when_deep_hold()
     test_coaching_frame_without_knee_over_toe_field_still_works()
-    test_coaching_frame_back_rounded_flagged_when_deep_hold()
-    test_coaching_frame_back_rounded_ignored_while_standing()
-    test_coaching_frame_back_rounded_ignored_without_baseline()
-    test_coaching_frame_without_torso_length_ratio_field_still_works()
-    test_coaching_frame_center_of_mass_flagged_when_deep_hold()
-    test_coaching_frame_without_center_of_mass_field_still_works()
     test_coaching_frame_dtw_form_pattern_not_flagged_for_real_normal_rep()
     test_coaching_frame_dtw_form_pattern_flagged_when_severely_distorted()
     test_coaching_frame_dtw_skipped_when_optional_fields_missing()

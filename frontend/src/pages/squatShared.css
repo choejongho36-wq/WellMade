@@ -1,0 +1,180 @@
+/* 자세 측정(사진 코칭/실시간 코칭/모드 선택) 페이지들이 공유하는 기본 카드·버튼 스타일. */
+
+/* ---- 헤더: 운동 선택 드롭다운 + 운동방법 버튼 (page-eyebrow-row 오른쪽에 나란히)
+   (2026-09-03: 원래 PhotoCoachingPage.css에만 있었는데, 이 버튼들을 SquatModeSelectPage
+   헤더로 옮기면서 두 페이지가 같이 쓸 수 있게 공용 파일로 이동했다.) ---- */
+.photo-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.photo-guide-btn {
+  padding: 8px 18px;
+  font-size: 12.5px;
+}
+
+.exercise-dropdown {
+  position: relative;
+}
+.exercise-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111;
+  cursor: pointer;
+}
+.exercise-dropdown-trigger:hover {
+  border-color: #da291c;
+}
+.exercise-dropdown-dot {
+  color: #da291c;
+  font-size: 9px;
+}
+.exercise-dropdown-arrow {
+  font-size: 9px;
+  color: #9b9a96;
+}
+.exercise-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 140px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  z-index: 20;
+}
+.exercise-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  padding: 9px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111;
+  text-align: left;
+  cursor: pointer;
+}
+.exercise-dropdown-item:hover {
+  background: #f9f8f5;
+}
+.exercise-dropdown-check {
+  color: #da291c;
+}
+
+.squat-card {
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 22px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.squat-error {
+  color: #da291c;
+  font-size: 12.5px;
+  margin-top: 10px;
+}
+
+.squat-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 12px 26px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-block;
+  text-align: center;
+}
+.squat-btn-primary {
+  background: #da291c;
+  color: #fff;
+}
+.squat-btn-primary:hover {
+  background: #c0231a;
+}
+.squat-btn-outline {
+  background: #fff;
+  color: #da291c;
+  border: 1.5px solid #da291c;
+}
+.squat-btn-outline:hover {
+  background: #fdf3f2;
+}
+
+/* ---- idle(시작 전 안내 카드) — 사진 코칭/실시간 코칭 공통 ---- */
+.squat-idle {
+  text-align: center;
+}
+.squat-idle-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 14px;
+}
+.squat-idle-steps {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  counter-reset: squat-step;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #55534d;
+}
+.squat-idle-steps li {
+  position: relative;
+  padding-left: 26px;
+  counter-increment: squat-step;
+}
+.squat-idle-steps li + li {
+  margin-top: 10px;
+}
+.squat-idle-steps li::before {
+  content: counter(squat-step) '.';
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-weight: 800;
+  color: #da291c;
+}
+
+/* ---- 카메라 미리보기 — 사진 코칭/실시간 코칭 공통 ---- */
+.squat-camera-wrap {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #111;
+}
+.squat-video {
+  width: 100%;
+  display: block;
+  transform: scaleX(-1);
+}
+
+/* ============ 모바일 (~768px) ============ */
+@media (max-width: 768px) {
+  .squat-card {
+    max-width: 100%;
+  }
+  .page-eyebrow-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}

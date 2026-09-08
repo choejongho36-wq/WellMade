@@ -135,6 +135,14 @@
   line-height: 1.6;
   color: #55534d;
 }
+/* BMI 교차검증 경고 - 안내문(mp-bmi-source)보다 눈에 띄어야 하지만 오류는 아니다 */
+.mp-bmi-warning {
+  display: block;
+  margin-top: 6px;
+  color: #b3261e;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .mp-measured-at {
   margin-left: 8px;
   font: 500 11.5px 'Noto Sans KR', sans-serif;
@@ -840,4 +848,39 @@
   .mp-trend-tabs {
     flex-wrap: wrap;
   }
+}
+
+/* ---- 운동 목표 설정 (스쿼트 코칭용) — "신체 정보" 모달과 같은 디자인 패턴 사용 (2026-09-08) ---- */
+.mp-goal-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.mp-goal-select-input {
+  flex: 1;
+  border: 1px solid #e5e3dd;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  background: #f9f8f5;
+  color: #111;
+}
+.mp-goal-select-input:focus {
+  outline: none;
+  border-color: #da291c;
+}
+.mp-goal-remove {
+  font-size: 12px;
+  color: #9b9a96;
+}
+.mp-goal-remove:hover {
+  color: #da291c;
+}
+.mp-goal-add-link {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 13px;
+  color: #da291c;
+  font-weight: 600;
 }

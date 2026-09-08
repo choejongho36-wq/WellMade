@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.Map;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -15,12 +16,16 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.kdt.wellmade.domain.user.UserService;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+
 /**
  * 날짜별 운동 메모 API. 캘린더에서 날짜를 고르면 그 날 메모를 읽고, 저장하면 덮어쓴다.
  * 내용을 비워서 저장하면 삭제된다(WorkoutMemoService.save 참고).
  */
 @RestController
 @RequestMapping("/api/users/me/workout-memos")
+@Validated
 public class WorkoutMemoController {
 
     private final WorkoutMemoService workoutMemoService;
@@ -53,8 +58,8 @@ public class WorkoutMemoController {
     @GetMapping
     public Map<String, String> month(
             @AuthenticationPrincipal Long userId,
-            @RequestParam int year,
-            @RequestParam int month
+            @RequestParam @Min(2000) @Max(2100) int year,
+            @RequestParam @Min(1) @Max(12) int month
     ) {
         return workoutMemoService.getMonth(userService.getUser(userId), year, month);
     }
