@@ -1,15 +1,13 @@
 .report-modal {
   width: 380px;
 }
-.report-modal-title {
-  margin: 0 0 4px;
-  font-size: 18px;
+/* 완료(done) 화면은 어두운 .modal-title 헤더가 없는 밝은 배경이라, 공용 .modal-close(흰색,
+   어두운 title bar 위 배치용)를 ExerciseGuideModal과 같은 패턴으로 어둡게 덮어쓴다. */
+.report-modal-done-state .modal-close {
+  color: rgba(0, 0, 0, 0.4);
 }
-.report-modal-desc {
-  margin: 0 0 16px;
-  font-size: 13px;
-  color: #6b7280;
-  line-height: 1.5;
+.report-modal-done-state .modal-close:hover {
+  color: rgba(0, 0, 0, 0.7);
 }
 .report-modal-reasons {
   display: flex;
@@ -28,8 +26,8 @@
   cursor: pointer;
 }
 .report-reason-option.selected {
-  border-color: #2563eb;
-  background: #eff6ff;
+  border-color: #da291c;
+  background: #fdecea;
 }
 .report-reason-option input {
   margin: 0;

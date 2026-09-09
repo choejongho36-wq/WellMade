@@ -13,11 +13,11 @@
  * (aggregateSessionsByDate, squatSessionHistory.js 참고). 처음 열렸을 땐 기록이 있는 가장
  * 최근 날짜를 기본으로 보여준다.
  *
- * "자세 분석 결과" 4타일(스쿼트 깊이=엉덩이 각도, 무릎 각도, 상체 기울기=시선·목 기울기,
- * 좌우 균형=무릎모임)의 기준 범위는 목업의 임의 숫자가 아니라 실제 AI 판정에 쓰는
- * squatPose.js의 ANALYSIS_METRICS를 그대로 쓴다 — 사진 코칭 페이지의 "상세 보기"
- * (MetricsDetailPanel)와 같은 원칙. 좌우 균형은 정면 단계를 진행한 세션이 있어야
- * 계산되므로, 없으면 안내 문구로 대체한다.
+ * "자세 분석 결과" 6타일(스쿼트 깊이=엉덩이 각도, 무릎 각도, 상체 기울기=시선·목 기울기,
+ * 발뒤꿈치 들림, 무릎-발끝 거리, 무릎 모임)의 기준 범위는 목업의 임의 숫자가 아니라 실제
+ * AI 판정에 쓰는 squatPose.js의 ANALYSIS_METRICS를 그대로 쓴다 — 사진 코칭 페이지의
+ * "상세 보기"(MetricsDetailPanel)와 같은 원칙. 무릎 모임은 정면 단계를 진행한 세션이
+ * 있어야 계산되므로, 없으면 안내 문구로 대체한다.
  */
 import { useState } from 'react'
 import PageShell from '../components/PageShell.jsx'
@@ -92,7 +92,9 @@ const HISTORY_METRIC_KEYS = [
   { key: 'hip_angle', title: '스쿼트 깊이' },
   { key: 'knee_angle', title: '무릎 각도' },
   { key: 'shoulder_forward_lean_deg', title: '상체 기울기' },
-  { key: 'knee_valgus_ratio', title: '좌우 균형' },
+  { key: 'heel_lift_ratio', title: '발뒤꿈치 들림' },
+  { key: 'knee_over_toe_ratio', title: '무릎 - 발끝 거리' },
+  { key: 'knee_valgus_ratio', title: '무릎 모임' },
 ]
 
 function pickMetric(key) {

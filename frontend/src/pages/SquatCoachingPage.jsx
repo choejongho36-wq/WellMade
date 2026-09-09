@@ -28,6 +28,7 @@ import { loadSquatSessionHistory } from '../lib/squatSessionHistory.js'
 import { loadExerciseGoalState, saveExerciseGoals, getExerciseGoal } from '../lib/exerciseGoals.js'
 import { useAuth } from '../lib/auth.js'
 import ReportModal from '../components/ReportModal.jsx'
+import Modal from '../components/Modal.jsx'
 import './squatShared.css'
 import './SquatCoachingPage.css'
 
@@ -167,9 +168,6 @@ function ActiveView({ session, level }) {
   return (
     <div className="squat-active-layout">
       <div className="squat-active">
-        <div className="squat-stage-label">
-          {isFront ? '2단계 · 정면 코칭 진행 중 (무릎모임 확인)' : '1단계 · 측면 코칭 진행 중'}
-        </div>
         <div className="squat-camera-wrap">
           <video ref={videoRef} muted playsInline className="squat-video" />
           <canvas ref={canvasRef} className="squat-overlay" />
@@ -267,7 +265,7 @@ function formatShortDate(dateStr) {
 }
 
 // 정상 자세 비율을 도넛 링으로 보여주고, 지난 세션 대비 증감을 함께 표시한다.
-function NormalRatioMeter({ report }) {
+function NormalRatioMeter({ report, headerExtra }) {
   const pct = Math.round(report.normal_ratio * 100)
   const isGood = report.normal_ratio >= 0.8
   const ringColor = isGood ? '#2eb872' : '#da291c'
@@ -282,7 +280,10 @@ function NormalRatioMeter({ report }) {
   // 로 옮겼다 — 새 자리를 차지하지 않는다.
   return (
     <div className="squat-meter-card">
-      <div className="squat-meter-section-title">스쿼트 분석</div>
+      <div className="squat-meter-header-row">
+        <div className="squat-meter-section-title">스쿼트 분석</div>
+        {headerExtra}
+      </div>
       <div className="squat-meter-row">
         <div className="squat-meter-ring-col">
           <svg className="squat-meter-ring" width="104" height="104" viewBox="0 0 112 112">
@@ -302,17 +303,6 @@ function NormalRatioMeter({ report }) {
             <text x="56" y="52" textAnchor="middle" fontSize="20" fontWeight="700" fill="#111">{pct}%</text>
             <text x="56" y="70" textAnchor="middle" fontSize="10" fill="#8c8b88">정상 자세</text>
           </svg>
-          <div className="squat-meter-ring-sub">
-            <div className="squat-meter-ring-sub-title">정상/이상 동작 횟수</div>
-            <div className="squat-meter-ring-sub-counts">
-              <span className="squat-legend-item">
-                <span className="squat-legend-dot squat-legend-dot-ok" />정상 {report.normal_reps}회
-              </span>
-              <span className="squat-legend-item">
-                <span className="squat-legend-dot squat-legend-dot-warn" />이상 {report.abnormal_reps}회
-              </span>
-            </div>
-          </div>
         </div>
         <div className="squat-meter-text">
           <div className="squat-meter-title">정상 자세 비율</div>
@@ -327,6 +317,17 @@ function NormalRatioMeter({ report }) {
               <span className="prev">지난 세션({Math.round(report.previous_normal_ratio * 100)}%) 대비</span>
             </div>
           )}
+          <div className="squat-meter-ring-sub">
+            <div className="squat-meter-title">정상/이상 동작 횟수</div>
+            <div className="squat-meter-ring-sub-counts">
+              <span className="squat-legend-item">
+                <span className="squat-legend-dot squat-legend-dot-ok" />정상 {report.normal_reps}회
+              </span>
+              <span className="squat-legend-item">
+                <span className="squat-legend-dot squat-legend-dot-warn" />이상 {report.abnormal_reps}회
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -344,10 +345,14 @@ function IssuePartBarChart({ counts, mostFrequent }) {
   return (
     <div className="squat-chart-card">
       <div className="squat-chart-title">부위별 이상 발생 빈도</div>
-      {mostFrequent && (
-        <div className="squat-chart-sub">가장 빈번한 이상 부위: {PART_LABELS[mostFrequent] ?? mostFrequent}</div>
-      )}
-      {entries.map(([part, count]) => {
+      {entries.length === 0 ? (
+        <p className="squat-chart-empty">이상 자세가 감지되지 않았어요.</p>
+      ) : (
+        <>
+          {mostFrequent && (
+            <div className="squat-chart-sub">가장 빈번한 이상 부위: {PART_LABELS[mostFrequent] ?? mostFrequent}</div>
+          )}
+          {entries.map(([part, count]) => {
         const fillPct = Math.round((count / max) * ISSUE_BAR_MAX_FILL_PCT)
         return (
           <div key={part} className="squat-bar-row">
@@ -360,7 +365,9 @@ function IssuePartBarChart({ counts, mostFrequent }) {
             </div>
           </div>
         )
-      })}
+          })}
+        </>
+      )}
     </div>
   )
 }
@@ -416,6 +423,14 @@ function SessionTrendChart({ history }) {
 
 // 스쿼트 반복(렙)마다 정상/이상 판정을 점으로 순서대로 보여준다.
 function RepTimeline({ reps }) {
+  if (reps.length === 0) {
+    return (
+      <div className="squat-chart-card">
+        <div className="squat-chart-title">렙별 판정 타임라인</div>
+        <p className="squat-chart-empty">완료된 스쿼트 반복이 없어요.</p>
+      </div>
+    )
+  }
   return (
     <div className="squat-chart-card">
       <div className="squat-chart-title">렙별 판정 타임라인</div>
@@ -450,6 +465,36 @@ function RepTimeline({ reps }) {
 // (sessionReport) 값으로 통일하고, "스쿼트 분석"을 좌(자세 분석: 게이지+막대그래프+
 // 타임라인)/우(달력+추이 그래프) 2단 구성으로 바꿨다 — 목업 검토 결과 아래쪽에 따로 있던
 // "총 스쿼트 횟수/이상 자세 감지" 통계 칸은 위 3칸과 값이 겹쳐서(같은 세션 기준) 없앴다.
+// "방금 운동 다시보기" — 세션 진행 중 녹화해둔 영상(useSquatCoachingSession의
+// recordedVideoUrl)을 재생/저장할 수 있는 모달. 오른쪽 상단(닫기 × 옆)에 신고 아이콘을
+// 둬서, 재생 중인 이 영상을 그대로 신고 데이터로 보낼 수 있게 한다(신고 자체는
+// ReportView가 여는 별도 ReportModal이 처리 - 이 모달은 그 트리거만 갖는다).
+function WorkoutReplayModal({ videoUrl, onClose, onReportClick }) {
+  return (
+    <Modal onClose={onClose} className="replay-modal">
+      <h2 className="modal-title">방금 운동 다시보기</h2>
+      <video className="replay-modal-video" src={videoUrl} controls playsInline />
+      <div className="replay-modal-actions">
+        <button
+          type="button"
+          className="replay-modal-report-btn"
+          onClick={onReportClick}
+          aria-label="이 판정 신고하기"
+          title="이 판정 신고하기"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+            <line x1="4" y1="22" x2="4" y2="15" />
+          </svg>
+        </button>
+        <a className="squat-btn squat-btn-primary replay-modal-download-btn" href={videoUrl} download="squat-session.webm">
+          영상 저장하기
+        </a>
+      </div>
+    </Modal>
+  )
+}
+
 function ReportView({ session }) {
   const {
     sessionReport,
@@ -459,29 +504,38 @@ function ReportView({ session }) {
     squatGoal,
     reportLoading,
     reportError,
+    recordedVideoUrl,
+    getRecordedVideoBlob,
     restart,
   } = session
 
-  const hasIssueCounts = sessionReport && Object.keys(sessionReport.issue_counts_by_part ?? {}).length > 0
-
   const { submitReport } = useAuth()
   const [reportOpen, setReportOpen] = useState(false)
+  const [replayOpen, setReplayOpen] = useState(false)
 
-  // 실시간 세션은 서버에 좌표만 보내고 영상 자체는 클라이언트에 남지 않으므로, 신고 원본은
-  // "이 세션의 렙별 판정 시계열(repHistory) + 최종 리포트"를 JSON으로 묶어 보낸다 -
-  // 8/27 addendum에서 말한 "원본 데이터(영상/좌표 시계열)" 중 좌표 시계열 쪽.
+  // 신고 원본은 방금 녹화해둔 실제 세션 영상을 우선으로 쓴다(useSquatCoachingSession이
+  // 세션 진행 중 MediaRecorder로 녹화한 것 - 8/27 addendum의 "원본 데이터(영상/좌표 시계열)"
+  // 중 영상 쪽). 아주 오래된 브라우저 등 녹화 자체가 안 됐을 때만, 이전처럼 렙별 판정
+  // 시계열(repHistory) + 최종 리포트를 JSON으로 묶어 보내는 방식으로 폴백한다.
   const handleReportSubmit = async ({ reasonCategory, reasonDetail }) => {
-    const payload = { sessionReport, repHistory }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const videoBlob = getRecordedVideoBlob()
+    const file = videoBlob
+      ? videoBlob
+      : new Blob([JSON.stringify({ sessionReport, repHistory }, null, 2)], { type: 'application/json' })
     await submitReport({
       sourceType: 'SESSION',
       sourceId: `session-report-${Date.now()}`,
-      file: blob,
-      fileName: 'session-report.json',
+      file,
+      fileName: videoBlob ? 'session-video.webm' : 'session-report.json',
       reasonCategory,
       reasonDetail,
       judgmentSnapshot: sessionReport,
     })
+  }
+
+  const openReportFromReplay = () => {
+    setReplayOpen(false)
+    setReportOpen(true)
   }
 
   // (2026-09-09 재구성) 달력이 제목 줄과 같은 높이가 아니라 "스쿼트 분석" 박스와 같은
@@ -533,16 +587,26 @@ function ReportView({ session }) {
         </div>
       </div>
 
-      <p className="squat-report-summary">{sessionReport.summary_message}</p>
-      <p className="squat-report-line">{sessionReport.recommended_frequency_message}</p>
-
       <div className="squat-analysis-grid">
         <div className="squat-analysis-col">
-          <NormalRatioMeter report={sessionReport} />
-          {hasIssueCounts && (
-            <IssuePartBarChart counts={sessionReport.issue_counts_by_part} mostFrequent={sessionReport.most_frequent_issue_part} />
-          )}
-          {repHistory.length > 0 && <RepTimeline reps={repHistory} />}
+          <p className="squat-report-summary">{sessionReport.summary_message}</p>
+          <p className="squat-report-line squat-report-line-highlight">{sessionReport.recommended_frequency_message}</p>
+
+          <NormalRatioMeter
+            report={sessionReport}
+            headerExtra={
+              recordedVideoUrl && (
+                <button type="button" className="squat-meter-replay-btn" onClick={() => setReplayOpen(true)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="6 3 20 12 6 21 6 3" />
+                  </svg>
+                  방금 운동 다시보기
+                </button>
+              )
+            }
+          />
+          <IssuePartBarChart counts={sessionReport.issue_counts_by_part ?? {}} mostFrequent={sessionReport.most_frequent_issue_part} />
+          <RepTimeline reps={repHistory} />
         </div>
 
         <div className="squat-analysis-col squat-analysis-side">
@@ -555,17 +619,21 @@ function ReportView({ session }) {
             <Link to="/exercises-history" className="squat-btn squat-btn-outline squat-report-history-btn">
               지난 운동 기록 보기
             </Link>
-            <button type="button" className="squat-btn squat-btn-outline" onClick={() => setReportOpen(true)}>
-              이 판정 신고하기
-            </button>
             <button className="squat-btn squat-btn-primary squat-report-restart-btn" onClick={restart}>
               다시 운동하기
             </button>
           </div>
-
-          {reportOpen && <ReportModal onClose={() => setReportOpen(false)} onSubmit={handleReportSubmit} />}
         </div>
       </div>
+
+      {replayOpen && (
+        <WorkoutReplayModal
+          videoUrl={recordedVideoUrl}
+          onClose={() => setReplayOpen(false)}
+          onReportClick={openReportFromReplay}
+        />
+      )}
+      {reportOpen && <ReportModal onClose={() => setReportOpen(false)} onSubmit={handleReportSubmit} />}
     </div>
   )
 }
@@ -613,7 +681,14 @@ function SquatCoachingPage() {
         <div className="page-index-tag">SQUAT COACHING</div>
       </div>
       <div className="section-head">
-        <div className="section-title">실시간 스쿼트 코칭</div>
+        <div className="section-title-row">
+          <div className="section-title">실시간 스쿼트 코칭</div>
+          {session.phase === 'active' && (
+            <span className="squat-stage-badge">
+              {session.sessionStage === 'front' ? '2단계 · 정면 코칭 진행 중' : '1단계 · 측면 코칭 진행 중'}
+            </span>
+          )}
+        </div>
         <button
           type="button"
           className="squat-calendar-open-btn"
@@ -629,7 +704,7 @@ function SquatCoachingPage() {
         </button>
       </div>
 
-      <div className="squat-page-body">
+      <div className={`squat-page-body${session.phase === 'active' ? ' squat-page-body-active' : ''}`}>
         {session.phase === 'idle' && (
           <IdleView
             onStart={handleStartClick}

@@ -110,6 +110,7 @@ export function useSquatCoachingSession() {
   const [bufferCount, setBufferCount] = useState(0)
   const [endCheck, setEndCheck] = useState(null)
   const [sessionReport, setSessionReport] = useState(null)
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState(null) // 방금 운동 다시보기용 재생 URL
   const [reportLoading, setReportLoading] = useState(false)
   const [reportError, setReportError] = useState('')
   const [ttsEnabled, setTtsEnabled] = useState(true)
@@ -136,6 +137,13 @@ export function useSquatCoachingSession() {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
+  // "방금 운동 다시보기" 녹화용 - 좌표 판정용 프레임 샘플링(framesRef)과는 별개로,
+  // 세션 진행 중 화면 영상 자체를 MediaRecorder로 녹화해 브라우저에만 잠깐 들고 있는다.
+  // 서버로는 절대 자동 전송하지 않고, 신고 눌렀을 때만 이 Blob을 신고 데이터로 보낸다.
+  const mediaRecorderRef = useRef(null)
+  const recordedChunksRef = useRef([])
+  const recordedVideoUrlRef = useRef(null)
+  const recordedVideoBlobRef = useRef(null)
   const intervalRef = useRef(null)
   const offscreenRef = useRef(null)
   const startTimeRef = useRef(0)
@@ -227,19 +235,40 @@ export function useSquatCoachingSession() {
     )
   }, [])
 
-  const stop = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
+  const stopCameraTracks = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop())
       streamRef.current = null
     }
     if (videoRef.current) videoRef.current.srcObject = null
+  }, [])
+
+  const stop = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+    // 녹화 중이면 먼저 MediaRecorder를 멈춰 마지막 데이터를 flush한 뒤에 카메라 트랙을
+    // 정지한다 - 순서를 바꾸면(트랙 먼저 정지) 녹화가 중간에 잘릴 수 있다.
+    const recorder = mediaRecorderRef.current
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'video/webm' })
+        recordedChunksRef.current = []
+        if (recordedVideoUrlRef.current) URL.revokeObjectURL(recordedVideoUrlRef.current)
+        const url = URL.createObjectURL(blob)
+        recordedVideoUrlRef.current = url
+        recordedVideoBlobRef.current = blob
+        setRecordedVideoUrl(url)
+        stopCameraTracks()
+      }
+      recorder.stop()
+    } else {
+      stopCameraTracks()
+    }
     // 대기열에 밀려 있던 코칭 멘트가 세션 종료 후까지 계속 재생되는 것을 막는다.
     if ('speechSynthesis' in window) window.speechSynthesis.cancel()
-  }, [])
+  }, [stopCameraTracks])
 
   const requestReport = useCallback(
     async (endReason) => {
@@ -308,6 +337,8 @@ export function useSquatCoachingSession() {
           knee_angle: averageMetric(metricsSumRef, 'knee_angle'),
           hip_angle: averageMetric(metricsSumRef, 'hip_angle'),
           shoulder_forward_lean_deg: averageMetric(metricsSumRef, 'shoulder_forward_lean_deg'),
+          heel_lift_ratio: averageMetric(metricsSumRef, 'heel_lift_ratio'),
+          knee_over_toe_ratio: averageMetric(metricsSumRef, 'knee_over_toe_ratio'),
           knee_valgus_ratio: averageMetric(frontMetricsSumRef, 'knee_valgus_ratio'),
         }
 
@@ -495,13 +526,15 @@ export function useSquatCoachingSession() {
           ]
           const isDeepHold = frame.metrics.knee_angle < STANDING_KNEE_ANGLE_MIN
 
-          // (2026-09-09 추가) 무릎각도/엉덩이각도는 깊게 앉았을 때만 의미 있는 값이라
-          // (gated:true, ANALYSIS_METRICS 참고) isDeepHold일 때만 누적하고, 상체 기울기
-          // (시선·목)는 앉은 정도와 무관하게 항상 확인 가능한 값이라(gated:false) 매 프레임
-          // 누적한다.
+          // (2026-09-09 추가) 무릎각도/엉덩이각도/발뒤꿈치 들림/무릎-발끝 거리는 깊게
+          // 앉았을 때만 의미 있는 값이라(gated:true, ANALYSIS_METRICS 참고) isDeepHold일
+          // 때만 누적하고, 상체 기울기(시선·목)는 앉은 정도와 무관하게 항상 확인 가능한
+          // 값이라(gated:false) 매 프레임 누적한다.
           accumulateMetric(metricsSumRef, 'knee_angle', isDeepHold ? frame.metrics.knee_angle : null)
           accumulateMetric(metricsSumRef, 'hip_angle', isDeepHold ? frame.metrics.hip_angle : null)
           accumulateMetric(metricsSumRef, 'shoulder_forward_lean_deg', frame.metrics.shoulder_forward_lean_deg)
+          accumulateMetric(metricsSumRef, 'heel_lift_ratio', isDeepHold ? frame.metrics.heel_lift_ratio : null)
+          accumulateMetric(metricsSumRef, 'knee_over_toe_ratio', isDeepHold ? frame.metrics.knee_over_toe_ratio : null)
 
           // 렙(반복) 카운트 — 무릎이 깊게 굽혀졌다가(내려감) 다시 펴지는(올라옴) 구간
           // 하나를 스쿼트 1회로 본다. 리포트 전용 집계라 세션 자동 종료 판단(judgmentHistoryRef)
@@ -605,6 +638,11 @@ export function useSquatCoachingSession() {
     setEndCheck(null)
     setSessionReport(null)
     setReportError('')
+    if (recordedVideoUrlRef.current) URL.revokeObjectURL(recordedVideoUrlRef.current)
+    recordedVideoUrlRef.current = null
+    recordedVideoBlobRef.current = null
+    setRecordedVideoUrl(null)
+    recordedChunksRef.current = []
     framesRef.current = []
     setBufferCount(0)
     fullBodyMissingStreakRef.current = 0
@@ -653,6 +691,29 @@ export function useSquatCoachingSession() {
       if (cancelled) return
       startTimeRef.current = performance.now()
       intervalRef.current = setInterval(() => tickRef.current(), SAMPLE_INTERVAL_MS)
+
+      // "방금 운동 다시보기" 녹화 시작 - 판정용 프레임 인터벌과 별개로 실제 화면 영상을 녹화.
+      // 브라우저가 vp9를 지원 안 하면(구형 환경) 기본 webm으로 폴백하고, MediaRecorder 자체가
+      // 없는 아주 오래된 환경이면 조용히 건너뛴다 - 다시보기/신고 영상첨부만 못 쓰게 될 뿐,
+      // 코칭 자체는 그대로 진행된다.
+      recordedChunksRef.current = []
+      if (typeof MediaRecorder !== 'undefined') {
+        try {
+          const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+            ? 'video/webm;codecs=vp9'
+            : MediaRecorder.isTypeSupported('video/webm')
+              ? 'video/webm'
+              : ''
+          const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+          recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data)
+          }
+          recorder.start()
+          mediaRecorderRef.current = recorder
+        } catch (err) {
+          mediaRecorderRef.current = null
+        }
+      }
     })
 
     return () => {
@@ -666,6 +727,10 @@ export function useSquatCoachingSession() {
     setReportError('')
     setJudgeResult(null)
     setEndCheck(null)
+    if (recordedVideoUrlRef.current) URL.revokeObjectURL(recordedVideoUrlRef.current)
+    recordedVideoUrlRef.current = null
+    recordedVideoBlobRef.current = null
+    setRecordedVideoUrl(null)
   }, [])
 
   // 페이지를 떠날 때 카메라가 계속 켜진 채로 남지 않도록 정리한다.
@@ -673,6 +738,7 @@ export function useSquatCoachingSession() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
       if (streamRef.current) streamRef.current.getTracks().forEach((track) => track.stop())
+      if (recordedVideoUrlRef.current) URL.revokeObjectURL(recordedVideoUrlRef.current)
     }
   }, [])
 
@@ -699,6 +765,8 @@ export function useSquatCoachingSession() {
     reportError,
     ttsEnabled,
     setTtsEnabled,
+    recordedVideoUrl,
+    getRecordedVideoBlob: () => recordedVideoBlobRef.current,
     start,
     endSession: () => endSession('user_requested'),
     restart,

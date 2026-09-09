@@ -222,13 +222,22 @@ function AnalysisPanel({ session }) {
 
   return (
     <div>
-      <div className="analysis-summary">
-        <span className={judgeResult.is_normal ? 'photo-ok' : 'photo-warn'}>
+      <div className="analysis-header-row">
+        <span className={`analysis-status-badge ${judgeResult.is_normal ? 'photo-ok' : 'photo-warn'}`}>
           {judgeResult.is_normal ? '전체적으로 정상 범위예요' : '점검이 필요한 항목이 있어요'}
         </span>
         <span className="analysis-confidence">신뢰도 {Math.round(judgeResult.confidence * 100)}%</span>
-        <button type="button" className="squat-btn squat-btn-outline analysis-report-btn" onClick={() => setReportOpen(true)}>
-          이 판정 신고하기
+        <button
+          type="button"
+          className="analysis-report-icon-btn"
+          onClick={() => setReportOpen(true)}
+          aria-label="이 판정 신고하기"
+          title="이 판정 신고하기"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+            <line x1="4" y1="22" x2="4" y2="15" />
+          </svg>
         </button>
       </div>
 
