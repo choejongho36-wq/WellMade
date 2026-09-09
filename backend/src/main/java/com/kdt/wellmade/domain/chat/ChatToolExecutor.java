@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.inbody.InbodyRecord;
@@ -378,11 +379,20 @@ public class ChatToolExecutor {
         return trim(response, keep);
     }
 
-    /** 응답을 손대지 않고 그대로 돌려준다. 실패하면 null (호출부가 안내 문구를 만든다) */
+    /**
+     * 응답을 손대지 않고 그대로 돌려준다. 실패하면 null (호출부가 안내 문구를 만든다).
+     *
+     * 응답을 String으로 받아 우리 ObjectMapper로 직접 판다. {@code body(JsonNode.class)} 로 바로
+     * 받으면 안 되는데, 스프링의 메시지 컨버터는 Jackson 3(tools.jackson)인데 우리 코드가 쓰는
+     * JsonNode는 Jackson 2(com.fasterxml.jackson)라서 컨버터가 그 타입을 만들지 못한다
+     * (HttpMessageConversionException -> "도구 실행 중 문제가 발생했어요"로 떨어짐, 실측).
+     * 같은 이유로 FoodParsingService도 String으로 받아서 직접 판다.
+     */
     private JsonNode callAiServerRaw(String path, Map<String, Object> body) {
         try {
-            return aiRestClient.post().uri(path).body(body).retrieve().body(JsonNode.class);
-        } catch (RestClientException e) {
+            String json = aiRestClient.post().uri(path).body(body).retrieve().body(String.class);
+            return json == null || json.isBlank() ? null : objectMapper.readTree(json);
+        } catch (RestClientException | JsonProcessingException e) {
             log.info("AI 서버 호출 실패 ({}): {}", path, e.getMessage());
             return null;
         }

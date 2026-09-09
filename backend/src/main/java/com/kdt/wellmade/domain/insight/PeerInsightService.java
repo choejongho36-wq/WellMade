@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -175,11 +176,17 @@ public class PeerInsightService {
         return gender == Gender.MALE ? "M" : "F";
     }
 
+    /**
+     * 응답을 String으로 받아 직접 판다 - {@code body(JsonNode.class)} 는 스프링 메시지 컨버터가
+     * Jackson 3(tools.jackson)인데 여기서 쓰는 JsonNode는 Jackson 2(com.fasterxml.jackson)라서
+     * 타입을 만들지 못하고 HttpMessageConversionException 이 난다(실측).
+     */
     private ObjectNode callAiServer(String path, Map<String, Object> body) {
         JsonNode response;
         try {
-            response = aiRestClient.post().uri(path).body(body).retrieve().body(JsonNode.class);
-        } catch (RestClientException e) {
+            String json = aiRestClient.post().uri(path).body(body).retrieve().body(String.class);
+            response = json == null || json.isBlank() ? null : objectMapper.readTree(json);
+        } catch (RestClientException | JsonProcessingException e) {
             // AI 서버는 평소 꺼져 있을 수 있다. 부가 정보라 실패해도 화면/대화를 끊지 않는다.
             log.info("AI 서버 호출 실패 ({}): {}", path, e.getMessage());
             return error(AI_UNAVAILABLE);

@@ -1,6 +1,7 @@
 package com.kdt.wellmade.domain.insight;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -9,7 +10,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.user.User;
 import com.kdt.wellmade.domain.user.UserService;
 import com.kdt.wellmade.global.time.AppTime;
@@ -30,25 +33,42 @@ public class PeerInsightController {
 
     private final PeerInsightService peerInsightService;
     private final UserService userService;
+    private final ObjectMapper objectMapper;
 
-    public PeerInsightController(PeerInsightService peerInsightService, UserService userService) {
+    public PeerInsightController(
+            PeerInsightService peerInsightService, UserService userService, ObjectMapper objectMapper) {
         this.peerInsightService = peerInsightService;
         this.userService = userService;
+        this.objectMapper = objectMapper;
     }
 
     /** 최신 인바디 BMI의 또래 위치 + 비만도 분류 + 백분위 추이 */
     @GetMapping("/bmi")
-    public JsonNode bmi(@AuthenticationPrincipal Long userId) {
-        return peerInsightService.bmiInsight(userService.getUser(userId));
+    public Map<String, Object> bmi(@AuthenticationPrincipal Long userId) {
+        return toResponse(peerInsightService.bmiInsight(userService.getUser(userId)));
     }
 
     /** 그 날 섭취량을 같은 성별·연령대 평균과 비교 (date 생략 시 오늘) */
     @GetMapping("/nutrition")
-    public JsonNode nutrition(
+    public Map<String, Object> nutrition(
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
         User user = userService.getUser(userId);
-        return peerInsightService.nutritionPeerCompare(user, userId, date != null ? date : AppTime.today());
+        return toResponse(
+                peerInsightService.nutritionPeerCompare(user, userId, date != null ? date : AppTime.today()));
+    }
+
+    /**
+     * 서비스가 만든 트리(Jackson 2)를 Map으로 풀어서 돌려준다.
+     *
+     * JsonNode를 그대로 반환하면 안 된다 - Spring Boot 4.1의 응답 컨버터는 Jackson 3
+     * (tools.jackson)인데 이 JsonNode는 Jackson 2(com.fasterxml.jackson)라, 트리로 알아보지
+     * 못하고 평범한 객체로 취급해 {@code {"array":false,"bigDecimal":false,...}} 같은 내부
+     * 판별자만 내보낸다. 예외가 안 나고 조용히 엉뚱한 JSON이 나가서 더 위험하다(실측).
+     * Map/List로 바꿔 두면 어느 쪽 Jackson이 직렬화해도 같은 결과가 된다.
+     */
+    private Map<String, Object> toResponse(JsonNode node) {
+        return objectMapper.convertValue(node, new TypeReference<Map<String, Object>>() {});
     }
 }
