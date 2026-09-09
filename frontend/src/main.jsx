@@ -17,6 +17,7 @@ import NotFoundPage from './pages/NotFoundPage.jsx'
 const SquatModeSelectPage = lazy(() => import('./pages/SquatModeSelectPage.jsx'))
 const PhotoCoachingPage = lazy(() => import('./pages/PhotoCoachingPage.jsx'))
 const SquatCoachingPage = lazy(() => import('./pages/SquatCoachingPage.jsx'))
+const PosturePage = lazy(() => import('./pages/PosturePage.jsx'))
 
 function AppRoutes() {
   const { user, profile, sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu } = useAuth()
@@ -31,6 +32,7 @@ function AppRoutes() {
           <Route path="/exercises" element={<SquatModeSelectPage />} />
           <Route path="/exercises/photo" element={<PhotoCoachingPage />} />
           <Route path="/exercises/live" element={<SquatCoachingPage />} />
+          <Route path="/posture" element={<PosturePage />} />
           <Route path="/oauth/redirect" element={<MainPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

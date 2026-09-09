@@ -1,0 +1,30 @@
+# posture-ai (정지 자세 분석 서버) 의존성.
+#
+# 팀 ai/ 서버와 같은 원칙을 따른다: 무거운 연산(자세추정)은 클라이언트에서
+# 실행하고, 서버는 좌표만 받아 규칙기반 판정 + LLM 호출만 한다. 그래서
+# mediapipe / torch / opencv 같은 무거운 라이브러리는 포함하지 않는다.
+#
+# 이 결정의 근거(scripts/verify_landmark_input.py로 실측 확인):
+#   좌표 입력만으로도 각도·판정·quality·reliability가 이미지 입력과
+#   완전히 동일하게 나온다. 유일한 차이는 세그멘테이션 교차검증이
+#   빠지는 것인데, 그건 원래도 is_reliable에 영향을 주지 않고
+#   마네킹 방어는 check_geometric_plausibility가 담당한다.
+#
+# 부수 효과로 신체 사진이 서버에 도달하지 않는다 — 전송·로그·크래시덤프
+# 어디에도 남지 않는다.
+
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.27,<1.0
+pydantic>=2.6,<3.0
+python-dotenv>=1.0        # .env 로딩 (app/env.py)
+
+# --- LLM 코멘트 생성 (app/comment.py, app/agent.py) ---
+# 팀 ai/ 서버는 AWS Bedrock(boto3)을 쓰지만 이 서버는 Anthropic SDK를 쓴다.
+# tool-use 에이전트 루프(app/agent.py)가 Anthropic Messages API의 tool_use
+# 블록 구조에 맞춰 구현되어 있기 때문이다. 키가 없으면 LLM 호출 없이
+# 결정론적 템플릿 문구로 폴백하므로, 키 없이도 서버는 정상 동작한다.
+anthropic>=0.40
+
+# --- 테스트 ---
+pytest>=8.0
+httpx>=0.27               # FastAPI TestClient가 내부적으로 사용
