@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>신고 상세 - WellMade 관리자</title>
+  <link rel="stylesheet" th:href="@{/admin/admin.css}">
+</head>
+<body>
+  <div th:replace="~{admin/fragments/nav :: nav}"></div>
+  <main class="admin-main">
+    <h1>신고 #<span th:text="${report.id}"></span></h1>
+
+    <div class="report-detail-grid">
+      <div class="admin-panel report-detail-media">
+        <h2>원본 (10분간 유효한 미리보기 링크)</h2>
+        <video th:if="${report.sourceType.name() == 'SESSION'}" th:src="${presignedUrl}" controls></video>
+        <img th:if="${report.sourceType.name() == 'PHOTO'}" th:src="${presignedUrl}" alt="신고된 사진">
+        <p style="margin-top:12px;"><a th:href="${presignedUrl}" target="_blank">새 탭에서 원본 열기</a></p>
+      </div>
+
+      <div class="admin-panel">
+        <h2>신고 정보</h2>
+        <div class="report-detail-field">
+          <span class="k">상태</span>
+          <span class="badge" th:classappend="'badge-' + ${#strings.toLowerCase(report.status.name())}" th:text="${report.status}"></span>
+        </div>
+        <div class="report-detail-field"><span class="k">구분</span>
+          <span th:text="${report.sourceType.name() == 'PHOTO'} ? '사진측정' : '세션리포트'"></span>
+        </div>
+        <div class="report-detail-field"><span class="k">사유</span>
+          <span th:text="${report.reasonCategory}"></span>
+        </div>
+        <div class="report-detail-field" th:if="${report.reasonDetail}"><span class="k">기타 사유 내용</span>
+          <span th:text="${report.reasonDetail}"></span>
+        </div>
+        <div class="report-detail-field"><span class="k">신고 시각</span>
+          <span th:text="${#temporals.format(report.createdAt, 'yyyy-MM-dd HH:mm:ss')}"></span>
+        </div>
+        <div class="report-detail-field" th:if="${report.reviewedAt}"><span class="k">검토</span>
+          <span th:text="${report.reviewedBy} + ' / ' + ${#temporals.format(report.reviewedAt, 'yyyy-MM-dd HH:mm')}"></span>
+        </div>
+
+        <div class="report-detail-field">
+          <span class="k">신고 당시 AI 판정 스냅샷</span>
+          <pre class="judgment-snapshot" th:text="${report.aiJudgmentSnapshot} ?: '(전달된 값 없음)'"></pre>
+        </div>
+
+        <div th:if="${report.status.name() == 'PENDING'}" style="margin-top:20px;display:flex;gap:8px;">
+          <form th:action="@{/admin/reports/{id}/approve(id=${report.id})}" method="post">
+            <button type="submit" class="admin-btn admin-btn-primary">템플릿 후보로 승인</button>
+          </form>
+          <form th:action="@{/admin/reports/{id}/reject(id=${report.id})}" method="post"
+                onsubmit="return confirm('반려하면 원본 파일도 함께 삭제됩니다. 계속할까요?');">
+            <button type="submit" class="admin-btn admin-btn-danger">반려 (원본 삭제)</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

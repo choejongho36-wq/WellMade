@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>신고 관리 - WellMade 관리자</title>
+  <link rel="stylesheet" th:href="@{/admin/admin.css}">
+</head>
+<body>
+  <div th:replace="~{admin/fragments/nav :: nav}"></div>
+  <main class="admin-main">
+    <h1>신고 관리</h1>
+
+    <div class="admin-tabs">
+      <a class="admin-tab" th:classappend="${selectedStatus == null} ? ' active'" th:href="@{/admin/reports}">전체</a>
+      <a class="admin-tab" th:classappend="${selectedStatus?.name() == 'PENDING'} ? ' active'"
+         th:href="@{/admin/reports(status='PENDING')}">대기</a>
+      <a class="admin-tab" th:classappend="${selectedStatus?.name() == 'APPROVED'} ? ' active'"
+         th:href="@{/admin/reports(status='APPROVED')}">승인</a>
+      <a class="admin-tab" th:classappend="${selectedStatus?.name() == 'REJECTED'} ? ' active'"
+         th:href="@{/admin/reports(status='REJECTED')}">반려</a>
+      <a class="admin-btn admin-btn-outline" style="margin-left:auto"
+         th:href="@{/admin/reports/export}">승인된 항목 내보내기 (zip)</a>
+    </div>
+
+    <div class="admin-panel">
+      <table class="admin-table">
+        <thead>
+        <tr>
+          <th>ID</th>
+          <th>구분</th>
+          <th>사유</th>
+          <th>상태</th>
+          <th>신고 시각</th>
+          <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="r : ${reports.content}">
+          <td th:text="${r.id}">1</td>
+          <td th:text="${r.sourceType == T(com.kdt.wellmade.domain.report.ReportSourceType).PHOTO} ? '사진측정' : '세션리포트'">PHOTO</td>
+          <td th:switch="${r.reasonCategory.name()}">
+            <span th:case="'FALSE_POSITIVE'">오탐 (정상인데 이상판정)</span>
+            <span th:case="'FALSE_NEGATIVE'">미탐 (이상인데 정상판정)</span>
+            <span th:case="'POSE_DETECTION_ERROR'">자세 인식 오류</span>
+            <span th:case="*" th:text="'기타: ' + ${r.reasonDetail}">기타</span>
+          </td>
+          <td>
+            <span class="badge" th:classappend="'badge-' + ${#strings.toLowerCase(r.status.name())}"
+                  th:text="${r.status}">PENDING</span>
+          </td>
+          <td th:text="${#temporals.format(r.createdAt, 'yyyy-MM-dd HH:mm')}">-</td>
+          <td><a class="admin-btn admin-btn-outline" th:href="@{/admin/reports/{id}(id=${r.id})}">보기</a></td>
+        </tr>
+        <tr th:if="${reports.content.isEmpty()}">
+          <td colspan="6" style="text-align:center;color:#9ca3af;padding:24px 0;">신고 내역이 없습니다.</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</body>
+</html>

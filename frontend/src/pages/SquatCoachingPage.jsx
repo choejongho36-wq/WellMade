@@ -26,6 +26,8 @@ import { todayDateKey } from '../lib/squatDailyStats.js'
 import { loadSquatLevel, saveSquatLevel } from '../lib/squatLevelPreference.js'
 import { loadSquatSessionHistory } from '../lib/squatSessionHistory.js'
 import { loadExerciseGoalState, saveExerciseGoals, getExerciseGoal } from '../lib/exerciseGoals.js'
+import { useAuth } from '../lib/auth.js'
+import ReportModal from '../components/ReportModal.jsx'
 import './squatShared.css'
 import './SquatCoachingPage.css'
 
@@ -462,6 +464,26 @@ function ReportView({ session }) {
 
   const hasIssueCounts = sessionReport && Object.keys(sessionReport.issue_counts_by_part ?? {}).length > 0
 
+  const { submitReport } = useAuth()
+  const [reportOpen, setReportOpen] = useState(false)
+
+  // 실시간 세션은 서버에 좌표만 보내고 영상 자체는 클라이언트에 남지 않으므로, 신고 원본은
+  // "이 세션의 렙별 판정 시계열(repHistory) + 최종 리포트"를 JSON으로 묶어 보낸다 -
+  // 8/27 addendum에서 말한 "원본 데이터(영상/좌표 시계열)" 중 좌표 시계열 쪽.
+  const handleReportSubmit = async ({ reasonCategory, reasonDetail }) => {
+    const payload = { sessionReport, repHistory }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    await submitReport({
+      sourceType: 'SESSION',
+      sourceId: `session-report-${Date.now()}`,
+      file: blob,
+      fileName: 'session-report.json',
+      reasonCategory,
+      reasonDetail,
+      judgmentSnapshot: sessionReport,
+    })
+  }
+
   // (2026-09-09 재구성) 달력이 제목 줄과 같은 높이가 아니라 "스쿼트 분석" 박스와 같은
   // 줄에서 시작해야 한다는 피드백에 따라, [제목+오늘 점수 / 통계 3칸] 헤더 줄과 설명
   // 문구를 왼쪽 칼럼 밖으로 빼서 카드 전체 폭을 쓰는 줄로 만들었다 — 그 아래부터 시작하는
@@ -533,10 +555,15 @@ function ReportView({ session }) {
             <Link to="/exercises-history" className="squat-btn squat-btn-outline squat-report-history-btn">
               지난 운동 기록 보기
             </Link>
+            <button type="button" className="squat-btn squat-btn-outline" onClick={() => setReportOpen(true)}>
+              이 판정 신고하기
+            </button>
             <button className="squat-btn squat-btn-primary squat-report-restart-btn" onClick={restart}>
               다시 운동하기
             </button>
           </div>
+
+          {reportOpen && <ReportModal onClose={() => setReportOpen(false)} onSubmit={handleReportSubmit} />}
         </div>
       </div>
     </div>

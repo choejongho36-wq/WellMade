@@ -369,3 +369,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+.analysis-report-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>WellMade 관리자 대시보드</title>
+  <link rel="stylesheet" th:href="@{/admin/admin.css}">
+</head>
+<body>
+  <div th:replace="~{admin/fragments/nav :: nav}"></div>
+  <main class="admin-main">
+    <h1>대시보드</h1>
+
+    <div class="admin-cards">
+      <div class="admin-card">
+        <div class="label">전체 회원</div>
+        <div class="value" th:text="${totalUsers}">0</div>
+      </div>
+      <div class="admin-card">
+        <div class="label">오늘 신규가입</div>
+        <div class="value" th:text="${todaySignups}">0</div>
+      </div>
+      <div class="admin-card pending">
+        <div class="label">검토 대기 신고</div>
+        <div class="value" th:text="${pendingReports}">0</div>
+      </div>
+      <div class="admin-card approved">
+        <div class="label">승인된 신고</div>
+        <div class="value" th:text="${approvedReports}">0</div>
+      </div>
+      <div class="admin-card rejected">
+        <div class="label">반려된 신고</div>
+        <div class="value" th:text="${rejectedReports}">0</div>
+      </div>
+    </div>
+
+    <div class="admin-panel">
+      <h2>신고 기반 액티브러닝 — 이 대시보드로 하는 일</h2>
+      <p>
+        사용자가 사진측정/세션리포트 화면에서 "이 판정이 이상해요"로 신고하면, 원본 사진·영상은
+        S3에 저장되고 이 대시보드의 <a th:href="@{/admin/reports}">신고 관리</a>에 쌓입니다.
+        AI 판정 규칙(임계값·DTW 템플릿)을 실측 데이터로 계속 다듬어가는 것이 목적입니다.
+      </p>
+      <ol>
+        <li><b>검토</b> — 신고 목록에서 항목을 열어 원본과 신고 당시 AI 판정 스냅샷을 확인합니다.</li>
+        <li><b>승인 / 반려</b> — 템플릿 후보로 쓸 만하면 <b>승인</b>, 아니면 <b>반려</b>합니다.
+            반려하면 원본은 S3에서 즉시 삭제됩니다(불필요한 촬영 데이터를 남기지 않기 위함).</li>
+        <li><b>내보내기</b> — 승인된 건이 쌓이면 신고 관리 화면의 "승인된 항목 내보내기" 버튼으로
+            zip을 받습니다. 여기엔 원본 파일과 <code>manifest.json</code>(신고 사유·판정 스냅샷),
+            처리 안내가 담긴 <code>README.txt</code>가 함께 들어 있습니다.</li>
+        <li><b>오프라인 처리</b> — 내려받은 zip을 로컬(mediapipe/opencv 설치된 개발 환경)에서
+            기존 <code>prepare_posture_reference.py</code> 패턴으로 좌표 추출 → DTW 템플릿
+            재계산합니다. <b>서버는 이 연산을 하지 않습니다</b> — 무거운 계산은 항상 로컬에서
+            처리한다는 프로젝트 원칙 때문입니다.</li>
+        <li><b>사람 검토 후 반영</b> — 재계산된 템플릿은 자동으로 서비스에 반영되지 않고, 사람이
+            결과를 확인한 뒤에만 레포에 커밋합니다(실촬영 데이터라는 점을 고려한 반자동 원칙).</li>
+      </ol>
+    </div>
+  </main>
+</body>
+</html>

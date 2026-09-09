@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>WellMade 관리자 로그인</title>
+  <link rel="stylesheet" th:href="@{/admin/admin.css}">
+</head>
+<body class="admin-login-shell">
+  <div class="admin-login-box">
+    <h1>WellMade 관리자</h1>
+    <p>운영 대시보드에 로그인하세요</p>
+    <div class="admin-login-error" th:if="${param.error}">아이디 또는 비밀번호가 올바르지 않습니다.</div>
+    <div class="admin-login-error" th:if="${param.expired}">세션이 만료됐습니다. 다시 로그인해주세요.</div>
+    <form th:action="@{/admin/login}" method="post">
+      <input type="text" name="loginId" placeholder="아이디" autocomplete="username" required>
+      <input type="password" name="password" placeholder="비밀번호" autocomplete="current-password" required>
+      <button type="submit" class="admin-btn admin-btn-primary">로그인</button>
+    </form>
+  </div>
+</body>
+</html>

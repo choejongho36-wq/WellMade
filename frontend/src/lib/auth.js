@@ -161,6 +161,20 @@ function useAuthState() {
       handleLogout()
     })
 
+  // 사진측정/세션리포트 화면의 "신고" 버튼. file은 Blob(사진 원본 또는 세션 좌표 시계열
+  // JSON을 담은 Blob), judgmentSnapshot은 신고 당시 AI 판정 결과 객체(그대로 JSON 문자열로
+  // 실어 보낸다 - 나중에 관리자가 "왜 신고됐는지" 다시 볼 수 있어야 해서).
+  const submitReport = ({ sourceType, sourceId, file, fileName, reasonCategory, reasonDetail, judgmentSnapshot }) => {
+    const formData = new FormData()
+    formData.append('sourceType', sourceType)
+    if (sourceId) formData.append('sourceId', sourceId)
+    formData.append('file', file, fileName)
+    formData.append('reasonCategory', reasonCategory)
+    if (reasonDetail) formData.append('reasonDetail', reasonDetail)
+    if (judgmentSnapshot) formData.append('judgmentSnapshot', JSON.stringify(judgmentSnapshot))
+    return authOk('/api/users/me/reports', { method: 'POST', body: formData }, '신고에 실패했어요')
+  }
+
   const extractInbody = (file) => {
     const formData = new FormData()
     formData.append('image', file)
@@ -407,7 +421,7 @@ function useAuthState() {
   return {
     user, profile, inbody, handleLogout,
     sessionExpired, dismissSessionExpired: () => setSessionExpired(false),
-    deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory,
+    deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory, submitReport,
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
     getBmiInsight, getNutritionPeerCompare,
     logManualMeal,
