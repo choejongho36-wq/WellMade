@@ -63,7 +63,7 @@ def post(path, landmarks, width=720, height=900):
 
 
 def test_side_returns_metrics_and_comment():
-    res = post("/posture/analyze/side", SIDE_LANDMARKS)
+    res = post("/posture-api/analyze/side", SIDE_LANDMARKS)
     assert res.status_code == 200
     body = res.json()
 
@@ -75,7 +75,7 @@ def test_side_returns_metrics_and_comment():
 
 
 def test_front_returns_metrics_and_comment():
-    res = post("/posture/analyze/front", FRONT_LANDMARKS)
+    res = post("/posture-api/analyze/front", FRONT_LANDMARKS)
     assert res.status_code == 200
     body = res.json()
 
@@ -85,7 +85,7 @@ def test_front_returns_metrics_and_comment():
 
 
 def test_agent_endpoint_adds_turns_and_tool_calls():
-    res = post("/posture/analyze/side/agent", SIDE_LANDMARKS)
+    res = post("/posture-api/analyze/side/agent", SIDE_LANDMARKS)
     assert res.status_code == 200
     comment = res.json()["comment"]
     # API 키가 없으므로 fallback이지만, 에이전트 전용 필드는 있어야 한다
@@ -97,18 +97,18 @@ def test_agent_endpoint_adds_turns_and_tool_calls():
 
 
 def test_rejects_wrong_landmark_count():
-    res = post("/posture/analyze/side", SIDE_LANDMARKS[:20])
+    res = post("/posture-api/analyze/side", SIDE_LANDMARKS[:20])
     assert res.status_code == 422  # Pydantic min_length=33
 
 
 def test_rejects_zero_image_size():
-    res = post("/posture/analyze/side", SIDE_LANDMARKS, width=0)
+    res = post("/posture-api/analyze/side", SIDE_LANDMARKS, width=0)
     assert res.status_code == 422  # gt=0
 
 
 def test_rejects_visibility_out_of_range():
     bad = make_landmarks(left_ear=(0.5, 0.1, 0.0, 1.5))
-    res = post("/posture/analyze/side", bad)
+    res = post("/posture-api/analyze/side", bad)
     assert res.status_code == 422  # le=1.0
 
 
@@ -118,8 +118,8 @@ def test_rejects_visibility_out_of_range():
 def test_image_size_changes_angle():
     # 종횡비가 다르면 각도가 달라져야 한다. 같은 좌표라도 이미지 비율이
     # 다르면 실제 기울기가 다르기 때문 — pixel_xy()가 동작한다는 증거다.
-    square = post("/posture/analyze/side", SIDE_LANDMARKS, 800, 800).json()
-    tall = post("/posture/analyze/side", SIDE_LANDMARKS, 800, 1600).json()
+    square = post("/posture-api/analyze/side", SIDE_LANDMARKS, 800, 800).json()
+    tall = post("/posture-api/analyze/side", SIDE_LANDMARKS, 800, 1600).json()
 
     assert square["forward_head"]["angle_deg"] != tall["forward_head"]["angle_deg"]
 
@@ -136,7 +136,7 @@ def test_mannequin_like_coords_are_flagged_unreliable():
         left_hip=(0.5, 0.45, 0.0, 1.0),
         right_hip=(0.502, 0.451, 0.0, 1.0),
     )
-    body = post("/posture/analyze/front", mannequin).json()
+    body = post("/posture-api/analyze/front", mannequin).json()
 
     assert body["reliability"]["is_reliable"] is False
     assert body["comment"]["source"] == "skipped"
@@ -144,7 +144,7 @@ def test_mannequin_like_coords_are_flagged_unreliable():
 
 def test_front_photo_sent_to_side_endpoint_is_flagged():
     # 정면 사진을 측면으로 보내면 측면 전용 검증이 잡아야 한다.
-    body = post("/posture/analyze/side", FRONT_LANDMARKS).json()
+    body = post("/posture-api/analyze/side", FRONT_LANDMARKS).json()
     assert body["reliability"]["is_reliable"] is False
 
 
@@ -156,7 +156,7 @@ def test_unreliable_result_has_no_keypoint_confidence():
         left_hip=(0.5, 0.45, 0.0, 1.0),
         right_hip=(0.502, 0.451, 0.0, 1.0),
     )
-    body = post("/posture/analyze/front", mannequin).json()
+    body = post("/posture-api/analyze/front", mannequin).json()
     assert body["keypoint_confidence"] == []
 
 

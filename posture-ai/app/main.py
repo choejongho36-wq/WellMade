@@ -13,11 +13,21 @@
 라운드숄더)를 다루고, 팀 ai 서버는 "운동 동작"(스쿼트 등)을 다룬다.
 
 엔드포인트:
-    POST /posture/analyze/front        정면: 어깨·골반 좌우 기울기
-    POST /posture/analyze/side         측면: 전방머리자세·라운드숄더
-    POST /posture/analyze/front/agent  정면 + 에이전트 코멘트
-    POST /posture/analyze/side/agent   측면 + 에이전트 코멘트
+    POST /posture-api/analyze/front        정면: 어깨·골반 좌우 기울기
+    POST /posture-api/analyze/side         측면: 전방머리자세·라운드숄더
+    POST /posture-api/analyze/front/agent  정면 + 에이전트 코멘트
+    POST /posture-api/analyze/side/agent   측면 + 에이전트 코멘트
     GET  /health
+
+경로가 /posture 가 아니라 /posture-api 인 이유:
+    프론트엔드의 React 라우트가 /posture 를 쓴다(정지 자세 분석 페이지).
+    nginx 가 location /posture/ 로 이 서버에 프록시하면 **페이지 요청까지
+    API 서버로 가로채** 404 가 난다(실제로 배포 후 겪은 문제 —
+    "GET /posture/ HTTP/1.1" 404 가 posture-ai 로그에 찍혔다).
+
+    nginx 에서 rewrite 로 우회할 수도 있지만, 그러면 로컬 개발(:8001 직접
+    호출)과 프로덕션(nginx 경유)의 경로가 달라져 디버깅이 어려워진다.
+    서버 경로 자체를 분리하면 두 환경이 같아진다.
 
 /agent 경로를 따로 둔 이유는 기존 경로의 응답이 바뀌지 않도록 잠그기
 위해서다 — 옵션 플래그로 섞으면 회귀를 테스트로 확인하기 어렵다.
@@ -82,28 +92,28 @@ def _attach(result: dict[str, Any], comment_obj) -> dict[str, Any]:
     return result
 
 
-@app.post("/posture/analyze/front", response_model=FrontAnalyzeResponse)
+@app.post("/posture-api/analyze/front", response_model=FrontAnalyzeResponse)
 def analyze_front_endpoint(req: PostureAnalyzeRequest) -> dict:
     """정면 좌표에서 어깨·골반 좌우 기울기를 판정하고 코멘트를 생성한다."""
     result = analyze_front(_to_result(req, "front"))
     return _attach(result, comment_for_analysis(result))
 
 
-@app.post("/posture/analyze/side", response_model=SideAnalyzeResponse)
+@app.post("/posture-api/analyze/side", response_model=SideAnalyzeResponse)
 def analyze_side_endpoint(req: PostureAnalyzeRequest) -> dict:
     """측면 좌표에서 전방머리자세·라운드숄더를 판정하고 코멘트를 생성한다."""
     result = analyze_side(_to_result(req, "side"))
     return _attach(result, comment_for_side_analysis(result))
 
 
-@app.post("/posture/analyze/front/agent", response_model=FrontAnalyzeResponse)
+@app.post("/posture-api/analyze/front/agent", response_model=FrontAnalyzeResponse)
 def analyze_front_agent_endpoint(req: PostureAnalyzeRequest) -> dict:
     """정면 분석 + 에이전트가 도구를 호출해가며 생성한 코멘트."""
     result = analyze_front(_to_result(req, "front"))
     return _attach(result, run_agent(result))
 
 
-@app.post("/posture/analyze/side/agent", response_model=SideAnalyzeResponse)
+@app.post("/posture-api/analyze/side/agent", response_model=SideAnalyzeResponse)
 def analyze_side_agent_endpoint(req: PostureAnalyzeRequest) -> dict:
     """측면 분석 + 에이전트가 도구를 호출해가며 생성한 코멘트."""
     result = analyze_side(_to_result(req, "side"))
