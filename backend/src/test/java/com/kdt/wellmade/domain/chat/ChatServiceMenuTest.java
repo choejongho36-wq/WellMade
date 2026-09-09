@@ -64,4 +64,38 @@ class ChatServiceMenuTest {
     void malformedResultFallsThroughInsteadOfCrashing() {
         assertNull(service.emptyResultMessage("보통은 JSON이지만 아닐 수도 있다"));
     }
+
+    /**
+     * note는 두 뜻으로 쓰인다 - 운동 추천에서는 후보가 있을 때의 부연이기도 하다. 후보가 있으면
+     * note가 붙어 있어도 데이터가 있는 것이다. 이 판정이 틀리면 후보를 버리고 안내문만 답이 된다.
+     */
+    @Test
+    void recommendationWithCandidatesIsNotEmptyEvenWithNote() {
+        String result = """
+                {"body_part_ko":"어깨","candidates":[{"name":"덤벨 숄더 프레스","sets_reps":"3세트 x 12회"}],\
+                "note":"이 부위는 기구 없이 하는 동작이 많지 않아 장비 조건을 넓혀서 골랐어요."}""";
+        assertNull(service.emptyResultMessage(result));
+    }
+
+    @Test
+    void recommendationWithoutCandidatesShowsTheNote() {
+        String result = """
+                {"body_part":"","matched":0,"candidates":[],"note":"어느 부위 운동인지 알려주시면 추천해드릴게요."}""";
+        assertEquals("어느 부위 운동인지 알려주시면 추천해드릴게요.", service.emptyResultMessage(result));
+    }
+
+    @Test
+    void foundExerciseDetailIsNotEmpty() {
+        String result = """
+                {"found":true,"name":"덤벨 런지","instructions_ko":"양손에 덤벨을 들고 한 발을 앞으로 내딛습니다."}""";
+        assertNull(service.emptyResultMessage(result));
+    }
+
+    @Test
+    void missingExerciseDetailShowsTheNote() {
+        String result = """
+                {"found":false,"note":"어떤 운동인지 찾지 못했어요. 추천해드린 목록에 있는 이름으로 물어봐 주세요."}""";
+        assertEquals("어떤 운동인지 찾지 못했어요. 추천해드린 목록에 있는 이름으로 물어봐 주세요.",
+                service.emptyResultMessage(result));
+    }
 }

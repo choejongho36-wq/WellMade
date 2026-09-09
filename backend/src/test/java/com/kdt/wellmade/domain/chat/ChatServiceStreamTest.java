@@ -82,6 +82,27 @@ class ChatServiceStreamTest {
         }
     }
 
+    /** 도구 결과를 원하는 JSON으로 고정한다 - "데이터 없음" 분기를 보기 위해 */
+    private static final class FixedToolExecutor extends ChatToolExecutor {
+        private final String json;
+        int calls;
+
+        FixedToolExecutor(String json) {
+            super(null, null, null, null, null, new ObjectMapper(), null, null, null);
+            this.json = json;
+        }
+
+        @Override
+        ToolResult execute(User user, String name, Map<String, Object> arguments) {
+            calls++;
+            return ToolResult.of(json);
+        }
+    }
+
+    private ChatService serviceWith(FakeOllamaClient ollama, ChatToolExecutor executor) {
+        return new ChatService(null, null, null, null, null, ollama, executor, new ObjectMapper());
+    }
+
     private ChatService serviceWith(FakeOllamaClient ollama) {
         return new ChatService(null, null, null, null, null, ollama, new FakeToolExecutor(), new ObjectMapper());
     }
@@ -173,5 +194,125 @@ class ChatServiceStreamTest {
         serviceWith(ollama).resolveToolsThenStream(null, messages(), recorder);
 
         assertEquals("어제는 김밥 480kcal를 드셨어요.", recorder.shown.toString());
+    }
+
+    // ---- 예고만 하고 도구를 안 부른 턴 ----
+
+    /**
+     * "최근 섭취 기록을 확인해보겠습니다."로 끝나는 턴(실측). 예전엔 그게 그대로 답이 됐고 이력에
+     * 남아 다음 턴에 똑같이 반복됐다. 한 번 더 시켜서 도구를 부르면 예고문은 지우고 최종 답만 보인다.
+     */
+    @Test
+    void preambleOnlyTurnIsRetriedAndOnlyTheFinalAnswerIsShown() {
+        FakeOllamaClient ollama = new FakeOllamaClient();
+        // 스크린샷 문장 그대로(46자) - 48자 홀드 한도 안이라 아직 화면에 안 나간 상태다
+        ollama.round(List.of("오늘 저녁에 어떤 음식을 먹을지 추천해드릴게요. 최근 섭취 기록을 확인해보겠습니다."), List.of());
+        // 다시 시켰더니 이번엔 도구를 부름
+        ollama.round(List.of(), List.of(mealsCall()));
+        ollama.round(List.of("오늘은 김밥 480kcal를 드셨으니 저녁은 단백질 위주로 드셔보세요."), List.of());
+
+        Recorder recorder = new Recorder();
+        serviceWith(ollama).resolveToolsThenStream(null, messages(), recorder);
+
+        // 홀드돼 있던 예고문은 버려지고(지울 게 없으니 reset도 없음) 최종 답만 나간다
+        assertEquals(0, recorder.resets);
+        assertEquals("오늘은 김밥 480kcal를 드셨으니 저녁은 단백질 위주로 드셔보세요.", recorder.shown.toString());
+    }
+
+    /** 예고문이 48자를 넘겨 이미 화면에 나간 뒤라면 reset으로 지우고 최종 답을 다시 그린다 */
+    @Test
+    void releasedPreambleIsClearedByResetBeforeTheFinalAnswer() {
+        FakeOllamaClient ollama = new FakeOllamaClient();
+        ollama.round(List.of("네, 오늘 저녁에 어떤 음식을 드시면 좋을지 추천해드릴게요. 먼저 최근 섭취 기록을 확인해보겠습니다. 잠시만요."),
+                List.of());
+        ollama.round(List.of(), List.of(mealsCall()));
+        ollama.round(List.of("오늘은 김밥 480kcal를 드셨으니 저녁은 단백질 위주로 드셔보세요."), List.of());
+
+        Recorder recorder = new Recorder();
+        serviceWith(ollama).resolveToolsThenStream(null, messages(), recorder);
+
+        assertEquals(1, recorder.resets);
+        assertEquals("오늘은 김밥 480kcal를 드셨으니 저녁은 단백질 위주로 드셔보세요.", recorder.shown.toString());
+    }
+
+    /** 두 번 시켜도 예고만 하면 예고문 대신 폴백 문구를 보인다 - 대화가 멈춘 것처럼 보이면 안 된다 */
+    @Test
+    void preambleTwiceFallsBackInsteadOfShowingThePreamble() {
+        FakeOllamaClient ollama = new FakeOllamaClient();
+        ollama.round(List.of("오늘 저녁에 어떤 음식을 먹을지 추천해드릴게요. 최근 섭취 기록을 확인해보겠습니다."), List.of());
+        ollama.round(List.of("네, 지금 바로 확인해보겠습니다."), List.of());
+
+        Recorder recorder = new Recorder();
+        serviceWith(ollama).resolveToolsThenStream(null, messages(), recorder);
+
+        assertTrue(recorder.shown.toString().contains("확인하지 못했어요"), recorder.shown.toString());
+        assertTrue(!recorder.shown.toString().contains("확인해보겠습니다"), recorder.shown.toString());
+    }
+
+    // ---- 서버가 도구를 정한 턴 ----
+
+    private static ChatIntentRouter.Route mealsRoute() {
+        return ChatIntentRouter.Route.of("get_meals_for_date", Map.of("date", "2026-09-01"), true);
+    }
+
+    /** 라우팅된 턴은 모델이 도구를 고르는 라운드 없이, 결과를 문장으로 옮기는 라운드 하나만 돈다 */
+    @Test
+    void routedTurnSkipsToolChoiceAndStreamsThePhrasedAnswer() {
+        FakeOllamaClient ollama = new FakeOllamaClient();
+        ollama.round(List.of("어제는 김밥 480kcal를 드셨어요."), List.of());
+
+        Recorder recorder = new Recorder();
+        serviceWith(ollama).routedReply(null, messages(), mealsRoute(), recorder);
+
+        assertEquals("어제는 김밥 480kcal를 드셨어요.", recorder.shown.toString());
+        assertEquals(0, recorder.resets);
+    }
+
+    /** 기록이 없으면 모델을 아예 부르지 않는다 - 스크립트에 라운드가 없으므로 불렀다면 예외가 난다 */
+    @Test
+    void routedTurnWithEmptyResultAnswersWithoutTheModel() {
+        FakeOllamaClient ollama = new FakeOllamaClient();
+        FixedToolExecutor executor = new FixedToolExecutor(
+                "{\"date\":\"2026-09-01\",\"meals\":[],\"note\":\"2026-09-01에 기록된 식사가 없어요.\"}");
+
+        Recorder recorder = new Recorder();
+        serviceWith(ollama, executor).routedReply(null, messages(), mealsRoute(), recorder);
+
+        assertEquals("2026-09-01에 기록된 식사가 없어요.", recorder.shown.toString());
+        assertEquals(1, executor.calls);
+    }
+
+    /** "운동 추천해줘"에 부위가 없으면 안내문을 답으로 쓰고, 다음 메시지를 부위 답으로 받게 알린다 */
+    @Test
+    void routedRecommendationWithoutBodyPartArmsFollowUp() {
+        FakeOllamaClient ollama = new FakeOllamaClient();
+        FixedToolExecutor executor = new FixedToolExecutor(
+                "{\"body_part\":\"\",\"matched\":0,\"candidates\":[],\"note\":\"어느 부위 운동인지 알려주시면 추천해드릴게요.\"}");
+        ChatIntentRouter.Route route = ChatIntentRouter.route("운동 추천해줘", null, java.time.LocalDate.of(2026, 9, 1))
+                .orElseThrow();
+
+        Recorder recorder = new Recorder();
+        ChatService.ReplyMeta meta = serviceWith(ollama, executor).routedReply(null, messages(), route, recorder);
+
+        assertEquals("어느 부위 운동인지 알려주시면 추천해드릴게요.", recorder.shown.toString());
+        assertEquals(ChatIntentRouter.FOLLOW_UP_EXERCISE_SERVER, meta.followUp());
+    }
+
+    /** 후보가 있으면 note(조건 완화 안내)가 붙어 있어도 데이터가 있는 것이다 - 모델이 문장을 만든다 */
+    @Test
+    void routedRecommendationWithCandidatesIsPhrasedEvenWithNote() {
+        FakeOllamaClient ollama = new FakeOllamaClient();
+        ollama.round(List.of("덤벨 스쿼트 3세트 12회부터 해보세요."), List.of());
+        FixedToolExecutor executor = new FixedToolExecutor(
+                "{\"candidates\":[{\"name\":\"덤벨 스쿼트\",\"sets_reps\":\"3세트 x 12회\"}],"
+                + "\"note\":\"이 부위는 기구 없이 하는 동작이 많지 않아 장비 조건을 넓혀서 골랐어요.\"}");
+        ChatIntentRouter.Route route = ChatIntentRouter.route("하체 운동 추천해줘", null, java.time.LocalDate.of(2026, 9, 1))
+                .orElseThrow();
+
+        Recorder recorder = new Recorder();
+        ChatService.ReplyMeta meta = serviceWith(ollama, executor).routedReply(null, messages(), route, recorder);
+
+        assertEquals("덤벨 스쿼트 3세트 12회부터 해보세요.", recorder.shown.toString());
+        assertEquals(null, meta.followUp());
     }
 }

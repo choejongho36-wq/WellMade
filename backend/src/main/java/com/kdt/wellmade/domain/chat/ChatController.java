@@ -99,6 +99,10 @@ public class ChatController {
                 if (!meta.links().isEmpty()) {
                     sendJsonQuietly(emitter, Map.of("links", meta.links()));
                 }
+                // 서버가 되물은 경우("어느 부위?") - 다음 메시지를 그 답으로 보내라는 신호
+                if (meta.followUp() != null) {
+                    sendJsonQuietly(emitter, Map.of("followUp", meta.followUp()));
+                }
             } catch (UncheckedIOException e) {
                 // 사용자가 답변 도중 창을 닫았을 때(sendJson 실패). 보낼 곳이 없으니 안내도 못 하고,
                 // 여기까지 만든 답변은 ChatService가 이미 저장했다.

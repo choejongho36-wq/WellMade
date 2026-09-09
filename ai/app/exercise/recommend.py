@@ -654,7 +654,63 @@ def find_detail(name: str) -> dict:
     if partial:
         return _detail_of(min(partial, key=lambda e: len(e.get("name_ko") or "")))
 
-    return {"found": False, "note": f"'{name}' 운동을 찾지 못했어요. 추천해드린 목록 중에서 골라주세요."}
+    # 3) 문장 안에 이름이 들어 있는 경우 - "덤벨 런지 자세 알려줘"처럼 백엔드가 사용자 문장을
+    #    그대로 넘긴다(어떤 말이 운동 이름인지는 이 서버만 안다). 긴 이름부터 맞춰 "닐링 푸시업"이
+    #    "푸시업"으로 접히지 않게 한다. 큐레이션이 덧씌운 이름은 원본 목록에 없으므로 같이 본다.
+    found = _longest_name_in(exercises, key)
+    if found:
+        return found
+
+    # 4) 조사를 뗀 낱말로 다시 - "플랭크는 어떻게 해?"의 "플랭크"는 어느 이름과도 같지 않지만
+    #    "프론트 플랭크"처럼 그 말을 품은 이름은 있다. 낱말 단위로 2)를 다시 돌린다.
+    for word in sorted(_words_without_particles(name), key=len, reverse=True):
+        wkey = _normalize_name(word)
+        if len(wkey) < 2 or wkey in _DETAIL_STOPWORDS:
+            continue
+        partial = [e for e in exercises if wkey in _normalize_name(e.get("name_ko"))]
+        if partial:
+            return _detail_of(min(partial, key=lambda e: len(e.get("name_ko") or "")))
+
+    return {"found": False, "note": "어떤 운동인지 찾지 못했어요. 추천해드린 목록에 있는 이름으로 물어봐 주세요."}
+
+
+# 운동 이름의 일부이긴 하지만 그 자체로는 운동을 가리키지 않는 말. "두 번째 운동 어떻게 해?"의
+# "운동"이 "운동 볼 딥스"에 걸리는 걸 막는다.
+_DETAIL_STOPWORDS = {"운동", "자세", "방법", "설명", "동작", "세트", "횟수", "번째", "추천", "알려", "어떻게", "하는"}
+
+# 낱말 끝에 붙는 조사. 긴 것부터 떼야 "으로"가 "로"로만 잘리지 않는다.
+_PARTICLES = ("으로", "에서", "이랑", "하고", "는", "은", "이", "가", "을", "를", "의", "도", "로", "랑", "에")
+
+
+def _words_without_particles(text: str) -> list[str]:
+    words = []
+    for raw in re.split(r"[\s,.?!~/()]+", text or ""):
+        if not raw:
+            continue
+        for particle in _PARTICLES:
+            if raw.endswith(particle) and len(raw) > len(particle):
+                raw = raw[: -len(particle)]
+                break
+        words.append(raw)
+    return words
+
+
+def _longest_name_in(exercises: list, key: str) -> Optional[dict]:
+    """key(정규화된 문장) 안에 들어 있는 운동 이름 중 가장 긴 것의 설명. 없으면 None."""
+    best_len = 0
+    best: Optional[dict] = None
+    # 큐레이션에서 덧씌운 이름(추천 목록에 보여준 이름)이 원본 이름보다 우선이다
+    for norm, override in _core_name_overrides().items():
+        if len(norm) >= 2 and norm in key and len(norm) > best_len:
+            for e in exercises:
+                if e["name"] == override["name"]:
+                    best, best_len = {**_detail_of(e), "name": override["name_ko"]}, len(norm)
+                    break
+    for e in exercises:
+        norm = _normalize_name(e.get("name_ko"))
+        if len(norm) >= 2 and norm in key and len(norm) > best_len:
+            best, best_len = _detail_of(e), len(norm)
+    return best
 
 
 def _detail_of(e: dict) -> dict:

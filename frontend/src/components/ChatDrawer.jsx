@@ -111,6 +111,12 @@ const CHAT_MENU_ITEMS = [
   { id: 'diet-manage', label: '캘린더', path: '/mealplan' },
 ]
 
+// 서버가 답변 끝에 되물은 경우(예: "운동 추천해줘"에 부위가 없어서 "어느 부위?"로 답함).
+// 다음 메시지를 그 답으로 보내야 하므로 id를 기억한다. 값은 ChatService/ChatIntentRouter와 맞춘다.
+const SERVER_FOLLOW_UPS = {
+  'exercise-body-part': { placeholder: '예: 하체, 맨몸' },
+}
+
 // 로딩 인디케이터: 글자 -> 점 순서로 물결이 흐르도록 한 칸씩 지연을 준다
 const THINKING_TEXT = [...'생각하는 중']
 const TYPING_STEP_SEC = 0.09
@@ -193,7 +199,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
     }
 
     sendChat(content, applyStream, followUpId)
-      .then(({ content: reply, action, links }) => {
+      .then(({ content: reply, action, links, followUp }) => {
         setMessages((prev) => {
           const copy = [...prev]
           const last = copy[copy.length - 1]
@@ -205,6 +211,9 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
           }
           return copy
         })
+        if (followUp && SERVER_FOLLOW_UPS[followUp]) {
+          setPendingFollowUp({ id: followUp, ...SERVER_FOLLOW_UPS[followUp] })
+        }
       })
       .catch((e) => setError(e.message || '답변을 받지 못했어요. 잠시 후 다시 시도해주세요.'))
       .finally(() => setLoading(false))
@@ -212,6 +221,9 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
 
   const handleMenuClick = (item) => {
     if (loading) return
+    // 되묻기("어느 부위?")를 무시하고 다른 버튼을 눌렀으면 그 되묻기는 끝난 것이다. 안 접으면
+    // 다음에 친 "고마워"까지 "원하는 조건: 고마워"로 감싸져 운동 추천으로 간다.
+    setPendingFollowUp(null)
 
     if (item.path) {
       onClose()

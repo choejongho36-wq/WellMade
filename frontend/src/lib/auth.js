@@ -231,6 +231,7 @@ function useAuthState() {
     let full = ''
     let action = null   // 스트림 끝에 한 번 오는 후속 행동 신호 (예: register_inbody)
     let links = []      // 도구가 실어 보낸 바깥 링크 (운동 추천의 국민체력100 영상)
+    let followUp = null // 서버가 되물은 경우(예: "어느 부위?") - 다음 메시지를 그 답으로 보내라는 id
 
     for (;;) {
       const { done, value } = await reader.read()
@@ -259,6 +260,7 @@ function useAuthState() {
         if (parsed.error) throw new Error(parsed.error)
         if (parsed.action) action = parsed.action
         if (parsed.links) links = parsed.links
+        if (parsed.followUp) followUp = parsed.followUp
         // 도구를 부른 턴에서 최종 답변을 다시 흘리기 직전에 온다. 그 전에 나온 조각
         // ("찾아볼게요" 같은 예고문)은 답변이 아니므로 말풍선을 비우고 다시 그린다
         if (parsed.reset) {
@@ -271,7 +273,7 @@ function useAuthState() {
         }
       }
     }
-    return { content: full, action, links }
+    return { content: full, action, links, followUp }
   }
 
   const getChatHistory = () =>
