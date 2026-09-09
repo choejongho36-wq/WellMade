@@ -14,7 +14,7 @@
  * 기본값이 빈 문자열인 이유:
  *   프로덕션에서는 nginx가 /posture/ 를 posture-ai:8001 로 프록시하므로
  *   프론트와 같은 오리진이 된다(nginx.conf 참고). 빈 값이면 요청이
- *   "/posture/analyze/..." 상대 경로로 나가 CORS가 발생하지 않는다.
+ *   "/posture-api/analyze/..." 상대 경로로 나가 CORS가 발생하지 않는다.
  *
  *   로컬 개발에서는 vite dev server(:5173)와 posture-ai(:8001)가 다른
  *   포트라 .env.local 에 VITE_POSTURE_AI_BASE=http://localhost:8001 을
@@ -38,7 +38,7 @@ export const POSTURE_AI_BASE = import.meta.env.VITE_POSTURE_AI_BASE || ''
  * (실측: 720x900 사진에서 약 6도 차이).
  */
 export async function analyzePosture(view, landmarks, imageWidth, imageHeight) {
-  const res = await fetch(`${POSTURE_AI_BASE}/posture/analyze/${view}/agent`, {
+  const res = await fetch(`${POSTURE_AI_BASE}/posture-api/analyze/${view}/agent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
