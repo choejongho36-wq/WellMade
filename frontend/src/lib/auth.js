@@ -418,6 +418,17 @@ function useAuthState() {
       if (!res.ok) throw new Error('삭제에 실패했어요')
     })
 
+  // 실시간 세션/사진측정 코칭이 끝났을 때 관리자 대시보드 집계용으로 결과 요약을 남긴다.
+  // 통계 전송일 뿐이라 실패해도 리포트 화면 자체는 그대로 보여줘야 해서, 에러를 여기서
+  // 삼킨다 - 호출부(useSquatCoachingSession.js/usePhotoCoachingSession.js)는 await 없이
+  // fire-and-forget으로 부르면 된다.
+  const logWorkoutSession = (payload) =>
+    authOk('/api/workout/sessions', { method: 'POST', body: JSON.stringify(payload) }, '세션 기록 실패').catch(
+      (err) => {
+        console.warn('운동 세션 기록 전송 실패', err)
+      },
+    )
+
   return {
     user, profile, inbody, handleLogout,
     sessionExpired, dismissSessionExpired: () => setSessionExpired(false),
@@ -428,5 +439,6 @@ function useAuthState() {
     updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
     sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu,
     getWorkoutMemo, saveWorkoutMemo, getWorkoutMemoMonth,
+    logWorkoutSession,
   }
 }

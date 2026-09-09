@@ -1,9 +1,12 @@
 package com.kdt.wellmade.domain.chat;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.kdt.wellmade.domain.user.User;
 
@@ -14,4 +17,11 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessageEntity, 
     List<ChatMessageEntity> findByUserOrderByCreatedAtDesc(User user, Pageable pageable);
 
     void deleteByUser(User user);
+
+    // 관리자 대시보드 "오늘 대화 수"용 — 사용자가 보낸 메시지만 센다(role='user')
+    long countByRoleAndCreatedAtAfter(String role, LocalDateTime dateTime);
+
+    // 관리자 대시보드 "오늘 챗봇을 쓴 사용자 수"용 — 사용자당 평균 메시지 수 = 위 값 / 이 값
+    @Query("SELECT COUNT(DISTINCT m.user) FROM ChatMessageEntity m WHERE m.role = :role AND m.createdAt >= :dateTime")
+    long countDistinctUsersByRoleAndCreatedAtAfter(@Param("role") String role, @Param("dateTime") LocalDateTime dateTime);
 }

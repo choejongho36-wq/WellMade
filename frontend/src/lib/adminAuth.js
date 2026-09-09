@@ -3,7 +3,7 @@
  * httpOnly 쿠키에만 있어 프론트가 값을 직접 들고 있을 수 없으므로, "로그인됐는지"는
  * 항상 서버(/api/admin/auth/me)에 물어봐서 확인한다.
  */
-import { createContext, createElement, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { adminLogin, adminLogout, adminMe } from './adminApi.js'
 
 const AdminAuthContext = createContext(null)
@@ -45,6 +45,24 @@ function useAdminAuthState() {
     await adminLogout()
     setAdmin(null)
   }, [])
+
+  // 탭이 백그라운드로 전환되는 순간(다른 탭/창으로 이동, 최소화 등) 자동 로그아웃한다 —
+  // 관리자 화면이 자리를 비운 사이 남의 눈에 그대로 노출되지 않게 하기 위함. admin이 이미
+  // null/undefined면(로그인 안 됐거나 확인 중) 부를 필요 없다.
+  const adminRef = useRef(admin)
+  useEffect(() => {
+    adminRef.current = admin
+  }, [admin])
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && adminRef.current) {
+        logout()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [logout])
 
   return { admin, error, login, logout }
 }

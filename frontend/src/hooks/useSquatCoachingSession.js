@@ -21,6 +21,7 @@ import { AI_BASE } from '../lib/aiApi.js'
 import { appendSquatSessionHistory, loadSquatSessionHistory } from '../lib/squatSessionHistory.js'
 import { addSquatDailyStats, loadSquatDailyStats, todayDateKey } from '../lib/squatDailyStats.js'
 import { getExerciseGoal } from '../lib/exerciseGoals.js'
+import { useAuth } from '../lib/auth.js'
 
 
 const SAMPLE_INTERVAL_MS = 200 // 실시간 판독 주기 — 대려 5fps
@@ -102,6 +103,7 @@ function formatElapsed(sec) {
 
 export function useSquatCoachingSession() {
   const { detectPose } = usePoseLandmarker()
+  const { logWorkoutSession } = useAuth()
 
   const [phase, setPhase] = useState('idle') // idle | active | report
   const [cameraError, setCameraError] = useState('')
@@ -331,6 +333,16 @@ export function useSquatCoachingSession() {
         // 점수 계산이 그 뒤에 있어서 순서를 이렇게 옮겼다.
         setSessionReport({ ...data, score })
 
+        // 관리자 대시보드 집계용 — 실패해도(catch는 logWorkoutSession 내부에서 처리) 리포트
+        // 표시 자체는 막지 않는다.
+        logWorkoutSession({
+          sourceType: 'SESSION',
+          resultNormal: (data.abnormal_reps ?? 0) === 0,
+          totalReps: data.total_reps ?? null,
+          abnormalReps: data.abnormal_reps ?? null,
+          issueCounts: data.issue_counts_by_part ?? null,
+        })
+
         // 세션 내내 누적한 평균 자세 지표 — 운동 기록 페이지의 "자세 분석 결과"에 쓴다.
         // knee_valgus_ratio는 정면 단계를 안 했으면 null로 남는다(averageMetric 참고).
         const avgMetrics = {
@@ -371,7 +383,7 @@ export function useSquatCoachingSession() {
         setReportLoading(false)
       }
     },
-    [speak, squatGoal],
+    [speak, squatGoal, logWorkoutSession],
   )
 
   const endSession = useCallback(

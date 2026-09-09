@@ -29,6 +29,8 @@ import com.kdt.wellmade.domain.insight.PeerInsightService;
 import com.kdt.wellmade.domain.user.User;
 import com.kdt.wellmade.domain.workout.WorkoutMemoService;
 import com.kdt.wellmade.global.time.AppTime;
+import com.kdt.wellmade.global.monitoring.LlmCallLog;
+import com.kdt.wellmade.global.monitoring.LlmCallLogRepository;
 import org.springframework.data.domain.PageRequest;
 
 /**
@@ -156,6 +158,7 @@ public class ChatToolExecutor {
     private final PeerInsightService peerInsightService;
     private final WorkoutMemoService workoutMemoService;
     private final ChatMessageRepository chatMessageRepository;
+    private final LlmCallLogRepository llmCallLogRepository;
 
     public ChatToolExecutor(
             UserProfileService userProfileService,
@@ -166,7 +169,8 @@ public class ChatToolExecutor {
             ObjectMapper objectMapper,
             PeerInsightService peerInsightService,
             WorkoutMemoService workoutMemoService,
-            ChatMessageRepository chatMessageRepository
+            ChatMessageRepository chatMessageRepository,
+            LlmCallLogRepository llmCallLogRepository
     ) {
         this.userProfileService = userProfileService;
         this.inbodyService = inbodyService;
@@ -177,6 +181,7 @@ public class ChatToolExecutor {
         this.peerInsightService = peerInsightService;
         this.workoutMemoService = workoutMemoService;
         this.chatMessageRepository = chatMessageRepository;
+        this.llmCallLogRepository = llmCallLogRepository;
     }
 
     /**
@@ -194,7 +199,7 @@ public class ChatToolExecutor {
 
     ToolResult execute(User user, String name, Map<String, Object> arguments) {
         try {
-            return switch (name) {
+            ToolResult result = switch (name) {
                 case "get_meals_for_date" -> ToolResult.of(toolGetMealsForDate(user.getId(), arguments));
                 case "get_daily_total" -> ToolResult.of(toolGetDailyTotal(user.getId(), arguments));
                 case "get_inbody_history" -> ToolResult.of(toolGetInbodyHistory(user, arguments));
@@ -206,9 +211,21 @@ public class ChatToolExecutor {
                 case "get_exercise_detail" -> ToolResult.of(toolGetExerciseDetail(arguments));
                 default -> ToolResult.of(toJson(Map.of("error", "알 수 없는 도구입니다: " + name)));
             };
+            recordToolCall(name, true);
+            return result;
         } catch (Exception e) {
             log.error("도구 실행 실패: {}", name, e);
+            recordToolCall(name, false);
             return ToolResult.of(toJson(Map.of("error", "도구 실행 중 문제가 발생했어요.")));
+        }
+    }
+
+    // 관리자 대시보드 "어떤 도구가 많이 호출되는지" 집계용. 기록 실패는 챗봇 응답 흐름과 무관하다.
+    private void recordToolCall(String name, boolean success) {
+        try {
+            llmCallLogRepository.save(LlmCallLog.toolCall(name, success));
+        } catch (RuntimeException e) {
+            log.warn("도구 호출 로그 저장 실패: {}", name, e);
         }
     }
 

@@ -52,6 +52,11 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    // 관리자 대시보드 "오늘 활성 사용자(DAU)" 집계용 — JwtAuthenticationFilter가 인증된 요청마다
+    // (날짜가 바뀐 경우에만) 갱신한다. null이면 아직 한 번도 활동 기록이 안 된 사용자.
+    @Column(name = "last_active_at")
+    private LocalDateTime lastActiveAt;
+
     @Builder
     public User(Provider provider, String providerId, String email){
         this.provider = provider;
