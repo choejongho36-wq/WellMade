@@ -419,6 +419,10 @@ public class ChatToolExecutor {
     private static final String AI_UNAVAILABLE = "AI 서버에서 정보를 가져오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
     private static final int WORKOUT_MEMO_DAYS = 7;
+    /** 부위를 이어받으려고 훑어볼 최근 메시지 수(사용자 것만 골라 쓴다) */
+    private static final int RECENT_USER_MESSAGE_LIMIT = 8;
+    /** 그중 한 건에서 넘길 길이. 부위 표현은 짧아서 이만큼이면 충분하다 */
+    private static final int RECENT_USER_MESSAGE_MAX_CHARS = 100;
     /** 같은 추천이 반복되지 않게 훑어볼 최근 챗봇 답변 수 */
     private static final int RECENT_REPLY_LIMIT = 10;
     /** 답변 한 건에서 넘길 길이. 운동 이름은 앞부분에 나오므로 이만큼이면 다 잡힌다 */
@@ -453,6 +457,9 @@ public class ChatToolExecutor {
             }
         }
         body.put("recent_workouts", recentWorkouts(user));
+        // 이번 메시지에 부위가 없을 때 이어받을 최근 발화("하체 운동 추천" 다음 턴의 "바벨 운동").
+        // 무엇이 부위인지 판단하는 사전은 AI 서버에만 있으므로, 여기서는 원문만 넘긴다.
+        body.put("context_texts", recentUserMessages(user));
         // 최근 답변 원문을 넘기면 AI 서버가 그 안에 등장한 운동 이름을 빼준다. 운동 이름 목록은
         // 그쪽 큐레이션 파일에만 있으므로, 양쪽에 이름을 복제하지 않으려는 분담이다.
         body.put("exclude_from_text", recentAssistantReplies(user));
@@ -469,6 +476,17 @@ public class ChatToolExecutor {
     private List<Map<String, String>> recentWorkouts(User user) {
         LocalDate today = AppTime.today();
         return workoutMemoService.getBetween(user, today.minusDays(WORKOUT_MEMO_DAYS), today);
+    }
+
+    /** 최근 사용자 발화(최신 순). 부위를 이어받는 데만 쓰므로 짧게 자른다 */
+    private List<String> recentUserMessages(User user) {
+        return chatMessageRepository
+                .findByUserOrderByCreatedAtDesc(user, PageRequest.of(0, RECENT_USER_MESSAGE_LIMIT)).stream()
+                .filter(m -> "user".equals(m.getRole()))
+                .map(m -> m.getContent().length() <= RECENT_USER_MESSAGE_MAX_CHARS
+                        ? m.getContent()
+                        : m.getContent().substring(0, RECENT_USER_MESSAGE_MAX_CHARS))
+                .toList();
     }
 
     private List<String> recentAssistantReplies(User user) {

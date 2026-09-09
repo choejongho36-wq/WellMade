@@ -118,6 +118,24 @@ class ChatIntentRouterTest {
         assertEquals("플랭크는 어떻게 하는 거야?", argOf("플랭크는 어떻게 하는 거야?", "name"));
     }
 
+    /**
+     * 되묻기에 답한 뒤 조건만 더 던지는 흐름. 요청 동사가 없어서 라우팅이 안 됐고, 모델이
+     * 데이터에 없는 운동("퀀텀 레그 Curl", "레그_PRESS")과 주의사항을 지어냈다(실측).
+     */
+    @Test
+    void bareConditionWithoutRequestVerbStillRoutes() {
+        assertEquals("recommend_exercises", toolOf("맨몸운동"));
+        assertEquals("recommend_exercises", toolOf("바벨 운동"));
+        assertEquals("recommend_exercises", toolOf("하체운동"));
+    }
+
+    /** 지나간 일을 말하는 문장은 추천 요청이 아니다 */
+    @Test
+    void pastTenseWorkoutStatementsAreNotRouted() {
+        assertEquals(null, toolOf("어제 운동했어"));
+        assertEquals(null, toolOf("오늘 운동 하는 중이야"));
+    }
+
     @Test
     void howToQuestionsAboutFoodAreNotExerciseDetail() {
         assertEquals(null, toolOf("다이어트 식단은 어떻게 해?"));

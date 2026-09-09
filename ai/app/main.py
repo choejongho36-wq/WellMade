@@ -468,6 +468,7 @@ def exercise_recommend(request: ExerciseRecommendRequest):
         recent_workouts=[w.model_dump() for w in request.recent_workouts],
         exclude=request.exclude,
         exclude_from_text=request.exclude_from_text,
+        context_texts=request.context_texts,
     )
 
     return ExerciseRecommendResponse(**result)
