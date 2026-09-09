@@ -563,7 +563,9 @@ function GoalPickerModal({ current, onClose, onSelect }) {
 // 않는다(추후 실제로 붙으면 그때 연결).
 function ExerciseGoalModal({ goals, onClose, onSave }) {
   const [rows, setRows] = useState(
-    goals.length > 0 ? goals.map((g) => ({ id: g.id, targetReps: g.targetReps })) : [{ id: 'squat', targetReps: 20 }],
+    goals.length > 0
+      ? goals.map((g) => ({ id: g.id, targetReps: g.targetReps, targetSets: g.targetSets ?? 1 }))
+      : [{ id: 'squat', targetReps: 20, targetSets: 1 }],
   )
   const [saving, setSaving] = useState(false)
 
@@ -577,7 +579,7 @@ function ExerciseGoalModal({ goals, onClose, onSave }) {
     const used = new Set(rows.map((r) => r.id))
     const next = EXERCISE_OPTIONS.find((o) => !used.has(o.id))
     if (!next) return
-    setRows((rs) => [...rs, { id: next.id, targetReps: 20 }])
+    setRows((rs) => [...rs, { id: next.id, targetReps: 20, targetSets: 1 }])
   }
 
   const handleSave = () => {
@@ -586,6 +588,7 @@ function ExerciseGoalModal({ goals, onClose, onSave }) {
       id: r.id,
       name: EXERCISE_OPTIONS.find((o) => o.id === r.id)?.label ?? r.id,
       targetReps: Math.max(0, Math.min(999, Number(r.targetReps) || 0)),
+      targetSets: Math.max(1, Math.min(20, Number(r.targetSets) || 1)),
     }))
     onSave(cleaned)
     setSaving(false)
@@ -594,7 +597,7 @@ function ExerciseGoalModal({ goals, onClose, onSave }) {
 
   return (
     <div className="modal-backdrop">
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal mp-goal-modal-wide" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="닫기">×</button>
         <div className="modal-title">운동 목표</div>
         <div className="modal-sub">
@@ -627,7 +630,18 @@ function ExerciseGoalModal({ goals, onClose, onSave }) {
                   value={row.targetReps}
                   onChange={(e) => updateRow(idx, { targetReps: e.target.value })}
                 />
-                <span className="modal-review-unit">회/일</span>
+                <span className="modal-review-unit">회</span>
+              </span>
+              <span className="modal-review-input-wrap">
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  className="modal-review-input"
+                  value={row.targetSets}
+                  onChange={(e) => updateRow(idx, { targetSets: e.target.value })}
+                />
+                <span className="modal-review-unit">세트/일</span>
               </span>
               {rows.length > 1 && (
                 <button type="button" className="link-btn mp-goal-remove" onClick={() => removeRow(idx)}>
@@ -837,7 +851,7 @@ function MyPage() {
                 {goalState.configured && (
                   <>
                     {' · '}
-                    {goalState.goals.map((g) => `${g.name} ${g.targetReps}회/일`).join(', ')}
+                    {goalState.goals.map((g) => `${g.name} ${g.targetReps}회 ${g.targetSets}세트/일`).join(', ')}
                     <button className="link-btn mp-body-edit" onClick={() => setGoalSettingsOpen(true)}>
                       수정
                     </button>

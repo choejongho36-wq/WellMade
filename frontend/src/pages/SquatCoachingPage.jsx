@@ -19,20 +19,71 @@ import PageShell from '../components/PageShell.jsx'
 import { useSquatCoachingSession } from '../hooks/useSquatCoachingSession.js'
 import { PART_LABELS } from '../lib/squatPose.js'
 import { formatDateKey, todayDateKey } from '../lib/squatDailyStats.js'
+import { loadSquatLevel, saveSquatLevel } from '../lib/squatLevelPreference.js'
 import './squatShared.css'
 import './SquatCoachingPage.css'
 
-function IdleView({ onStart, cameraError }) {
+// (2026-09-08 추가, 같은 날 재수정) level: 'expert' | 'beginner'.
+// 실제 판정 로직은 두 모드가 거의 같고(설명은 기존 서 있는 상태 안내, 완료는 기존 세션
+// 자동 종료 조건이 그대로 담당), 초심자 모드에서는 마지막 안내 문구만 "반복 횟수" 대신
+// "바른 자세 유지"로 바뀌고, ActiveView의 목표 진행 표시가 숨겨진다(아래 ActiveView 참고).
+//
+// (재수정) 처음엔 세션 시작 전 팝업 모달(SquatLevelModal)로 고르게 했었는데, "모달 대신
+// 안내 문구가 처음부터 보이고 버튼 두 개로 바로 전환되게" 요청에 따라 팝업을 없애고 이
+// 화면(IdleView)에 알약(pill) 모양 세그먼트 토글 + 선택된 모드 설명 문구를 바로 넣었다.
+// 선택은 누르는 즉시 반영되고(onSelectLevel), 값 저장은 그대로 squatLevelPreference.js가
+// 담당한다(처음 방문 시 초심자 기본, 숙련자로 한 번 바꾸면 계속 유지).
+function IdleView({ onStart, cameraError, level, onSelectLevel }) {
+  const isBeginner = level === 'beginner'
   return (
     <div className="squat-card squat-idle">
       <h2 className="squat-idle-title">실시간 스쿼트 코칭을 시작할게요</h2>
+
+      <div className="squat-level-toggle" role="group" aria-label="코칭 모드 선택">
+        <button
+          type="button"
+          className={`squat-level-toggle-btn${isBeginner ? ' is-active' : ''}`}
+          onClick={() => onSelectLevel('beginner')}
+        >
+          초심자
+        </button>
+        <button
+          type="button"
+          className={`squat-level-toggle-btn${isBeginner ? '' : ' is-active'}`}
+          onClick={() => onSelectLevel('expert')}
+        >
+          숙련자
+        </button>
+      </div>
+      <p className="squat-level-desc">
+        {isBeginner ? (
+          <>
+            스쿼트 방법을 처음부터 차근차근 안내해드려요.
+            <br />
+            반복 횟수 대신, 바른 자세를 잠시 유지하면 완료로 안내해드려요.
+          </>
+        ) : (
+          <>
+             반복 횟수를 세고 목표 대비 진행 상황을 보여드려요.
+            <br />
+            측면은 자세 전반을, 정면은 무릎모임만 확인해요.
+            <br />
+            이상 자세가 감지될 때만 짚어드려요.
+          </>
+        )}
+      </p>
+
       <ol className="squat-idle-steps">
         <li>휴대폰이나 노트북 카메라를 측면(옆모습)이 보이도록 세워주세요.</li>
         <li>발끝부터 머리까지 화면에 다 들어오게 한 걸음 물러나 주세요.</li>
         <li>시작 버튼을 누르면 카메라 권한을 요청해요.</li>
         <li>스쿼트를 하는 동안 실시간으로 자세를 확인해요.</li>
         <li>자세가 정상인지 아닌지 음성으로 바로바로 안내해드려요.</li>
-        <li>바른 자세를 목표 시간만큼 유지하면 자동으로 세션이 끝나요. (언제든 "운동 종료" 버튼으로 직접 끝낼 수도 있어요.)</li>
+        {isBeginner ? (
+          <li>바른 자세를 목표 시간만큼 유지하면 완료로 안내해드려요. (언제든 "운동 종료" 버튼으로 직접 끝낼 수도 있어요.)</li>
+        ) : (
+          <li>반복 횟수를 세서 마이페이지 목표 대비 진행 상황을 보여드려요. (언제든 "운동 종료" 버튼으로 직접 끝낼 수도 있어요.)</li>
+        )}
       </ol>
       {cameraError && <p className="squat-error">{cameraError}</p>}
       <button className="squat-btn squat-btn-primary" onClick={onStart}>
@@ -42,7 +93,7 @@ function IdleView({ onStart, cameraError }) {
   )
 }
 
-function ActiveView({ session }) {
+function ActiveView({ session, level }) {
   const {
     videoRef,
     canvasRef,
@@ -57,9 +108,18 @@ function ActiveView({ session }) {
     ttsEnabled,
     setTtsEnabled,
     endSession,
+    repHistory,
+    dailyStats,
+    squatGoal,
   } = session
 
   const isWarmingUp = bufferCount < 3
+  // (2026-09-08 추가, 같은 날 목표에 세트 개념이 생기면서 수정) 숙련자 모드 전용 — 오늘
+  // 이미 끝낸 세션(=세트) 수(dailyStats.total_sets, 세션 종료 때만 갱신됨)와 지금 진행 중인
+  // 세트의 반복 횟수(repHistory, 렙이 끝날 때마다 실시간 갱신됨)를 보여준다. 초심자
+  // 모드에서는 렙/세트 개념 자체를 강조하지 않기로 했으므로(설계 논의 참고) 렌더링하지 않는다.
+  const isBeginner = level === 'beginner'
+  const todaySets = dailyStats[todayDateKey()]?.total_sets ?? 0
   const isFront = sessionStage === 'front'
   // 정면 단계는 무릎모임(knee_valgus)만 판정하므로 측면 전용 필드(isDeepHold/
   // standingStepText)는 보지 않고 judgeResult.view로 갈라서 별도 문구를 쓴다
@@ -116,6 +176,20 @@ function ActiveView({ session }) {
               </div>
             ))}
           </div>
+        )}
+
+        {!isBeginner && !isFront && (
+          <p className="squat-progress-note squat-goal-live">
+            {squatGoal ? (
+              <>
+                오늘 <b>{Math.min(todaySets, squatGoal.targetSets)}</b>/{squatGoal.targetSets}세트 완료
+                {todaySets >= squatGoal.targetSets ? ' · 목표 달성! 🎉' : ''}
+                {' · '}이번 세트 <b>{repHistory.length}</b>/{squatGoal.targetReps}회
+              </>
+            ) : (
+              <>이번 세트 <b>{repHistory.length}</b>회 진행 중 · 마이페이지에서 목표를 설정하면 진행률이 표시돼요</>
+            )}
+          </p>
         )}
 
         {endCheck && (
@@ -338,10 +412,17 @@ function RepTimeline({ reps }) {
 }
 
 // 이번 달 달력에 날짜별 목표 달성 여부(초록 반투명 채움)를 보여준다 — 실시간 코칭 화면의
-// 달력 모달(ActiveView)과 리포트 화면(ReportView) 양쪽에서 재사용한다. goalTarget이
+// 달력 모달(ActiveView)과 리포트 화면(ReportView) 양쪽에서 재사용한다. goal이
 // 없으면(마이페이지에서 목표 미설정) 채움 없이 설정해 달라는 안내만 보여준다. 오른쪽에는
 // 오늘 누적 리포트를 도넛 그래프로 항상 같이 보여준다(TodayReportGraph).
-function SquatGoalCalendar({ dailyStats, goalTarget }) {
+//
+// (2026-09-08 수정) goalTarget(숫자, 회수만) → goal(객체, { targetReps, targetSets }).
+// "그날 목표를 채웠는지"는 이제 총 반복 횟수가 아니라 완료한 세트 수(total_sets)가
+// targetSets 이상인지로 판단한다 — 실시간 코칭은 세션(세트) 하나가 끝날 때까지 정확히
+// 몇 회를 할지 강제하지 않으므로(정상 자세 비율+시간 기반 자동 종료), "회수 목표"는
+// "세트당 몇 회를 목표로 할지"를 알려주는 참고값이고 실제 달성 판정은 세트 수로 하는
+// 편이 더 안정적이다.
+function SquatGoalCalendar({ dailyStats, goal }) {
   const [monthOffset, setMonthOffset] = useState(0)
   const base = new Date()
   const viewDate = new Date(base.getFullYear(), base.getMonth() + monthOffset, 1)
@@ -356,8 +437,8 @@ function SquatGoalCalendar({ dailyStats, goalTarget }) {
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
 
   const todayStat = dailyStats[today]
-  const todayReps = todayStat?.total_reps ?? 0
-  const todayGoalMet = goalTarget != null && todayReps >= goalTarget
+  const todaySets = todayStat?.total_sets ?? 0
+  const todayGoalMet = goal != null && todaySets >= goal.targetSets
 
   return (
     <div className="squat-calendar-row">
@@ -372,14 +453,14 @@ function SquatGoalCalendar({ dailyStats, goalTarget }) {
           </button>
         </div>
 
-        {goalTarget != null ? (
+        {goal != null ? (
           <div className="squat-calendar-today-goal">
-            오늘 목표 {goalTarget}회 중 <b>{Math.min(todayReps, goalTarget)}회</b>
-            {todayGoalMet ? ' · 달성! 🎉' : ` · ${Math.max(goalTarget - todayReps, 0)}회 남았어요`}
+            오늘 목표 {goal.targetReps}회 {goal.targetSets}세트 중 <b>{Math.min(todaySets, goal.targetSets)}세트</b> 완료
+            {todayGoalMet ? ' · 달성! 🎉' : ` · ${Math.max(goal.targetSets - todaySets, 0)}세트 남았어요`}
           </div>
         ) : (
           <div className="squat-calendar-today-goal squat-calendar-no-goal">
-            마이페이지에서 스쿼트 목표 횟수를 설정하면 달성한 날이 표시돼요.
+            마이페이지에서 스쿼트 목표 횟수·세트를 설정하면 달성한 날이 표시돼요.
           </div>
         )}
 
@@ -393,9 +474,9 @@ function SquatGoalCalendar({ dailyStats, goalTarget }) {
             if (d == null) return <span key={i} className="squat-calendar-cell squat-calendar-cell-empty" />
             const dateKey = formatDateKey(new Date(year, month, d))
             const stat = dailyStats[dateKey]
-            const met = goalTarget != null && stat != null && stat.total_reps >= goalTarget
+            const met = goal != null && stat != null && stat.total_sets >= goal.targetSets
             const isToday = dateKey === today
-            const title = stat ? `${dateKey} · ${stat.total_reps}회` : dateKey
+            const title = stat ? `${dateKey} · ${stat.total_reps}회 ${stat.total_sets}세트` : dateKey
             return (
               <span
                 key={i}
@@ -487,7 +568,7 @@ function ReportView({ session }) {
     sessionHistory,
     repHistory,
     dailyStats,
-    squatGoalTarget,
+    squatGoal,
     reportLoading,
     reportError,
     restart,
@@ -529,7 +610,7 @@ function ReportView({ session }) {
                 </div>
               </div>
             </div>
-            <SquatGoalCalendar dailyStats={dailyStats} goalTarget={squatGoalTarget} />
+            <SquatGoalCalendar dailyStats={dailyStats} goal={squatGoal} />
           </div>
 
           <div className="squat-stats-section-title">스쿼트 분석</div>
@@ -573,6 +654,20 @@ function ReportView({ session }) {
 function SquatCoachingPage() {
   const session = useSquatCoachingSession()
   const [calendarOpen, setCalendarOpen] = useState(false)
+  // (2026-09-08 추가, 같은 날 두 차례 수정) 초심자/숙련자 모드. 판정 로직 자체는 두 모드가
+  // 거의 같고(IdleView/ActiveView 주석 참고), 반복 횟수/목표 진행 표시만 숙련자 모드
+  // 전용으로 갈린다.
+  //
+  // 기본값은 하드코딩된 'expert'가 아니라 localStorage에 저장된 값 — 처음 방문(저장된 값
+  // 없음)이면 초심자로 시작하고, 숙련자로 한 번이라도 바꾸면 그 다음부터는 계속 숙련자로
+  // 시작한다(squatLevelPreference.js 참고). 처음엔 세션 시작 전 팝업 모달로 고르게
+  // 했었으나, 팝업 없이 IdleView에 바로 보이는 토글로 바꿨다(IdleView 주석 참고) — 그래서
+  // 여기 남은 건 값 하나(level)와 토글이 누르는 즉시 부르는 저장 핸들러뿐이다.
+  const [level, setLevel] = useState(() => loadSquatLevel())
+  const handleSelectLevel = (next) => {
+    setLevel(next)
+    saveSquatLevel(next)
+  }
 
   return (
     <PageShell>
@@ -597,8 +692,15 @@ function SquatCoachingPage() {
       </div>
 
       <div className="squat-page-body">
-        {session.phase === 'idle' && <IdleView onStart={session.start} cameraError={session.cameraError} />}
-        {session.phase === 'active' && <ActiveView session={session} />}
+        {session.phase === 'idle' && (
+          <IdleView
+            onStart={session.start}
+            cameraError={session.cameraError}
+            level={level}
+            onSelectLevel={handleSelectLevel}
+          />
+        )}
+        {session.phase === 'active' && <ActiveView session={session} level={level} />}
         {session.phase === 'report' && <ReportView session={session} />}
       </div>
 
@@ -609,7 +711,7 @@ function SquatCoachingPage() {
               ×
             </button>
             <div className="modal-title">운동 달력</div>
-            <SquatGoalCalendar dailyStats={session.dailyStats} goalTarget={session.squatGoalTarget} />
+            <SquatGoalCalendar dailyStats={session.dailyStats} goal={session.squatGoal} />
           </div>
         </div>
       )}

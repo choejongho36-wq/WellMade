@@ -1,8 +1,14 @@
 /**
- * 오늘 하루(그리고 날짜별) 스쿼트 운동 누적 기록 — 총 시간/총 횟수/이상 자세 감지 횟수를
- * 날짜별로 브라우저(localStorage)에 저장한다. 같은 날 여러 세션을 하면 값이 더해진다.
+ * 오늘 하루(그리고 날짜별) 스쿼트 운동 누적 기록 — 총 시간/총 횟수/총 세트 수/이상 자세
+ * 감지 횟수를 날짜별로 브라우저(localStorage)에 저장한다. 같은 날 여러 세션을 하면 값이
+ * 더해진다.
  *
- * 마이페이지에서 설정한 목표 횟수(exerciseGoals.js)와 비교해서, 스쿼트 코칭 리포트/실시간
+ * (2026-09-08 추가) total_sets — 실시간 코칭 세션 1회(카메라 켜고 시작~종료)를 "세트
+ * 1회"로 보고, 세션이 끝날 때마다(useSquatCoachingSession.js의 requestReport) 1씩
+ * 더한다. 마이페이지의 "몇 회 몇 세트/일" 목표(exerciseGoals.js) 중 세트 쪽과 비교하는
+ * 용도다.
+ *
+ * 마이페이지에서 설정한 목표(exerciseGoals.js)와 비교해서, 스쿼트 코칭 리포트/실시간
  * 코칭 화면의 달력에 "그날 목표를 채웠는지"를 표시하는 데 쓴다.
  *
  * 날짜는 UTC(toISOString)가 아니라 브라우저의 로컬 날짜 기준이다 — UTC로 하면 자정 무렵
@@ -33,10 +39,16 @@ function safeParseObject(json) {
   }
 }
 
-// 저장된 날짜별 누적 기록을 { "2026-09-07": { total_reps, total_duration_sec, abnormal_reps }, ... } 형태로 반환한다.
+// 저장된 날짜별 누적 기록을
+// { "2026-09-07": { total_reps, total_duration_sec, total_sets, abnormal_reps }, ... }
+// 형태로 반환한다. total_sets가 없는(마이그레이션 전) 옛 기록은 0으로 채워 하위 호환한다.
 export function loadSquatDailyStats() {
   try {
-    return safeParseObject(localStorage.getItem(STORAGE_KEY) ?? '{}')
+    const all = safeParseObject(localStorage.getItem(STORAGE_KEY) ?? '{}')
+    for (const key of Object.keys(all)) {
+      if (!Number.isFinite(all[key]?.total_sets)) all[key] = { ...all[key], total_sets: 0 }
+    }
+    return all
   } catch {
     return {}
   }
@@ -46,10 +58,11 @@ export function loadSquatDailyStats() {
 export function addSquatDailyStats(date, delta) {
   try {
     const all = loadSquatDailyStats()
-    const prev = all[date] ?? { total_reps: 0, total_duration_sec: 0, abnormal_reps: 0 }
+    const prev = all[date] ?? { total_reps: 0, total_duration_sec: 0, total_sets: 0, abnormal_reps: 0 }
     all[date] = {
       total_reps: prev.total_reps + (delta.reps ?? 0),
       total_duration_sec: prev.total_duration_sec + (delta.durationSec ?? 0),
+      total_sets: prev.total_sets + (delta.sets ?? 0),
       abnormal_reps: prev.abnormal_reps + (delta.abnormalReps ?? 0),
     }
     const keys = Object.keys(all).sort()

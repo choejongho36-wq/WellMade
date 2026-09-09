@@ -29,6 +29,12 @@ const MIN_USABLE_FRAMES = 3 // 서버(judge_realtime_coaching)의 MIN_FRAMES와 
 const JUDGE_WINDOW = 6 // 매 호출마뤌에서 서버에 보낼 "최근 N프레솄" 걬간 크기
 const END_CHECK_EVERY_N_FRAMES = 10 // 종료 판정 은 프레임마다 부를 필요 없어 약 2초마다만 확인
 
+// (2026-09-08 추가) 서버(judge_realtime_coaching)는 무상태라 "이 렙 안에서 몇 번째 노출인지"를
+// 스스로 알 수 없어, 렙당 노출 횟수 제한은 프론트에서 담당한다 — 실사용 테스트에서 렙 하나
+// 안에 "움직임이 불안정합니다"가 4~6번씩 반복된다는 피드백에 따른 조치(서버 쪽 임곗값도 함께
+// 완화했다, ai/app/coaching/realtime.py의 JITTER_STD_THRESHOLD_DEG 주석 참고).
+const MOVEMENT_WARNING_MAX_PER_REP = 2
+
 // TTS가 상태 변화에 밀려서 대기열에 쌓였다가 늦게 줄줄이 나오는 것을 막기 위한 속도 제한 —
 // 문구가 바뀌었을 때 최소 이만큼(초), 같은 문구가 계속될 때는 이만큼(초) 간격을 두고서만
 // 실제로 speak()가 새 발화를 시작한다(speak() 함수 참고).
@@ -104,7 +110,10 @@ export function useSquatCoachingSession() {
   // 참고). 실시간 코칭 화면의 달력 버튼과 리포트 화면의 '오늘' 요약 모두 이 값을 쓴다.
   const [dailyStats, setDailyStats] = useState(() => loadSquatDailyStats())
   // 마이페이지에서 설정한 스쿼트 하루 목표 횟수 — 없으면 null(달력이 목표 달성 표시를 생략한다).
-  const [squatGoalTarget, setSquatGoalTarget] = useState(() => getExerciseGoal('squat')?.targetReps ?? null)
+  // (2026-09-08 수정) 숫자(targetReps)만 들고 있던 것을 목표 객체 전체({ targetReps,
+  // targetSets }) 로 바꿨다 — 세트 목표(targetSets)가 추가되면서 반복 횟수 하나만으로는
+  // 진행률을 표현할 수 없어졌다(exerciseGoals.js 참고).
+  const [squatGoal] = useState(() => getExerciseGoal('squat'))
 
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
@@ -127,6 +136,7 @@ export function useSquatCoachingSession() {
   const repInProgressRef = useRef(false) // 지금 "내려간(깊게 앉은)" 구간 안에 있는지
   const repHadIssueRef = useRef(false) // 이번 렙 동안 이상 자세가 한 번이라도 있었는지
   const repIssuesRef = useRef([]) // 이번 렙 동안 발생한 이슈 부위(중복 제거)
+  const movementWarningCountRef = useRef(0) // 이번 렙 동안 'movement' 이슈가 노출된 횟수(MOVEMENT_WARNING_MAX_PER_REP 캡용)
   const lastSpokenRef = useRef('')
   const lastSpokenAtRef = useRef(-Infinity)
   const lastLoggedRef = useRef('')
@@ -159,13 +169,26 @@ export function useSquatCoachingSession() {
     [ttsEnabled],
   )
 
+  // (2026-09-08 추가) result.issues 중 실제로 안내할 첫 항목을 고른다 — 'movement'
+  // (움직임 불안정) 이슈는 이번 렙에서 이미 MOVEMENT_WARNING_MAX_PER_REP번 노출됐으면
+  // 건너뛰고 그 다음 이슈(있으면)를 대신 쓴다. 전부 movement뿐이고 캡을 넘겼으면 undefined를
+  // 반환해 "조용히 넘어가기"가 되도록 한다(호출부에서 빈 문자열로 처리).
+  const pickPrimaryIssue = (issues) => {
+    const filtered = (issues ?? []).filter(
+      (issue) => issue.part !== 'movement' || movementWarningCountRef.current < MOVEMENT_WARNING_MAX_PER_REP,
+    )
+    const primary = filtered[0]
+    if (primary?.part === 'movement') movementWarningCountRef.current += 1
+    return primary
+  }
+
   // is_normal이어도 무릎이 STANDING_KNEE_ANGLE_MIN 이상(=서 있는 상태)이면 서버가 하단
   // 자세 검사 자체를 건너뛴 것뿐이라 "정상"이 나온다 — 실제로 앉은 상태(isDeepHold)일 때만
   // "지금 자세를 유지하세요"를 내보낸다.
   const coachingText = (result, isDeepHold) =>
     result.is_normal
       ? (isDeepHold ? '좋아요, 지금 자세를 유지하세요' : '')
-      : (result.issues?.[0]?.message ?? '자세를 확인해주세요')
+      : (pickPrimaryIssue(result.issues)?.message ?? '')
 
   // 화면 배지/음성 안내와 같은 문구를 오른쪽 코칭 로그에도 시간과 함께 쌓는다 — 같은
   // 문구가 연달아 반복될 때는(예: 계속 같은 이슈) 매번 쌓지 않고 처음 한 번만 기록한다.
@@ -236,6 +259,7 @@ export function useSquatCoachingSession() {
           reps: data.total_reps,
           durationSec: data.session_duration_sec,
           abnormalReps: data.abnormal_reps,
+          sets: 1, // (2026-09-08 추가) 세션 1회 종료 = 세트 1회 완료로 집계한다.
         })
         setDailyStats(updatedDaily)
         speak(data.summary_message, null, { force: true })
@@ -400,6 +424,10 @@ export function useSquatCoachingSession() {
           // 하나를 스쿼트 1회로 본다. 리포트 전용 집계라 세션 자동 종료 판단(judgmentHistoryRef)
           // 과는 별개로 처리한다.
           if (isDeepHold) {
+            // (2026-09-08 추가) 새 렙이 시작되는 시점(서 있다가 방금 깊게 앉기 시작한 순간)에
+            // movement 경고 노출 카운트를 리셋한다 — MOVEMENT_WARNING_MAX_PER_REP 캡이 렙마다
+            // 새로 적용되게 하기 위함.
+            if (!repInProgressRef.current) movementWarningCountRef.current = 0
             repInProgressRef.current = true
             if (!result.is_normal) {
               repHadIssueRef.current = true
@@ -418,6 +446,11 @@ export function useSquatCoachingSession() {
             ]
             repHadIssueRef.current = false
             repIssuesRef.current = []
+            // (2026-09-08 추가) repHistory state를 렙이 끝날 때마다 갱신 — 원래는 세션
+            // 종료(requestReport) 시점에만 한 번 반영됐는데, 그러면 진행 중인 세션 화면에
+            // 실시간으로 "지금까지 몇 회"를 보여줄 방법이 없었다(SquatCoachingPage.jsx의
+            // 숙련자 모드 목표 진행 표시가 이 값을 그대로 쓴다).
+            setRepHistory(repHistoryRef.current)
           }
 
           let standingStepText = ''
@@ -503,9 +536,12 @@ export function useSquatCoachingSession() {
     setSessionStage('side')
     frontJudgmentHistoryRef.current = []
     repHistoryRef.current = []
+    setRepHistory([]) // (2026-09-08 추가) 이전 세션의 repHistory state가 새 세션 시작 직후
+    // 잠깐 그대로 남아있는 걸 막는다 — 이제 ActiveView가 이 값을 실시간으로 읽는다(위 참고).
     repInProgressRef.current = false
     repHadIssueRef.current = false
     repIssuesRef.current = []
+    movementWarningCountRef.current = 0
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
@@ -568,7 +604,7 @@ export function useSquatCoachingSession() {
     sessionHistory,
     repHistory,
     dailyStats,
-    squatGoalTarget,
+    squatGoal,
     bufferCount,
     bufferMax: BUFFER_MAX,
     endCheck,

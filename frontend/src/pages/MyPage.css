@@ -851,11 +851,18 @@
 }
 
 /* ---- 운동 목표 설정 (스쿼트 코칭용) — "신체 정보" 모달과 같은 디자인 패턴 사용 (2026-09-08) ---- */
+/* 세트 입력이 추가되며 select+입력2개+삭제 버튼이 기본 320px 모달 폭에서 잘려 보여
+   (2026-09-08) 폭만 넓혔다 — ExerciseGuideModal의 exercise-guide-modal과 같은 오버라이드
+   패턴(기본 .modal은 그대로 두고 className을 하나 더 붙여 width만 덮어씀). */
+.mp-goal-modal-wide {
+  width: min(480px, 92vw);
+}
 .mp-goal-modal-row {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-top: 14px;
+  flex-wrap: wrap;
 }
 .mp-goal-select-input {
   flex: 1;
