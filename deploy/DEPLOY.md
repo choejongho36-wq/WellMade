@@ -31,3 +31,13 @@ Session Manager는 `ssm-user` 로 로그인되고, 리포도 그 계정 홈에 �
 - 이미지 빌드가 실패하면 기존 컨테이너는 그대로 살아 있다 (`up -d --build` 는 빌드 성공 후에만 교체).
 - 빌드를 서버에서 하므로 배포 중 CPU/메모리를 많이 쓴다. 트래픽이 적은 시간대에 하는 편이 안전하다.
 - Ollama(챗봇 LLM)는 이 compose에 없다. 별도 GPU 인스턴스에 두고 `.env` 의 `OLLAMA_BASE_URL` 로 가리킨다.
+- AI 서버(FastAPI, 운동 추천·또래 비교)는 compose 안의 `ai` 서비스다. 백엔드는 `AI_BASE_URL`
+  (기본 `http://ai:8000`, compose에 박혀 있음)로 붙는다. 챗봇이 "AI 서버에서 정보를 가져오지
+  못했어요"만 반복하면 이 연결부터 본다:
+  ```bash
+  docker compose -f docker-compose.prod.yml ps                      # ai 컨테이너가 Up 인지
+  docker compose -f docker-compose.prod.yml logs --tail=50 ai       # 기동 에러가 없는지
+  docker compose -f docker-compose.prod.yml logs --tail=200 backend | grep "AI 서버 호출 실패"
+  docker compose -f docker-compose.prod.yml exec backend env | grep AI_BASE_URL
+  ```
+  로그에 `Connection refused` + `localhost:8000` 이 보이면 주소 설정이 빠진 것이다.
