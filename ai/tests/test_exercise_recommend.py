@@ -371,6 +371,24 @@ def test_부분_이름이면_가장_짧은_후보로_고른다():
     assert result["instructions_ko"]
 
 
+def test_문장_안에_든_운동_이름을_찾는다():
+    # 백엔드가 "플랭크는 어떻게 해?" 같은 사용자 문장을 그대로 넘긴다 - 어떤 말이 운동 이름인지는
+    # 이 서버만 알기 때문이다. 이름을 못 뽑으면 도구가 못 쓰이고 모델이 설명을 지어낸다.
+    assert find_detail("플랭크는 어떻게 하는 거야?")["found"] is True
+    assert "플랭크" in find_detail("플랭크는 어떻게 하는 거야?")["name"]
+    assert find_detail("덤벨 런지 자세 알려줘")["name"] == "덤벨 런지"
+
+
+def test_문장에서_긴_이름이_짧은_이름보다_먼저다():
+    # "닐링 푸시업 어떻게 해?"가 "푸시업"으로 접히면 다른 운동을 설명하게 된다
+    assert find_detail("닐링 푸시업 방법 알려줘")["name"] == "닐링 푸시업"
+
+
+def test_일반어만_있는_문장은_운동으로_치지_않는다():
+    # "운동"이 "운동 볼 딥스"에 걸려서 엉뚱한 설명을 돌려준 적이 있다
+    assert find_detail("두 번째 운동 어떻게 해?")["found"] is False
+
+
 def test_없는_운동이면_지어내지_말라고_안내한다():
     result = find_detail("존재하지않는운동zzz")
 

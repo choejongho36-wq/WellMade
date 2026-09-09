@@ -168,7 +168,9 @@ public class HttpOllamaClient implements OllamaClient {
         requestBody.put("options", Map.of(
                 "temperature", 0.2,
                 "num_ctx", 8192,
-                "num_predict", 384
+                // 384였는데 운동 추천(운동 4개 + 세트 + 주의)을 한국어로 쓰면 그 안에서 잘렸다.
+                // 한국어는 영어보다 글자당 토큰이 많다.
+                "num_predict", 512
         ));
         if (includeTools) {
             requestBody.put("tools", ChatToolExecutor.TOOLS);

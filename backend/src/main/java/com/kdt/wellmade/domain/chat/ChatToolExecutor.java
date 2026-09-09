@@ -484,6 +484,10 @@ public class ChatToolExecutor {
     /**
      * 모델에게 줄 추천 결과. 후보에서 영상(URL)과 화면용 필드를 빼고, 문장을 만드는 데 필요한
      * 것만 남긴다 - 응답을 통째로 넘기면 컨텍스트만 잡아먹고 URL이 답변에 새어나온다.
+     *
+     * instructions_ko도 뺀다. 예전엔 추천할 때 운동마다 방법을 한 문장씩 쓰게 했는데, 그러면
+     * 답이 길어져 num_predict에서 잘리고 이력을 채워 다음 턴의 컨텍스트를 밀어냈다. 방법은
+     * 사용자가 물으면 get_exercise_detail로 준다(라우터가 "어떻게 해?"를 그 도구로 보낸다).
      */
     private String trimRecommendation(JsonNode response) {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -497,7 +501,7 @@ public class ChatToolExecutor {
         List<Map<String, Object>> candidates = new ArrayList<>();
         for (JsonNode candidate : response.path("candidates")) {
             Map<String, Object> row = new LinkedHashMap<>();
-            for (String field : new String[] {"name", "difficulty", "equipment", "sets_reps", "instructions_ko"}) {
+            for (String field : new String[] {"name", "difficulty", "equipment", "sets_reps"}) {
                 row.put(field, candidate.path(field).asText(""));
             }
             candidates.add(row);

@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -53,7 +54,11 @@ public class ChatService {
     private static final int CONTEXT_HISTORY_LIMIT = 8;
     // 이력 1건이 그대로 들어가면 컨텍스트를 다 잡아먹는다(사용자 메시지는 최대 2000자).
     // 맥락 유지에는 앞부분이면 충분하므로 잘라서 넣는다 - 화면에 보여주는 이력은 자르지 않음
-    private static final int CONTEXT_MESSAGE_MAX_CHARS = 800;
+    // 800이었는데 예산이 안 맞았다: 시스템 프롬프트 ~1000토큰 + 도구 스키마 ~800 + 이력 8건 x 800자
+    // (한국어는 글자당 토큰이 많아 최대 ~6,000토큰) + 운동 추천 도구 결과 ~1,300 + 답변 512 = num_ctx
+    // 8192를 넘는다. 넘치면 Ollama가 앞(=시스템 프롬프트)부터 버려서 "한국어로만" 같은 규칙이 전부
+    // 사라지고 모델이 영어로 지어내기 시작한다(실측). 400자면 이력 8건이 최대 ~3,000토큰이라 여유가 있다.
+    private static final int CONTEXT_MESSAGE_MAX_CHARS = 400;
     // 프론트에 "이전 대화 이어서 보기"용으로 내려줄 이력 개수
     private static final int DISPLAY_HISTORY_LIMIT = 100;
     private static final int MAX_CONTENT_LENGTH = 2000;
@@ -85,8 +90,9 @@ public class ChatService {
             답변 규칙:
             1. 사용자가 물어본 것에만 답하세요. 묻지 않은 추천, 제안, 계획, 후속 질문을 덧붙이지 마세요.
             2. 식단이나 운동 추천은 사용자가 명시적으로 요청했을 때만 하세요.
-            3. 답변은 2~4문장으로 짧게. 마크다운 헤더/표/목록/이모지 없이 대화체로 쓰세요.
+            3. 답변은 2~4문장으로 짧게. 마크다운 헤더/표/이모지 없이 대화체로 쓰세요.
                코드블록(```)이나 백틱으로 감싸지 마세요. 수치도 그냥 문장 안에 쓰세요.
+               (운동 추천만 예외로, 운동마다 한 줄씩 써도 됩니다. 10번 참고)
             4. 반드시 한국어로만 답하세요. 영어 단어나 중국어·한자를 섞지 말고 문장 전체를 한국어로 쓰세요.
             5. 직전에 한 답변을 다시 반복하지 마세요.
             6. 인사에는 한 문장으로 인사만 하세요. 무엇을 확인할지 되묻거나 제안하지 마세요.
@@ -102,23 +108,28 @@ public class ChatService {
             10. 운동 추천은 이렇게 처리하세요.
                 - 어느 부위를 원하는지 모를 때만 한 문장으로 물어보세요. 난이도는 묻지 마세요.
                 - 부위가 정해지면 recommend_exercises 도구를 호출하고, candidates 에 들어 있는
-                  운동을 전부 한국어로 추천하세요. 목록에 없는 운동은 지어내지 마세요.
-                - 세트 수와 횟수는 직접 정하지 마세요. 각 운동의 sets_reps 값을 그대로 인용하세요.
+                  운동을 전부, 도구가 준 한국어 이름 그대로 추천하세요. 목록에 없는 운동은
+                  지어내지 마세요. 영어 이름으로 바꿔 쓰지 마세요.
+                - 형식: 운동마다 "운동 이름 - sets_reps" 한 줄씩. 운동 방법은 쓰지 마세요.
+                  (방법은 사용자가 물으면 get_exercise_detail 도구로 알려줍니다.)
+                - 세트 수와 횟수는 직접 정하지 마세요. sets_reps 값을 그대로 인용하세요.
                   (도구가 사용자의 목표에 맞춰 이미 계산한 값입니다.)
                 - cautions 가 있으면 그 문장을 그대로 한 줄 덧붙이세요. 주의사항을 지어내지 마세요.
                 - workout_note 가 있으면 그 내용을 한 문장으로 자연스럽게 전달하세요.
-                - 운동 방법은 절대 지어내지 마세요. candidates 안의 instructions_ko 에 적힌
-                  내용만 간추려 쓰세요. 추천할 때 각 운동의 수행 방법도 instructions_ko 를
-                  근거로 한 문장씩 같이 알려주세요.
-                - 영상 링크나 주소는 절대 쓰지 마세요. 영상은 화면이 알아서 버튼으로 보여줍니다.
-                - 컨텍스트에 instructions_ko 가 없는 운동을 물으면 get_exercise_detail 도구를
-                  부르고, 그래도 없으면 "그 운동은 설명해드릴 자료가 없다"고 답하세요.
+                - 영상 링크나 주소는 절대 쓰지 마세요. 영상은 화면이 운동 이름에 링크로 붙입니다.
+                - 운동 방법을 물으면 get_exercise_detail 도구를 부르고, 결과의 instructions_ko 만
+                  간추려 답하세요. 결과가 없으면 "그 운동은 설명해드릴 자료가 없다"고 답하세요.
             11. "또래", "평균", "남들과 비교" 같은 비교 질문은 get_bmi_peer_comparison 또는
                 get_nutrition_peer_comparison 도구 결과만 인용하세요.
                 - 아래 "사용자 정보"에 적힌 인바디 수치는 이 사용자 '본인' 값일 뿐 평균이 아닙니다.
                   그 값만 보고 "평균보다 높다/낮다"를 판단하지 마세요.
                 - 도구를 부르지 않았거나 결과에 error가 있으면, 평균을 추측하지 말고
                   "지금은 또래 비교를 할 수 없다"고만 답하세요.
+            12. "뭐 먹지", "저녁 메뉴 추천" 같은 식사 추천은 get_daily_total(오늘)과
+                calculate_nutrient_target 결과를 근거로, 남은 칼로리와 단백질에 맞는 메뉴를
+                한두 가지 제안하세요. 오늘 기록이 없으면 목표 섭취량만 근거로 제안하고, 목표를
+                계산할 수 없으면 그 사실을 한 문장으로 말한 뒤 일반적인 제안을 하세요.
+                식사 추천에는 8번을 적용하지 마세요 - 기록 조회가 아니라 추천입니다.
             """;
 
     private final UserProfileService userProfileService;
@@ -157,9 +168,13 @@ public class ChatService {
      * (운동 추천의 국민체력100 영상)다. 링크는 모델을 통과시키지 않는다 - URL을 컨텍스트에
      * 넣으면 답변에 주소를 그대로 뱉거나 없는 주소를 지어낸다.
      */
-    public record ReplyMeta(String action, List<Map<String, String>> links) {
+    public record ReplyMeta(String action, List<Map<String, String>> links, String followUp) {
         static ReplyMeta none() {
-            return new ReplyMeta(null, List.of());
+            return new ReplyMeta(null, List.of(), null);
+        }
+
+        static ReplyMeta of(String action, List<Map<String, String>> links) {
+            return new ReplyMeta(action, links, null);
         }
     }
 
@@ -194,10 +209,14 @@ public class ChatService {
      * 이제 감싸기와 저장을 서버가 한다 - 문구는 ChatDrawer.jsx의 CHAT_MENU_ITEMS와 맞춰야 함.
      */
     private static final Map<String, FollowUp> FOLLOW_UPS = Map.of(
-            "exercise-recommend", new FollowUp(
+            ChatIntentRouter.FOLLOW_UP_EXERCISE_BUTTON, new FollowUp(
                     "운동 추천받고 싶어요",
                     "어느 부위를 운동하고 싶으세요? 사용할 장비(맨몸, 덤벨 등)가 있으면 같이 알려주세요.",
-                    "운동을 추천받고 싶어요. 원하는 조건: "));
+                    "운동을 추천받고 싶어요. 원하는 조건: "),
+            // 서버가 되물은 경우("운동 추천해줘"에 부위가 없어서 되물음). 되묻는 말풍선은 그 턴의
+            // 답변으로 이미 저장됐으므로 여기서는 다시 넣지 않는다(userLabel/question이 null).
+            ChatIntentRouter.FOLLOW_UP_EXERCISE_SERVER, new FollowUp(
+                    null, null, "운동을 추천받고 싶어요. 원하는 조건: "));
 
     /**
      * 새 사용자 메시지 하나를 받아서, DB에 저장된 최근 이력 + 이번 메시지로 컨텍스트를 구성하고
@@ -219,7 +238,7 @@ public class ChatService {
         for (ChatMessageEntity h : loadRecentHistory(user, CONTEXT_HISTORY_LIMIT)) {
             messages.add(new OllamaMessage(h.getRole(), truncateForContext(h.getContent()), null, null));
         }
-        if (followUp != null) {
+        if (followUp != null && followUp.userLabel() != null) {
             messages.add(OllamaMessage.user(followUp.userLabel()));
             messages.add(OllamaMessage.assistant(followUp.question()));
         }
@@ -229,16 +248,20 @@ public class ChatService {
         // 있었는데, 실제로 흔한 실패는 답변이 흘러가는 중에 사용자가 창을 닫는 것이다
         // (sendJson -> UncheckedIOException으로 여기를 빠져나감). 그러면 방금 보낸 질문까지
         // 통째로 사라져서, 다시 들어오면 대화가 없던 일이 됐다.
-        if (followUp != null) {
+        if (followUp != null && followUp.userLabel() != null) {
             save(user, "user", followUp.userLabel());
             save(user, "assistant", followUp.question());
         }
         save(user, "user", userMessage);
 
+        // 의도가 뻔한 문장은 서버가 도구를 정한다. 모델이 도구를 "고르는" 단계가 확률적으로
+        // 실패해서(예고만 쓰고 끝냄, 텍스트로 흘림, 안 부르고 지어냄) 그 단계를 건너뛴다.
+        Optional<ChatIntentRouter.Route> route = ChatIntentRouter.route(userMessage, followUpId, AppTime.today());
+
         StringBuilder full = new StringBuilder();
         ReplyMeta meta;
         try {
-            meta = resolveToolsThenStream(user, messages, new ReplyStream() {
+            ReplyStream recording = new ReplyStream() {
                 @Override
                 public void delta(String text) {
                     full.append(text);
@@ -250,7 +273,10 @@ public class ChatService {
                     full.setLength(0);
                     out.reset();
                 }
-            });
+            };
+            meta = route.isPresent()
+                    ? routedReply(user, messages, route.get(), recording)
+                    : resolveToolsThenStream(user, messages, recording);
         } catch (RuntimeException e) {
             // 만들다 만 답이라도 남긴다 - 아무것도 안 남기면 사용자 질문만 덩그러니 남는다.
             if (!full.isEmpty()) {
@@ -315,7 +341,7 @@ public class ChatService {
             List<Map<String, String>> links = node.has("links")
                     ? objectMapper.convertValue(node.get("links"), new TypeReference<List<Map<String, String>>>() {})
                     : List.of();
-            return new ReplyMeta(action, links);
+            return ReplyMeta.of(action, links);
         } catch (Exception e) {
             log.warn("답변 메타 정보를 읽지 못함", e);
             return ReplyMeta.none();
@@ -371,14 +397,26 @@ public class ChatService {
 
         String action = inbodyActionFor(user, List.of(menu.toolName()));
         save(user, "user", menu.userLabel());
-        save(user, "assistant", reply, new ReplyMeta(action, List.of()));
+        save(user, "assistant", reply, ReplyMeta.of(action, List.of()));
         return new ChatResponse(reply, action);
     }
 
-    /** 도구 결과가 "데이터 없음"이면 사용자에게 그대로 보여줄 문구, 데이터가 있으면 null */
+    /**
+     * 도구 결과가 "데이터 없음"이면 사용자에게 그대로 보여줄 문구, 데이터가 있으면 null.
+     *
+     * note 키는 두 뜻으로 쓰인다 - 기록 조회에서는 "없다"는 안내지만, 운동 추천에서는 후보가
+     * 있을 때의 부연("기구 없는 동작이 적어 조건을 넓혔어요")이기도 하다. 후보(candidates)나
+     * 조회 결과(found)가 있으면 note가 있어도 데이터가 있는 것이다.
+     */
     String emptyResultMessage(String toolResult) {
         try {
             JsonNode node = objectMapper.readTree(toolResult);
+            if (node.path("candidates").isArray() && !node.path("candidates").isEmpty()) {
+                return null;
+            }
+            if (node.path("found").asBoolean(false)) {
+                return null;
+            }
             for (String key : new String[] {"error", "note"}) {
                 JsonNode value = node.get(key);
                 if (value != null && !value.asText("").isBlank()) {
@@ -481,6 +519,63 @@ public class ChatService {
      * 순차적으로 여러 번 도구를 불러야 하는 질문은 지원하지 않는다(이 앱의 도구는 한 라운드에서
      * 병렬 호출로 충분함). tools를 뺀 마지막 호출이라 모델은 반드시 텍스트로 답한다.
      */
+    /**
+     * 서버가 도구를 정한 턴. 도구를 먼저 실행하고, 결과가 "데이터 없음"이면 모델을 부르지 않고
+     * 그 문장을 그대로 내보낸다(메뉴 버튼과 같은 처리). 데이터가 있으면 모델이 도구를 부른 것과
+     * 같은 형태의 컨텍스트를 만들어 문장만 만들게 한다.
+     */
+    ReplyMeta routedReply(User user, List<OllamaMessage> messages, ChatIntentRouter.Route route, ReplyStream out) {
+        List<Map<String, String>> links = new ArrayList<>();
+        List<OllamaMessage> toolMessages = new ArrayList<>();
+        String firstResult = null;
+        for (OllamaMessage.ToolCall call : route.calls()) {
+            ChatToolExecutor.ToolResult result =
+                    toolExecutor.execute(user, call.function().name(), call.function().arguments());
+            if (firstResult == null) {
+                firstResult = result.json();
+            }
+            links.addAll(result.links());
+            toolMessages.add(OllamaMessage.tool(result.json(), call.id()));
+        }
+        List<String> toolNames = route.calls().stream().map(c -> c.function().name()).toList();
+        String action = inbodyActionFor(user, toolNames);
+
+        if (route.answerDirectlyWhenEmpty()) {
+            String direct = emptyResultMessage(firstResult);
+            if (direct != null) {
+                out.delta(direct);
+                // 운동 추천인데 부위를 못 읽었으면(후보 없음 + 안내문) 다음 메시지를 부위 답으로
+                // 받게 화면에 알린다 - 안 그러면 사용자가 "하체"라고 답해도 일반 대화로 흘러간다.
+                String followUp = toolNames.contains("recommend_exercises") && hasEmptyCandidates(firstResult)
+                        ? ChatIntentRouter.FOLLOW_UP_EXERCISE_SERVER
+                        : null;
+                return new ReplyMeta(action, List.of(), followUp);
+            }
+        }
+
+        messages.add(new OllamaMessage("assistant", "", route.calls(), null));
+        messages.addAll(toolMessages);
+        ollamaClient.chatCompletionStream(messages, false, out::delta);
+        return ReplyMeta.of(action, links);
+    }
+
+    private boolean hasEmptyCandidates(String toolResult) {
+        try {
+            JsonNode candidates = objectMapper.readTree(toolResult).path("candidates");
+            return candidates.isArray() && candidates.isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** 예고만 하고 도구를 안 부른 모델에게 한 번 더 시키는 문장. 컨텍스트에만 들어가고 저장되지 않는다 */
+    private static final String PREAMBLE_NUDGE =
+            "방금 답변은 도구를 호출하지 않고 확인하겠다는 예고만 했습니다. 예고 문장을 쓰지 말고 지금 필요한 도구를 실제로 호출하세요.";
+
+    /** 두 번 시켜도 예고만 하면 포기한다. 예고문을 그대로 내보내면 대화가 거기서 멈춘 것처럼 보인다 */
+    private static final String PREAMBLE_FALLBACK =
+            "확인이 필요한 질문인데 지금은 확인하지 못했어요. 조금 다르게 다시 물어봐 주세요.";
+
     ReplyMeta resolveToolsThenStream(User user, List<OllamaMessage> messages, ReplyStream out) {
         // 1라운드 본문은 앞부분만 붙잡아두고 흘린다. Qwen이 도구 호출을 구조화된 tool_calls 대신
         // <tool_call>{"name":...} 텍스트로 흘리는 턴이 있는데(재현됨), 그대로 스트리밍하면 화면에
@@ -502,6 +597,30 @@ public class ChatService {
         List<OllamaMessage.ToolCall> toolCalls = first.toolCalls().isEmpty()
                 ? ToolCallTextParser.parse(first.content())
                 : first.toolCalls();
+
+        // "최근 섭취 기록을 확인해보겠습니다."로 끝나는 턴 - 규칙으로 금지해도 나온다(실측). 이대로
+        // 내보내면 대화가 멈춘 것처럼 보이고, 이력에 남아 다음 턴에 똑같이 반복된다. 한 번 더 시킨다.
+        if (toolCalls.isEmpty() && ToolCallTextParser.isPreambleOnly(first.content())) {
+            log.warn("모델이 예고만 하고 도구를 안 불러서 다시 시킴: {}", first.content());
+            List<OllamaMessage> nudged = new ArrayList<>(messages);
+            nudged.add(OllamaMessage.assistant(first.content()));
+            nudged.add(OllamaMessage.user(PREAMBLE_NUDGE));
+            // 이번엔 본문을 흘리지 않는다 - 또 예고면 버릴 것이고, 도구를 부르면 최종 답을 다시 흘린다
+            var second = ollamaClient.chatCompletionStream(nudged, true, delta -> { });
+            toolCalls = second.toolCalls().isEmpty()
+                    ? ToolCallTextParser.parse(second.content())
+                    : second.toolCalls();
+            if (releasedToUser[0]) {
+                out.reset();
+            }
+            if (toolCalls.isEmpty()) {
+                out.delta(PREAMBLE_FALLBACK);
+                return ReplyMeta.none();
+            }
+            // 예고문은 화면에서 지웠으니 컨텍스트에도 넣지 않는다
+            releasedToUser[0] = false;
+            held.setLength(0);
+        }
 
         if (toolCalls.isEmpty()) {
             if (releasedToUser[0]) {
@@ -539,7 +658,7 @@ public class ChatService {
 
         ollamaClient.chatCompletionStream(messages, false, out::delta);
         String action = inbodyActionFor(user, toolCalls.stream().map(c -> c.function().name()).toList());
-        return new ReplyMeta(action, links);
+        return ReplyMeta.of(action, links);
     }
 
     /** 인바디가 필요한 도구를 쓰려 했는데 기록이 없으면 "등록하러 가기" 버튼을 붙이라고 알린다 */

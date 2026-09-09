@@ -28,6 +28,33 @@ final class ToolCallTextParser {
     }
 
     /**
+     * "확인해보겠습니다"처럼 도구를 부르겠다는 예고. 정상 답변에는 "확인해보세요"(권유)는 나와도
+     * 1인칭 미래형은 안 나온다. 데이터를 이미 인용한 답(kcal, kg, 세트)은 예고가 아니다.
+     */
+    private static final List<String> PREAMBLE_HINTS = List.of(
+            "확인해보겠", "확인해 보겠", "확인해볼게", "확인해 볼게", "확인하겠", "확인할게", "확인 중",
+            "찾아보겠", "찾아볼게", "불러오겠", "불러올게", "불러오는 중", "알아보겠", "알아볼게",
+            "조회해보겠", "조회하겠", "조회할게", "살펴보겠", "살펴볼게", "가져오겠", "가져올게");
+
+    /** 예고문이라도 이보다 길면 뒤에 실제 답이 이어진 것으로 본다 */
+    private static final int PREAMBLE_MAX_CHARS = 200;
+
+    /**
+     * 본문이 "도구를 부르겠다"는 예고만 하고 끝났는지. 모델이 규칙("예고만 쓰고 끝내지 말 것")을
+     * 어기고 이렇게 답하는 턴이 실제로 나온다(실측: "최근 섭취 기록을 확인해보겠습니다."로 끝).
+     * 그대로 내보내면 대화가 거기서 멈추고, 이력에 남아 다음 턴에 똑같이 반복된다.
+     */
+    static boolean isPreambleOnly(String content) {
+        if (content == null || content.isBlank() || content.length() > PREAMBLE_MAX_CHARS) {
+            return false;
+        }
+        if (content.contains("kcal") || content.contains("kg") || content.contains("세트")) {
+            return false;
+        }
+        return PREAMBLE_HINTS.stream().anyMatch(content::contains);
+    }
+
+    /**
      * 본문이 모델이 텍스트로 흘린 도구 호출인지. 정상 답변이 이렇게 생길 일은 없다.
      *
      * 도구 이름까지 보는 이유: 예전엔 {@code <tool_call>} 태그나 {@code "name"} 키만 찾았는데,
