@@ -513,6 +513,7 @@ def recommend(
     recent_workouts: Optional[list] = None,
     exclude: Optional[list] = None,
     exclude_from_text: Optional[list] = None,
+    context_texts: Optional[list] = None,
     today: Optional[date] = None,
 ) -> dict:
     """
@@ -526,8 +527,17 @@ def recommend(
     :param recent_workouts: 최근 운동 메모 [{"date","text"}]. 조언 한 줄을 만드는 데만 쓴다.
     :param exclude: 최근에 이미 추천한 운동 이름. 같은 답이 반복되지 않게 뺀다.
     :param exclude_from_text: 최근 챗봇 답변 원문. 여기 등장한 운동 이름도 같이 뺀다.
+    :param context_texts: 최근 사용자 발화(최신 순). body_part에서 부위를 못 읽었을 때만 쓴다.
     """
     target = normalize_body_part(body_part)
+    if target is None:
+        # "하체 운동 추천" 다음 턴에 "바벨 운동"이라고만 해도 하체로 이어받는다. 못 이어받으면
+        # 후보 0건 + 안내문이 나가고 백엔드가 되묻는다 - 부위를 지어내지는 않는다.
+        # 장비는 이어받지 않는다: 한 번 말한 "덤벨"이 다음 턴까지 따라다니면 안 된다.
+        for text in context_texts or []:
+            target = normalize_body_part(text)
+            if target is not None:
+                break
     log_freeform_request(body_part, equipment, target)
     if target is None:
         return {

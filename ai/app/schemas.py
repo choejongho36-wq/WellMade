@@ -410,6 +410,12 @@ class ExerciseRecommendRequest(BaseModel):
         description="최근 챗봇 답변 원문. 여기 등장한 운동 이름을 빼서 같은 추천이 반복되지 않게 한다 "
                     "(운동 이름 목록은 이 서버에만 있으므로 백엔드는 원문만 넘긴다)",
     )
+    context_texts: list[str] = Field(
+        default_factory=list,
+        description="최근 사용자 발화(최신 순). body_part에서 부위를 못 읽었을 때만 여기서 이어받는다 "
+                    "- '하체 운동 추천' 다음 턴에 '바벨 운동'이라고만 해도 하체로 이어진다. "
+                    "장비는 이어받지 않는다(한 번 말한 덤벨이 계속 따라다니면 안 됨)",
+    )
 
 
 class ExerciseVideo(BaseModel):

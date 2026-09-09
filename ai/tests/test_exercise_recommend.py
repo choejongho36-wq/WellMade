@@ -258,6 +258,36 @@ def test_부위_동의어를_넓게_받는다():
     assert normalize_body_part("자전거") == "cardio"
 
 
+def test_앞선_발화에서_부위를_이어받는다():
+    # "하체 운동 추천" 다음 턴에 "바벨 운동"이라고만 하면 부위를 못 읽는다. 그때 모델이
+    # 지어내는 대신(실측: 데이터에 없는 "퀀텀 레그 Curl") 앞 발화의 부위를 이어받는다.
+    result = recommend(
+        body_part="바벨 운동",
+        equipment="바벨 운동",
+        context_texts=["바벨 운동", "하체운동 추천좀해줘"],
+    )
+
+    assert result["body_part"] == "upper legs"
+    assert result["candidates"]
+    # 장비는 이번 발화 것만 쓴다
+    assert all("barbell" in c["equipment"] for c in result["candidates"])
+
+
+def test_이어받을_부위가_없으면_되묻는다():
+    # 지어내지 않고 비워서 돌려준다 - 백엔드가 이 note를 답으로 쓰고 되묻는다
+    result = recommend(body_part="맨몸운동", equipment="맨몸운동", context_texts=["맨몸운동", "안녕"])
+
+    assert result["candidates"] == []
+    assert result["note"]
+
+
+def test_이번_발화에_부위가_있으면_이어받지_않는다():
+    # 앞에서 하체를 물었어도 이번에 가슴이라고 하면 가슴이다
+    result = recommend(body_part="가슴 운동", context_texts=["가슴 운동", "하체 운동 추천"])
+
+    assert result["body_part"] == "chest"
+
+
 def test_모르는_부위면_후보를_비우고_안내만_돌려준다():
     # "플랭크"처럼 부위가 아닌 값이 오면, 엉뚱한 운동 대신 빈 후보 + 안내를 준다
     result = recommend(body_part="플랭크")
