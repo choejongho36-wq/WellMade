@@ -39,6 +39,11 @@ services:
       SERVER_FORWARD_HEADERS_STRATEGY: framework
       # 날짜 기준을 MySQL(--default-time-zone=+09:00)과 맞춘다
       TZ: Asia/Seoul
+      # 백엔드 -> AI 서버(FastAPI) 주소. 이게 없으면 스프링 기본값 http://localhost:8000 을 쓰는데,
+      # 컨테이너 안의 localhost에는 AI 서버가 없어서 운동 추천·또래 비교가 전부
+      # "AI 서버에서 정보를 가져오지 못했어요"로 떨어진다. compose 네트워크에서는 서비스
+      # 이름(ai)으로 붙어야 한다. .env 에 AI_BASE_URL 이 따로 있으면 그 값을 쓴다.
+      AI_BASE_URL: ${AI_BASE_URL:-http://ai:8000}
     expose:
       - "8080"
 
