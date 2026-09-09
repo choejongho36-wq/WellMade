@@ -113,7 +113,8 @@ public class ChatToolExecutor {
                     Map.of(
                             "body_part", Map.of(
                                     "type", "string",
-                                    "description", "운동할 신체 부위. 예: 가슴, 등, 어깨, 팔, 복근, 하체, 종아리, 유산소"
+                                    "description", "운동할 신체 부위. 예: 상체, 하체, 가슴, 등, 어깨, 팔, 복근, 종아리, 유산소. "
+                                                 + "사용자가 '상체'처럼 뭉뚱그려 말하면 그대로 넘길 것 - 임의로 한 부위를 고르지 말 것."
                             ),
                             "equipment", Map.of(
                                     "type", "string",
@@ -422,8 +423,8 @@ public class ChatToolExecutor {
     private static final int RECENT_REPLY_LIMIT = 10;
     /** 답변 한 건에서 넘길 길이. 운동 이름은 앞부분에 나오므로 이만큼이면 다 잡힌다 */
     private static final int RECENT_REPLY_MAX_CHARS = 500;
-    /** 답변 아래에 붙일 영상 버튼 수 상한 - 넘치면 말풍선이 링크 목록이 된다 */
-    private static final int MAX_VIDEO_LINKS = 3;
+    /** 답변에 실어 보낼 영상 링크 수 상한 - 한 번에 추천하는 운동 수(AI 서버 MAX_PICKS)와 같다 */
+    private static final int MAX_VIDEO_LINKS = 4;
 
     /**
      * 운동 추천. 부위·장비만 넘기던 것에서 목표·나이·최근 운동 기록까지 같이 넘기도록 바뀌었다.
@@ -502,23 +503,36 @@ public class ChatToolExecutor {
             candidates.add(row);
         }
         result.put("candidates", candidates);
+        if (candidates.isEmpty()) {
+            // 규칙만으로는 안 지켜졌다. "상체"가 부위 사전에 없던 시절 후보 0건을 받고도
+            // 데이터에 없는 운동을 지어낸 턴이 있었다(실측: "바벨 로우 릴리즈").
+            result.put("instruction", "추천할 운동이 없습니다. 운동 이름을 지어내지 말고 note 문장만 그대로 전하세요.");
+        }
         return toJson(result);
     }
 
     /**
-     * 후보에 붙어 온 국민체력100 영상을 말풍선 아래 버튼으로 그릴 형태로 바꾼다.
+     * 후보에 붙어 온 국민체력100 영상을 화면이 그릴 형태로 바꾼다.
      *
-     * 같은 영상이 여러 운동에 붙을 수 있어서(잭 점프/스타 점프 -> 같은 점핑잭 영상) URL로
-     * 중복을 없앤다. 난이도 태그는 운동 난이도와 같을 때만 보여준다 - 영상 데이터에 초급이
-     * 적어서 "초급 운동 ▶ (중급) 영상"이 자주 나오는데, 그 조합은 사용자에게 혼란만 준다.
+     * exercise(운동 이름)를 같이 싣는 이유: 화면이 답변 본문에서 그 이름을 찾아 링크로 감싼다
+     * (ChatDrawer.linkifyExercises). 본문에서 이름을 못 찾은 링크만 말풍선 아래 버튼으로 떨어진다 -
+     * 모델이 이름을 바꿔 쓰거나 목록을 줄여 쓰는 턴이 있어서, 버튼 경로를 없애면 영상이 통째로 사라진다.
+     *
+     * 같은 영상이 여러 운동에 붙을 수 있지만(잭 점프/스타 점프 -> 같은 점핑잭 영상) 여기서 URL로
+     * 접지 않는다 - 본문에서는 두 이름 다 링크여야 하기 때문이다. 버튼으로 떨어졌을 때의 중복은
+     * 그리는 쪽에서 없앤다.
+     *
+     * 난이도 태그는 운동 난이도와 같을 때만 보여준다 - 영상 데이터에 초급이 적어서
+     * "초급 운동 ▶ (중급) 영상"이 자주 나오는데, 그 조합은 사용자에게 혼란만 준다.
      */
     List<Map<String, String>> videoLinks(JsonNode response) {
         List<Map<String, String>> links = new ArrayList<>();
-        Set<String> seenUrls = new HashSet<>();
+        Set<String> seenExercises = new HashSet<>();
         for (JsonNode candidate : response.path("candidates")) {
             JsonNode video = candidate.path("related_video");
             String url = video.path("video_url").asText("");
-            if (url.isBlank() || links.size() >= MAX_VIDEO_LINKS || !seenUrls.add(url)) {
+            String exercise = candidate.path("name").asText("");
+            if (url.isBlank() || links.size() >= MAX_VIDEO_LINKS || !seenExercises.add(exercise)) {
                 continue;
             }
 
@@ -535,7 +549,7 @@ public class ChatToolExecutor {
             }
             String name = video.path("name").asText("운동 영상");
             String label = tags.isEmpty() ? name : name + " (" + String.join(" · ", tags) + ")";
-            links.add(Map.of("label", label, "url", url));
+            links.add(Map.of("exercise", exercise, "label", label, "url", url));
         }
         return links;
     }

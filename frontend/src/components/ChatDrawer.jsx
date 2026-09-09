@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import chatbotIcon from '../assets/Wellmade chatbot.png'
+import { findExerciseSpans, leftoverLinks } from '../lib/exerciseLinks'
 import './ChatDrawer.css'
 
 /**
@@ -10,6 +11,69 @@ import './ChatDrawer.css'
  */
 function stripCodeFences(text) {
   return typeof text === 'string' ? text.replace(/^ *```.*$\n?/gm, '') : text
+}
+
+/**
+ * 챗봇 답변 한 개의 본문 + 영상 링크.
+ *
+ * 운동 이름은 본문 안에서 바로 눌리게 하고(추천 목록을 읽다가 그 자리에서 영상으로 갈 수 있다),
+ * 본문에서 이름을 못 찾은 영상만 아래 버튼으로 남긴다.
+ *
+ * 이름도 주소도 모델이 만든 게 아니라 서버가 데이터에서 꺼내 links로 실어 보낸 것이다. 그래도
+ * 본문을 HTML로 해석(dangerouslySetInnerHTML)하지는 않는다 - 본문 자체는 모델이 쓴 글이므로,
+ * 찾은 자리만 잘라 <a>로 바꾼 조각 배열을 만든다.
+ */
+function ChatMessageBody({ message }) {
+  if (message.role !== 'assistant') {
+    return <div className="chat-bubble">{message.content}</div>
+  }
+
+  const text = stripCodeFences(message.content)
+  const spans = findExerciseSpans(text, message.links)
+
+  const nodes = []
+  let cursor = 0
+  for (const { start, end, link } of spans) {
+    if (start > cursor) nodes.push(text.slice(cursor, start))
+    nodes.push(
+      <a
+        key={`${link.url}-${start}`}
+        className="chat-inline-link"
+        href={link.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={link.label}
+      >
+        {text.slice(start, end)}
+        <span className="chat-inline-link-icon" aria-hidden="true">▶</span>
+      </a>,
+    )
+    cursor = end
+  }
+  nodes.push(text.slice(cursor))
+
+  const leftover = leftoverLinks(message.links, spans.map((s) => s.link.url))
+
+  return (
+    <>
+      <div className="chat-bubble">{nodes}</div>
+      {leftover.length > 0 && (
+        <div className="chat-link-list">
+          {leftover.map((link) => (
+            <a
+              key={link.url}
+              className="chat-link-btn"
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              ▶ {link.label}
+            </a>
+          ))}
+        </div>
+      )}
+    </>
+  )
 }
 
 // 서버(ChatService.ACTION_*)가 답변에 실어 보내는 후속 행동 -> 말풍선 아래 버튼.
@@ -279,26 +343,7 @@ function ChatDrawer({ open, loggedIn, onClose, sendChat, getChatHistory, clearCh
                     </div>
                   )}
                   <div className="chat-bubble-col">
-                    <div className="chat-bubble">
-                      {m.role === 'assistant' ? stripCodeFences(m.content) : m.content}
-                    </div>
-                    {/* 도구가 실어 보낸 바깥 링크(국민체력100 운동 영상). 모델이 만든 주소가
-                        아니라 서버가 데이터에서 꺼낸 주소라 그대로 열어도 된다 */}
-                    {m.links?.length > 0 && (
-                      <div className="chat-link-list">
-                        {m.links.map((link) => (
-                          <a
-                            key={link.url}
-                            className="chat-link-btn"
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            ▶ {link.label}
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                    <ChatMessageBody message={m} />
                     {ACTION_BUTTONS[m.action] && (
                       <button
                         className="chat-action-btn"

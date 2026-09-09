@@ -5,6 +5,7 @@ from datetime import date
 from fastapi.testclient import TestClient
 
 from app.exercise.recommend import (
+    BODY_PART_CAUTIONS,
     MIN_PICKS,
     find_detail,
     normalize_body_part,
@@ -149,12 +150,112 @@ def test_맨몸_동작이_부족한_부위는_조건을_넓히고_그_사실을_
     assert "기구 없이" in result["note"]
 
 
+def test_한국어_장비_이름으로_후보를_좁힌다():
+    # 데이터의 equipment는 영문("dumbbell")이라 "덤벨"은 어디에도 안 걸렸다. 그래서 장비
+    # 조건이 조용히 무시된 채 바벨·케이블 운동이 섞여 나왔다(실측).
+    result = recommend(body_part="가슴", equipment="덤벨")
+
+    assert result["candidates"]
+    assert all(c["equipment"] == "dumbbell" for c in result["candidates"])
+    assert result["note"] is None
+
+
+def test_바벨은_ez_바벨까지_같이_잡는다():
+    result = recommend(body_part="팔", equipment="바벨")
+
+    assert result["candidates"]
+    assert all("barbell" in c["equipment"] for c in result["candidates"])
+
+
+def test_머신은_레버와_스미스머신을_함께_잡는다():
+    result = recommend(body_part="가슴", equipment="머신")
+
+    assert result["candidates"]
+    assert all("machine" in c["equipment"] for c in result["candidates"])
+
+
+def test_아는_장비인데_그_부위에_없으면_넓히고_알린다():
+    # 조용히 다른 장비를 내주면 "케틀벨이라고 했는데?"가 된다
+    result = recommend(body_part="종아리", equipment="케틀벨")
+
+    assert result["candidates"]
+    assert "케틀벨" in result["note"]
+
+
 def test_장비가_안맞으면_부위_필터까지만_적용한다():
     # '종아리 + 존재하지 않는 장비' 조합이 비면 그래도 종아리 후보는 나와야 한다
     result = recommend(body_part="종아리", equipment="존재하지않는장비")
 
     assert result["matched"] > 0
     assert all(c["body_part"] == "lower legs" for c in result["candidates"])
+
+
+# ---- 복합 부위("상체") ----
+
+
+def test_상체는_여러_부위를_묶은_그룹으로_읽는다():
+    # "상체"를 가슴 하나로 접으면 등·어깨·팔이 빠진 채로 추천된다
+    assert normalize_body_part("상체") == "upper body"
+    assert normalize_body_part("상체운동") == "upper body"
+    assert normalize_body_part("상반신") == "upper body"
+
+
+def test_상체_추천은_후보를_비우지_않는다():
+    # 예전에는 "상체"가 사전에 없어서 후보 0건을 돌려줬고, 그때 모델이 데이터에 없는
+    # 운동을 지어냈다(실측: "바벨 로우 릴리즈"). 후보가 있어야 지어낼 이유가 없다.
+    result = recommend(body_part="상체운동")
+
+    assert result["body_part"] == "upper body"
+    assert result["body_part_ko"] == "상체"
+    assert len(result["candidates"]) >= MIN_PICKS
+
+
+def test_상체_추천은_한_부위에_몰리지_않는다():
+    result = recommend(body_part="상체")
+
+    parts = {c["body_part"] for c in result["candidates"]}
+    assert len(parts) >= 3, f"상체인데 부위가 몰렸다: {parts}"
+    assert parts <= {"chest", "back", "shoulders", "upper arms"}
+
+
+def test_상체_주의사항은_실제로_뽑힌_부위만_짚는다():
+    result = recommend(body_part="상체")
+
+    picked_cautions = {BODY_PART_CAUTIONS[c["body_part"]] for c in result["candidates"]}
+    # 안 나온 부위의 주의사항을 붙이면 사용자는 없는 운동을 찾는다
+    assert set(result["cautions"]) <= picked_cautions
+    assert len(result["cautions"]) <= 2
+
+
+def test_상체_메모는_속한_부위를_전부_한_것으로_본다():
+    parsed = parse_recent_body_parts(
+        [{"date": "2026-09-03", "text": "상체 - 벤치프레스, 랫풀다운"}],
+        today=date(2026, 9, 4),
+    )
+
+    assert parsed["chest"] == 1
+    assert parsed["back"] == 1
+    assert parsed["shoulders"] == 1
+
+
+def test_어제_상체를_했으면_상체_추천에서_알려준다():
+    result = recommend(
+        body_part="상체",
+        recent_workouts=[{"date": "2026-09-03", "text": "상체 운동함"}],
+        today=date(2026, 9, 4),
+    )
+
+    assert "어제" in result["workout_note"]
+
+
+def test_부위_동의어를_넓게_받는다():
+    # 사용자가 실제로 쓰는 말이 사전에 없으면 후보 0건이 되고, 그 자리를 모델이 창작으로 메운다
+    assert normalize_body_part("흉근") == "chest"
+    assert normalize_body_part("승모근") == "back"
+    assert normalize_body_part("식스팩") == "waist"
+    assert normalize_body_part("햄스트링") == "upper legs"
+    assert normalize_body_part("장딴지") == "lower legs"
+    assert normalize_body_part("자전거") == "cardio"
 
 
 def test_모르는_부위면_후보를_비우고_안내만_돌려준다():

@@ -237,6 +237,26 @@
 .chat-action-btn:hover {
   background: #c0241a;
 }
+/* 답변 본문 안의 운동 이름 -> 그 운동의 영상. 목록을 읽다가 그 자리에서 바로 열 수 있게 한다.
+   본문 흐름을 끊지 않도록 밑줄만 두고, 바깥으로 나간다는 표시로 이름 뒤에 작은 재생 표시를 붙인다 */
+.chat-inline-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: #da291c;
+  text-underline-offset: 3px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chat-inline-link:hover {
+  color: #da291c;
+}
+.chat-inline-link-icon {
+  font-size: 9px;
+  color: #da291c;
+  margin-left: 2px;
+  vertical-align: 1px;
+}
+
 /* 도구가 실어 보낸 운동 영상 링크. 답변 버튼(chat-action-btn)과 달리 앱 밖으로 나가므로
    빨간 채움 대신 테두리만 둬서 "이건 바깥 링크"라는 게 보이게 한다 */
 .chat-link-list {

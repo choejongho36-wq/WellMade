@@ -413,7 +413,7 @@ class ExerciseRecommendRequest(BaseModel):
 
 
 class ExerciseVideo(BaseModel):
-    """국민체력100 참고 영상. 운동명이 아니라 타겟 근육으로 이었으므로 '관련 영상'이다."""
+    """국민체력100 영상. 같은 '동작'인 것만 붙인다(app/exercise/movements.py)."""
 
     name: str
     level: Optional[str] = Field(None, description="초급/중급/고급 (원본에 없으면 None)")
