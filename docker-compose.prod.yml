@@ -48,17 +48,24 @@ services:
     env_file: .env
     expose:
       - "8000"
-
+  posture-ai:
+    build: ./posture-ai
+    restart: unless-stopped
+    env_file: .env
+    expose:
+      - "8001"
   frontend:
     build:
       context: ./frontend
       args:
         VITE_API_BASE: ${VITE_API_BASE}
         VITE_AI_BASE: ${VITE_AI_BASE}
+        VITE_POSTURE_AI_BASE: ${VITE_POSTURE_AI_BASE}
     restart: unless-stopped
     depends_on:
       - backend
       - ai
+      - posture-ai
     ports:
       - "127.0.0.1:8080:80"
 
