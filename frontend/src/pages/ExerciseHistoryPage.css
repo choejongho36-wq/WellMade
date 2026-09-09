@@ -1,0 +1,422 @@
+/* 운동 기록 페이지 전용 스타일(2026-09-09 신규) — 다른 스쿼트 코칭 페이지들과 같은
+   팔레트(#da291c 레드, #2eb872 그린, #2f6fed 블루, #e5e3dd 보더)를 쓰되, 이 페이지는
+   SquatCoachingPage.css를 import하지 않고 클래스를 전부 hist- 접두어로 독립시켰다
+   (SquatCoachingPage.jsx가 무거운 카메라/MediaPipe 훅을 물고 있어 이 페이지 번들에
+   섞이지 않게 하려는 목적 — 파일 상단 주석 참고). */
+
+.hist-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .hist-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hist-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.hist-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.hist-empty-card {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 20px;
+  font-size: 13px;
+  color: #55534d;
+}
+
+.hist-summary-card,
+.hist-analysis-card,
+.hist-sets-card,
+.hist-goal-card,
+.hist-week-card,
+.hist-chart-card {
+  background: #f7f6f2;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.hist-summary-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 12px;
+}
+.hist-summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.hist-summary-stat {
+  flex: 1 1 120px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+.hist-summary-stat-score {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 160px;
+}
+.hist-summary-stat-label {
+  font-size: 11px;
+  color: #8c8b88;
+  margin-bottom: 4px;
+}
+.hist-summary-stat-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #111;
+}
+.hist-summary-stat-sub {
+  font-size: 11px;
+  color: #9b9a96;
+  margin-top: 2px;
+}
+.hist-summary-stat-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-top: 2px;
+}
+.hist-summary-stat-badge.is-good {
+  color: #1c8a52;
+  background: rgba(46, 184, 114, 0.16);
+}
+.hist-summary-stat-badge.is-ok {
+  color: #2f6fed;
+  background: rgba(47, 111, 237, 0.12);
+}
+
+.hist-analysis-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.hist-analysis-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #111;
+}
+.hist-analysis-date {
+  font-size: 11.5px;
+  color: #9b9a96;
+  flex: 1;
+}
+.hist-detail-toggle-btn {
+  border: 1px solid #e5e3dd;
+  background: #fff;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  color: #55534d;
+  cursor: pointer;
+}
+.hist-detail-toggle-btn:hover {
+  border-color: #2f6fed;
+  color: #2f6fed;
+}
+
+.hist-metric-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+.hist-metric-tile {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 12px;
+  padding: 12px;
+}
+.hist-metric-tile.is-warn {
+  border-color: rgba(218, 41, 28, 0.35);
+}
+.hist-metric-tile-title {
+  font-size: 11px;
+  color: #8c8b88;
+  margin-bottom: 6px;
+}
+.hist-metric-tile-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #111;
+}
+.hist-metric-tile-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-top: 4px;
+  color: #1c8a52;
+  background: rgba(46, 184, 114, 0.16);
+}
+.hist-metric-tile-badge.is-warn {
+  color: #b3261e;
+  background: rgba(218, 41, 28, 0.12);
+}
+.hist-metric-tile-range {
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  color: #9b9a96;
+}
+.hist-metric-tile-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.hist-metric-tile-empty-text {
+  margin: 0;
+  font-size: 11px;
+  color: #9b9a96;
+}
+
+.hist-metric-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.hist-metric-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.hist-metric-bar-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #33322f;
+}
+.hist-metric-bar-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #55534d;
+}
+.hist-metric-bar-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: #f0efe9;
+}
+.hist-metric-bar-ok-zone {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: #cdeee0;
+}
+.hist-metric-bar-marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #2f6fed;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(47, 111, 237, 0.4);
+  transform: translate(-50%, -50%);
+}
+.hist-metric-bar-caption {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #9b9a96;
+}
+
+.hist-section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 10px;
+}
+.hist-feedback-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .hist-feedback-row {
+    grid-template-columns: 1fr;
+  }
+}
+.hist-feedback-card {
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.hist-feedback-card ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.hist-feedback-card p {
+  margin: 0;
+  font-size: 12px;
+  color: #55534d;
+}
+.hist-feedback-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.hist-feedback-good {
+  background: rgba(46, 184, 114, 0.1);
+  border: 1px solid rgba(46, 184, 114, 0.3);
+}
+.hist-feedback-warn {
+  background: rgba(218, 41, 28, 0.08);
+  border: 1px solid rgba(218, 41, 28, 0.25);
+}
+.hist-tip-bar {
+  margin-top: 10px;
+  background: #eef3ff;
+  border: 1px solid rgba(47, 111, 237, 0.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #2f4b8f;
+}
+
+.hist-sets-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.hist-sets-table th,
+.hist-sets-table td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid #e5e3dd;
+  color: #33322f;
+}
+.hist-sets-table th {
+  font-size: 11px;
+  color: #8c8b88;
+  font-weight: 700;
+}
+
+.hist-row-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 620px) {
+  .hist-row-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hist-chart-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 8px;
+}
+.hist-chart-sub {
+  font-weight: 400;
+  color: #9b9a96;
+  font-size: 11px;
+  margin-left: 6px;
+}
+.hist-trend-delta {
+  margin-left: 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.hist-trend-delta.is-up {
+  color: #1c8a52;
+  background: rgba(46, 184, 114, 0.16);
+}
+.hist-trend-delta.is-down {
+  color: #b3261e;
+  background: rgba(218, 41, 28, 0.12);
+}
+.hist-trend-svg {
+  width: 100%;
+  height: auto;
+}
+
+.hist-goal-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #55534d;
+  margin-bottom: 8px;
+}
+.hist-goal-pct {
+  font-weight: 800;
+  color: #2f6fed;
+}
+.hist-goal-bar {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: #f0efe9;
+  overflow: hidden;
+}
+.hist-goal-bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: #2f6fed;
+  border-radius: 5px;
+}
+.hist-empty-text {
+  margin: 0;
+  font-size: 12px;
+  color: #9b9a96;
+}
+
+.hist-week-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+.hist-week-day-label {
+  font-size: 11px;
+  color: #9b9a96;
+  margin-bottom: 6px;
+}
+.hist-week-day-dot {
+  width: 26px;
+  height: 26px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: #f0efe9;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hist-week-day-dot.is-met {
+  background: #2eb872;
+}
+.hist-week-day-dot.is-partial {
+  background: #e5c07b;
+}

@@ -15,11 +15,17 @@
  */
 
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import PageShell from '../components/PageShell.jsx'
+import SquatGoalCalendar from '../components/SquatGoalCalendar.jsx'
+import RecentSessionsList from '../components/RecentSessionsList.jsx'
+import ExerciseGoalModal from '../components/ExerciseGoalModal.jsx'
 import { useSquatCoachingSession } from '../hooks/useSquatCoachingSession.js'
 import { PART_LABELS } from '../lib/squatPose.js'
-import { formatDateKey, todayDateKey } from '../lib/squatDailyStats.js'
+import { todayDateKey } from '../lib/squatDailyStats.js'
 import { loadSquatLevel, saveSquatLevel } from '../lib/squatLevelPreference.js'
+import { loadSquatSessionHistory } from '../lib/squatSessionHistory.js'
+import { loadExerciseGoalState, saveExerciseGoals, getExerciseGoal } from '../lib/exerciseGoals.js'
 import './squatShared.css'
 import './SquatCoachingPage.css'
 
@@ -49,7 +55,7 @@ function IdleView({ onStart, cameraError, level, onSelectLevel }) {
         </button>
         <button
           type="button"
-          className={`squat-level-toggle-btn${isBeginner ? '' : ' is-active'}`}
+          className={`squat-level-toggle-btn${isBeginner ? '' : ' is-active-expert'}`}
           onClick={() => onSelectLevel('expert')}
         >
           숙련자
@@ -268,44 +274,68 @@ function NormalRatioMeter({ report }) {
   const circumference = 2 * Math.PI * r
   const offset = circumference * (1 - report.normal_ratio)
 
+  // (2026-09-09 수정) "스쿼트 분석" 제목을 이 박스 바깥(ReportView)에 따로 두지 않고
+  // 도넛 그래프와 같은 박스 안 맨 위로 옮겼다. 정상/이상 판정 횟수는 박스 하단에 전체
+  // 너비 줄로 두면 박스가 쓸데없이 길어져서, 도넛 아래 비어 있던 자리(.squat-meter-ring-sub)
+  // 로 옮겼다 — 새 자리를 차지하지 않는다.
   return (
     <div className="squat-meter-card">
-      <svg className="squat-meter-ring" width="104" height="104" viewBox="0 0 112 112">
-        <circle cx="56" cy="56" r={r} fill="none" stroke={ringWash} strokeWidth="12" />
-        <circle
-          cx="56"
-          cy="56"
-          r={r}
-          fill="none"
-          stroke={ringColor}
-          strokeWidth="12"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          transform="rotate(-90 56 56)"
-        />
-        <text x="56" y="52" textAnchor="middle" fontSize="20" fontWeight="700" fill="#111">{pct}%</text>
-        <text x="56" y="70" textAnchor="middle" fontSize="10" fill="#8c8b88">정상 자세</text>
-      </svg>
-      <div className="squat-meter-text">
-        <div className="squat-meter-title">정상 자세 비율</div>
-        <div className="squat-meter-caption">
-          {formatSessionDuration(report.session_duration_sec)} · 총 {report.total_reps}회 중 {report.normal_reps}회 정상 판정
-        </div>
-        {report.previous_normal_ratio != null && report.improvement_vs_previous_pct != null && (
-          <div className="squat-meter-delta">
-            {report.improvement_vs_previous_pct > 0 ? '▲' : report.improvement_vs_previous_pct < 0 ? '▼' : '·'}
-            {' '}
-            {Math.abs(report.improvement_vs_previous_pct).toFixed(1)}%p{' '}
-            <span className="prev">지난 세션({Math.round(report.previous_normal_ratio * 100)}%) 대비</span>
+      <div className="squat-meter-section-title">스쿼트 분석</div>
+      <div className="squat-meter-row">
+        <div className="squat-meter-ring-col">
+          <svg className="squat-meter-ring" width="104" height="104" viewBox="0 0 112 112">
+            <circle cx="56" cy="56" r={r} fill="none" stroke={ringWash} strokeWidth="12" />
+            <circle
+              cx="56"
+              cy="56"
+              r={r}
+              fill="none"
+              stroke={ringColor}
+              strokeWidth="12"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              transform="rotate(-90 56 56)"
+            />
+            <text x="56" y="52" textAnchor="middle" fontSize="20" fontWeight="700" fill="#111">{pct}%</text>
+            <text x="56" y="70" textAnchor="middle" fontSize="10" fill="#8c8b88">정상 자세</text>
+          </svg>
+          <div className="squat-meter-ring-sub">
+            <div className="squat-meter-ring-sub-title">정상/이상 동작 횟수</div>
+            <div className="squat-meter-ring-sub-counts">
+              <span className="squat-legend-item">
+                <span className="squat-legend-dot squat-legend-dot-ok" />정상 {report.normal_reps}회
+              </span>
+              <span className="squat-legend-item">
+                <span className="squat-legend-dot squat-legend-dot-warn" />이상 {report.abnormal_reps}회
+              </span>
+            </div>
           </div>
-        )}
+        </div>
+        <div className="squat-meter-text">
+          <div className="squat-meter-title">정상 자세 비율</div>
+          <div className="squat-meter-caption">
+            {formatSessionDuration(report.session_duration_sec)} · 총 {report.total_reps}회 중 {report.normal_reps}회 정상 판정
+          </div>
+          {report.previous_normal_ratio != null && report.improvement_vs_previous_pct != null && (
+            <div className="squat-meter-delta">
+              {report.improvement_vs_previous_pct > 0 ? '▲' : report.improvement_vs_previous_pct < 0 ? '▼' : '·'}
+              {' '}
+              {Math.abs(report.improvement_vs_previous_pct).toFixed(1)}%p{' '}
+              <span className="prev">지난 세션({Math.round(report.previous_normal_ratio * 100)}%) 대비</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
 // 부위별 이상 발생 빈도를 가로 막대그래프로 보여준다.
+// (2026-09-09 수정) 최댓값 막대가 트랙 100%까지 꽉 차면 그 옆 "N회" 숫자가 카드 밖으로
+// 밀려나 두 줄로 깨졌다 — 최댓값이라도 78%까지만 채우고 나머지는 여백으로 남겨 숫자가
+// 항상 한 줄로 들어갈 공간을 확보한다.
+const ISSUE_BAR_MAX_FILL_PCT = 78
 function IssuePartBarChart({ counts, mostFrequent }) {
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1])
   const max = entries.length > 0 ? entries[0][1] : 1
@@ -315,17 +345,20 @@ function IssuePartBarChart({ counts, mostFrequent }) {
       {mostFrequent && (
         <div className="squat-chart-sub">가장 빈번한 이상 부위: {PART_LABELS[mostFrequent] ?? mostFrequent}</div>
       )}
-      {entries.map(([part, count]) => (
-        <div key={part} className="squat-bar-row">
-          <div className="squat-bar-label">{PART_LABELS[part] ?? part}</div>
-          <div className="squat-bar-track">
-            <div className="squat-bar-fill" style={{ width: `${Math.round((count / max) * 100)}%` }} />
-            <div className="squat-bar-value" style={{ left: `calc(${Math.round((count / max) * 100)}% + 8px)` }}>
-              {count}회
+      {entries.map(([part, count]) => {
+        const fillPct = Math.round((count / max) * ISSUE_BAR_MAX_FILL_PCT)
+        return (
+          <div key={part} className="squat-bar-row">
+            <div className="squat-bar-label">{PART_LABELS[part] ?? part}</div>
+            <div className="squat-bar-track">
+              <div className="squat-bar-fill" style={{ width: `${fillPct}%` }} />
+              <div className="squat-bar-value" style={{ left: `calc(${fillPct}% + 8px)` }}>
+                {count}회
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -411,157 +444,10 @@ function RepTimeline({ reps }) {
   )
 }
 
-// 이번 달 달력에 날짜별 목표 달성 여부(초록 반투명 채움)를 보여준다 — 실시간 코칭 화면의
-// 달력 모달(ActiveView)과 리포트 화면(ReportView) 양쪽에서 재사용한다. goal이
-// 없으면(마이페이지에서 목표 미설정) 채움 없이 설정해 달라는 안내만 보여준다. 오른쪽에는
-// 오늘 누적 리포트를 도넛 그래프로 항상 같이 보여준다(TodayReportGraph).
-//
-// (2026-09-08 수정) goalTarget(숫자, 회수만) → goal(객체, { targetReps, targetSets }).
-// "그날 목표를 채웠는지"는 이제 총 반복 횟수가 아니라 완료한 세트 수(total_sets)가
-// targetSets 이상인지로 판단한다 — 실시간 코칭은 세션(세트) 하나가 끝날 때까지 정확히
-// 몇 회를 할지 강제하지 않으므로(정상 자세 비율+시간 기반 자동 종료), "회수 목표"는
-// "세트당 몇 회를 목표로 할지"를 알려주는 참고값이고 실제 달성 판정은 세트 수로 하는
-// 편이 더 안정적이다.
-function SquatGoalCalendar({ dailyStats, goal }) {
-  const [monthOffset, setMonthOffset] = useState(0)
-  const base = new Date()
-  const viewDate = new Date(base.getFullYear(), base.getMonth() + monthOffset, 1)
-  const year = viewDate.getFullYear()
-  const month = viewDate.getMonth()
-  const firstWeekday = new Date(year, month, 1).getDay()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const today = todayDateKey()
-
-  const cells = []
-  for (let i = 0; i < firstWeekday; i++) cells.push(null)
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
-
-  const todayStat = dailyStats[today]
-  const todaySets = todayStat?.total_sets ?? 0
-  const todayGoalMet = goal != null && todaySets >= goal.targetSets
-
-  return (
-    <div className="squat-calendar-row">
-      <div className="squat-calendar-card">
-        <div className="squat-calendar-header">
-          <button type="button" className="squat-calendar-nav" onClick={() => setMonthOffset((m) => m - 1)} aria-label="이전 달">
-            ‹
-          </button>
-          <span className="squat-calendar-month">{year}년 {month + 1}월</span>
-          <button type="button" className="squat-calendar-nav" onClick={() => setMonthOffset((m) => m + 1)} aria-label="다음 달">
-            ›
-          </button>
-        </div>
-
-        {goal != null ? (
-          <div className="squat-calendar-today-goal">
-            오늘 목표 {goal.targetReps}회 {goal.targetSets}세트 중 <b>{Math.min(todaySets, goal.targetSets)}세트</b> 완료
-            {todayGoalMet ? ' · 달성! 🎉' : ` · ${Math.max(goal.targetSets - todaySets, 0)}세트 남았어요`}
-          </div>
-        ) : (
-          <div className="squat-calendar-today-goal squat-calendar-no-goal">
-            마이페이지에서 스쿼트 목표 횟수·세트를 설정하면 달성한 날이 표시돼요.
-          </div>
-        )}
-
-        <div className="squat-calendar-weekdays">
-          {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
-            <span key={w}>{w}</span>
-          ))}
-        </div>
-        <div className="squat-calendar-grid">
-          {cells.map((d, i) => {
-            if (d == null) return <span key={i} className="squat-calendar-cell squat-calendar-cell-empty" />
-            const dateKey = formatDateKey(new Date(year, month, d))
-            const stat = dailyStats[dateKey]
-            const met = goal != null && stat != null && stat.total_sets >= goal.targetSets
-            const isToday = dateKey === today
-            const title = stat ? `${dateKey} · ${stat.total_reps}회 ${stat.total_sets}세트` : dateKey
-            return (
-              <span
-                key={i}
-                className={`squat-calendar-cell${met ? ' squat-calendar-cell-met' : ''}${isToday ? ' squat-calendar-cell-today' : ''}`}
-                title={title}
-              >
-                {d}
-              </span>
-            )
-          })}
-        </div>
-      </div>
-
-      <TodayReportGraph todayStat={todayStat} />
-    </div>
-  )
-}
-
-// 오늘 누적 리포트(총 운동시간/총 횟수/정상 비율/이상 감지)를 도넛 링 + 막대 그래프로
-// 보여준다 — 달력 오른쪽에 항상 붙어서 나온다(클릭 없이 바로 보임).
-function TodayReportGraph({ todayStat }) {
-  const hasData = Boolean(todayStat && todayStat.total_reps > 0)
-  const normalReps = hasData ? todayStat.total_reps - todayStat.abnormal_reps : 0
-  const normalRatio = hasData ? normalReps / todayStat.total_reps : 0
-  const pct = Math.round(normalRatio * 100)
-  const isGood = normalRatio >= 0.8
-  const ringColor = isGood ? '#2eb872' : '#da291c'
-  const ringWash = isGood ? 'rgba(46, 184, 114, 0.16)' : 'rgba(218, 41, 28, 0.14)'
-  const r = 30
-  const circumference = 2 * Math.PI * r
-  const offset = circumference * (1 - normalRatio)
-  const normalPct = hasData ? Math.round((normalReps / todayStat.total_reps) * 100) : 0
-
-  return (
-    <div className="squat-today-graph-card">
-      <div className="squat-today-graph-title">오늘의 리포트</div>
-      {hasData ? (
-        <>
-          <div className="squat-today-graph-donut-row">
-            <svg width="72" height="72" viewBox="0 0 72 72">
-              <circle cx="36" cy="36" r={r} fill="none" stroke={ringWash} strokeWidth="8" />
-              <circle
-                cx="36"
-                cy="36"
-                r={r}
-                fill="none"
-                stroke={ringColor}
-                strokeWidth="8"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={offset}
-                transform="rotate(-90 36 36)"
-              />
-              <text x="36" y="41" textAnchor="middle" fontSize="15" fontWeight="700" fill="#111">
-                {pct}%
-              </text>
-            </svg>
-            <div className="squat-today-graph-donut-label">
-              <div className="squat-today-graph-donut-caption">정상 자세 비율</div>
-              <div className="squat-today-graph-sub">
-                {formatSessionDuration(todayStat.total_duration_sec)} · {todayStat.total_reps}회
-              </div>
-            </div>
-          </div>
-          <div className="squat-today-graph-bar">
-            <div className="squat-today-graph-bar-normal" style={{ width: `${normalPct}%` }} />
-          </div>
-          <div className="squat-today-graph-legend">
-            <span>
-              <span className="squat-today-graph-dot squat-today-graph-dot-ok" />
-              정상 {normalReps}회
-            </span>
-            <span>
-              <span className="squat-today-graph-dot squat-today-graph-dot-warn" />
-              이상 {todayStat.abnormal_reps}회
-            </span>
-          </div>
-        </>
-      ) : (
-        <div className="squat-today-graph-empty">오늘은 아직 운동 기록이 없어요.</div>
-      )}
-    </div>
-  )
-}
-
+// (2026-09-09 재구성) 상단 통계 3칸을 "오늘 누적"(dailyStats)이 아니라 "이번 세션"
+// (sessionReport) 값으로 통일하고, "스쿼트 분석"을 좌(자세 분석: 게이지+막대그래프+
+// 타임라인)/우(달력+추이 그래프) 2단 구성으로 바꿨다 — 목업 검토 결과 아래쪽에 따로 있던
+// "총 스쿼트 횟수/이상 자세 감지" 통계 칸은 위 3칸과 값이 겹쳐서(같은 세션 기준) 없앴다.
 function ReportView({ session }) {
   const {
     sessionReport,
@@ -575,78 +461,84 @@ function ReportView({ session }) {
   } = session
 
   const hasIssueCounts = sessionReport && Object.keys(sessionReport.issue_counts_by_part ?? {}).length > 0
-  const todayStat = dailyStats[todayDateKey()]
+
+  // (2026-09-09 재구성) 달력이 제목 줄과 같은 높이가 아니라 "스쿼트 분석" 박스와 같은
+  // 줄에서 시작해야 한다는 피드백에 따라, [제목+오늘 점수 / 통계 3칸] 헤더 줄과 설명
+  // 문구를 왼쪽 칼럼 밖으로 빼서 카드 전체 폭을 쓰는 줄로 만들었다 — 그 아래부터 시작하는
+  // 2단 그리드(왼쪽: 스쿼트 분석·막대그래프·타임라인 / 오른쪽: 달력·추이그래프·버튼)에서
+  // 달력이 자연스럽게 "스쿼트 분석" 박스와 같은 줄에서 시작한다. 통계 3칸은 이제 카드
+  // 전체 폭 기준으로 오른쪽 끝까지 밀린다. 리포트가 아직 없을 때(로딩/에러)는 나눌 내용이
+  // 없으니 제목만 단순하게 보여준다.
+  if (!sessionReport) {
+    return (
+      <div className="squat-card squat-report">
+        <h2 className="squat-report-title">오늘의 스쿼트 리포트</h2>
+        {reportLoading && <p className="squat-report-loading">리포트를 만들고 있어요...</p>}
+        {reportError && <p className="squat-error">{reportError}</p>}
+      </div>
+    )
+  }
 
   return (
     <div className="squat-card squat-report">
-      <h2 className="squat-report-title">오늘의 스쿼트 리포트</h2>
-
-      {reportLoading && <p className="squat-report-loading">리포트를 만들고 있어요...</p>}
-      {reportError && <p className="squat-error">{reportError}</p>}
-
-      {sessionReport && (
-        <>
-          <p className="squat-report-summary">{sessionReport.summary_message}</p>
-          <p className="squat-report-line">{sessionReport.recommended_frequency_message}</p>
-
-          <div className="squat-today-row">
-            <div className="squat-today-stats">
-              <div className="squat-today-stat">
-                <div className="squat-today-stat-label">오늘 총 운동시간</div>
-                <div className="squat-today-stat-value">{formatSessionDuration(todayStat?.total_duration_sec ?? 0)}</div>
-              </div>
-              <div className="squat-today-stat">
-                <div className="squat-today-stat-label">오늘 총 스쿼트 횟수</div>
-                <div className="squat-today-stat-value">
-                  {todayStat?.total_reps ?? 0}
-                  <span className="unit">회</span>
-                </div>
-              </div>
-              <div className="squat-today-stat">
-                <div className="squat-today-stat-label">오늘 이상 자세 감지</div>
-                <div className="squat-today-stat-value">
-                  {todayStat?.abnormal_reps ?? 0}
-                  <span className="unit">회</span>
-                </div>
-              </div>
-            </div>
-            <SquatGoalCalendar dailyStats={dailyStats} goal={squatGoal} />
+      <div className="squat-report-header-row">
+        <div className="squat-report-title-row">
+          <h2 className="squat-report-title">오늘의 스쿼트 리포트</h2>
+          <div className="squat-report-score" title="오늘 운동 점수">
+            <span className="squat-report-score-value">{sessionReport.score}</span>
+            <span className="squat-report-score-unit">점</span>
           </div>
+        </div>
+        <div className="squat-today-stats squat-today-stats-compact">
+          <div className="squat-today-stat">
+            <div className="squat-today-stat-label">총 운동시간</div>
+            <div className="squat-today-stat-value">{formatSessionDuration(sessionReport.session_duration_sec)}</div>
+          </div>
+          <div className="squat-today-stat">
+            <div className="squat-today-stat-label">총 스쿼트 횟수</div>
+            <div className="squat-today-stat-value">
+              {sessionReport.total_reps}
+              <span className="unit">회</span>
+            </div>
+          </div>
+          <div className="squat-today-stat">
+            <div className="squat-today-stat-label">이상 자세 감지</div>
+            <div className="squat-today-stat-value">
+              {sessionReport.abnormal_reps}
+              <span className="unit">회</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <div className="squat-stats-section-title">스쿼트 분석</div>
+      <p className="squat-report-summary">{sessionReport.summary_message}</p>
+      <p className="squat-report-line">{sessionReport.recommended_frequency_message}</p>
 
+      <div className="squat-analysis-grid">
+        <div className="squat-analysis-col">
           <NormalRatioMeter report={sessionReport} />
-
-          <div className="squat-stat-tile-row">
-            <div className="squat-stat-tile">
-              <div className="squat-stat-tile-label">총 스쿼트 횟수</div>
-              <div className="squat-stat-tile-value">
-                {sessionReport.total_reps}
-                <span className="unit">회</span>
-              </div>
-            </div>
-            <div className="squat-stat-tile">
-              <div className="squat-stat-tile-label">이상 자세 감지</div>
-              <div className="squat-stat-tile-value">
-                {sessionReport.abnormal_reps}
-                <span className="unit">회</span>
-              </div>
-            </div>
-          </div>
-
           {hasIssueCounts && (
             <IssuePartBarChart counts={sessionReport.issue_counts_by_part} mostFrequent={sessionReport.most_frequent_issue_part} />
           )}
-
-          {sessionHistory.length > 1 && <SessionTrendChart history={sessionHistory} />}
-
           {repHistory.length > 0 && <RepTimeline reps={repHistory} />}
-        </>
-      )}
+        </div>
 
-      <button className="squat-btn squat-btn-primary" onClick={restart} style={{ marginTop: 16 }}>
-        다시 운동하기
-      </button>
+        <div className="squat-analysis-col squat-analysis-side">
+          <SquatGoalCalendar dailyStats={dailyStats} goal={squatGoal} />
+          {sessionHistory.length > 1 && <SessionTrendChart history={sessionHistory} />}
+          {/* (2026-09-09) 왼쪽 칼럼이 오른쪽보다 길어서(막대그래프+타임라인까지 있음) 오른쪽
+              칼럼(달력+추이그래프) 아래로 남는 세로 공간이 생긴다 — 두 버튼을 그 공간의
+              한가운데(위/아래 margin:auto)로 오게 했다. */}
+          <div className="squat-report-actions">
+            <Link to="/exercises-history" className="squat-btn squat-btn-outline squat-report-history-btn">
+              지난 운동 기록 보기
+            </Link>
+            <button className="squat-btn squat-btn-primary squat-report-restart-btn" onClick={restart}>
+              다시 운동하기
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -654,6 +546,25 @@ function ReportView({ session }) {
 function SquatCoachingPage() {
   const session = useSquatCoachingSession()
   const [calendarOpen, setCalendarOpen] = useState(false)
+  // (2026-09-09 추가) "카메라 켜고 시작하기"를 눌렀을 때 목표(마이페이지에서 설정하는
+  // 하루 목표 횟수·세트)가 아직 한 번도 설정 안 돼 있으면(loadExerciseGoalState().configured
+  // === false — 마이페이지가 "운동 목표를 설정해주세요" 안내를 띄우는 것과 같은 기준),
+  // 카메라를 바로 켜는 대신 목표 설정 모달을 띄운다. 저장하면(같은 localStorage를 쓰므로
+  // 마이페이지에도 그대로 반영됨) 모달을 닫고 이어서 카메라를 켠다 — 다시 버튼을 누르지
+  // 않아도 되게. 이미 목표가 설정돼 있으면 지금처럼 바로 시작한다.
+  const [goalModalOpen, setGoalModalOpen] = useState(false)
+  const handleStartClick = () => {
+    if (!loadExerciseGoalState().configured) {
+      setGoalModalOpen(true)
+      return
+    }
+    session.start()
+  }
+  const handleSaveGoalAndStart = (goals) => {
+    saveExerciseGoals(goals)
+    session.setSquatGoal(getExerciseGoal('squat'))
+    session.start()
+  }
   // (2026-09-08 추가, 같은 날 두 차례 수정) 초심자/숙련자 모드. 판정 로직 자체는 두 모드가
   // 거의 같고(IdleView/ActiveView 주석 참고), 반복 횟수/목표 진행 표시만 숙련자 모드
   // 전용으로 갈린다.
@@ -694,7 +605,7 @@ function SquatCoachingPage() {
       <div className="squat-page-body">
         {session.phase === 'idle' && (
           <IdleView
-            onStart={session.start}
+            onStart={handleStartClick}
             cameraError={session.cameraError}
             level={level}
             onSelectLevel={handleSelectLevel}
@@ -704,14 +615,28 @@ function SquatCoachingPage() {
         {session.phase === 'report' && <ReportView session={session} />}
       </div>
 
+      {goalModalOpen && (
+        <ExerciseGoalModal
+          goals={loadExerciseGoalState().goals}
+          onClose={() => setGoalModalOpen(false)}
+          onSave={handleSaveGoalAndStart}
+        />
+      )}
+
       {calendarOpen && (
         <div className="modal-backdrop" onClick={() => setCalendarOpen(false)}>
-          <div className="modal squat-calendar-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal squat-calendar-modal squat-calendar-modal-wide" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setCalendarOpen(false)} aria-label="닫기">
               ×
             </button>
             <div className="modal-title">운동 달력</div>
-            <SquatGoalCalendar dailyStats={session.dailyStats} goal={session.squatGoal} />
+            {/* (2026-09-09 재구성) 달력 옆에 있던 "오늘의 리포트" 도넛 대신 최근 세션
+                리스트를 보여주고, "더보기"로 운동 기록 페이지(/exercises-history)로
+                이동한다 — 그 세션의 상세(자세 분석 등)는 거기서 날짜/세션을 골라 본다. */}
+            <div className="squat-calendar-modal-body squat-calendar-row">
+              <SquatGoalCalendar dailyStats={session.dailyStats} goal={session.squatGoal} />
+              <RecentSessionsList sessions={[...loadSquatSessionHistory()].reverse()} limit={6} moreTo="/exercises-history" />
+            </div>
           </div>
         </div>
       )}

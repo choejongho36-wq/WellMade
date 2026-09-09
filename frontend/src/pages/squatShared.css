@@ -156,6 +156,11 @@
   background: #2eb872;
   color: #fff;
 }
+/* (2026-09-09 추가) 숙련자 선택 시엔 초심자(초록)와 구분되게 파란색을 쓴다. */
+.squat-level-toggle-btn.is-active-expert {
+  background: #2f6fed;
+  color: #fff;
+}
 .squat-level-desc {
   max-width: 420px;
   margin: 0 auto 14px;

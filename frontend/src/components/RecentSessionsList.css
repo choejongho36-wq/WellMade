@@ -1,0 +1,95 @@
+.recent-sessions-card {
+  flex: 1 1 220px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.recent-sessions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.recent-sessions-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #111;
+}
+.recent-sessions-more {
+  font-size: 11.5px;
+  color: #8c8b88;
+  text-decoration: none;
+}
+.recent-sessions-more:hover {
+  color: #da291c;
+}
+.recent-sessions-empty {
+  font-size: 12px;
+  color: #9b9a96;
+  margin: 8px 0 0;
+}
+.recent-sessions-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.recent-session-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: #f9f8f5;
+  border-radius: 10px;
+  padding: 9px 12px;
+  text-align: left;
+  font-family: inherit;
+  cursor: default;
+}
+.recent-session-row.is-clickable {
+  cursor: pointer;
+}
+.recent-session-row.is-clickable:hover {
+  background: #f2f1eb;
+}
+.recent-session-row.is-selected {
+  background: rgba(47, 111, 237, 0.1);
+  box-shadow: inset 0 0 0 1.5px #2f6fed;
+}
+.recent-session-info {
+  flex: 1;
+  min-width: 0;
+}
+.recent-session-date {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #111;
+}
+.recent-session-sub {
+  font-size: 11px;
+  color: #8c8b88;
+  margin-top: 2px;
+}
+.recent-session-score {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.recent-session-score.is-good {
+  color: #1c8a52;
+  background: rgba(46, 184, 114, 0.16);
+}
+.recent-session-score.is-ok {
+  color: #2f6fed;
+  background: rgba(47, 111, 237, 0.12);
+}
+.recent-session-chevron {
+  flex: none;
+  color: #c3c2b7;
+  font-size: 14px;
+}

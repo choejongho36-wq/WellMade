@@ -1,0 +1,45 @@
+/* (2026-09-09) MyPage.css에서 옮겨옴 — ExerciseGoalModal이 마이페이지 전용 컴포넌트에서
+   공용 컴포넌트로 빠지면서(코칭 페이지의 "카메라 켜고 시작하기" 버튼에서도 씀) 이 모달
+   전용 스타일도 함께 옮겼다. 디자인은 "신체 정보" 모달과 같은 패턴을 그대로 쓴다
+   (2026-09-08 결정, 아래 각 규칙 참고) — 값은 하나도 바꾸지 않았다. */
+
+/* 세트 입력이 추가되며 select+입력2개+삭제 버튼이 기본 320px 모달 폭에서 잘려 보여
+   (2026-09-08) 폭만 넓혔다 — ExerciseGuideModal의 exercise-guide-modal과 같은 오버라이드
+   패턴(기본 .modal은 그대로 두고 className을 하나 더 붙여 width만 덮어씀). */
+.mp-goal-modal-wide {
+  width: min(480px, 92vw);
+}
+.mp-goal-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.mp-goal-select-input {
+  flex: 1;
+  border: 1px solid #e5e3dd;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  background: #f9f8f5;
+  color: #111;
+}
+.mp-goal-select-input:focus {
+  outline: none;
+  border-color: #da291c;
+}
+.mp-goal-remove {
+  font-size: 12px;
+  color: #9b9a96;
+}
+.mp-goal-remove:hover {
+  color: #da291c;
+}
+.mp-goal-add-link {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 13px;
+  color: #da291c;
+  font-weight: 600;
+}

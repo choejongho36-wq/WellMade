@@ -29,6 +29,21 @@ const MIN_USABLE_FRAMES = 3 // 서버(judge_realtime_coaching)의 MIN_FRAMES와 
 const JUDGE_WINDOW = 6 // 매 호출마뤌에서 서버에 보낼 "최근 N프레솄" 걬간 크기
 const END_CHECK_EVERY_N_FRAMES = 10 // 종료 판정 은 프레임마다 부를 필요 없어 약 2초마다만 확인
 
+// (2026-09-09 추가) metricsSumRef/frontMetricsSumRef에 값 하나를 누적한다 — null/NaN이면
+// 건너뛴다(예: 깊게 안 앉은 프레임의 gated 지표, 정면 단계를 안 해서 애초에 안 불리는 경우).
+function accumulateMetric(ref, key, value) {
+  if (value == null || Number.isNaN(value)) return
+  const cur = ref.current[key] ?? { sum: 0, count: 0 }
+  ref.current[key] = { sum: cur.sum + value, count: cur.count + 1 }
+}
+
+// 누적된 값의 평균을 반환한다 — 한 번도 누적 안 됐으면(count 0) null(계산 불가를 뜻함,
+// ExerciseHistoryPage가 이 null을 보고 "정면 촬영이 있어야 계산돼요" 같은 안내로 대체한다).
+function averageMetric(ref, key) {
+  const cur = ref.current[key]
+  return cur && cur.count > 0 ? cur.sum / cur.count : null
+}
+
 // (2026-09-08 추가) 서버(judge_realtime_coaching)는 무상태라 "이 렙 안에서 몇 번째 노출인지"를
 // 스스로 알 수 없어, 렙당 노출 횟수 제한은 프론트에서 담당한다 — 실사용 테스트에서 렙 하나
 // 안에 "움직임이 불안정합니다"가 4~6번씩 반복된다는 피드백에 따른 조치(서버 쪽 임곗값도 함께
@@ -113,7 +128,10 @@ export function useSquatCoachingSession() {
   // (2026-09-08 수정) 숫자(targetReps)만 들고 있던 것을 목표 객체 전체({ targetReps,
   // targetSets }) 로 바꿨다 — 세트 목표(targetSets)가 추가되면서 반복 횟수 하나만으로는
   // 진행률을 표현할 수 없어졌다(exerciseGoals.js 참고).
-  const [squatGoal] = useState(() => getExerciseGoal('squat'))
+  // (2026-09-09) setSquatGoal도 같이 내보낸다 — 코칭 페이지의 "카메라 켜고 시작하기"
+  // 버튼에서 목표 미설정 시 모달을 띄워 그 자리에서 저장하면, 이 세션이 곧바로 새
+  // 목표를 쓰도록 갱신해야 한다(원래는 마운트 시 한 번만 읽고 끝이었다).
+  const [squatGoal, setSquatGoal] = useState(() => getExerciseGoal('squat'))
 
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
@@ -133,6 +151,15 @@ export function useSquatCoachingSession() {
   // 각도를 잴 수 없어 이번에는 반복 횟수에 포함하지 않는다). 세션 자동 종료 판단에 쓰는
   // judgmentHistoryRef(프레임 단위)와는 용도가 달라 별도로 둔다.
   const repHistoryRef = useRef([]) // { timestamp, is_normal, issues } — 완료된 렙별 요약
+  // (2026-09-09 추가) 세션 전체 평균 자세 지표 누적 — 운동 기록 페이지의 "자세 분석 결과"에
+  // 쓴다. framesRef는 최근 6초짜리 롤링 버퍼라 세션 전체 평균을 못 내서 따로 둔다.
+  // { [field]: { sum, count } } 형태 — 측면 단계 지표(무릎각도/엉덩이각도/상체기울기)는
+  // metricsSumRef에, 정면 단계에서만 계산되는 무릎모임(knee_valgus_ratio)은
+  // frontMetricsSumRef에 따로 쌓는다(정면 단계를 안 한 세션은 frontMetricsSumRef가 계속
+  // 비어 있어 평균이 null로 나온다 — ExerciseHistoryPage가 "정면 촬영이 있어야 계산돼요"
+  // 안내로 대체하는 신호로 쓴다).
+  const metricsSumRef = useRef({})
+  const frontMetricsSumRef = useRef({})
   const repInProgressRef = useRef(false) // 지금 "내려간(깊게 앉은)" 구간 안에 있는지
   const repHadIssueRef = useRef(false) // 이번 렙 동안 이상 자세가 한 번이라도 있었는지
   const repIssuesRef = useRef([]) // 이번 렙 동안 발생한 이슈 부위(중복 제거)
@@ -218,16 +245,17 @@ export function useSquatCoachingSession() {
     async (endReason) => {
       // 측면 단계 이력 + 정면 단계 이력을 시간순으로 합쳐서 세션 시간을 계산한다(프레임
       // 단위라 촘촘해서 "언제 끝났는지"를 정확히 반영한다).
+      // (2026-09-09 수정) 판정이 한 번도 안 찍혔다고(전신이 한 번도 안 잡혔거나, 시작하자마자
+      // 바로 종료) 조용히 idle로 돌아가지 않는다 — 그러면 사용자 입장에선 "종료" 버튼을
+      // 눌러도 아무 반응이 없는 것처럼 보인다. 0회짜리 리포트라도 보여준다(백엔드
+      // frame_history도 빈 리스트를 받아들이게 함께 고쳤다, ai/app/schemas.py 참고).
       const tickHistory = [...judgmentHistoryRef.current, ...frontJudgmentHistoryRef.current]
-      if (tickHistory.length === 0) {
-        setPhase('idle')
-        return
-      }
       // 리포트에 보낼 frame_history는 "몇 프레임 찍혔는지"가 아니라 "몇 렙(반복) 했는지"를
       // 반영해야 한다 — 완료된 렙이 하나라도 있으면 그걸 쓰고, 없으면(세션이 너무 짧아
       // 한 렙도 못 채운 경우 등) 기존처럼 프레임 단위로라도 보여준다.
       const repHistory = repHistoryRef.current
       const reportFrames = repHistory.length > 0 ? repHistory : tickHistory
+      const sessionDurationSec = tickHistory.length > 0 ? tickHistory[tickHistory.length - 1].timestamp : 0
       setReportLoading(true)
       setReportError('')
       setSessionReport(null)
@@ -239,18 +267,61 @@ export function useSquatCoachingSession() {
             is_normal,
             issues: (issues ?? []).map((issue) => ({ part: issue.part })),
           })),
-          session_duration_sec: tickHistory[tickHistory.length - 1].timestamp,
+          session_duration_sec: sessionDurationSec,
           previous_sessions: loadSquatSessionHistory()
             .slice(-5)
             .map((h) => ({ session_date: h.date, normal_ratio: h.normal_ratio })),
           end_reason: endReason === 'user_requested' ? 'user_requested' : 'target_sustained',
         })
-        setSessionReport(data)
         setRepHistory(repHistoryRef.current)
-        // 이번 세션 결과를 이력에 남겨서 다음 세션의 "지난 세션 대비"와 추이 그래프에 쓴다.
+
+        // (2026-09-09 재구성) 점수 = 렙(반복)마다 배점을 쌓는 방식으로 바꿨다 — 목표
+        // 횟수(마이페이지에서 설정한 targetReps)가 있으면 렙 1개당 배점을 100 ÷ 목표
+        // 횟수로 두고, 없으면 100 ÷ 실제 수행 렙수로 대신한다. 정상 렙은 배점 그대로,
+        // 이상이 감지된 렙은 배점의 절반만(0점이 되지 않게 절반만 깎는 식) 가점해서 다
+        // 더하고, 목표보다 많이 해도 100점을 넘지 않게 자른다. 완료한 렙이 하나도 없으면
+        // (세션이 너무 짧아 렙 단위로 매길 게 없는 경우) 정상 자세 비율만으로 매긴다 —
+        // 아예 아무 판정도 없었으면(0회) 자연히 0점이 된다.
+        // 운동 기록 페이지의 "최근 세션"/세트별 기록 점수 배지에 쓴다.
+        const goalReps = squatGoal?.targetReps
+        const completedReps = repHistoryRef.current
+        let score
+        if (completedReps.length > 0) {
+          const scoreDenom = goalReps > 0 ? goalReps : completedReps.length
+          const perRepPoints = 100 / scoreDenom
+          const rawScore = completedReps.reduce(
+            (sum, rep) => sum + (rep.is_normal ? perRepPoints : perRepPoints * 0.5),
+            0,
+          )
+          score = Math.min(100, Math.round(rawScore))
+        } else {
+          score = Math.round(data.normal_ratio * 100)
+        }
+        // (2026-09-09) 리포트 화면 제목 옆에 오늘 점수를 바로 보여줄 수 있게, sessionReport
+        // 자체에 score를 실어서 담는다 — 원래 data를 그대로 setSessionReport 했었는데,
+        // 점수 계산이 그 뒤에 있어서 순서를 이렇게 옮겼다.
+        setSessionReport({ ...data, score })
+
+        // 세션 내내 누적한 평균 자세 지표 — 운동 기록 페이지의 "자세 분석 결과"에 쓴다.
+        // knee_valgus_ratio는 정면 단계를 안 했으면 null로 남는다(averageMetric 참고).
+        const avgMetrics = {
+          knee_angle: averageMetric(metricsSumRef, 'knee_angle'),
+          hip_angle: averageMetric(metricsSumRef, 'hip_angle'),
+          shoulder_forward_lean_deg: averageMetric(metricsSumRef, 'shoulder_forward_lean_deg'),
+          knee_valgus_ratio: averageMetric(frontMetricsSumRef, 'knee_valgus_ratio'),
+        }
+
+        // 이번 세션 결과를 이력에 남겨서 다음 세션의 "지난 세션 대비", 추이 그래프, 그리고
+        // 운동 기록 페이지의 최근 세션 리스트·세트별 기록·자세 분석 결과에 쓴다.
         const updatedHistory = appendSquatSessionHistory({
           date: new Date().toISOString().slice(0, 10),
           normal_ratio: data.normal_ratio,
+          reps: data.total_reps,
+          durationSec: data.session_duration_sec,
+          score,
+          avgMetrics,
+          issueCounts: data.issue_counts_by_part ?? {},
+          mostFrequentIssuePart: data.most_frequent_issue_part ?? null,
         })
         setSessionHistory(updatedHistory.slice(-5))
         // 오늘 날짜에 이번 세션의 시간/횟수/이상 자세 감지를 더해서 누적한다 — 리포트의
@@ -269,7 +340,7 @@ export function useSquatCoachingSession() {
         setReportLoading(false)
       }
     },
-    [speak],
+    [speak, squatGoal],
   )
 
   const endSession = useCallback(
@@ -402,6 +473,10 @@ export function useSquatCoachingSession() {
             ...frontJudgmentHistoryRef.current,
             { timestamp, is_normal: result.is_normal, issues: result.issues ?? [] },
           ]
+          // (2026-09-09 추가) 무릎모임은 정면 전용 지표라(gated 아님, ANALYSIS_METRICS 참고)
+          // 매 프레임 누적한다 — 정면 단계를 아예 안 하면 이 누적 자체가 안 일어나 세션
+          // 리포트의 좌우 균형 평균이 null로 남는다.
+          accumulateMetric(frontMetricsSumRef, 'knee_valgus_ratio', frame.metrics.knee_valgus_ratio)
           const text = result.is_normal
             ? '좋아요, 무릎이 발끝 방향을 잘 유지하고 있어요'
             : (result.issues?.[0]?.message ?? '무릎 모임을 확인해주세요')
@@ -419,6 +494,14 @@ export function useSquatCoachingSession() {
             { timestamp, is_normal: result.is_normal, issues: result.issues ?? [] },
           ]
           const isDeepHold = frame.metrics.knee_angle < STANDING_KNEE_ANGLE_MIN
+
+          // (2026-09-09 추가) 무릎각도/엉덩이각도는 깊게 앉았을 때만 의미 있는 값이라
+          // (gated:true, ANALYSIS_METRICS 참고) isDeepHold일 때만 누적하고, 상체 기울기
+          // (시선·목)는 앉은 정도와 무관하게 항상 확인 가능한 값이라(gated:false) 매 프레임
+          // 누적한다.
+          accumulateMetric(metricsSumRef, 'knee_angle', isDeepHold ? frame.metrics.knee_angle : null)
+          accumulateMetric(metricsSumRef, 'hip_angle', isDeepHold ? frame.metrics.hip_angle : null)
+          accumulateMetric(metricsSumRef, 'shoulder_forward_lean_deg', frame.metrics.shoulder_forward_lean_deg)
 
           // 렙(반복) 카운트 — 무릎이 깊게 굽혀졌다가(내려감) 다시 펴지는(올라옴) 구간
           // 하나를 스쿼트 1회로 본다. 리포트 전용 집계라 세션 자동 종료 판단(judgmentHistoryRef)
@@ -536,6 +619,8 @@ export function useSquatCoachingSession() {
     setSessionStage('side')
     frontJudgmentHistoryRef.current = []
     repHistoryRef.current = []
+    metricsSumRef.current = {}
+    frontMetricsSumRef.current = {}
     setRepHistory([]) // (2026-09-08 추가) 이전 세션의 repHistory state가 새 세션 시작 직후
     // 잠깐 그대로 남아있는 걸 막는다 — 이제 ActiveView가 이 값을 실시간으로 읽는다(위 참고).
     repInProgressRef.current = false
@@ -605,6 +690,7 @@ export function useSquatCoachingSession() {
     repHistory,
     dailyStats,
     squatGoal,
+    setSquatGoal,
     bufferCount,
     bufferMax: BUFFER_MAX,
     endCheck,

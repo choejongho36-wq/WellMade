@@ -657,22 +657,12 @@
 }
 
 /* 인바디 등록 모달 */
-.modal-btn {
-  margin-top: 16px;
-  width: 100%;
-  padding: 11px 0;
-  border: none;
-  border-radius: 8px;
-  background: #da291c;
-  color: #fff;
-  font-size: 13.5px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.modal-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* (2026-09-09) .modal-btn/.modal-review-input* 는 components/PageShell.css로 옮겼다 —
+   ExerciseGoalModal이 마이페이지 전용에서 공용 컴포넌트(components/ExerciseGoalModal.jsx)로
+   빠지면서 코칭 페이지(SquatCoachingPage.jsx)에서도 같은 스타일이 필요해졌는데, 거긴
+   MyPage.css를 안 불러온다. PageShell.css는 모든 페이지가 공통으로 불러오는 곳이라 이미
+   있던 .modal-sub와 같은 자리로 옮겼다 — 마이페이지의 다른 모달(BMI/인바디/탈퇴 등)도
+   그대로 PageShell.css에서 이 클래스들을 가져다 쓰는 것뿐이라 동작은 바뀌지 않는다. */
 .modal-btn-secondary {
   margin-top: 16px;
   width: 100%;
@@ -716,31 +706,6 @@
 }
 .modal-review-item > span:first-child {
   color: #77767c;
-}
-.modal-review-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.modal-review-input {
-  width: 72px;
-  text-align: right;
-  background: #f9f8f5;
-  border: 1px solid #e5e3dd;
-  border-radius: 6px;
-  color: #111;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 5px 7px;
-}
-.modal-review-input:focus {
-  border-color: #da291c;
-  outline: none;
-}
-.modal-review-unit {
-  color: #9b9a96;
-  font-size: 12px;
-  min-width: 32px;
 }
 .modal-file-input {
   position: absolute;
@@ -850,44 +815,6 @@
   }
 }
 
-/* ---- 운동 목표 설정 (스쿼트 코칭용) — "신체 정보" 모달과 같은 디자인 패턴 사용 (2026-09-08) ---- */
-/* 세트 입력이 추가되며 select+입력2개+삭제 버튼이 기본 320px 모달 폭에서 잘려 보여
-   (2026-09-08) 폭만 넓혔다 — ExerciseGuideModal의 exercise-guide-modal과 같은 오버라이드
-   패턴(기본 .modal은 그대로 두고 className을 하나 더 붙여 width만 덮어씀). */
-.mp-goal-modal-wide {
-  width: min(480px, 92vw);
-}
-.mp-goal-modal-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 14px;
-  flex-wrap: wrap;
-}
-.mp-goal-select-input {
-  flex: 1;
-  border: 1px solid #e5e3dd;
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 13px;
-  background: #f9f8f5;
-  color: #111;
-}
-.mp-goal-select-input:focus {
-  outline: none;
-  border-color: #da291c;
-}
-.mp-goal-remove {
-  font-size: 12px;
-  color: #9b9a96;
-}
-.mp-goal-remove:hover {
-  color: #da291c;
-}
-.mp-goal-add-link {
-  display: inline-block;
-  margin-top: 14px;
-  font-size: 13px;
-  color: #da291c;
-  font-weight: 600;
-}
+/* ---- 운동 목표 설정 (스쿼트 코칭용) ---- */
+/* (2026-09-09) 이 모달(.mp-goal-*) 전용 스타일은 components/ExerciseGoalModal.css로
+   옮겼다 — ExerciseGoalModal 자체가 공용 컴포넌트로 빠졌다(아래 import 참고). */
