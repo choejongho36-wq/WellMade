@@ -33,6 +33,51 @@
   color: #9b9a96;
 }
 
+/* ---- 촬영 안내 모달 ----
+   팀 PhotoCoachingPage.css의 .upload-notice-modal 과 같은 값을 썼다.
+   Modal.jsx 기본 .modal-title(검정 배너)을 그대로 쓰고 본문 목록만 스타일링한다.
+   기본 .modal 폭(320px)이 목록 6줄엔 좁아서 넓혔다. */
+.posture-notice-modal {
+  width: 520px;
+  max-width: 90vw;
+}
+.posture-notice-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #55534d;
+}
+.posture-notice-list li + li {
+  margin-top: 6px;
+}
+.posture-notice-list strong {
+  color: #111;
+  font-weight: 700;
+}
+
+/* ---- 헤더 오른쪽: 촬영 안내 버튼 + 정면/측면 탭 ---- */
+.posture-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.posture-notice-btn {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #9b9a96;
+  cursor: pointer;
+}
+.posture-notice-btn:hover {
+  border-color: #da291c;
+  color: #da291c;
+}
+
 /* ---- 정면/측면 전환 탭 ---- */
 .posture-view-tabs {
   display: flex;
@@ -219,11 +264,62 @@
   background: #fdecea;
   color: #da291c;
 }
+/* ---- 3구간 게이지 ----
+   숫자 눈금을 그리지 않는다. forward_head 구간은 임상 확립 기준이 없는
+   잠정값이고 round_shoulder는 C7 근사값 기반이라, 눈금을 그리면 근거가
+   약한 숫자를 정밀한 것처럼 보이게 만든다. 색 구간과 마커로 "어디쯤인지"만
+   전달한다. */
+.posture-gauge {
+  margin-top: 12px;
+}
+.posture-gauge-bar {
+  position: relative;
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: visible;
+}
+.posture-band {
+  height: 8px;
+}
+.posture-band:first-child {
+  border-radius: 999px 0 0 999px;
+}
+.posture-band:nth-child(3) {
+  border-radius: 0 999px 999px 0;
+}
+.posture-band-normal {
+  background: #cfe6d4;
+}
+.posture-band-mild {
+  background: #f7e0bd;
+}
+.posture-band-warn {
+  background: #f3c9c4;
+}
+.posture-marker {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #da291c;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transform: translate(-50%, -50%);
+}
+.posture-gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: #9b9a96;
+}
+
 .posture-metric-angle {
   margin-top: 10px;
-  font-size: 24px;
-  font-weight: 800;
-  color: #111;
+  font-size: 12px;
+  color: #9b9a96;
 }
 .posture-metric-note {
   margin-top: 8px;
