@@ -128,6 +128,41 @@
   color: #111;
   margin-bottom: 14px;
 }
+
+/* (2026-09-08 추가, 같은 날 재수정) 초심자/숙련자 모드 선택 — 처음엔 팝업 모달
+   (SquatLevelModal.jsx)로 골랐었는데, 팝업 없이 IdleView에 바로 보이는 알약(pill) 모양
+   세그먼트 토글로 바꿨다. 누르는 즉시 선택이 바뀌고(하나 켜면 하나 꺼지는 형태), 아래
+   .squat-level-desc가 지금 선택된 모드 설명을 항상 보여준다(더 이상 모달을 열어야 볼 수
+   있는 게 아니라 처음부터 화면에 노출). */
+.squat-level-toggle {
+  display: inline-flex;
+  margin: 0 auto 10px;
+  border: 1px solid #e5e3dd;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #f2f1eb;
+}
+.squat-level-toggle-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 8px 22px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8c8b88;
+  transition: background-color 0.15s, color 0.15s;
+}
+.squat-level-toggle-btn.is-active {
+  background: #2eb872;
+  color: #fff;
+}
+.squat-level-desc {
+  max-width: 420px;
+  margin: 0 auto 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #6b6a63;
+}
 .squat-idle-steps {
   margin: 0 0 18px;
   padding: 0;

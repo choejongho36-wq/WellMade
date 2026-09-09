@@ -56,7 +56,12 @@ from app.schemas import AngleFrame, HipFlexibilityCalibration
 # NOTE: MVP 잠정치 — 데이터가 쌓이는 대로 사용자 신고 기반 액티브러닝으로 조정할 예정.
 MIN_FRAMES = 3  # 판정에 필요한 최소 프레임 수. 너무 적으면 노이즈에, 너무 많으면 반응 지연에 취약.
 STATIC_SLOPE_THRESHOLD_DEG_PER_SEC = 15.0  # 이보다 느린 변화율은 "정지(holding)"로 간주.
-JITTER_STD_THRESHOLD_DEG = 10.0  # 프레임 간 각도 변화량의 표준편차가 이 값을 넘으면 "불안정한 움직임".
+JITTER_STD_THRESHOLD_DEG = 13.0  # 프레임 간 각도 변화량의 표준편차가 이 값을 넘으면 "불안정한 움직임".
+# NOTE(2026-09-08): 기존 10.0은 실사용 테스트에서 한 렙 안에 "불안정합니다" 경고가 너무
+# 자주(4~6회) 뜬다는 피드백으로 완화(10.0→13.0). 문헌/실측 기반 값이 아니라 위 피드백에
+# 대응한 잠정치라는 점은 기존 다른 MVP 임곗값과 동일 — 근본적인 노출 빈도 제한은 프론트
+# (hooks/useSquatCoachingSession.js의 렙당 최대 2회 캡)에서 함께 처리한다. 서버는 무상태라
+# "몇 번째 노출인지"를 알 수 없어 그 캡까지 여기서 구현할 수는 없다.
 DEEP_MARGIN_DEG = 15.0  # 동작 중 정상범위 하한보다 이 값 이상 더 굽혀지면 "과도한 굽힘(위험)"으로 판단.
 STANDING_KNEE_ANGLE_MIN = 150.0  # 이 이상이면 "선 자세(하단이 아님)"로 보고, 정지 상태의 하단 자세 검사를 건너뜀.
 

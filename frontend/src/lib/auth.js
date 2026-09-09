@@ -25,9 +25,10 @@ export const SOCIAL_PROVIDERS = [
 export const NAV_ITEMS = [
   { label: '마이페이지', path: '/mypage' },
   { label: '자세 측정', path: '/calibration' },
-  { label: '코칭', path: '/exercises' },
-  { label: '캘린더', path: '/mealplan' },
-  { label: '고객센터' },
+  { label: '운동 코칭', path: '/exercises' },
+  { label: '운동 기록', path: '/exercises-history' },
+  { label: '식단 관리', path: '/mealplan' },
+  { label: '고객센터', path: '/support' },
 ]
 
 // 로그인 상태와 API 호출 함수를 트리 전체가 공유한다. 예전에는 useAuth()를 호출하는
