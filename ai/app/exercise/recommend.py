@@ -50,29 +50,67 @@ VALID_BODY_PARTS = {
 # 사용자가 자유롭게 말한 한국어 부위 -> body_part(영문).
 # 추천 인자를 정규화할 때도, 운동 메모에서 "무슨 부위를 했는지" 읽을 때도 이 사전을 쓴다.
 BODY_PART_KO = {
-    "가슴": "chest",
-    "등": "back", "광배": "back",
+    "가슴": "chest", "흉근": "chest",
+    "등": "back", "광배": "back", "승모": "back", "견갑": "back",
     "어깨": "shoulders", "삼각근": "shoulders",
     "팔": "upper arms", "이두": "upper arms", "삼두": "upper arms", "팔뚝": "upper arms",
     "전완": "lower arms", "손목": "lower arms",
     "복근": "waist", "코어": "waist", "허리": "waist", "배": "waist", "복부": "waist",
+    "식스팩": "waist", "옆구리": "waist",
     "하체": "upper legs", "허벅지": "upper legs", "다리": "upper legs",
     "엉덩이": "upper legs", "둔근": "upper legs", "대퇴": "upper legs", "스쿼트": "upper legs",
-    "종아리": "lower legs", "정강이": "lower legs",
+    "힙": "upper legs", "햄스트링": "upper legs",
+    "종아리": "lower legs", "정강이": "lower legs", "장딴지": "lower legs",
     "목": "neck",
     "유산소": "cardio", "전신": "cardio", "심폐": "cardio", "러닝": "cardio", "달리기": "cardio",
+    "런닝": "cardio", "걷기": "cardio", "자전거": "cardio",
+}
+
+# "상체"처럼 한 번에 여러 부위를 가리키는 말. 단일 body_part로 접을 수 없다 - 가슴 하나로
+# 접으면 등·어깨·팔을 뺀 게 되고, 그렇다고 못 맞췄다고 돌려주면 후보가 0건이라 모델이
+# 운동을 지어낸다(실측: "상체운동" -> 데이터에 없는 "바벨 로우 릴리즈"를 창작).
+# 그래서 속한 부위의 후보를 합친 풀에서 뽑고, _pick이 부위가 겹치지 않게 고르게 한다.
+#
+# "하체"는 예전부터 upper legs 하나로 처리해 왔고 그 결과가 검증돼 있어 그대로 둔다
+# (허벅지·둔근만 32건이라 루틴을 채우기에 충분하다).
+BODY_PART_GROUPS = {
+    "upper body": ["chest", "back", "shoulders", "upper arms"],
+}
+
+BODY_PART_GROUP_KO = {
+    "상체": "upper body",
+    "상반신": "upper body",
 }
 
 BODY_PART_LABEL = {
     "chest": "가슴", "back": "등", "shoulders": "어깨", "upper arms": "팔",
     "lower arms": "전완", "waist": "복근", "upper legs": "하체",
     "lower legs": "종아리", "neck": "목", "cardio": "유산소",
+    "upper body": "상체",
 }
 
 # "맨몸"과 "집"은 다른 조건이다. 사용자에게 맨몸은 "기구 없음"인데, 덤벨·밴드 운동도
 # home_friendly=True로 태그돼 있어서 둘을 같이 묶으면 "맨몸 하체"에 덤벨 스쿼트가 나온다.
 EQUIPMENT_FREE_HINTS = {"맨몸", "무기구", "없음", "bodyweight", "body weight", "none"}
 HOME_HINTS = {"집", "홈트", "홈", "home"}
+
+# 사용자가 말하는 장비 이름 -> 데이터의 equipment 값에 들어 있는 영문 표현.
+# 데이터는 ExerciseDB 영문("dumbbell", "leverage machine")인데 사용자는 한국어로 말한다.
+# 이 사전이 없던 동안 "덤벨"은 어느 값에도 안 걸려서, 장비 조건이 조용히 무시된 채 부위
+# 전체에서 뽑혔다(실측: "덤벨 상체운동" -> 바벨·케이블 운동이 섞여 나옴).
+#
+# 값은 부분 일치로 쓴다. "barbell"은 "ez barbell"까지, "machine"은 "leverage machine"과
+# "smith machine"을 같이 잡는다. 그래서 "스미스"를 "머신"보다 먼저 둔다(먼저 걸린 게 이긴다).
+EQUIPMENT_KO = {
+    "덤벨": "dumbbell", "아령": "dumbbell",
+    "바벨": "barbell", "역기": "barbell",
+    "밴드": "band", "고무줄": "band",
+    "케이블": "cable",
+    "케틀벨": "kettlebell", "케틀": "kettlebell",
+    "스미스": "smith machine",
+    "머신": "machine", "기구": "machine",
+    "줄넘기": "rope", "로프": "rope",
+}
 
 # 목표별 처방. 백엔드 프로필의 Goal enum 이름(LOSE/GAIN/MAINTAIN)을 그대로 키로 쓴다 -
 # 중간에 이름을 바꾸면 양쪽이 어긋났을 때 조용히 기본값으로 떨어진다.
@@ -161,16 +199,29 @@ def _load_full() -> list:
 
 
 def normalize_body_part(raw: str) -> Optional[str]:
-    """한국어/영문 부위 표현을 body_part 키로. 못 맞추면 None."""
+    """
+    한국어/영문 부위 표현을 body_part 키로. 못 맞추면 None.
+
+    "상체"처럼 여러 부위를 아우르는 말은 그룹 키("upper body")로 돌려준다. 단일 부위보다
+    먼저 보는 이유는 부분 일치라 순서가 결과를 바꾸기 때문이다.
+    """
     if not raw:
         return None
     text = raw.strip().lower()
-    if text in VALID_BODY_PARTS:
+    if text in VALID_BODY_PARTS or text in BODY_PART_GROUPS:
         return text
+    for ko, group in BODY_PART_GROUP_KO.items():
+        if ko in text:
+            return group
     for ko, en in BODY_PART_KO.items():
         if ko in text:
             return en
     return None
+
+
+def parts_of(target: str) -> list[str]:
+    """그룹이면 속한 부위들, 단일 부위면 그 부위 하나. 데이터 조회는 항상 이걸 거친다."""
+    return BODY_PART_GROUPS.get(target) or [target]
 
 
 def log_freeform_request(body_part: str, equipment: str, matched: Optional[str]) -> None:
@@ -212,6 +263,12 @@ def parse_recent_body_parts(recent_workouts: Optional[list], today: Optional[dat
         for keyword, part in BODY_PART_KO.items():
             if keyword in text:
                 days_ago[part] = min(days_ago.get(part, gap), gap)
+        # "어제 상체" 같은 메모는 속한 부위를 전부 한 것으로 본다 - 안 그러면 어제 상체를
+        # 한 사람에게 "이번 주에 가슴을 한 번도 안 했다"고 말한다.
+        for keyword, group in BODY_PART_GROUP_KO.items():
+            if keyword in text:
+                for part in BODY_PART_GROUPS[group]:
+                    days_ago[part] = min(days_ago.get(part, gap), gap)
     return days_ago
 
 
@@ -225,10 +282,12 @@ def _workout_note(target: str, days_ago: dict) -> Optional[str]:
     if not days_ago:
         return None
 
-    gap = days_ago.get(target)
+    # 그룹("상체")이면 속한 부위 중 가장 최근에 한 것을 기준으로 본다.
+    parts = parts_of(target)
+    gap = min((days_ago[p] for p in parts if p in days_ago), default=None)
     if gap is not None and gap <= CONSECUTIVE_DAYS:
         when = "오늘" if gap == 0 else ("어제" if gap == 1 else f"{gap}일 전")
-        rested = [p for p in MAJOR_PARTS if p != target and p not in days_ago]
+        rested = [p for p in MAJOR_PARTS if p not in parts and p not in days_ago]
         if rested:
             others = "이나 ".join(BODY_PART_LABEL[p] for p in rested[:2])
             return (
@@ -292,8 +351,24 @@ def _narrow_by_equipment(pool: list, equipment: str) -> tuple:
             return home, None
         return pool, "집에서 할 수 있는 동작이 많지 않아 장비 조건을 넓혀서 골랐어요."
 
-    narrowed = [e for e in pool if equipment in e["equipment"].lower()]
-    return (narrowed, None) if narrowed else (pool, None)
+    keyword = _equipment_keyword(equipment)
+    narrowed = [e for e in pool if (keyword or equipment) in e["equipment"].lower()]
+    if narrowed:
+        return narrowed, None
+    if keyword:
+        # 무슨 장비인지 알아들었는데 이 부위엔 그 동작이 없는 경우다. 조용히 넓히면
+        # "덤벨이라고 했는데?"가 된다 - 맨몸일 때와 같은 이유로 알린다.
+        return pool, f"이 부위에는 {equipment} 동작이 없어서 장비 조건 없이 골랐어요."
+    # 장비인지 아닌지 모르는 문자열이면 예전처럼 부위 필터까지만 적용하고 조용히 넘어간다
+    return pool, None
+
+
+def _equipment_keyword(equipment: str) -> Optional[str]:
+    """사용자가 말한 장비를 데이터의 equipment 값에 들어 있는 영문 표현으로. 못 맞추면 None."""
+    for ko, en in EQUIPMENT_KO.items():
+        if ko in equipment:
+            return en
+    return None
 
 
 def _sort_key(exercise: dict, prefer_home: bool) -> tuple:
@@ -344,7 +419,7 @@ def names_in_text(pool: list, texts: Optional[list]) -> set:
     return found
 
 
-def _pick(pool: list, prefer_home: bool, exclude: set) -> list:
+def _pick(pool: list, prefer_home: bool, exclude: set, spread_body_parts: bool = False) -> list:
     """
     최근 추천한 것을 뺀 뒤, 정렬 1등부터 시작해 "겹치지 않는 것"을 이어 붙인다.
 
@@ -352,6 +427,10 @@ def _pick(pool: list, prefer_home: bool, exclude: set) -> list:
     스쿼트 / 덤벨 런지 / 덤벨 리어 런지 / 덤벨 스쿼트"처럼 스쿼트 둘 + 런지 둘이 나왔다.
     그래서 다음 후보를 고를 때 아직 안 쓴 타겟 근육 -> 아직 안 쓴 장비 순으로 우선한다.
     무작위가 아니라 순위 기반이라 결과는 매번 같다.
+
+    :param spread_body_parts: 복합 부위("상체")일 때 True. 부위가 겹치지 않는 것을 먼저 고른다 -
+                              합친 풀은 정렬이 부위를 구분하지 않아서, 이게 없으면 "상체"인데
+                              가슴 운동만 4개 나온다.
     """
     remaining = [e for e in pool if e["name_ko"] not in exclude and e["name"] not in exclude]
     if len(remaining) < MIN_PICKS:
@@ -364,11 +443,13 @@ def _pick(pool: list, prefer_home: bool, exclude: set) -> list:
     picks = [ordered[0]]
     rest = list(enumerate(ordered))[1:]
     while rest and len(picks) < MAX_PICKS:
+        used_parts = {e["body_part"] for e in picks}
         used_targets = {e["target"] for e in picks}
         used_equipment = {e["equipment"] for e in picks}
         rank, best = min(
             rest,
             key=lambda pair: (
+                0 if not spread_body_parts or pair[1]["body_part"] not in used_parts else 1,
                 0 if pair[1]["target"] not in used_targets else 1,
                 # 다양성보다 난이도가 먼저다. 이게 빠져 있어서 "하체 맨몸"에 햄스트링 타겟이
                 # 비었다는 이유로 글루트햄 레이즈(고급)가 초급 런지들을 밀어냈다.
@@ -410,7 +491,13 @@ def _video_for(exercise: dict, index: int) -> Optional[dict]:
 
 
 def _cautions(target: str, picks: list, age: Optional[int]) -> list:
-    cautions = [BODY_PART_CAUTIONS[target]]
+    if target in BODY_PART_GROUPS:
+        # 복합 부위는 실제로 뽑힌 운동의 부위만 짚는다 - 등 운동이 안 나왔는데 등 주의사항을
+        # 붙이면 사용자는 없는 운동을 찾는다. 말풍선이 주의 목록이 되지 않게 2개까지만.
+        picked = list(dict.fromkeys(e["body_part"] for e in picks))
+        cautions = [BODY_PART_CAUTIONS[p] for p in picked if p in BODY_PART_CAUTIONS][:2]
+    else:
+        cautions = [BODY_PART_CAUTIONS[target]]
     if age is not None and age >= SENIOR_AGE:
         cautions.append("관절에 무리가 가지 않는 범위에서, 반동 없이 천천히 하세요.")
     if any(e["difficulty"] == "advanced" for e in picks):
@@ -447,10 +534,11 @@ def recommend(
             "body_part": "",
             "matched": 0,
             "candidates": [],
-            "note": "어느 부위 운동인지 알려주시면 추천해드릴게요. (예: 가슴, 등, 어깨, 팔, 복근, 하체, 종아리)",
+            "note": "어느 부위 운동인지 알려주시면 추천해드릴게요. (예: 상체, 하체, 가슴, 등, 어깨, 팔, 복근, 종아리)",
         }
 
-    pool = list(_load_core().get(target) or [])
+    core = _load_core()
+    pool = [e for part in parts_of(target) for e in core.get(part) or []]
 
     eq = (equipment or "").strip().lower()
     prefer_home = any(hint in eq for hint in EQUIPMENT_FREE_HINTS | HOME_HINTS) if eq else False
@@ -467,7 +555,7 @@ def recommend(
         }
 
     excluded = set(exclude or []) | names_in_text(pool, exclude_from_text)
-    picks = _pick(pool, prefer_home, excluded)
+    picks = _pick(pool, prefer_home, excluded, spread_body_parts=target in BODY_PART_GROUPS)
     plan = GOAL_PLANS.get(goal or DEFAULT_GOAL, GOAL_PLANS[DEFAULT_GOAL])
     is_cardio = target == "cardio"
     sets_reps = plan["cardio_sets_reps"] if is_cardio else plan["sets_reps"]
@@ -488,7 +576,7 @@ def recommend(
             # 근거 없는 자유 생성이라 Qwen이 중국어로 새는 턴이 나왔다(실측).
             "instructions_ko": exercise["instructions_ko"],
             "sets_reps": sets_reps,
-            # 운동명이 아니라 타겟 근육으로 이은 참고 영상이다("이 운동 영상"이 아님)
+            # 같은 동작인 영상만 붙는다(movements.py). 없으면 None - 근육만 같은 남의 운동은 안 붙인다
             "related_video": related_video,
         })
 

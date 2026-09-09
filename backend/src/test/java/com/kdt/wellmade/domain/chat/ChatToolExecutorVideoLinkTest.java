@@ -13,10 +13,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 추천 결과에 붙는 국민체력100 영상 버튼.
+ * 추천 결과에 붙는 국민체력100 영상 링크.
+ *
+ * 화면은 답변 본문에서 운동 이름을 찾아 그 자리를 링크로 감싸므로(ChatDrawer), 링크마다
+ * 어느 운동의 것인지(exercise)가 붙어 있어야 한다.
  *
  * 영상은 운동이 아니라 '동작'으로 이어지므로 서로 다른 운동이 같은 영상을 가리킬 수 있다
- * (잭 점프 / 스타 점프 -> 같은 점핑잭 영상). 그대로 두면 같은 버튼이 두 번 붙는다.
+ * (잭 점프 / 스타 점프 -> 같은 점핑잭 영상). 본문에서는 두 이름 다 링크여야 하므로 여기서
+ * 주소로 접지 않는다 - 버튼으로 떨어졌을 때의 중복 제거는 그리는 쪽(leftoverLinks) 몫이다.
  */
 class ChatToolExecutorVideoLinkTest {
 
@@ -33,8 +37,9 @@ class ChatToolExecutorVideoLinkTest {
         }
     }
 
+    /** 본문의 "잭 점프"와 "스타 점프"가 둘 다 눌려야 하므로 운동마다 하나씩 실어 보낸다 */
     @Test
-    void sameVideoIsLinkedOnlyOnce() {
+    void sameVideoIsLinkedForEachExercise() {
         JsonNode body = response("""
                 {"candidates":[
                  {"name":"잭 점프","difficulty":"초급","related_video":
@@ -44,8 +49,21 @@ class ChatToolExecutorVideoLinkTest {
 
         List<Map<String, String>> links = executor.videoLinks(body);
 
-        assertEquals(1, links.size());
-        assertEquals("http://v/1.mp4", links.get(0).get("url"));
+        assertEquals(2, links.size());
+        assertEquals("잭 점프", links.get(0).get("exercise"));
+        assertEquals("스타 점프", links.get(1).get("exercise"));
+        assertEquals("http://v/1.mp4", links.get(1).get("url"));
+    }
+
+    /** 화면이 본문에서 이름을 찾으려면 어느 운동의 영상인지가 링크에 붙어 있어야 한다 */
+    @Test
+    void linkCarriesTheExerciseName() {
+        JsonNode body = response("""
+                {"candidates":[
+                 {"name":"닐링 푸시업","difficulty":"초급","related_video":
+                  {"name":"팔 굽혀 펴기","level":"초급","place":"실내","video_url":"http://v/1.mp4"}}]}""");
+
+        assertEquals("닐링 푸시업", executor.videoLinks(body).get(0).get("exercise"));
     }
 
     /** 영상 데이터에 초급이 적어서 "초급 운동 ▶ (중급) 영상"이 자주 나온다 - 그 조합은 혼란만 준다 */
