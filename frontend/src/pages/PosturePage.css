@@ -7,7 +7,12 @@
   max-width: 1080px;
 }
 
-.page-eyebrow-row {
+/* 헤더 행.
+   클래스명에 posture- 접두사를 반드시 붙인다. 처음에 팀 공용 클래스와
+   같은 이름(.page-eyebrow-row)을 썼다가 PageShell.css의 정의를 덮어써서
+   팀의 사진 코칭 페이지 레이아웃까지 깨뜨린 적이 있다 — CSS는 전역이라
+   우리 페이지를 방문하지 않아도 번들에 포함되면 영향을 준다. */
+.posture-header-row {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;

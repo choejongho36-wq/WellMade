@@ -179,7 +179,7 @@ function PosturePage() {
   return (
     <PageShell>
       <div className="posture-page">
-        <div className="page-eyebrow-row">
+        <div className="posture-header-row">
           <div>
             <p className="posture-eyebrow">자세 측정</p>
             <h1 className="posture-title">서 있는 자세 분석</h1>
