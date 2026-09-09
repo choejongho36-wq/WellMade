@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# 실제 API 키 등 비밀값 — 예시 파일(.env.example)만 커밋한다.
+.env
