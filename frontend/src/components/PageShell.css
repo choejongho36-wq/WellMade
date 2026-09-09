@@ -111,6 +111,49 @@
   color: #9b9a96;
   margin-bottom: 24px;
 }
+/* (2026-09-09) MyPage.css에서 옮겨옴 — 마이페이지 여러 모달(BMI/인바디/탈퇴 등)과
+   ExerciseGoalModal(components/ExerciseGoalModal.jsx)이 공용으로 쓴다. */
+.modal-btn {
+  margin-top: 16px;
+  width: 100%;
+  padding: 11px 0;
+  border: none;
+  border-radius: 8px;
+  background: #da291c;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.modal-review-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.modal-review-input {
+  width: 72px;
+  text-align: right;
+  background: #f9f8f5;
+  border: 1px solid #e5e3dd;
+  border-radius: 6px;
+  color: #111;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 7px;
+}
+.modal-review-input:focus {
+  border-color: #da291c;
+  outline: none;
+}
+.modal-review-unit {
+  color: #9b9a96;
+  font-size: 12px;
+  min-width: 32px;
+}
 
 /* shared page header (마이페이지/식단관리/자세측정) */
 .page-eyebrow-row {

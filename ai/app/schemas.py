@@ -578,7 +578,10 @@ class SessionReportRequest(BaseModel):
     """세션 리포트 생성(/ai/session/report) 요청."""
 
     session_id: str
-    frame_history: List[SessionFrameRecord] = Field(..., min_length=1, description="세션 시작부터 종료까지의 프레임별 판정 이력")
+    # (2026-09-09 수정) min_length=1 -> 0: 카메라만 켜고 판정이 한 번도 기록되지 않은 채
+    # (전신이 한 번도 안 잡혔거나, 시작하자마자 바로 종료) 세션을 끝내도 리포트가 나와야
+    # 한다 — aggregate_session_stats는 원래도 total==0을 안전하게 0으로 집계했다.
+    frame_history: List[SessionFrameRecord] = Field(..., min_length=0, description="세션 시작부터 종료까지의 프레임별 판정 이력 — 판정이 한 번도 기록되지 않았으면 빈 리스트")
     session_duration_sec: float = Field(..., ge=0.0)
     previous_sessions: List[PreviousSessionSummary] = Field(
         default_factory=list,

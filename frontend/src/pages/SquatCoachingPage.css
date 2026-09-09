@@ -163,6 +163,14 @@
 }
 
 /* ---- report ---- */
+/* (2026-09-09 추가) 리포트 카드는 .squat-card(대기 화면과 공용, max-width:520px)를 같이
+   쓰다 보니 "스쿼트 분석" 2단 그리드(막대그래프+타임라인 / 달력+추이그래프)가 520px 안에
+   눌려서 달력이 작게 찌그러지고 레이아웃이 무너져 보였다. 다른 화면(.squat-idle 등)의
+   폭은 그대로 두고 리포트 카드만 훨씬 넓게 풀어준다 — 클래스 2개짜리 선택자라
+   .squat-card 단독 규칙보다 우선한다. */
+.squat-card.squat-report {
+  max-width: 920px;
+}
 .squat-report-title {
   font-size: 17px;
   font-weight: 700;
@@ -216,6 +224,11 @@
 
 /* ============ 모바일 (~768px) ============ */
 @media (max-width: 768px) {
+  /* .squat-card.squat-report는 클래스 2개짜리라 squatShared.css의 .squat-card
+     모바일 규칙(max-width:100%)보다 우선순위가 높아 여기서 따로 풀어줘야 한다. */
+  .squat-card.squat-report {
+    max-width: 100%;
+  }
   .squat-active-layout {
     flex-direction: column;
     max-width: 100%;
@@ -234,24 +247,48 @@
 }
 
 /* ---- 통계 리포트 (그래프) — 2026-09-07 추가 ---- */
-.squat-stats-section-title {
-  font-size: 13px;
-  font-weight: 800;
-  color: #55534d;
-  margin: 20px 0 10px;
-}
+/* (2026-09-09 수정) "스쿼트 분석" 제목이 도넛 박스 바깥에 따로 떨어져 있던 걸 박스
+   안으로 옮기며(.squat-meter-section-title) 여기 있던 .squat-stats-section-title은
+   더 안 쓴다. 도넛+텍스트 줄은 .squat-meter-row, 정상/이상 횟수는 도넛 아래 빈 자리
+   (.squat-meter-ring-sub)에 넣어서 .squat-meter-card 자체는 세로로 쌓는다. */
 .squat-meter-card {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  gap: 12px;
   background: #fff;
   border: 1px solid #e5e3dd;
   border-radius: 14px;
   padding: 16px;
   margin-bottom: 12px;
 }
+.squat-meter-section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #55534d;
+}
+.squat-meter-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.squat-meter-ring-col {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
 .squat-meter-ring {
   flex: 0 0 auto;
+}
+.squat-meter-ring-sub-title {
+  font-size: 10.5px;
+  color: #9b9a96;
+  text-align: center;
+}
+.squat-meter-ring-sub-counts {
+  display: flex;
+  gap: 10px;
 }
 .squat-meter-text {
   flex: 1;
@@ -279,35 +316,9 @@
   color: #9b9a96;
 }
 
-.squat-stat-tile-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.squat-stat-tile {
-  background: #fff;
-  border: 1px solid #e5e3dd;
-  border-radius: 14px;
-  padding: 12px 14px;
-}
-.squat-stat-tile-label {
-  font-size: 11px;
-  color: #8c8b88;
-  margin-bottom: 6px;
-}
-.squat-stat-tile-value {
-  font-size: 20px;
-  font-weight: 800;
-  color: #111;
-}
-.squat-stat-tile-value .unit {
-  font-size: 11px;
-  font-weight: 600;
-  color: #55534d;
-  margin-left: 2px;
-}
-
+/* (2026-09-09) 청소하다 .squat-stat-tile*와 함께 실수로 지워졌던 걸 복구 — 부위별 이상
+   발생 빈도 막대그래프, 세션 추이 그래프, 렙별 판정 타임라인이 쓰는 카드/막대/점 스타일.
+   원본 그대로(git show HEAD)이며 값은 하나도 바꾸지 않았다. */
 .squat-chart-card {
   background: #fff;
   border: 1px solid #e5e3dd;
@@ -412,7 +423,12 @@
   background: #da291c;
 }
 
-/* ---- 오늘 목표 달력 (실시간 코칭 화면 버튼/모달 + 리포트 화면) — 2026-09-07 추가 ---- */
+/* (2026-09-09 정리) 리포트 화면의 중복 통계 칸(총 스쿼트 횟수/이상 자세 감지)이
+   상단 3칸(.squat-today-stats)과 값이 겹쳐서 없애며 .squat-stat-tile*도 함께 지웠다.
+   달력 본문(.squat-calendar-card 이하)은 components/SquatGoalCalendar.css로 옮겼고,
+   "오늘의 리포트" 도넛(.squat-today-graph-*)은 컴포넌트 자체를 없애서 함께 지웠다. */
+
+/* (2026-09-09) 청소하다 실수로 같이 지워졌던 걸 복구 — 헤더의 "운동 달력" 아이콘 버튼 */
 .squat-calendar-open-btn {
   flex: 0 0 auto;
   width: 32px;
@@ -436,25 +452,86 @@
   width: 560px;
   max-width: calc(100vw - 32px);
 }
+/* (2026-09-09 추가) 달력 모달이 이제 달력+최근 세션 2단 구성이라 더 넓혀야 한다 */
+.squat-calendar-modal-wide {
+  width: 640px;
+}
+.squat-calendar-modal-body {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
 
-.squat-today-row {
+/* 리포트 상단 3칸 통계(총 운동시간/총 스쿼트 횟수/이상 자세 감지) — 이번 세션 값 기준.
+   (2026-09-09 수정) 원래 달력 옆에 세로로 쌓이던 좁은 칸이었는데, 달력이 빠지고 이 3칸만
+   남으며 가로로 나란히 배치하는 걸로 바꿨다.
+   (2026-09-09 재수정) 사용자가 보여준 목업 사진처럼 제목과 같은 줄에 오른쪽 정렬로
+   붙는 작은 통계 칩으로 다시 바꾼다 — 흰 박스 형태는 그대로 두되(다른 화면에서 재사용할
+   수 있으니 기본 스타일은 남기고), .squat-today-stats-compact로 헤더 줄 전용 스타일을
+   덧씌운다. */
+.squat-today-stats {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  align-items: stretch;
   margin-bottom: 12px;
 }
-.squat-today-stats {
-  flex: 1 1 200px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
 .squat-today-stat {
+  flex: 1 1 140px;
   background: #fff;
   border: 1px solid #e5e3dd;
   border-radius: 14px;
   padding: 12px 14px;
+}
+.squat-report-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 4px;
+}
+.squat-report-header-row .squat-report-title {
+  margin-bottom: 0;
+}
+.squat-report-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+/* (2026-09-09 추가) 제목 옆 오늘 운동 점수 배지 */
+.squat-report-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  background: rgba(218, 41, 28, 0.08);
+  color: #da291c;
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+.squat-report-score-value {
+  font-size: 15px;
+  font-weight: 800;
+}
+.squat-report-score-unit {
+  font-size: 11px;
+  font-weight: 700;
+}
+.squat-today-stats-compact {
+  flex: 0 1 auto;
+  gap: 16px;
+  margin-bottom: 0;
+}
+.squat-today-stats-compact .squat-today-stat {
+  flex: 0 0 auto;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 10px;
+  padding: 6px 14px;
+  text-align: center;
+}
+.squat-today-stats-compact .squat-today-stat-value {
+  font-size: 15px;
 }
 .squat-today-stat-label {
   font-size: 11px;
@@ -473,7 +550,7 @@
   margin-left: 2px;
 }
 
-/* 달력 + 오늘의 리포트 그래프를 나란히 두는 행 — 좁은 화면에서는 세로로 쌓인다 */
+/* 달력 + 최근 세션 리스트를 나란히 두는 행(달력 모달 전용) — 좁은 화면에서는 세로로 쌓인다 */
 .squat-calendar-row {
   display: flex;
   gap: 12px;
@@ -482,158 +559,50 @@
   flex: 1 1 260px;
 }
 
-.squat-calendar-card {
-  flex: 1 1 240px;
-  background: #fff;
-  border: 1px solid #e5e3dd;
-  border-radius: 14px;
-  padding: 14px;
-}
-.squat-calendar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.squat-calendar-nav {
-  border: none;
-  background: none;
-  color: #55534d;
-  font-size: 18px;
-  line-height: 1;
-  padding: 2px 8px;
-  cursor: pointer;
-}
-.squat-calendar-nav:hover {
-  color: #da291c;
-}
-.squat-calendar-month {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #111;
-}
-.squat-calendar-today-goal {
-  font-size: 11.5px;
-  color: #55534d;
-  background: #f9f8f5;
-  border-radius: 8px;
-  padding: 6px 10px;
-  margin-bottom: 10px;
-}
-.squat-calendar-no-goal {
-  color: #9b9a96;
-}
-.squat-calendar-weekdays,
-.squat-calendar-grid {
+/* (2026-09-09 추가) 리포트 화면 "스쿼트 분석" 2단 그리드 — 왼쪽은 자세 분석(게이지+막대
+   그래프+타임라인), 오른쪽은 달력+추이 그래프를 세로로 쌓는다. 좁은 화면에서는 1단으로
+   떨어진다. */
+.squat-analysis-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  text-align: center;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+  /* (2026-09-09 추가) 헤더 줄+설명 문구가 그리드 밖으로 빠지면서 생긴 간격 */
+  margin-top: 18px;
+  /* (2026-09-09 수정) "다시 운동하기" 버튼을 오른쪽 칼럼(달력+추이그래프) 맨 아래로
+     옮기면서, 왼쪽 칼럼(막대그래프+타임라인까지 있어 더 긺)과 높이를 맞춰야 버튼이
+     margin-top:auto로 왼쪽의 "렙별 판정 타임라인" 옆(오른쪽)까지 내려온다. */
+  align-items: stretch;
 }
-.squat-calendar-weekdays {
-  margin-bottom: 4px;
-}
-.squat-calendar-weekdays span {
-  font-size: 10px;
-  color: #9b9a96;
-}
-.squat-calendar-cell {
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: #55534d;
-  border-radius: 6px;
-}
-.squat-calendar-cell-empty {
-  visibility: hidden;
-}
-.squat-calendar-cell-met {
-  background: rgba(46, 184, 114, 0.35);
-  color: #111;
-  font-weight: 700;
-}
-.squat-calendar-cell-today {
-  box-shadow: inset 0 0 0 1.5px #da291c;
-  font-weight: 700;
-}
-
-/* 오늘의 리포트 그래프 카드 — 달력 오른쪽에 항상 붙어서 보인다 */
-.squat-today-graph-card {
-  flex: 1 1 180px;
-  background: #fff;
-  border: 1px solid #e5e3dd;
-  border-radius: 14px;
-  padding: 14px;
+.squat-analysis-col {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  min-width: 0;
 }
-.squat-today-graph-title {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #111;
-  margin-bottom: 10px;
-}
-.squat-today-graph-donut-row {
+/* (2026-09-09 수정) 버튼 1개만 margin-top:auto로 맨 아래에 붙이던 걸, "지난 운동 기록
+   보기" 버튼이 추가되며 두 버튼을 묶어 오른쪽 칼럼의 남는 세로 공간 한가운데로 오게
+   바꿨다 — 위아래 margin:auto는 flex 칼럼에서 남는 공간의 정중앙에 오게 하는 방법. */
+.squat-report-actions {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-top: auto;
+  margin-bottom: auto;
 }
-.squat-today-graph-donut-caption {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #55534d;
+.squat-report-history-btn {
+  text-decoration: none;
 }
-.squat-today-graph-sub {
-  font-size: 11px;
-  color: #9b9a96;
-  margin-top: 3px;
+/* SquatGoalCalendar.css의 .squat-calendar-card는 원래 달력 모달의 가로 배치
+   (.squat-calendar-row, flex-grow로 폭을 나눠 가짐)를 위한 flex:1 1 240px인데, 여기
+   .squat-analysis-side(세로 flex 칼럼)에 그대로 두면 방금 늘어난 칼럼 높이를 달력이
+   전부 먹어치워 이상하게 커진다. 여기서만 늘어나지 않게 고정해서, 남는 세로 공간은
+   버튼의 margin-top:auto 쪽으로 가게 한다. */
+.squat-analysis-side .squat-calendar-card {
+  flex: 0 0 auto;
 }
-.squat-today-graph-bar {
-  position: relative;
-  height: 10px;
-  border-radius: 5px;
-  background: rgba(218, 41, 28, 0.16);
-  overflow: hidden;
-  margin-bottom: 10px;
-}
-.squat-today-graph-bar-normal {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: #2eb872;
-  border-radius: 5px;
-}
-.squat-today-graph-legend {
-  display: flex;
-  gap: 14px;
-  font-size: 11px;
-  color: #55534d;
-}
-.squat-today-graph-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.squat-today-graph-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.squat-today-graph-dot-ok {
-  background: #2eb872;
-}
-.squat-today-graph-dot-warn {
-  background: #da291c;
-}
-.squat-today-graph-empty {
-  font-size: 12px;
-  color: #9b9a96;
-  flex: 1;
-  display: flex;
-  align-items: center;
+@media (max-width: 720px) {
+  .squat-analysis-grid {
+    grid-template-columns: 1fr;
+  }
 }
