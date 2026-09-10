@@ -74,6 +74,88 @@ export async function rejectAdminReport(id) {
   if (!res.ok) throw new Error('반려 처리에 실패했습니다')
 }
 
+// --- 고객센터 관리 (1:1 문의 / FAQ / 공지사항) ---
+
+export async function getAdminInquiries(status, page = 0) {
+  const params = new URLSearchParams({ page: String(page) })
+  if (status) params.set('status', status)
+  const res = await adminFetch(`/api/admin/inquiries?${params.toString()}`)
+  if (!res.ok) throw new Error('문의 목록을 불러오지 못했습니다')
+  return res.json()
+}
+
+export async function getAdminInquiryDetail(id) {
+  const res = await adminFetch(`/api/admin/inquiries/${id}`)
+  if (!res.ok) throw new Error('문의 상세를 불러오지 못했습니다')
+  return res.json()
+}
+
+export async function answerAdminInquiry(id, answer) {
+  const res = await adminFetch(`/api/admin/inquiries/${id}/answer`, {
+    method: 'POST',
+    body: JSON.stringify({ answer }),
+  })
+  if (!res.ok) throw new Error('답변 등록에 실패했습니다')
+  return res.json()
+}
+
+export async function deleteAdminInquiryAnswer(id) {
+  const res = await adminFetch(`/api/admin/inquiries/${id}/answer`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('답변 삭제에 실패했습니다')
+  return res.json()
+}
+
+export async function deleteAdminInquiry(id) {
+  const res = await adminFetch(`/api/admin/inquiries/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('문의 삭제에 실패했습니다')
+}
+
+export async function getAdminFaqs() {
+  const res = await adminFetch('/api/admin/faqs')
+  if (!res.ok) throw new Error('FAQ 목록을 불러오지 못했습니다')
+  return res.json()
+}
+
+export async function createAdminFaq(payload) {
+  const res = await adminFetch('/api/admin/faqs', { method: 'POST', body: JSON.stringify(payload) })
+  if (!res.ok) throw new Error('FAQ 등록에 실패했습니다')
+  return res.json()
+}
+
+export async function updateAdminFaq(id, payload) {
+  const res = await adminFetch(`/api/admin/faqs/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+  if (!res.ok) throw new Error('FAQ 수정에 실패했습니다')
+  return res.json()
+}
+
+export async function deleteAdminFaq(id) {
+  const res = await adminFetch(`/api/admin/faqs/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('FAQ 삭제에 실패했습니다')
+}
+
+export async function getAdminNotices(page = 0) {
+  const res = await adminFetch(`/api/admin/notices?page=${page}`)
+  if (!res.ok) throw new Error('공지사항 목록을 불러오지 못했습니다')
+  return res.json()
+}
+
+export async function createAdminNotice(payload) {
+  const res = await adminFetch('/api/admin/notices', { method: 'POST', body: JSON.stringify(payload) })
+  if (!res.ok) throw new Error('공지사항 등록에 실패했습니다')
+  return res.json()
+}
+
+export async function updateAdminNotice(id, payload) {
+  const res = await adminFetch(`/api/admin/notices/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+  if (!res.ok) throw new Error('공지사항 수정에 실패했습니다')
+  return res.json()
+}
+
+export async function deleteAdminNotice(id) {
+  const res = await adminFetch(`/api/admin/notices/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('공지사항 삭제에 실패했습니다')
+}
+
 // 브라우저 다운로드는 <a href>로 그대로 열면 되고(같은 사이트라 쿠키가 자동으로 실린다),
 // fetch로 미리 받아올 필요가 없다.
 export const ADMIN_REPORT_EXPORT_URL = `${API_BASE}/api/admin/reports/export`

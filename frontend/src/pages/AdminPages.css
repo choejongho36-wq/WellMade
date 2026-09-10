@@ -46,6 +46,7 @@
 .badge-pending { background: #fef3c7; color: #92400e; }
 .badge-approved { background: #dcfce7; color: #15803d; }
 .badge-rejected { background: #fee2e2; color: #b91c1c; }
+.badge-answered { background: #dcfce7; color: #15803d; }
 
 .report-detail-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; align-items: start; }
 .report-detail-media video, .report-detail-media img { width: 100%; border-radius: 8px; display: block; }

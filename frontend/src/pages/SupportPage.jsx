@@ -8,8 +8,9 @@ export default function SupportPage() {
   return (
     <PageShell>
       <div className="support-page">
+        <p className="support-eyebrow">SUPPORT</p>
         <h1 className="support-title">고객센터</h1>
-        <p className="support-subtitle">궁금한 점을 빠르게 해결해드릴게요.</p>
+        <p className="support-hint">궁금한 점을 빠르게 해결해드릴게요.</p>
 
         <div className="support-grid">
           <Link to="/faq" className="support-card">
