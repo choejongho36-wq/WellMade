@@ -146,6 +146,11 @@ class CoachingFrameRequest(BaseModel):
     hip_calibration: Optional[HipFlexibilityCalibration] = Field(
         None, description="개인별 고관절 유연성 캘리브레이션 결과. 없으면 고정 NORMAL_RANGES로 판정."
     )
+    deep_squat_mode: bool = Field(
+        False,
+        description="사용자가 의도적으로 깊게(ATG 등) 스쿼트한다고 표시했는지. True면 무릎각도 하한"
+        " 검사(너무 깊게 굽힘 경고)를 건너뛴다 — 얕게 앉는 것에 대한 검사(상한)는 그대로 적용된다.",
+    )
     pending_llm_job_id: Optional[str] = Field(
         None,
         description="이전 응답(CoachingFrameResponse.pending_llm_job_id)에서 받은 고관절 "

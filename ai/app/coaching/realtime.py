@@ -206,6 +206,7 @@ def judge_realtime_coaching(
     hip_calibration: HipFlexibilityCalibration | None = None,
     pending_llm_job_id: str | None = None,
     view: str = "side",
+    deep_squat_mode: bool = False,
 ) -> dict:
     """
     최근 N프레임의 무릎/엉덩이 각도 시계열을 보고
@@ -223,6 +224,10 @@ def judge_realtime_coaching(
     검사한다 — get_knee_angle/get_hip_angle(app/pose/angles.py)은 시상면(옆에서 본) 기준이라
     정면 랜드마크로 계산하면 실제 굽힘 각도를 반영하지 못하기 때문이다(2026-09-07 실시간
     코칭 측면→정면 2단계 흐름 추가와 함께 도입).
+
+    deep_squat_mode: 사용자가 의도적으로 깊게(ATG 등) 앉는다고 표시했으면 True. 무릎각도
+    하한(너무 깊게 굽힘) 검사만 건너뛰고, 얕게 앉는 것에 대한 상한 검사와 엉덩이(고관절)
+    각도 검사는 그대로 적용된다 — 고관절 쪽은 이미 hip_calibration으로 개인화되어 있다.
     """
     issues: list[dict] = []
     # 이번 응답에서 프론트가 계속 들고 있어야 할 job id — 기본은 "기다릴 것 없음"이고,
@@ -325,7 +330,8 @@ def judge_realtime_coaching(
         # 다만 "선 자세로 멈춰 있는 것"까지 하단 자세 기준으로 검사하면 안 되므로,
         # 무릎이 충분히 굽혀진(STANDING_KNEE_ANGLE_MIN 미만) 경우에만 검사한다.
         is_deep_hold = latest_knee < STANDING_KNEE_ANGLE_MIN
-        if is_deep_hold and not (knee_low <= latest_knee <= knee_high):
+        knee_out_of_range = (not deep_squat_mode and latest_knee < knee_low) or latest_knee > knee_high
+        if is_deep_hold and knee_out_of_range:
             issues.append(
                 {
                     "part": "knee",
@@ -390,7 +396,7 @@ def judge_realtime_coaching(
     else:
         # 동작 중에는 "정상범위 하한보다 훨씬 더 굽혀지는" 과도한 굽힘만 위험 신호로 본다.
         # (무릎에 부담이 되는 과도한 가동범위는 동작 단계와 무관하게 바로 감지해야 하기 때문)
-        if latest_knee < knee_low - DEEP_MARGIN_DEG:
+        if not deep_squat_mode and latest_knee < knee_low - DEEP_MARGIN_DEG:
             issues.append(
                 {
                     "part": "knee",

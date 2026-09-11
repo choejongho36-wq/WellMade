@@ -84,7 +84,6 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
   return (
     <div className="squat-card photo-panel photo-slot-panel">
       <div className="photo-panel-head">
-         {label}
         <span className={required ? 'photo-req-badge' : 'photo-optional-badge'}>{required ? '필수' : '선택'}</span>
       </div>
 
@@ -92,8 +91,7 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
         <div className="preview-photo-box">
           {slot.phase === 'idle' && (
             <button type="button" className="preview-placeholder" onClick={slot.openFilePicker}>
-              <span className="preview-placeholder-icon">📷</span>
-              여기를 눌러 {label} 사진을 업로드해주세요
+              여기를 눌러 사진을 업로드해주세요
               {/* (2026-09-03) 별도 "사진 업로드" 버튼을 없애고 이 영역 클릭만으로 업로드하게
                   되면서, 그 버튼 아래 있던 파일 형식 안내 문구를 이 자리로 옮겨왔다. */}
               <span className="preview-placeholder-hint">JPG · PNG · 최대 10MB</span>

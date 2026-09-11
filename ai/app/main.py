@@ -152,6 +152,7 @@ def coaching_frame(request: CoachingFrameRequest):
         hip_calibration=request.hip_calibration,
         pending_llm_job_id=request.pending_llm_job_id,
         view=request.view,
+        deep_squat_mode=request.deep_squat_mode,
     )
 
     return CoachingFrameResponse(

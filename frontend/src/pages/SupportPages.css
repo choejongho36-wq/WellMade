@@ -4,9 +4,10 @@
    기존 값을 그대로 따랐다 — 포인트 #da291c, 경계선 #e5e3dd, 리스트 행 배경 #f9f8f5,
    pill 999px. */
 
+/* MyPage/ExerciseHistoryPage처럼 PageShell 안에서 별도 패딩 없이 바로 시작한다 -
+   .posture-page처럼 자체 패딩을 더 얹으면 다른 페이지보다 내용이 안쪽으로 밀려버린다. */
 .support-page {
-  padding: 28px 32px 48px;
-  max-width: 880px;
+  max-width: 720px;
 }
 
 /* 다른 페이지들(마이페이지/식단관리/운동기록)의 .page-index-tag와 같은 pill 모양 -
@@ -396,9 +397,6 @@ a.support-card:hover {
 }
 
 @media (max-width: 768px) {
-  .support-page {
-    padding: 24px 20px 40px;
-  }
   .support-grid {
     grid-template-columns: 1fr;
   }

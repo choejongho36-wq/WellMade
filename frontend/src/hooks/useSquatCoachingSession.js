@@ -306,20 +306,17 @@ export function useSquatCoachingSession() {
         })
         setRepHistory(repHistoryRef.current)
 
-        // (2026-09-09 재구성) 점수 = 렙(반복)마다 배점을 쌓는 방식으로 바꿨다 — 목표
-        // 횟수(마이페이지에서 설정한 targetReps)가 있으면 렙 1개당 배점을 100 ÷ 목표
-        // 횟수로 두고, 없으면 100 ÷ 실제 수행 렙수로 대신한다. 정상 렙은 배점 그대로,
-        // 이상이 감지된 렙은 배점의 절반만(0점이 되지 않게 절반만 깎는 식) 가점해서 다
-        // 더하고, 목표보다 많이 해도 100점을 넘지 않게 자른다. 완료한 렙이 하나도 없으면
-        // (세션이 너무 짧아 렙 단위로 매길 게 없는 경우) 정상 자세 비율만으로 매긴다 —
-        // 아예 아무 판정도 없었으면(0회) 자연히 0점이 된다.
+        // 점수 = 렙(반복)마다 배점을 쌓는 방식 — 배점은 100 ÷ 실제 수행한 렙 수로 매겨서,
+        // 몇 개를 하든 그 동작들의 정상/이상 비율만으로 점수가 나온다(목표 횟수를 얼마나
+        // 채웠는지는 "목표 달성률" 칸이 따로 보여준다). 정상 렙은 배점 그대로, 이상이
+        // 감지된 렙은 배점의 절반만(0점이 되지 않게 절반만 깎는 식) 가점해서 다 더한다.
+        // 완료한 렙이 하나도 없으면(세션이 너무 짧아 렙 단위로 매길 게 없는 경우) 정상
+        // 자세 비율만으로 매긴다 — 아예 아무 판정도 없었으면(0회) 자연히 0점이 된다.
         // 운동 기록 페이지의 "최근 세션"/세트별 기록 점수 배지에 쓴다.
-        const goalReps = squatGoal?.targetReps
         const completedReps = repHistoryRef.current
         let score
         if (completedReps.length > 0) {
-          const scoreDenom = goalReps > 0 ? goalReps : completedReps.length
-          const perRepPoints = 100 / scoreDenom
+          const perRepPoints = 100 / completedReps.length
           const rawScore = completedReps.reduce(
             (sum, rep) => sum + (rep.is_normal ? perRepPoints : perRepPoints * 0.5),
             0,
@@ -508,7 +505,11 @@ export function useSquatCoachingSession() {
       }))
 
       try {
-        const result = await postJson('/ai/coaching/frame', { angle_history, view: sessionStage })
+        const result = await postJson('/ai/coaching/frame', {
+          angle_history,
+          view: sessionStage,
+          deep_squat_mode: Boolean(squatGoal?.deepSquatMode),
+        })
         setJudgeError('')
 
         if (isFront) {
@@ -558,10 +559,16 @@ export function useSquatCoachingSession() {
             if (!repInProgressRef.current) movementWarningCountRef.current = 0
             repInProgressRef.current = true
             if (!result.is_normal) {
-              repHadIssueRef.current = true
-              for (const issue of result.issues ?? []) {
-                if (!repIssuesRef.current.some((seen) => seen.part === issue.part)) {
-                  repIssuesRef.current.push({ part: issue.part })
+              // (2026-09-10) 'movement'(흔들림 감지) 이슈는 렙 정상/이상 판정에서 제외한다 -
+              // 말 경고(MOVEMENT_WARNING_MAX_PER_REP)는 그대로 두되, 렙이 "이상"으로 집계되는
+              // 건 다른 부위(무릎/엉덩이/상체 등) 이슈가 있을 때만이다.
+              const nonMovementIssues = (result.issues ?? []).filter((issue) => issue.part !== 'movement')
+              if (nonMovementIssues.length > 0) {
+                repHadIssueRef.current = true
+                for (const issue of nonMovementIssues) {
+                  if (!repIssuesRef.current.some((seen) => seen.part === issue.part)) {
+                    repIssuesRef.current.push({ part: issue.part })
+                  }
                 }
               }
             }

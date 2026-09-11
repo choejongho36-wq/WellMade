@@ -30,13 +30,17 @@ export const EXERCISE_OPTIONS = [
 
 const DEFAULT_STATE = {
   configured: false,
-  goals: [{ id: 'squat', name: '스쿼트', targetReps: 30, targetSets: 1 }],
+  goals: [{ id: 'squat', name: '스쿼트', targetReps: 30, targetSets: 1, deepSquatMode: false }],
 }
 
 // targetSets가 없는(마이그레이션 전) 저장 데이터를 위한 기본값 — "예전엔 회수만 있었으니
 // 그걸 1세트짜리 목표였다"고 보는 게 가장 자연스러운 해석이다.
 function normalizeGoal(g) {
-  return { ...g, targetSets: Number.isFinite(g.targetSets) ? g.targetSets : 1 }
+  return {
+    ...g,
+    targetSets: Number.isFinite(g.targetSets) ? g.targetSets : 1,
+    deepSquatMode: Boolean(g.deepSquatMode),
+  }
 }
 
 function safeParseState(json) {
