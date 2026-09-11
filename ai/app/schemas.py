@@ -174,6 +174,17 @@ class CoachingFrameRequest(BaseModel):
         "여러 교정 사항을 한꺼번에 말하는 대신, 가장 기본이 되는 스쿼트 깊이부터 하나씩 "
         "교정하게 하려는 의도. 기본값 False는 기존 동작과 동일(하위 호환).",
     )
+    guided_rep_index: Optional[int] = Field(
+        None,
+        ge=1,
+        le=3,
+        description="초심자 모드 가이드 세트에서 방금 완료된 것으로 프론트가 판단한 반복 "
+        "번호(1~3). 렙 완료 감지는 프론트 책임이다(session/guide.py와 동일한 원칙 — 서버는 "
+        "세션 상태·반복 횟수를 직접 세지 않는다). 이 값을 보내면 응답의 "
+        "guided_rep_count_message에 해당 번호에 맞는 카운트 멘트('하나'/'둘'/'셋')가 채워지고, "
+        "3이면 guided_set_complete도 True가 된다. is_beginner_mode가 False면 값을 보내도 "
+        "무시된다.",
+    )
 
 
 class CoachingFrameResponse(BaseModel):
@@ -190,6 +201,18 @@ class CoachingFrameResponse(BaseModel):
         "값을 저장해뒀다가 다음 호출들의 요청에 그대로 실어 보내면 된다. None이면 지금 "
         "기다릴 job이 없다는 뜻(방금 결과를 이슈로 받았거나, 애초에 없었음)이라 프론트가 "
         "들고 있던 이전 job id는 지워도 된다.",
+    )
+    guided_rep_count_message: Optional[str] = Field(
+        None,
+        description="요청의 guided_rep_index에 대응하는 카운트 멘트('하나.'/'둘.'/'셋. 여기까지 "
+        "세 번 잘하셨어요.'). is_beginner_mode가 False이거나 guided_rep_index를 안 보냈으면 "
+        "None.",
+    )
+    guided_set_complete: bool = Field(
+        False,
+        description="guided_rep_index가 3이라 이번 응답으로 가이드 세트(3회)가 완료됐는지. "
+        "True면 프론트는 /ai/session/guide에 set_completed 이벤트를 보내 다음 단계(정면 "
+        "전환 또는 세션 종료)로 넘어가면 된다.",
     )
 
 
@@ -492,12 +515,12 @@ class ExerciseDetailResponse(BaseModel):
 
 
 # ---- 하네스 오케스트레이션 (AI-07) ----
-# LLM Tool Use 기반으로 "다음에 어떤 행동을 할지"를 동적으로 결정한다. 자세한 배경·판단
-# 규칙(H-01~H-06)은 app/orchestration/harness.py 주석 참고.
+# "다음에 어떤 행동을 할지"를 규칙기반으로 결정한다. 자세한 배경·판단 규칙(H-01~H-06)은
+# app/orchestration/harness.py 주석 참고.
 
-# 요구사항 정의서 "2.하네스판단로직" 시트의 "선택 가능 액션"을 도구화한 값과 1:1 대응.
-# harness.py의 HARNESS_TOOLS와 반드시 이름이 일치해야 한다 — 여기서 하나 늘리거나 이름을
-# 바꾸면 harness.py도 같이 수정해야 함.
+# 요구사항 정의서 "2.하네스판단로직" 시트의 "선택 가능 액션"과 1:1 대응.
+# harness.py의 _fallback_decision()이 반환하는 next_action 값과 이름이 반드시 일치해야
+# 한다 — 여기서 하나 늘리거나 이름을 바꾸면 harness.py도 같이 수정해야 함.
 NextAction = Literal[
     "request_retake",
     "request_reanalysis",
@@ -707,6 +730,14 @@ CameraView = Literal[
 class SessionGuideRequest(BaseModel):
     current_stage: SessionStage
     event: SessionEvent
+    had_issues: bool = Field(
+        False,
+        description="event가 set_completed이고 current_stage가 front_squat이라 세션이 "
+        "session_finish로 넘어갈 때만 의미가 있다. 방금 끝난 가이드 세트(측면+정면) 동안 "
+        "/ai/coaching/frame이 한 번이라도 is_normal=False를 반환했으면 True로 보낸다 — "
+        "서버는 이 값으로 마무리 멘트를 '잘하셨습니다' 계열과 '수고하셨어요' 계열 중 고른다. "
+        "다른 전이에서는 무시된다.",
+    )
 
 
 class SessionGuideResponse(BaseModel):
@@ -714,4 +745,10 @@ class SessionGuideResponse(BaseModel):
     camera_view: CameraView | None = None
     message: str | None = None
 
-    coaching_summary: str
+    # (2026-09-11) 원래 여기 `coaching_summary: str`(필수)로 돼 있었는데
+    # get_next_guide()/build_guide_response()가 이 키를 채운 적이 없어(guide.py는
+    # stage/camera_view/message 3개만 반환) main.py의 `SessionGuideResponse(**result)`가
+    # 매 호출마다 pydantic ValidationError로 500을 내던 기존 버그다 — 이 엔드포인트를
+    # 검증하는 테스트가 아예 없어 지금까지 발견되지 않았다. 이번 초심자 모드 작업으로 이
+    # 함수를 다시 손보는 김에 Optional로 고쳐 우선 정상 동작하게 했다.
+    coaching_summary: str | None = None

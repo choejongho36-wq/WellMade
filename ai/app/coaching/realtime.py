@@ -201,6 +201,26 @@ def _std_dev(values: list[float]) -> float:
     return variance**0.5
 
 
+GUIDED_REP_COUNT_WORDS = {1: "하나", 2: "둘", 3: "셋"}
+
+
+def _build_guided_rep_message(
+    is_beginner_mode: bool, guided_rep_index: int | None
+) -> tuple[str | None, bool]:
+    """guided_rep_index(1~3)를 카운트 멘트로 바꾼다. 쉼표 없이 짧게 끊어 말하도록
+    구성했다 — TTS가 "천천히," 처럼 쉼표 뒤에서 발음이 깨지는 문제가 있어(2026-09-11
+    확인), 이 프로젝트의 모든 실시간 코칭 문구는 쉼표를 쓰지 않는다(coaching_messages.py
+    상단 원칙과 동일)."""
+    if not is_beginner_mode or guided_rep_index is None:
+        return None, False
+    word = GUIDED_REP_COUNT_WORDS.get(guided_rep_index)
+    if word is None:
+        return None, False
+    if guided_rep_index == 3:
+        return f"{word}. 여기까지 세 번 잘하셨어요.", True
+    return f"{word}.", False
+
+
 def judge_realtime_coaching(
     angle_history: list[AngleFrame],
     hip_calibration: HipFlexibilityCalibration | None = None,
@@ -208,6 +228,7 @@ def judge_realtime_coaching(
     view: str = "side",
     deep_squat_mode: bool = False,
     is_beginner_mode: bool = False,
+    guided_rep_index: int | None = None,
 ) -> dict:
     """
     최근 N프레임의 무릎/엉덩이 각도 시계열을 보고
@@ -235,6 +256,13 @@ def judge_realtime_coaching(
     처음 배우는 사용자에게 여러 교정 사항을 한꺼번에 말하는 대신, 가장 기본이 되는 스쿼트
     깊이부터 하나씩 교정하게 하려는 의도 — 깊이 이슈가 없으면(정상 깊이인데 다른 문제만
     있는 경우) 이 플래그는 아무 영향이 없다.
+
+    guided_rep_index: 초심자 모드 가이드 세트에서 방금 완료된 반복 번호(1~3) — 렙 경계
+    감지는 프론트 책임이라(schemas.py의 CoachingFrameRequest.guided_rep_index 설명 참고)
+    이 함수는 값을 검증 없이 그대로 카운트 멘트로 변환하기만 한다. is_beginner_mode가
+    False이거나 view=="front"여도(정면 세트도 같은 가이드 흐름의 일부이므로) 동작한다 —
+    phase/DTW 판정과 완전히 독립적인 별도 계산이라, 함수의 모든 반환 경로(프레임 부족/
+    정면 전용/일반)에 공통으로 붙인다.
     """
     issues: list[dict] = []
     # 이번 응답에서 프론트가 계속 들고 있어야 할 job id — 기본은 "기다릴 것 없음"이고,
@@ -248,12 +276,17 @@ def judge_realtime_coaching(
     # 아니라 세션이 막 시작해 데이터가 덜 쌓인 것뿐이라, 별도 문구 없이 낮은 confidence만
     # 반환한다(하네스 AI-07이 신뢰도 낮음을 이미 판단 근거로 쓴다).
     if len(angle_history) < MIN_FRAMES:
+        guided_rep_count_message, guided_set_complete = _build_guided_rep_message(
+            is_beginner_mode, guided_rep_index
+        )
         return {
             "phase": "holding",
             "is_normal": True,
             "confidence": round(len(angle_history) / MIN_FRAMES * 0.3, 2),
             "issues": [],
             "pending_llm_job_id": None,
+            "guided_rep_count_message": guided_rep_count_message,
+            "guided_set_complete": guided_set_complete,
         }
 
     # --- 정면(front) 세션: 무릎모임만 본다 ---
@@ -265,12 +298,17 @@ def judge_realtime_coaching(
         latest_knee_valgus = angle_history[-1].knee_valgus_ratio
         if latest_knee_valgus is not None and latest_knee_valgus < KNEE_VALGUS_RATIO_THRESHOLD:
             issues.append({"part": "knee_valgus", "message": KNEE_VALGUS_MESSAGE})
+        guided_rep_count_message, guided_set_complete = _build_guided_rep_message(
+            is_beginner_mode, guided_rep_index
+        )
         return {
             "phase": "holding",
             "is_normal": len(issues) == 0,
             "confidence": 1.0 if latest_knee_valgus is not None else 0.3,
             "issues": issues,
             "pending_llm_job_id": None,
+            "guided_rep_count_message": guided_rep_count_message,
+            "guided_set_complete": guided_set_complete,
         }
 
     timestamps = [f.timestamp for f in angle_history]
@@ -326,7 +364,7 @@ def judge_realtime_coaching(
         issues.append(
             {
                 "part": "movement",
-                "message": "움직임이 불안정합니다. 천천히, 일정한 속도로 동작해 주세요.",
+                "message": "움직임이 불안정합니다. 천천히 일정한 속도로 동작해 주세요.",
             }
         )
 
@@ -518,10 +556,16 @@ def judge_realtime_coaching(
         confidence = knee_r2 * (1.0 - 0.5 * jitter_penalty)
     confidence = max(0.0, min(1.0, confidence))
 
+    guided_rep_count_message, guided_set_complete = _build_guided_rep_message(
+        is_beginner_mode, guided_rep_index
+    )
+
     return {
         "phase": phase,
         "is_normal": len(issues) == 0,
         "confidence": round(confidence, 2),
         "issues": issues,
         "pending_llm_job_id": outgoing_llm_job_id,
+        "guided_rep_count_message": guided_rep_count_message,
+        "guided_set_complete": guided_set_complete,
     }
