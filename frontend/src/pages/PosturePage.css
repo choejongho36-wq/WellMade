@@ -1,98 +1,27 @@
-/* 정지 자세 분석 페이지.
-   색상·모서리·간격은 팀 페이지들(squatShared.css, PhotoCoachingPage.css)의
-   기존 값을 그대로 따랐다 — 포인트 #da291c, 경계선 #e5e3dd, pill 999px. */
-
-.posture-page {
-  padding: 28px 32px 48px;
-  max-width: 1080px;
-}
-
-/* 헤더 행.
-   클래스명에 posture- 접두사를 반드시 붙인다. 처음에 팀 공용 클래스와
-   같은 이름(.page-eyebrow-row)을 썼다가 PageShell.css의 정의를 덮어써서
-   팀의 사진 코칭 페이지 레이아웃까지 깨뜨린 적이 있다 — CSS는 전역이라
-   우리 페이지를 방문하지 않아도 번들에 포함되면 영향을 준다. */
-.posture-header-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.posture-eyebrow {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #da291c;
-  letter-spacing: 0.04em;
-}
-.posture-title {
-  font-size: 26px;
-  font-weight: 800;
-  color: #111;
-  margin-top: 4px;
-}
-.posture-hint {
-  margin-top: 10px;
-  font-size: 13px;
-  color: #9b9a96;
-}
-
-/* ---- 촬영 안내 모달 ----
-   팀 PhotoCoachingPage.css의 .upload-notice-modal 과 같은 값을 썼다.
-   Modal.jsx 기본 .modal-title(검정 배너)을 그대로 쓰고 본문 목록만 스타일링한다.
-   기본 .modal 폭(320px)이 목록 6줄엔 좁아서 넓혔다. */
-.posture-notice-modal {
-  width: 520px;
-  max-width: 90vw;
-}
-.posture-notice-list {
-  margin: 0;
-  padding-left: 18px;
-  font-size: 13px;
-  line-height: 1.8;
-  color: #55534d;
-}
-.posture-notice-list li + li {
-  margin-top: 6px;
-}
-.posture-notice-list strong {
-  color: #111;
-  font-weight: 700;
-}
-
-/* ---- 헤더 오른쪽: 촬영 안내 버튼 + 정면/측면 탭 ---- */
-.posture-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.posture-notice-btn {
-  background: #fff;
-  border: 1px solid #e5e3dd;
-  border-radius: 999px;
-  padding: 8px 16px;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #9b9a96;
-  cursor: pointer;
-}
-.posture-notice-btn:hover {
-  border-color: #da291c;
-  color: #da291c;
-}
+/* 정지 자세 분석 페이지 전용 스타일.
+ *
+ * 레이아웃·카드·업로드 영역은 팀 클래스를 그대로 쓴다
+ * (squat-card, photo-panel, preview-frame, section-head, squat-btn 등).
+ * 여기에는 우리 페이지에만 있는 것(정면/측면 탭, 3구간 게이지, 판정 배지)만
+ * 둔다.
+ *
+ * 클래스명에 posture- 접두사를 반드시 붙인다. 처음에 팀 공용 클래스와 같은
+ * 이름(.page-eyebrow-row)을 썼다가 PageShell.css의 정의를 덮어써서 팀의
+ * 사진 코칭 페이지 레이아웃까지 깨뜨린 적이 있다 — CSS는 전역이라 우리
+ * 페이지를 방문하지 않아도 번들에 포함되면 영향을 준다.
+ */
 
 /* ---- 정면/측면 전환 탭 ---- */
 .posture-view-tabs {
-  display: flex;
-  gap: 8px;
+  display: inline-flex;
+  gap: 6px;
+  margin-right: 10px;
 }
 .posture-view-tab {
   background: #fff;
   border: 1px solid #e5e3dd;
   border-radius: 999px;
-  padding: 8px 20px;
+  padding: 7px 18px;
   font-size: 13px;
   font-weight: 700;
   color: #111;
@@ -111,98 +40,27 @@
   cursor: default;
 }
 
-/* ---- 본문: 왼쪽 업로드 / 오른쪽 결과 ---- */
-.posture-body {
+/* ---- 업로드 영역 ----
+   팀은 측면/정면 2장을 나란히 받지만(photo-upload-row) 우리는 탭으로
+   한 번에 한 장만 다루므로 1단이다. */
+.posture-upload-row {
+  margin-top: 20px;
   display: grid;
-  grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
-  gap: 28px;
-  margin-top: 24px;
-  align-items: start;
+  grid-template-columns: minmax(0, 560px);
+  justify-content: center;
 }
-@media (max-width: 860px) {
-  .posture-body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.posture-upload {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.posture-preview,
-.posture-placeholder {
+.posture-preview-img {
   width: 100%;
-  aspect-ratio: 3 / 4;
-  border-radius: 14px;
-  border: 1px solid #e5e3dd;
-  background: #faf9f7;
+  height: 100%;
   object-fit: contain;
 }
-.posture-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-style: dashed;
-  color: #9b9a96;
-}
-.posture-placeholder p {
-  font-size: 14px;
-  font-weight: 700;
-  color: #111;
-}
-.posture-placeholder span {
-  font-size: 12px;
-}
 
-.posture-actions {
-  display: flex;
-  gap: 8px;
-}
-.posture-btn-primary,
-.posture-btn-ghost {
-  border-radius: 999px;
-  padding: 10px 22px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.posture-btn-primary {
-  background: #da291c;
-  border: 1px solid #da291c;
-  color: #fff;
-}
-.posture-btn-ghost {
-  background: #fff;
-  border: 1px solid #e5e3dd;
-  color: #111;
-}
-.posture-btn-primary:disabled,
-.posture-btn-ghost:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.posture-privacy {
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: #9b9a96;
-}
-
-/* ---- 결과 ---- */
-.posture-result {
-  min-height: 120px;
-}
-.posture-status {
+/* ---- 분석 결과 ---- */
+.posture-panel-empty {
+  padding: 40px 0;
+  text-align: center;
   font-size: 13px;
   color: #9b9a96;
-}
-.posture-error {
-  font-size: 13px;
-  color: #da291c;
-  line-height: 1.6;
 }
 
 .posture-warning {
@@ -212,7 +70,6 @@
   margin-bottom: 16px;
   font-size: 12.5px;
   line-height: 1.7;
-  color: #111;
 }
 .posture-warning strong {
   display: block;
@@ -220,25 +77,23 @@
   color: #da291c;
 }
 .posture-warning ul {
+  margin: 0;
   padding-left: 16px;
   color: #9b9a96;
 }
 
 .posture-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+  gap: 20px;
 }
 /* 신뢰할 수 없는 결과는 흐리게 — 숫자가 눈에 먼저 들어와 경고를 지나치는 걸 막는다 */
 .posture-metrics.is-dimmed {
   opacity: 0.45;
 }
 
-.posture-metric {
-  border: 1px solid #e5e3dd;
-  border-radius: 14px;
-  padding: 16px 18px;
-  background: #fff;
+.posture-metric-row + .posture-metric-row {
+  padding-top: 20px;
+  border-top: 1px solid #f0eeea;
 }
 .posture-metric-head {
   display: flex;
@@ -247,7 +102,7 @@
   gap: 8px;
 }
 .posture-metric-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #111;
 }
@@ -269,6 +124,7 @@
   background: #fdecea;
   color: #da291c;
 }
+
 /* ---- 3구간 게이지 ----
    숫자 눈금을 그리지 않는다. forward_head 구간은 임상 확립 기준이 없는
    잠정값이고 round_shoulder는 C7 근사값 기반이라, 눈금을 그리면 근거가
@@ -281,8 +137,6 @@
   position: relative;
   display: flex;
   height: 8px;
-  border-radius: 999px;
-  overflow: visible;
 }
 .posture-band {
   height: 8px;
@@ -321,44 +175,29 @@
   color: #9b9a96;
 }
 
-.posture-metric-angle {
+.posture-metric-value {
   margin-top: 10px;
   font-size: 12px;
   color: #9b9a96;
 }
 .posture-metric-note {
-  margin-top: 8px;
+  margin-top: 4px;
   font-size: 11.5px;
   line-height: 1.6;
   color: #9b9a96;
 }
 
 .posture-comment {
-  margin-top: 16px;
-  border-radius: 14px;
+  margin-top: 20px;
+  border-radius: 12px;
   background: #faf9f7;
   padding: 16px 18px;
   font-size: 13.5px;
   line-height: 1.8;
   color: #111;
 }
-
-.posture-detail {
-  margin-top: 14px;
-  font-size: 12px;
-  color: #9b9a96;
-}
-.posture-detail summary {
-  cursor: pointer;
-}
-.posture-detail ul {
-  margin-top: 8px;
-  padding-left: 16px;
-  line-height: 1.7;
-}
-
 .posture-disclaimer {
-  margin-top: 18px;
+  margin-top: 14px;
   font-size: 11.5px;
   line-height: 1.6;
   color: #9b9a96;
