@@ -153,6 +153,7 @@ def coaching_frame(request: CoachingFrameRequest):
         pending_llm_job_id=request.pending_llm_job_id,
         view=request.view,
         deep_squat_mode=request.deep_squat_mode,
+        is_beginner_mode=request.is_beginner_mode,
     )
 
     return CoachingFrameResponse(

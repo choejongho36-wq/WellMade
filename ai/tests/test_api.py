@@ -167,6 +167,61 @@ def test_coaching_frame_jittery_movement_flagged():
     assert any(issue["part"] == "movement" for issue in data["issues"]), data
 
 
+def test_coaching_frame_beginner_mode_suppresses_other_issues_when_knee_flagged():
+    # 흔들림(movement)과 깊이(knee) 이슈가 동시에 발생하도록 구성: 무릎각도가 130 언저리를
+    # 오가며(홀딩으로 분류될 만큼 완만한 추세, 하지만 std는 임곗값을 넘도록) 계속 정상범위
+    # 상한(120도)을 벗어나 있다. hip_angle은 정상범위(25~120) 안쪽인 100으로 고정해 hip
+    # 이슈는 안 섞이게 한다.
+    values = [130, 145, 115, 145, 115, 145, 115, 145, 115, 130]
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": v, "hip_angle": 100} for i, v in enumerate(values)
+    ]
+    body = {"angle_history": angle_history, "is_beginner_mode": True}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(beginner, knee+movement):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    parts = [issue["part"] for issue in data["issues"]]
+    assert parts == ["knee"], data
+
+
+def test_coaching_frame_beginner_mode_off_keeps_all_issues():
+    # 위와 동일한 입력인데 is_beginner_mode를 안 보내면(기본값 False) 기존처럼 knee와
+    # movement 둘 다 남아있어야 한다 — 하위 호환 확인.
+    values = [130, 145, 115, 145, 115, 145, 115, 145, 115, 130]
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": v, "hip_angle": 100} for i, v in enumerate(values)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(beginner off, knee+movement):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    parts = {issue["part"] for issue in data["issues"]}
+    assert {"knee", "movement"} <= parts, data
+
+
+def test_coaching_frame_beginner_mode_no_effect_without_knee_issue():
+    # 깊이(knee) 이슈가 아예 없으면(정상 범위 안 홀딩) 초심자 모드가 다른 이슈에 영향을
+    # 주면 안 된다 — 목/시선 이슈만 그대로 남아있어야 한다.
+    angle_history = [
+        {
+            "timestamp": i * 0.1,
+            "knee_angle": 90,
+            "hip_angle": 90,
+            "shoulder_forward_lean_deg": 45.0,
+        }
+        for i in range(10)
+    ]
+    body = {"angle_history": angle_history, "is_beginner_mode": True}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(beginner, no knee issue):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    parts = [issue["part"] for issue in data["issues"]]
+    assert parts == ["gaze"], data
+
+
 def test_coaching_frame_insufficient_frames():
     angle_history = [{"timestamp": 0.0, "knee_angle": 170, "hip_angle": 160}]
     body = {"angle_history": angle_history}

@@ -166,6 +166,14 @@ class CoachingFrameRequest(BaseModel):
         "(knee_valgus_ratio)만 검사한다 — 정면 랜드마크로는 knee_angle/hip_angle 같은 시상면 "
         "각도 자체가 의미가 없기 때문이다. 기본값 side는 기존 동작과 동일(하위 호환).",
     )
+    is_beginner_mode: bool = Field(
+        False,
+        description="초심자 모드 여부. True이고 이번 판정에 깊이(무릎 각도, part=\"knee\") "
+        "이슈가 포함돼 있으면, 같은 프레임에서 함께 감지된 다른 이슈(무릎모임·발뒤꿈치·목/시선 "
+        "등)는 이번 응답에서 억제하고 깊이 이슈 하나만 반환한다 — 처음 배우는 사용자에게 "
+        "여러 교정 사항을 한꺼번에 말하는 대신, 가장 기본이 되는 스쿼트 깊이부터 하나씩 "
+        "교정하게 하려는 의도. 기본값 False는 기존 동작과 동일(하위 호환).",
+    )
 
 
 class CoachingFrameResponse(BaseModel):
