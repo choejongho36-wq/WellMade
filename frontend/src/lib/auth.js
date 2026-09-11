@@ -161,6 +161,20 @@ function useAuthState() {
       handleLogout()
     })
 
+  // 사진측정/세션리포트 화면의 "신고" 버튼. file은 Blob(사진 원본 또는 세션 좌표 시계열
+  // JSON을 담은 Blob), judgmentSnapshot은 신고 당시 AI 판정 결과 객체(그대로 JSON 문자열로
+  // 실어 보낸다 - 나중에 관리자가 "왜 신고됐는지" 다시 볼 수 있어야 해서).
+  const submitReport = ({ sourceType, sourceId, file, fileName, reasonCategory, reasonDetail, judgmentSnapshot }) => {
+    const formData = new FormData()
+    formData.append('sourceType', sourceType)
+    if (sourceId) formData.append('sourceId', sourceId)
+    formData.append('file', file, fileName)
+    formData.append('reasonCategory', reasonCategory)
+    if (reasonDetail) formData.append('reasonDetail', reasonDetail)
+    if (judgmentSnapshot) formData.append('judgmentSnapshot', JSON.stringify(judgmentSnapshot))
+    return authOk('/api/users/me/reports', { method: 'POST', body: formData }, '신고에 실패했어요')
+  }
+
   const extractInbody = (file) => {
     const formData = new FormData()
     formData.append('image', file)
@@ -406,15 +420,58 @@ function useAuthState() {
       if (!res.ok) throw new Error('삭제에 실패했어요')
     })
 
+  // 실시간 세션/사진측정 코칭이 끝났을 때 관리자 대시보드 집계용으로 결과 요약을 남긴다.
+  // 통계 전송일 뿐이라 실패해도 리포트 화면 자체는 그대로 보여줘야 해서, 에러를 여기서
+  // 삼킨다 - 호출부(useSquatCoachingSession.js/usePhotoCoachingSession.js)는 await 없이
+  // fire-and-forget으로 부르면 된다.
+  const logWorkoutSession = (payload) =>
+    authOk('/api/workout/sessions', { method: 'POST', body: JSON.stringify(payload) }, '세션 기록 실패').catch(
+      (err) => {
+        console.warn('운동 세션 기록 전송 실패', err)
+      },
+    )
+
+
+  // 고객센터 - 1:1 문의 게시판. 전체 회원에게 목록이 공개되는 게시판이라(비밀글만 서버가
+  // 본문을 가려서 내려줌) 목록/상세 조회는 별도 권한 체크 없이 그냥 부르면 된다 -
+  // domain/support/InquiryService 참고. 작성/수정/삭제는 본인 글만 서버가 허용한다.
+  const getInquiries = useCallback(() =>
+    authJson('/api/inquiries', {}, '문의 목록을 불러오지 못했어요'), [authJson])
+
+  const getInquiry = useCallback((id) =>
+    authJson(`/api/inquiries/${id}`, {}, '문의를 불러오지 못했어요'), [authJson])
+
+  const createInquiry = (payload) =>
+    authJson('/api/inquiries', { method: 'POST', body: JSON.stringify(payload) }, '문의 등록에 실패했어요')
+
+  const updateInquiry = (id, payload) =>
+    authJson(`/api/inquiries/${id}`, { method: 'PUT', body: JSON.stringify(payload) }, '문의 수정에 실패했어요')
+
+  const deleteInquiry = (id) =>
+    authOk(`/api/inquiries/${id}`, { method: 'DELETE' }, '문의 삭제에 실패했어요')
+
+  // 고객센터 - FAQ/공지사항. 읽기 전용이라 로그인한 회원이면 누구나 부를 수 있다.
+  const getFaqs = useCallback(() =>
+    authJson('/api/faqs', {}, 'FAQ를 불러오지 못했어요'), [authJson])
+
+  const getNotices = useCallback(() =>
+    authJson('/api/notices', {}, '공지사항을 불러오지 못했어요'), [authJson])
+
+  const getNotice = useCallback((id) =>
+    authJson(`/api/notices/${id}`, {}, '공지사항을 불러오지 못했어요'), [authJson])
+
   return {
     user, profile, inbody, handleLogout,
     sessionExpired, dismissSessionExpired: () => setSessionExpired(false),
-    deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory,
+    deleteAccount, updateGoal, updateName, updateBody, extractInbody, confirmInbody, deleteInbody, getInbodyHistory, submitReport,
     logMeal, getTodayMeals, getTodayTotal, getMonthCalories, getHolidays, getNutrientTarget, updateNutrientTarget, resetNutrientTarget,
     getBmiInsight, getNutritionPeerCompare,
     logManualMeal,
     updateMeal, updateMealItemAmount, resolveMealItemMatch, deleteMeal,
     sendChat, getChatHistory, clearChatHistory, getNutrientAdvice, sendChatMenu,
     getWorkoutMemo, saveWorkoutMemo, getWorkoutMemoMonth,
+    logWorkoutSession,
+    getInquiries, getInquiry, createInquiry, updateInquiry, deleteInquiry,
+    getFaqs, getNotices, getNotice,
   }
 }

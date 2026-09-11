@@ -237,6 +237,6 @@ class ChatExerciseEvalTest {
         factory.setConnectTimeout(Duration.ofSeconds(3));
         factory.setReadTimeout(Duration.ofSeconds(120));
         RestClient restClient = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
-        return new HttpOllamaClient(restClient, model, new ObjectMapper());
+        return new HttpOllamaClient(restClient, model, new ObjectMapper(), null);
     }
 }

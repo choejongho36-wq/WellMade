@@ -1,5 +1,6 @@
 package com.kdt.wellmade.domain.inbody;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,4 +22,10 @@ public interface InbodyRecordRepository extends JpaRepository<InbodyRecord, Long
 
     // 남의 기록 id를 넣어도 0건이 지워지도록 user 조건을 같이 건다
     long deleteByIdAndUser(Long id, User user);
+
+    // 관리자 대시보드 "이번 주 신규 등록" 카드용
+    long countByCreatedAtAfter(LocalDateTime dateTime);
+
+    // 관리자 대시보드 "최근 등록" 목록용
+    List<InbodyRecord> findTop5ByOrderByCreatedAtDesc();
 }

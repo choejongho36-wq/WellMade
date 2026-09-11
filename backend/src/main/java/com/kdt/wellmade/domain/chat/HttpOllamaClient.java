@@ -22,6 +22,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.global.exception.ExternalServiceException;
+import com.kdt.wellmade.global.monitoring.LlmCallLog;
+import com.kdt.wellmade.global.monitoring.LlmCallLogRepository;
 
 /**
  * 로컬 Ollama(/api/chat) 호출만 담당한다 - 요청 본문 구성, 스트리밍/비스트리밍 호출, 실패를
@@ -35,12 +37,15 @@ public class HttpOllamaClient implements OllamaClient {
     private final RestClient ollamaRestClient;
     private final String model;
     private final ObjectMapper objectMapper;
+    private final LlmCallLogRepository llmCallLogRepository;
 
     public HttpOllamaClient(
-            RestClient ollamaRestClient, @Value("${ollama.model}") String model, ObjectMapper objectMapper) {
+            RestClient ollamaRestClient, @Value("${ollama.model}") String model, ObjectMapper objectMapper,
+            LlmCallLogRepository llmCallLogRepository) {
         this.ollamaRestClient = ollamaRestClient;
         this.model = model;
         this.objectMapper = objectMapper;
+        this.llmCallLogRepository = llmCallLogRepository;
     }
     
     private record OllamaChatResponse(OllamaMessage message) {
@@ -48,6 +53,7 @@ public class HttpOllamaClient implements OllamaClient {
 
     @Override
     public OllamaMessage chatCompletion(List<OllamaMessage> messages, boolean includeTools) {
+        long start = System.currentTimeMillis();
         OllamaChatResponse response;
         try {
             response = ollamaRestClient.post()
@@ -56,13 +62,16 @@ public class HttpOllamaClient implements OllamaClient {
                     .retrieve()
                     .body(OllamaChatResponse.class);
         } catch (RestClientException e) {
+            recordCall(start, false);
             throw aiUnavailable(e);
         }
 
         if (response == null || response.message() == null) {
             log.error("Ollama 채팅 응답이 비어있습니다.");
+            recordCall(start, false);
             throw new ExternalServiceException(AI_UNAVAILABLE_MSG);
         }
+        recordCall(start, true);
         return response.message();
     }
 
@@ -70,6 +79,7 @@ public class HttpOllamaClient implements OllamaClient {
     public StreamResult chatCompletionStream(
             List<OllamaMessage> messages, boolean includeTools, Consumer<String> onDelta
     ) {
+        long start = System.currentTimeMillis();
         StringBuilder content = new StringBuilder();
         List<OllamaMessage.ToolCall> toolCalls = new ArrayList<>();
         try {
@@ -111,12 +121,24 @@ public class HttpOllamaClient implements OllamaClient {
                     });
         } catch (DeltaConsumerException e) {
             // 흔한 원인은 사용자가 답변 도중 창을 닫은 것(SseEmitter 전송 실패). Ollama는 멀쩡하므로
-            // "AI 준비 중" 안내로 바꾸지 않고 원래 예외를 그대로 올린다.
+            // "AI 준비 중" 안내로 바꾸지 않고 원래 예외를 그대로 올린다 - 호출 통계에도 Ollama
+            // 실패로 잡지 않는다.
             throw e.getCause();
         } catch (RestClientException | UncheckedIOException e) {
+            recordCall(start, false);
             throw aiUnavailable(e);
         }
+        recordCall(start, true);
         return new StreamResult(content.toString(), toolCalls);
+    }
+
+    // 관리자 대시보드 집계용 호출 로그. 기록 자체가 실패해도 챗봇 응답 흐름은 절대 막지 않는다.
+    private void recordCall(long startMs, boolean success) {
+        try {
+            llmCallLogRepository.save(LlmCallLog.chatReply(success, System.currentTimeMillis() - startMs));
+        } catch (RuntimeException e) {
+            log.warn("LLM 호출 로그 저장 실패", e);
+        }
     }
 
     /** onDelta(응답을 받아가는 쪽)가 던진 예외를 Ollama 자체의 실패와 구분하기 위한 표시 */

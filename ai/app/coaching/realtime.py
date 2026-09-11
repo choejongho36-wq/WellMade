@@ -206,6 +206,8 @@ def judge_realtime_coaching(
     hip_calibration: HipFlexibilityCalibration | None = None,
     pending_llm_job_id: str | None = None,
     view: str = "side",
+    deep_squat_mode: bool = False,
+    is_beginner_mode: bool = False,
 ) -> dict:
     """
     최근 N프레임의 무릎/엉덩이 각도 시계열을 보고
@@ -223,6 +225,16 @@ def judge_realtime_coaching(
     검사한다 — get_knee_angle/get_hip_angle(app/pose/angles.py)은 시상면(옆에서 본) 기준이라
     정면 랜드마크로 계산하면 실제 굽힘 각도를 반영하지 못하기 때문이다(2026-09-07 실시간
     코칭 측면→정면 2단계 흐름 추가와 함께 도입).
+
+    deep_squat_mode: 사용자가 의도적으로 깊게(ATG 등) 앉는다고 표시했으면 True. 무릎각도
+    하한(너무 깊게 굽힘) 검사만 건너뛰고, 얕게 앉는 것에 대한 상한 검사와 엉덩이(고관절)
+    각도 검사는 그대로 적용된다 — 고관절 쪽은 이미 hip_calibration으로 개인화되어 있다.
+
+    is_beginner_mode: True면 이번 판정에 깊이(part="knee") 이슈가 포함돼 있을 때, 같은
+    프레임에서 함께 감지된 다른 이슈는 이번 응답에서 억제하고 깊이 이슈 하나만 돌려준다.
+    처음 배우는 사용자에게 여러 교정 사항을 한꺼번에 말하는 대신, 가장 기본이 되는 스쿼트
+    깊이부터 하나씩 교정하게 하려는 의도 — 깊이 이슈가 없으면(정상 깊이인데 다른 문제만
+    있는 경우) 이 플래그는 아무 영향이 없다.
     """
     issues: list[dict] = []
     # 이번 응답에서 프론트가 계속 들고 있어야 할 job id — 기본은 "기다릴 것 없음"이고,
@@ -325,7 +337,8 @@ def judge_realtime_coaching(
         # 다만 "선 자세로 멈춰 있는 것"까지 하단 자세 기준으로 검사하면 안 되므로,
         # 무릎이 충분히 굽혀진(STANDING_KNEE_ANGLE_MIN 미만) 경우에만 검사한다.
         is_deep_hold = latest_knee < STANDING_KNEE_ANGLE_MIN
-        if is_deep_hold and not (knee_low <= latest_knee <= knee_high):
+        knee_out_of_range = (not deep_squat_mode and latest_knee < knee_low) or latest_knee > knee_high
+        if is_deep_hold and knee_out_of_range:
             issues.append(
                 {
                     "part": "knee",
@@ -390,7 +403,7 @@ def judge_realtime_coaching(
     else:
         # 동작 중에는 "정상범위 하한보다 훨씬 더 굽혀지는" 과도한 굽힘만 위험 신호로 본다.
         # (무릎에 부담이 되는 과도한 가동범위는 동작 단계와 무관하게 바로 감지해야 하기 때문)
-        if latest_knee < knee_low - DEEP_MARGIN_DEG:
+        if not deep_squat_mode and latest_knee < knee_low - DEEP_MARGIN_DEG:
             issues.append(
                 {
                     "part": "knee",
@@ -480,6 +493,14 @@ def judge_realtime_coaching(
     # 지표가 라벨보다 촬영 인물별로 더 강하게 클러스터링되는 것도 함께 확인돼(checklist
     # 2026-08-28 addendum 1번 참고) 폐기했다. 진짜 고관절 과신전은 위 (1.45)/(1.55)의
     # 측면 DTW+LLM 하이브리드로만 판정한다 — 정면 카메라만으로는 아직 대체 지표가 없다.
+
+    # --- (2.5) 초심자 모드 — 깊이(knee) 이슈가 있으면 다른 이슈는 억제 ---
+    # 여러 교정 사항을 한꺼번에 말하면 초심자는 무엇부터 고쳐야 할지 판단하기 어렵다는
+    # 문제 제기로 추가됐다. 판정 자체(is_normal/issues 감지 로직)는 그대로 두고, 응답
+    # 직전에 "이미 찾아낸 이슈 중 무엇을 말할지"만 필터링한다 — 감지 로직과 노출 로직을
+    # 분리해 나중에 다른 부위를 우선순위에 추가하기도 쉽게 했다.
+    if is_beginner_mode and any(issue["part"] == "knee" for issue in issues):
+        issues = [issue for issue in issues if issue["part"] == "knee"]
 
     # --- (3) 신뢰도 계산 ---
     # 하네스(AI-07)가 "confidence < 0.7이면 재분석"을 판단하는 근거가 되므로,

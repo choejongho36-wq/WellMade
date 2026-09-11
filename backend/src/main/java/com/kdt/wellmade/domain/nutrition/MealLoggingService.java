@@ -233,6 +233,20 @@ public class MealLoggingService {
         return result;
     }
 
+    /** 관리자 대시보드 "오늘 식사 기록 건수 / 기록한 사용자 수"용 */
+    public AdminTodayStats getAdminTodayStats() {
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                SELECT COUNT(*) AS meal_count, COUNT(DISTINCT user_id) AS user_count
+                FROM diet_meals
+                WHERE logged_date = ?
+                """, AppTime.today());
+        return new AdminTodayStats(
+                ((Number) row.get("meal_count")).longValue(),
+                ((Number) row.get("user_count")).longValue());
+    }
+
+    public record AdminTodayStats(long mealCount, long userCount) {}
+
     /** 특정 날짜의 총 칼로리/영양소 합계 */
     public DailyTotal getTotalForDate(Long userId, LocalDate date) {
         Map<String, Object> row = jdbcTemplate.queryForMap("""

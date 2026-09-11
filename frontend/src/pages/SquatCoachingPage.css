@@ -74,6 +74,13 @@
   flex-direction: column;
   justify-content: center;
 }
+/* (실시간 코칭 진행 중 전용) 카메라 화면은 내용 자체가 커서 가운데 정렬을 쓰면 뷰포트
+   높이에 따라 위쪽 여백이 거의 없어져 헤더(달력 아이콘)에 바짝 붙어 보인다 - 이 phase만
+   가운데 정렬을 끄고 고정 여백으로 시작 위치를 일정하게 둔다. */
+.squat-page-body-active {
+  justify-content: flex-start;
+  padding-top: 20px;
+}
 .squat-overlay {
   position: absolute;
   top: 0;
@@ -109,11 +116,19 @@
   background: rgba(41, 98, 218, 0.85);
 }
 
-.squat-stage-label {
-  margin-bottom: 8px;
-  font-size: 12px;
+.section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.squat-stage-badge {
+  font-size: 11px;
   font-weight: 800;
-  color: #55534d;
+  color: #da291c;
+  background: #fdecea;
+  border: 1px solid #f6cfc9;
+  border-radius: 999px;
+  padding: 3px 10px;
 }
 .squat-feedback-error {
   background: rgba(140, 139, 136, 0.85);
@@ -212,6 +227,14 @@
   line-height: 1.7;
   margin-top: 8px;
 }
+.squat-report-line-highlight {
+  background: #fdecea;
+  border: 1px solid #f6cfc9;
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #33322f;
+  font-weight: 600;
+}
 .squat-report-summary {
   font-size: 13.5px;
   font-weight: 600;
@@ -261,10 +284,33 @@
   padding: 16px;
   margin-bottom: 12px;
 }
+.squat-meter-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
 .squat-meter-section-title {
   font-size: 13px;
   font-weight: 800;
   color: #55534d;
+}
+.squat-meter-replay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid #e5e3dd;
+  border-radius: 999px;
+  background: #fff;
+  color: #55534d;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.squat-meter-replay-btn:hover {
+  border-color: #da291c;
+  color: #da291c;
 }
 .squat-meter-row {
   display: flex;
@@ -281,10 +327,8 @@
 .squat-meter-ring {
   flex: 0 0 auto;
 }
-.squat-meter-ring-sub-title {
-  font-size: 10.5px;
-  color: #9b9a96;
-  text-align: center;
+.squat-meter-ring-sub {
+  margin-top: 10px;
 }
 .squat-meter-ring-sub-counts {
   display: flex;
@@ -298,7 +342,7 @@
   font-size: 12px;
   font-weight: 700;
   color: #55534d;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 .squat-meter-caption {
   font-size: 12px;
@@ -336,6 +380,11 @@
   font-size: 11px;
   color: #9b9a96;
   margin-bottom: 12px;
+}
+.squat-chart-empty {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #9b9a96;
 }
 
 .squat-bar-row {
@@ -483,12 +532,15 @@
   border-radius: 14px;
   padding: 12px 14px;
 }
+/* (2026-09-09 수정) 오른쪽 칸(통계 3칸)이 아래 .squat-analysis-grid의 오른쪽 칼럼(달력)과
+   정확히 같은 폭을 갖도록, flex+space-between 대신 analysis-grid와 동일한 비율(3fr 2fr)·
+   동일 column-gap(16px)의 그리드로 맞춘다 - 같은 카드 폭 안에서 같은 비율을 쓰면 두 그리드의
+   오른쪽 칸 폭이 자연히 일치한다. */
 .squat-report-header-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 3fr 2fr;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px 20px;
+  gap: 12px 16px;
   margin-bottom: 4px;
 }
 .squat-report-header-row .squat-report-title {
@@ -518,17 +570,18 @@
   font-weight: 700;
 }
 .squat-today-stats-compact {
-  flex: 0 1 auto;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
   margin-bottom: 0;
 }
 .squat-today-stats-compact .squat-today-stat {
-  flex: 0 0 auto;
   background: #fff;
   border: 1px solid #e5e3dd;
   border-radius: 10px;
-  padding: 6px 14px;
+  padding: 6px 10px;
   text-align: center;
+  min-width: 0;
 }
 .squat-today-stats-compact .squat-today-stat-value {
   font-size: 15px;
@@ -584,11 +637,16 @@
    바꿨다 — 위아래 margin:auto는 flex 칼럼에서 남는 공간의 정중앙에 오게 하는 방법. */
 .squat-report-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: stretch;
   gap: 10px;
   margin-top: auto;
   margin-bottom: auto;
+}
+.squat-report-actions .squat-btn {
+  flex: 1 1 0;
+  text-align: center;
 }
 .squat-report-history-btn {
   text-decoration: none;
@@ -605,4 +663,48 @@
   .squat-analysis-grid {
     grid-template-columns: 1fr;
   }
+  .squat-report-header-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* "방금 운동 다시보기" 모달 (WorkoutReplayModal) */
+.replay-modal {
+  width: 480px;
+  max-width: calc(100vw - 32px);
+}
+.replay-modal-video {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+  background: #000;
+  margin: 4px 0 16px;
+}
+.replay-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+/* 저장하기(.squat-btn, padding 12px 26px) 버튼과 높이를 맞춘 원형 아이콘 버튼 */
+.replay-modal-report-btn {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #e5e3dd;
+  border-radius: 50%;
+  background: #fff;
+  color: #55534d;
+  cursor: pointer;
+}
+.replay-modal-report-btn:hover {
+  border-color: #da291c;
+  color: #da291c;
+}
+.replay-modal-download-btn {
+  text-decoration: none;
 }

@@ -44,6 +44,7 @@ import { useCallback, useRef, useState } from 'react'
 import { usePoseLandmarker } from './usePoseLandmarker.js'
 import { buildFrontMetrics, buildSideMetrics, editablePointsToLandmarksArray, KEY_LANDMARKS, landmarksToEditablePoints } from '../lib/squatPose.js'
 import { AI_BASE } from '../lib/aiApi.js'
+import { useAuth } from '../lib/auth.js'
 
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10MB — 업로드 버튼 아래 안내 문구와 동일한 기준
@@ -285,6 +286,7 @@ function usePhotoSlot() {
 export function usePhotoCoachingSession() {
   const front = usePhotoSlot()
   const side = usePhotoSlot()
+  const { logWorkoutSession } = useAuth()
 
   const [analyzing, setAnalyzing] = useState(false)
   const [judgeResult, setJudgeResult] = useState(null) // { is_normal, confidence, issues }
@@ -332,6 +334,21 @@ export function usePhotoCoachingSession() {
 
       setJudgeResult({ is_normal, confidence, issues })
 
+      // 관리자 대시보드 집계용 — 실패해도(catch는 logWorkoutSession 내부에서 처리) 분석
+      // 결과 표시 자체는 막지 않는다.
+      const issueCounts = (issues ?? []).reduce((acc, issue) => {
+        if (!issue.part) return acc
+        acc[issue.part] = (acc[issue.part] ?? 0) + 1
+        return acc
+      }, {})
+      logWorkoutSession({
+        sourceType: 'PHOTO',
+        resultNormal: !!is_normal,
+        totalReps: null,
+        abnormalReps: null,
+        issueCounts: Object.keys(issueCounts).length > 0 ? issueCounts : null,
+      })
+
       try {
         const summaryRes = await fetch(`${AI_BASE}/ai/coaching/photo-summary`, {
           method: 'POST',
@@ -354,7 +371,7 @@ export function usePhotoCoachingSession() {
     } finally {
       setAnalyzing(false)
     }
-  }, [front.phase, front.points, side.phase, side.points])
+  }, [front.phase, front.points, side.phase, side.points, logWorkoutSession])
 
   return {
     front,

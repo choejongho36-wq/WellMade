@@ -146,6 +146,11 @@ class CoachingFrameRequest(BaseModel):
     hip_calibration: Optional[HipFlexibilityCalibration] = Field(
         None, description="개인별 고관절 유연성 캘리브레이션 결과. 없으면 고정 NORMAL_RANGES로 판정."
     )
+    deep_squat_mode: bool = Field(
+        False,
+        description="사용자가 의도적으로 깊게(ATG 등) 스쿼트한다고 표시했는지. True면 무릎각도 하한"
+        " 검사(너무 깊게 굽힘 경고)를 건너뛴다 — 얕게 앉는 것에 대한 검사(상한)는 그대로 적용된다.",
+    )
     pending_llm_job_id: Optional[str] = Field(
         None,
         description="이전 응답(CoachingFrameResponse.pending_llm_job_id)에서 받은 고관절 "
@@ -160,6 +165,14 @@ class CoachingFrameRequest(BaseModel):
         "판정(동작 단계·얕은 스쿼트·발뒤꿈치·목/시선·DTW 등)을 전부 건너뛰고 무릎모임"
         "(knee_valgus_ratio)만 검사한다 — 정면 랜드마크로는 knee_angle/hip_angle 같은 시상면 "
         "각도 자체가 의미가 없기 때문이다. 기본값 side는 기존 동작과 동일(하위 호환).",
+    )
+    is_beginner_mode: bool = Field(
+        False,
+        description="초심자 모드 여부. True이고 이번 판정에 깊이(무릎 각도, part=\"knee\") "
+        "이슈가 포함돼 있으면, 같은 프레임에서 함께 감지된 다른 이슈(무릎모임·발뒤꿈치·목/시선 "
+        "등)는 이번 응답에서 억제하고 깊이 이슈 하나만 반환한다 — 처음 배우는 사용자에게 "
+        "여러 교정 사항을 한꺼번에 말하는 대신, 가장 기본이 되는 스쿼트 깊이부터 하나씩 "
+        "교정하게 하려는 의도. 기본값 False는 기존 동작과 동일(하위 호환).",
     )
 
 

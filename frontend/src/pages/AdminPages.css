@@ -1,0 +1,87 @@
+/* 대시보드/신고 목록/신고 상세 공통 스타일 — 예전 Thymeleaf admin.css의 해당 부분을
+   그대로 옮겨왔다(시각적으로는 바뀐 게 없고, 렌더링 방식만 서버 HTML -> React로 바뀜). */
+.admin-error-text {
+  background: #fee2e2; color: #b91c1c; font-size: 13px; padding: 10px 14px;
+  border-radius: 8px; margin-bottom: 16px;
+}
+.admin-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 24px; }
+.admin-card {
+  background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.admin-card .label { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+.admin-card .value { font-size: 24px; font-weight: 800; }
+.admin-card.pending .value { color: #92400e; }
+.admin-card.approved .value { color: #15803d; }
+.admin-card.rejected .value { color: #b91c1c; }
+
+.admin-panel { background: #fff; border-radius: 12px; padding: 20px 24px; margin-bottom: 20px; }
+.admin-panel h2 { font-size: 16px; margin: 0 0 12px; }
+.admin-panel p { font-size: 14px; line-height: 1.7; color: #374151; margin: 0 0 8px; }
+.admin-panel ol { font-size: 14px; line-height: 1.8; color: #374151; padding-left: 20px; margin: 8px 0; }
+
+.admin-tabs { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+.admin-tab {
+  padding: 6px 14px; border-radius: 999px; font-size: 13px; background: #eef2f7; color: #4b5563;
+  border: none; cursor: pointer; font-family: inherit;
+}
+.admin-tab.active { background: #14213d; color: #fff; }
+
+.admin-btn {
+  display: inline-block; padding: 8px 16px; border-radius: 8px; border: none;
+  font-size: 14px; cursor: pointer; font-weight: 600; font-family: inherit;
+}
+.admin-btn-primary { background: #2563eb; color: #fff; }
+.admin-btn-primary:hover { background: #1d4ed8; }
+.admin-btn-danger { background: #fee2e2; color: #b91c1c; }
+.admin-btn-danger:hover { background: #fecaca; }
+.admin-btn-outline { background: #fff; border: 1px solid #d1d5db; color: #374151; }
+.admin-btn-outline:hover { background: #f9fafb; }
+.admin-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.admin-table th, .admin-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eef0f3; }
+.admin-table th { color: #6b7280; font-weight: 600; font-size: 12px; }
+
+.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.badge-pending { background: #fef3c7; color: #92400e; }
+.badge-approved { background: #dcfce7; color: #15803d; }
+.badge-rejected { background: #fee2e2; color: #b91c1c; }
+.badge-answered { background: #dcfce7; color: #15803d; }
+
+.report-detail-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; align-items: start; }
+.report-detail-media video, .report-detail-media img { width: 100%; border-radius: 8px; display: block; }
+.report-detail-field { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
+.report-detail-field .k { color: #6b7280; }
+.judgment-snapshot {
+  margin-top: 8px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px;
+  padding: 12px; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 240px; overflow-y: auto;
+}
+
+.admin-cards-3 { grid-template-columns: repeat(3, 1fr); }
+
+.admin-section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; align-items: start; }
+
+.admin-subheading { font-size: 13px; font-weight: 600; color: #4b5563; margin: 16px 0 8px; }
+
+.admin-panel-note { font-size: 12px; color: #6b7280; line-height: 1.6; margin: -4px 0 14px; }
+
+.admin-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.admin-stat { background: #f8fafc; border-radius: 8px; padding: 10px 12px; }
+.admin-stat .label { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+.admin-stat .value { font-size: 18px; font-weight: 700; }
+
+.admin-mini-list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.admin-mini-list li {
+  display: flex; justify-content: space-between; gap: 12px; padding: 6px 0;
+  border-bottom: 1px solid #f3f4f6; color: #374151;
+}
+.admin-mini-list li:last-child { border-bottom: none; }
+
+.admin-empty-text { font-size: 13px; color: #9ca3af; padding: 8px 0; margin: 0; }
+
+@media (max-width: 900px) {
+  .admin-cards { grid-template-columns: repeat(2, 1fr); }
+  .admin-cards-3 { grid-template-columns: repeat(1, 1fr); }
+  .admin-section-grid { grid-template-columns: 1fr; }
+  .report-detail-grid { grid-template-columns: 1fr; }
+}

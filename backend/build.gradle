@@ -40,6 +40,14 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+
+    // --- 관리자 대시보드(/admin) - Thymeleaf 서버사이드 렌더링 (Roomie 관리자 대시보드 이식) ---
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+
+    // --- 신고된 사진/영상 원본 저장용 S3 (pose report 액티브러닝 파이프라인) ---
+    // AI 서버(boto3)와 동일하게 기본 자격증명 체인을 쓰므로 SDK 버전만 고정한다.
+    implementation platform('software.amazon.awssdk:bom:2.29.14')
+    implementation 'software.amazon.awssdk:s3'
 }
 
 tasks.named('test') {

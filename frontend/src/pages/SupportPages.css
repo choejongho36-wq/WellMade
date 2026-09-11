@@ -1,0 +1,403 @@
+/* 고객센터 회원용 화면 공용 스타일 - SupportPage, FaqPage, NoticesPage, NoticeDetailPage,
+   InquiryPage, InquiryFormPage, InquiryDetailPage가 함께 쓴다.
+   색상·모서리·간격은 팀 페이지들(PosturePage.css, squatShared.css, RecentSessionsList.css)의
+   기존 값을 그대로 따랐다 — 포인트 #da291c, 경계선 #e5e3dd, 리스트 행 배경 #f9f8f5,
+   pill 999px. */
+
+/* MyPage/ExerciseHistoryPage처럼 PageShell 안에서 별도 패딩 없이 바로 시작한다 -
+   .posture-page처럼 자체 패딩을 더 얹으면 다른 페이지보다 내용이 안쪽으로 밀려버린다. */
+.support-page {
+  max-width: 720px;
+}
+
+/* 다른 페이지들(마이페이지/식단관리/운동기록)의 .page-index-tag와 같은 pill 모양 -
+   지금은 support-* 접두어로 로컬 정의해뒀지만 같은 값을 그대로 따른다. */
+.support-eyebrow {
+  display: inline-block;
+  font: 800 12px Archivo, 'Noto Sans KR', sans-serif;
+  letter-spacing: 0.08em;
+  color: #da291c;
+  border: 1px solid #da291c;
+  border-radius: 999px;
+  padding: 4px 12px;
+  text-decoration: none;
+}
+
+.support-title {
+  margin-top: 4px;
+  font: 800 26px Archivo, 'Noto Sans KR', sans-serif;
+  color: #111;
+}
+
+.support-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #9b9a96;
+}
+
+.support-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.support-card {
+  display: block;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 14px;
+  padding: 22px;
+  transition: border-color 0.15s;
+}
+
+a.support-card:hover {
+  border-color: #da291c;
+}
+
+.support-card h2 {
+  font: 800 15px Archivo, 'Noto Sans KR', sans-serif;
+  color: #111;
+}
+
+.support-card p {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #8c8b88;
+  line-height: 1.6;
+}
+
+.support-card-link {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #da291c;
+}
+
+.support-card-disabled {
+  background: #f9f8f5;
+}
+
+.support-note {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #9b9a96;
+  background: #f0efe9;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+/* 목록형 페이지(FAQ/공지/문의) 헤더 - 왼쪽 제목, 오른쪽 액션 버튼 */
+.support-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.support-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  background: #da291c;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.support-btn:hover {
+  background: #c0241a;
+}
+
+.support-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.support-btn-outline {
+  background: #fff;
+  color: #da291c;
+  border: 1px solid #da291c;
+}
+
+.support-btn-outline:hover {
+  background: #fff5f4;
+}
+
+/* 취소/삭제처럼 되돌리는 동작이라 브랜드 레드로 강조하지 않는다(마이페이지 탈퇴 버튼과 같은 톤) */
+.support-btn-danger {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #9b9a96;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.support-btn-danger:hover {
+  color: #da291c;
+}
+
+.support-empty {
+  margin-top: 24px;
+  padding: 40px 0;
+  text-align: center;
+  color: #9b9a96;
+  font-size: 13px;
+}
+
+.support-error {
+  margin-top: 16px;
+  color: #da291c;
+  font-size: 13px;
+}
+
+/* FAQ 아코디언 */
+.support-faq-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.support-faq-item {
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 12px;
+  padding: 14px 18px;
+}
+
+.support-faq-item summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #111;
+  list-style: none;
+}
+
+.support-faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.support-faq-item summary::before {
+  content: 'Q. ';
+  color: #da291c;
+}
+
+.support-faq-item p {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #8c8b88;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* 공지/문의 목록 - RecentSessionsList의 행 톤을 그대로 가져온다 */
+.support-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.support-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: #f9f8f5;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.support-row:hover {
+  background: #f2f1eb;
+}
+
+.support-row-badge-slot {
+  flex: none;
+  width: 44px;
+}
+
+.support-row-category {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #8c8b88;
+  width: 44px;
+}
+
+.support-row-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.support-row-meta {
+  flex: none;
+  font-size: 11.5px;
+  color: #8c8b88;
+}
+
+.support-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.support-badge-pending {
+  color: #b5780a;
+  background: rgba(218, 145, 10, 0.14);
+}
+
+.support-badge-answered {
+  color: #1c8a52;
+  background: rgba(46, 184, 114, 0.16);
+}
+
+.support-badge-pinned {
+  color: #da291c;
+  background: rgba(218, 41, 28, 0.12);
+}
+
+/* 상세/작성 화면 */
+.support-detail {
+  margin-top: 24px;
+  background: #fff;
+  border: 1px solid #e5e3dd;
+  border-radius: 16px;
+  padding: 28px;
+}
+
+.support-detail-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: #9b9a96;
+  font-size: 11.5px;
+  margin-top: 8px;
+}
+
+.support-detail-title {
+  margin-top: 12px;
+  font: 800 19px Archivo, 'Noto Sans KR', sans-serif;
+  color: #111;
+}
+
+.support-detail-content {
+  margin-top: 16px;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: #333;
+}
+
+.support-answer-box {
+  margin-top: 24px;
+  padding: 18px;
+  background: #f9f8f5;
+  border-radius: 12px;
+}
+
+.support-answer-box .label {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #9b9a96;
+}
+
+.support-answer-box p {
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: #333;
+}
+
+.support-detail-actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 14px;
+}
+
+/* 문의 작성/수정 폼 */
+.support-form {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+}
+
+.support-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #55534d;
+}
+
+.support-form input[type='text'],
+.support-form select,
+.support-form textarea {
+  padding: 10px 12px;
+  border: 1px solid #e5e3dd;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: #111;
+  background: #fff;
+}
+
+.support-form input[type='text']:focus,
+.support-form select:focus,
+.support-form textarea:focus {
+  outline: none;
+  border-color: #da291c;
+}
+
+.support-form textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+
+.support-form-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  color: #55534d;
+}
+
+.support-form-actions {
+  display: flex;
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .support-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -18,8 +18,13 @@ import './ExerciseGoalModal.css'
 function ExerciseGoalModal({ goals, onClose, onSave }) {
   const [rows, setRows] = useState(
     goals.length > 0
-      ? goals.map((g) => ({ id: g.id, targetReps: g.targetReps, targetSets: g.targetSets ?? 1 }))
-      : [{ id: 'squat', targetReps: 20, targetSets: 1 }],
+      ? goals.map((g) => ({
+          id: g.id,
+          targetReps: g.targetReps,
+          targetSets: g.targetSets ?? 1,
+          deepSquatMode: Boolean(g.deepSquatMode),
+        }))
+      : [{ id: 'squat', targetReps: 20, targetSets: 1, deepSquatMode: false }],
   )
   const [saving, setSaving] = useState(false)
 
@@ -33,7 +38,7 @@ function ExerciseGoalModal({ goals, onClose, onSave }) {
     const used = new Set(rows.map((r) => r.id))
     const next = EXERCISE_OPTIONS.find((o) => !used.has(o.id))
     if (!next) return
-    setRows((rs) => [...rs, { id: next.id, targetReps: 20, targetSets: 1 }])
+    setRows((rs) => [...rs, { id: next.id, targetReps: 20, targetSets: 1, deepSquatMode: false }])
   }
 
   const handleSave = () => {
@@ -43,6 +48,7 @@ function ExerciseGoalModal({ goals, onClose, onSave }) {
       name: EXERCISE_OPTIONS.find((o) => o.id === r.id)?.label ?? r.id,
       targetReps: Math.max(0, Math.min(999, Number(r.targetReps) || 0)),
       targetSets: Math.max(1, Math.min(20, Number(r.targetSets) || 1)),
+      deepSquatMode: Boolean(r.deepSquatMode),
     }))
     onSave(cleaned)
     setSaving(false)
@@ -102,6 +108,19 @@ function ExerciseGoalModal({ goals, onClose, onSave }) {
             )}
           </div>
         ))}
+
+        {rows.map((row, idx) =>
+          row.id === 'squat' ? (
+            <label key={`deep-${idx}`} className="mp-goal-deep-squat-row">
+              <input
+                type="checkbox"
+                checked={row.deepSquatMode}
+                onChange={(e) => updateRow(idx, { deepSquatMode: e.target.checked })}
+              />
+              깊게(ATG) 스쿼트해요 — 무릎 깊이 제한 풀기
+            </label>
+          ) : null,
+        )}
 
         {rows.length < EXERCISE_OPTIONS.length && (
           <button type="button" className="link-btn mp-goal-add-link" onClick={addRow}>

@@ -13,11 +13,11 @@
  * (aggregateSessionsByDate, squatSessionHistory.js 참고). 처음 열렸을 땐 기록이 있는 가장
  * 최근 날짜를 기본으로 보여준다.
  *
- * "자세 분석 결과" 4타일(스쿼트 깊이=엉덩이 각도, 무릎 각도, 상체 기울기=시선·목 기울기,
- * 좌우 균형=무릎모임)의 기준 범위는 목업의 임의 숫자가 아니라 실제 AI 판정에 쓰는
- * squatPose.js의 ANALYSIS_METRICS를 그대로 쓴다 — 사진 코칭 페이지의 "상세 보기"
- * (MetricsDetailPanel)와 같은 원칙. 좌우 균형은 정면 단계를 진행한 세션이 있어야
- * 계산되므로, 없으면 안내 문구로 대체한다.
+ * "자세 분석 결과" 6타일(스쿼트 깊이=엉덩이 각도, 무릎 각도, 상체 기울기=시선·목 기울기,
+ * 발뒤꿈치 들림, 무릎-발끝 거리, 무릎 모임)의 기준 범위는 목업의 임의 숫자가 아니라 실제
+ * AI 판정에 쓰는 squatPose.js의 ANALYSIS_METRICS를 그대로 쓴다 — 사진 코칭 페이지의
+ * "상세 보기"(MetricsDetailPanel)와 같은 원칙. 무릎 모임은 정면 단계를 진행한 세션이
+ * 있어야 계산되므로, 없으면 안내 문구로 대체한다.
  */
 import { useState } from 'react'
 import PageShell from '../components/PageShell.jsx'
@@ -25,11 +25,9 @@ import SquatGoalCalendar from '../components/SquatGoalCalendar.jsx'
 import RecentSessionsList, { formatDateWithWeekday } from '../components/RecentSessionsList.jsx'
 import { ANALYSIS_METRICS, PART_LABELS } from '../lib/squatPose.js'
 import { loadSquatSessionHistory, aggregateSessionsByDate, latestSessionDate } from '../lib/squatSessionHistory.js'
-import { loadSquatDailyStats, todayDateKey, formatDateKey } from '../lib/squatDailyStats.js'
+import { loadSquatDailyStats, todayDateKey } from '../lib/squatDailyStats.js'
 import { getExerciseGoal } from '../lib/exerciseGoals.js'
 import './ExerciseHistoryPage.css'
-
-const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 
 function formatSessionDuration(sec) {
   const total = Math.max(0, Math.round(sec ?? 0))
@@ -41,21 +39,6 @@ function formatSessionDuration(sec) {
 function formatMinutesFromSec(sec) {
   if (!sec) return '0분'
   return `${Math.max(1, Math.round(sec / 60))}분`
-}
-
-// 선택한 날짜가 속한 주(일~토)의 날짜 7개를 반환한다 — "이번 주 운동 현황"/"운동 목표
-// 달성 현황"에 쓴다.
-function weekDatesOf(dateKey) {
-  const d = new Date(`${dateKey}T00:00:00`)
-  const sunday = new Date(d)
-  sunday.setDate(d.getDate() - d.getDay())
-  const days = []
-  for (let i = 0; i < 7; i++) {
-    const day = new Date(sunday)
-    day.setDate(sunday.getDate() + i)
-    days.push(formatDateKey(day))
-  }
-  return days
 }
 
 function scoreClass(score) {
@@ -92,18 +75,21 @@ const HISTORY_METRIC_KEYS = [
   { key: 'hip_angle', title: '스쿼트 깊이' },
   { key: 'knee_angle', title: '무릎 각도' },
   { key: 'shoulder_forward_lean_deg', title: '상체 기울기' },
-  { key: 'knee_valgus_ratio', title: '좌우 균형' },
+  { key: 'heel_lift_ratio', title: '발뒤꿈치 들림' },
+  { key: 'knee_over_toe_ratio', title: '무릎 - 발끝 거리' },
+  { key: 'knee_valgus_ratio', title: '무릎 모임' },
 ]
 
 function pickMetric(key) {
   return ANALYSIS_METRICS.find((m) => m.field === key)
 }
 
-// 자세 분석 결과 4타일(기본 화면).
-function PoseMetricTiles({ avgMetrics }) {
+// 자세 분석 결과 타일(기본 화면) — 기본은 3개만 보여주고, expanded=true면 6개 다 보여준다.
+function PoseMetricTiles({ avgMetrics, expanded }) {
+  const keys = expanded ? HISTORY_METRIC_KEYS : HISTORY_METRIC_KEYS.slice(0, 3)
   return (
     <div className="hist-metric-tiles">
-      {HISTORY_METRIC_KEYS.map(({ key, title }) => {
+      {keys.map(({ key, title }) => {
         const meta = pickMetric(key)
         const value = avgMetrics[key]
         if (value == null) {
@@ -189,7 +175,7 @@ function AiFeedback({ issueCounts }) {
   return (
     <div className="hist-feedback-row">
       <div className="hist-feedback-card hist-feedback-good">
-        <div className="hist-feedback-title">👍 잘된 점</div>
+        <div className="hist-feedback-title">잘된 점</div>
         {goodParts.length > 0 ? (
           <ul>
             {goodParts.slice(0, 3).map((p) => (
@@ -201,7 +187,7 @@ function AiFeedback({ issueCounts }) {
         )}
       </div>
       <div className="hist-feedback-card hist-feedback-warn">
-        <div className="hist-feedback-title">⚠️ 개선할 점</div>
+        <div className="hist-feedback-title">개선할 점</div>
         {problemParts.length > 0 ? (
           <ul>
             {problemParts.slice(0, 3).map(([p, count]) => (
@@ -263,6 +249,7 @@ function ExerciseHistoryPage() {
   const [goal] = useState(() => getExerciseGoal('squat'))
   const [selectedDate, setSelectedDate] = useState(() => latestSessionDate(history) ?? todayDateKey())
   const [showBars, setShowBars] = useState(false)
+  const [tilesExpanded, setTilesExpanded] = useState(false)
 
   const agg = aggregateSessionsByDate(history, selectedDate)
   const dayStat = dailyStats[selectedDate]
@@ -276,11 +263,6 @@ function ExerciseHistoryPage() {
   // (2026-09-09) "이번 주 목표"는 하루 목표(회수×세트)를 7일 기준으로 단순 환산한 값이다 —
   // 매일 운동한다고 가정한 근사치라는 걸 밝혀둔다. 실제로 요일별 계획이 생기면 그때
   // 정교화하면 된다.
-  const week = weekDatesOf(selectedDate)
-  const weekReps = week.reduce((sum, d) => sum + (dailyStats[d]?.total_reps ?? 0), 0)
-  const weekGoalTotal = goal ? goal.targetReps * goal.targetSets * 7 : null
-  const weekPct = weekGoalTotal ? Math.min(100, Math.round((weekReps / weekGoalTotal) * 100)) : null
-
   const recentSorted = [...history].reverse()
 
   return (
@@ -295,7 +277,7 @@ function ExerciseHistoryPage() {
       <div className="hist-layout">
         <div className="hist-left-col">
           <SquatGoalCalendar dailyStats={dailyStats} goal={goal} onSelectDate={setSelectedDate} selectedDate={selectedDate} />
-          <RecentSessionsList sessions={recentSorted} onSelect={setSelectedDate} selectedDate={selectedDate} title="최근 세션" />
+          <RecentSessionsList sessions={recentSorted} limit={8} onSelect={setSelectedDate} selectedDate={selectedDate} title="최근 세션" />
         </div>
 
         <div className="hist-right-col">
@@ -345,7 +327,22 @@ function ExerciseHistoryPage() {
                     {showBars ? '간단히 보기' : '더보기 ›'}
                   </button>
                 </div>
-                {showBars ? <PoseMetricBars avgMetrics={agg.avgMetrics} /> : <PoseMetricTiles avgMetrics={agg.avgMetrics} />}
+                {showBars ? (
+                  <PoseMetricBars avgMetrics={agg.avgMetrics} />
+                ) : (
+                  <>
+                    <PoseMetricTiles avgMetrics={agg.avgMetrics} expanded={tilesExpanded} />
+                    <div className="hist-tiles-expand-row">
+                      <button
+                        type="button"
+                        className="hist-detail-toggle-btn"
+                        onClick={() => setTilesExpanded((v) => !v)}
+                      >
+                        {tilesExpanded ? '접기 ⌃' : '더 보기 ⌄'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="hist-feedback-section">
@@ -353,15 +350,11 @@ function ExerciseHistoryPage() {
                 <AiFeedback issueCounts={agg.issueCounts} />
                 {agg.mostFrequentIssuePart && (
                   <div className="hist-tip-bar">
-                    💡 다음 운동을 위한 TIP: {PART_LABELS[agg.mostFrequentIssuePart] ?? agg.mostFrequentIssuePart} 쪽을 다음 세션에서 조금 더 천천히, 신경 써서 움직여보세요.
+                    다음 운동을 위한 TIP: {PART_LABELS[agg.mostFrequentIssuePart] ?? agg.mostFrequentIssuePart} 쪽을 다음 세션에서 조금 더 천천히, 신경 써서 움직여보세요.
                   </div>
                 )}
               </div>
 
-              {/* (2026-09-09 수정) 원래 목업 순서대로 "세트별 기록 + 자세 점수 추이"를
-                  한 줄로, "운동 목표 달성 현황 + 이번 주 운동 현황"을 그다음 줄로 짝지었다
-                  — 전에는 점수 추이가 목표 달성 현황과 묶이고 이번 주 현황만 따로 떨어져
-                  있었다. */}
               <div className="hist-row-2col">
                 <div className="hist-sets-card">
                   <div className="hist-section-title">세트별 기록</div>
@@ -387,48 +380,6 @@ function ExerciseHistoryPage() {
                   </table>
                 </div>
                 <ScoreTrendChart history={history} />
-              </div>
-
-              <div className="hist-row-2col">
-                <div className="hist-goal-card">
-                  <div className="hist-section-title">운동 목표 달성 현황</div>
-                  {weekGoalTotal ? (
-                    <>
-                      <div className="hist-goal-numbers">
-                        <span>이번 주 목표 <b>{weekGoalTotal}회</b></span>
-                        <span>실제 운동 <b>{weekReps}회</b></span>
-                        <span className="hist-goal-pct">{weekPct}%</span>
-                      </div>
-                      <div className="hist-goal-bar">
-                        <div className="hist-goal-bar-fill" style={{ width: `${weekPct}%` }} />
-                      </div>
-                    </>
-                  ) : (
-                    <p className="hist-empty-text">마이페이지에서 목표를 설정하면 이번 주 달성 현황이 보여요.</p>
-                  )}
-                </div>
-
-                <div className="hist-week-card">
-                  <div className="hist-section-title">이번 주 운동 현황</div>
-                  <div className="hist-week-row">
-                    {week.map((d, i) => {
-                      const stat = dailyStats[d]
-                      // (2026-09-09 수정) 세트 개수가 아니라 그날 총 렙수 기준으로 달성
-                      // 여부를 판단한다 — SquatGoalCalendar.jsx와 기준을 통일했다.
-                      const goalTotalReps = goal != null ? goal.targetReps * goal.targetSets : null
-                      const met = goalTotalReps != null && stat != null && stat.total_reps >= goalTotalReps
-                      const hasData = stat != null && stat.total_reps > 0
-                      return (
-                        <div key={d} className="hist-week-day">
-                          <div className="hist-week-day-label">{WEEKDAY_KO[i]}</div>
-                          <div className={`hist-week-day-dot${met ? ' is-met' : hasData ? ' is-partial' : ''}`}>
-                            {met ? '✓' : ''}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
               </div>
             </>
           )}

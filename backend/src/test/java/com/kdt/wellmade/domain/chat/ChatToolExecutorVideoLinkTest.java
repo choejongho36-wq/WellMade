@@ -27,7 +27,7 @@ class ChatToolExecutorVideoLinkTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     // videoLinks는 응답 JSON만 보므로 주입 대상이 필요 없다
     private final ChatToolExecutor executor =
-            new ChatToolExecutor(null, null, null, null, null, new ObjectMapper(), null, null, null);
+            new ChatToolExecutor(null, null, null, null, null, new ObjectMapper(), null, null, null, null);
 
     private JsonNode response(String json) {
         try {
