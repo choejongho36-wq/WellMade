@@ -21,7 +21,8 @@ from app.session.messages import (
     FRONT_INSTRUCTION_MESSAGE,
     FRONT_READY_MESSAGE,
     FRONT_SETUP_MESSAGE,
-    SESSION_FINISH_MESSAGE,
+    SESSION_FINISH_HAD_ISSUES_MESSAGE,
+    SESSION_FINISH_SUCCESS_MESSAGE,
     SESSION_START_MESSAGE,
     SIDE_INSTRUCTION_MESSAGE,
     SIDE_READY_MESSAGE,
@@ -56,6 +57,9 @@ CameraView = Literal[
 ]
 
 
+# session_finish는 여기 없다 — had_issues에 따라 SESSION_FINISH_SUCCESS_MESSAGE /
+# SESSION_FINISH_HAD_ISSUES_MESSAGE 중 하나를 골라야 해서 build_guide_response()가
+# 별도로 분기한다(아래 참고).
 STAGE_MESSAGES: dict[SessionStage, str] = {
     "session_start": SESSION_START_MESSAGE,
     "side_setup": SIDE_SETUP_MESSAGE,
@@ -64,7 +68,6 @@ STAGE_MESSAGES: dict[SessionStage, str] = {
     "front_setup": FRONT_SETUP_MESSAGE,
     "front_instruction": FRONT_INSTRUCTION_MESSAGE,
     "front_ready": FRONT_READY_MESSAGE,
-    "session_finish": SESSION_FINISH_MESSAGE,
 }
 
 
@@ -156,21 +159,35 @@ def get_next_stage(
 
 def build_guide_response(
     stage: SessionStage,
+    had_issues: bool = False,
 ) -> dict:
     """
     특정 세션 단계에 해당하는 안내 정보를 반환한다.
+
+    had_issues: stage가 "session_finish"일 때만 의미가 있다 — 방금 끝난 가이드
+    세트(측면+정면) 동안 /ai/coaching/frame이 한 번이라도 is_normal=False를
+    반환했으면 True로 넘어온다(schemas.py의 SessionGuideRequest.had_issues 설명
+    참고). 그 값에 따라 마무리 멘트를 성공/문제있음 두 버전 중 골라 반환한다.
     """
+
+    if stage == "session_finish":
+        message = (
+            SESSION_FINISH_HAD_ISSUES_MESSAGE if had_issues else SESSION_FINISH_SUCCESS_MESSAGE
+        )
+    else:
+        message = STAGE_MESSAGES.get(stage)
 
     return {
         "stage": stage,
         "camera_view": STAGE_CAMERA_VIEW[stage],
-        "message": STAGE_MESSAGES.get(stage),
+        "message": message,
     }
 
 
 def get_next_guide(
     current_stage: SessionStage,
     event: SessionEvent,
+    had_issues: bool = False,
 ) -> dict:
     """
     현재 세션 상태와 이벤트를 받아
@@ -182,4 +199,4 @@ def get_next_guide(
         event=event,
     )
 
-    return build_guide_response(next_stage)
+    return build_guide_response(next_stage, had_issues=had_issues)

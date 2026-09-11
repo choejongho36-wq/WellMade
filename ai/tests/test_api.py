@@ -232,6 +232,134 @@ def test_coaching_frame_insufficient_frames():
     assert data["confidence"] < 0.5, data
 
 
+def test_coaching_frame_guided_rep_count_message_side_view():
+    # 초심자 모드 + guided_rep_index=1 — 측면 판정 결과와 별개로 카운트 멘트가
+    # 채워져야 하고, 1회차라 세트는 아직 안 끝나야 한다.
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 90, "hip_angle": 90} for i in range(10)
+    ]
+    body = {
+        "angle_history": angle_history,
+        "is_beginner_mode": True,
+        "guided_rep_index": 1,
+    }
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(guided rep 1, side):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["guided_rep_count_message"] == "하나.", data
+    assert data["guided_set_complete"] is False, data
+
+
+def test_coaching_frame_guided_rep_count_message_third_rep_completes_set():
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 90, "hip_angle": 90} for i in range(10)
+    ]
+    body = {
+        "angle_history": angle_history,
+        "is_beginner_mode": True,
+        "guided_rep_index": 3,
+    }
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(guided rep 3, side):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["guided_rep_count_message"] == "셋. 여기까지 세 번 잘하셨어요.", data
+    assert data["guided_set_complete"] is True, data
+
+
+def test_coaching_frame_guided_rep_count_message_front_view():
+    # 정면 세트(view="front")에서도 같은 가이드 흐름의 일부이므로 카운트 멘트가
+    # 동작해야 한다 — 무릎모임 전용 조기 반환 경로도 함께 값을 채워야 함.
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 90, "hip_angle": 90} for i in range(10)
+    ]
+    body = {
+        "angle_history": angle_history,
+        "view": "front",
+        "is_beginner_mode": True,
+        "guided_rep_index": 2,
+    }
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(guided rep 2, front):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["guided_rep_count_message"] == "둘.", data
+    assert data["guided_set_complete"] is False, data
+
+
+def test_coaching_frame_guided_rep_index_ignored_when_not_beginner_mode():
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": 90, "hip_angle": 90} for i in range(10)
+    ]
+    body = {"angle_history": angle_history, "guided_rep_index": 1}
+    res = client.post("/ai/coaching/frame", json=body)
+    print("coaching_frame(guided rep, beginner off):", res.status_code, res.json())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["guided_rep_count_message"] is None, data
+    assert data["guided_set_complete"] is False, data
+
+
+def test_coaching_frame_movement_message_has_no_comma():
+    # 2026-09-11 TTS 오발음("천천히," -> "천천하이") 수정 확인.
+    values = [130, 145, 115, 145, 115, 145, 115, 145, 115, 130]
+    angle_history = [
+        {"timestamp": i * 0.1, "knee_angle": v, "hip_angle": 150} for i, v in enumerate(values)
+    ]
+    body = {"angle_history": angle_history}
+    res = client.post("/ai/coaching/frame", json=body)
+    assert res.status_code == 200
+    data = res.json()
+    movement_issues = [issue for issue in data["issues"] if issue["part"] == "movement"]
+    assert movement_issues, data
+    assert "," not in movement_issues[0]["message"], movement_issues
+
+
+def test_session_guide_happy_path_side_to_finish_success():
+    # /ai/session/guide는 기존에 테스트가 전혀 없었다 — coaching_summary가 필수
+    # 필드인데 build_guide_response()가 채운 적이 없어 실제로는 호출할 때마다
+    # ValidationError(500)가 났던 버그를 이번에 함께 고쳤다(schemas.py 참고).
+    res = client.post(
+        "/ai/session/guide",
+        json={"current_stage": "session_start", "event": "session_started"},
+    )
+    assert res.status_code == 200, res.json()
+    data = res.json()
+    assert data["stage"] == "side_setup"
+    assert data["camera_view"] == "side"
+
+
+def test_session_guide_finish_message_success_vs_had_issues():
+    success_res = client.post(
+        "/ai/session/guide",
+        json={
+            "current_stage": "front_squat",
+            "event": "set_completed",
+            "had_issues": False,
+        },
+    )
+    had_issues_res = client.post(
+        "/ai/session/guide",
+        json={
+            "current_stage": "front_squat",
+            "event": "set_completed",
+            "had_issues": True,
+        },
+    )
+    assert success_res.status_code == 200, success_res.json()
+    assert had_issues_res.status_code == 200, had_issues_res.json()
+    success_data = success_res.json()
+    had_issues_data = had_issues_res.json()
+    assert success_data["stage"] == "session_finish"
+    assert had_issues_data["stage"] == "session_finish"
+    assert "숙련자 모드" in success_data["message"]
+    assert "숙련자 모드" in had_issues_data["message"]
+    assert success_data["message"] != had_issues_data["message"]
+    assert "," not in success_data["message"]
+    assert "," not in had_issues_data["message"]
+
+
 def test_session_end_user_requested():
     # 데이터가 어떻든 사용자가 직접 종료를 요청하면 즉시 종료돼야 함
     body = {

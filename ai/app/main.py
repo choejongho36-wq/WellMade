@@ -154,6 +154,7 @@ def coaching_frame(request: CoachingFrameRequest):
         view=request.view,
         deep_squat_mode=request.deep_squat_mode,
         is_beginner_mode=request.is_beginner_mode,
+        guided_rep_index=request.guided_rep_index,
     )
 
     return CoachingFrameResponse(
@@ -165,6 +166,8 @@ def coaching_frame(request: CoachingFrameRequest):
             for issue in result["issues"]
         ],
         pending_llm_job_id=result["pending_llm_job_id"],
+        guided_rep_count_message=result["guided_rep_count_message"],
+        guided_set_complete=result["guided_set_complete"],
     )
 
 
@@ -233,6 +236,7 @@ def session_guide(
         result = get_next_guide(
             current_stage=request.current_stage,
             event=request.event,
+            had_issues=request.had_issues,
         )
 
     except ValueError as exc:
