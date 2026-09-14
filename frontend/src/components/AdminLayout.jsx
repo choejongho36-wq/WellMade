@@ -21,7 +21,6 @@ export default function AdminLayout() {
         <div className="admin-brand">WellMade<span>관리자</span></div>
         <nav>
           <NavLink to="/admin" end>대시보드</NavLink>
-          <NavLink to="/admin/reports">신고 관리</NavLink>
           <NavLink to="/admin/inquiries">1:1 문의</NavLink>
           <NavLink to="/admin/faqs">FAQ 관리</NavLink>
           <NavLink to="/admin/notices">공지사항 관리</NavLink>

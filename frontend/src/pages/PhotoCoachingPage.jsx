@@ -187,23 +187,7 @@ function PhotoSlotPanel({ slot, label, required, alt }) {
 
 function AnalysisPanel({ session }) {
   const { side, analyzing, judgeResult, judgeError, summary, summaryError } = session
-  const { submitReport } = useAuth()
   const [reportOpen, setReportOpen] = useState(false)
-
-  // 신고 원본은 이미 업로드된 측면 사진 그대로 - blob: URL을 다시 fetch해서 Blob으로 되돌린다
-  // (usePhotoCoachingSession 내부 File 객체를 직접 꺼내는 대신, object URL만 있으면 되는
-  // 이 방식이 훅 내부 구현과 독립적이라 더 안전하다).
-  const handleReportSubmit = async ({ reasonCategory, reasonDetail }) => {
-    const blob = await fetch(side.photoUrl).then((res) => res.blob())
-    await submitReport({
-      sourceType: 'PHOTO',
-      file: blob,
-      fileName: side.fileName || 'photo.jpg',
-      reasonCategory,
-      reasonDetail,
-      judgmentSnapshot: judgeResult,
-    })
-  }
 
   if (side.phase !== 'ready') {
     return <div className="analysis-empty">측면 사진을 올리고 "분석하기"를 누르면 결과가 이 자리에 표시돼요.</div>
@@ -242,7 +226,7 @@ function AnalysisPanel({ session }) {
       {summaryError && <p className="squat-error">{summaryError}</p>}
       {summary && <p className="analysis-summary-text">{summary.summary_message}</p>}
 
-      {reportOpen && <ReportModal onClose={() => setReportOpen(false)} onSubmit={handleReportSubmit} />}
+      {reportOpen && <ReportModal onClose={() => setReportOpen(false)} />}
     </div>
   )
 }

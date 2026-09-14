@@ -509,29 +509,8 @@ function ReportView({ session }) {
     restart,
   } = session
 
-  const { submitReport } = useAuth()
   const [reportOpen, setReportOpen] = useState(false)
   const [replayOpen, setReplayOpen] = useState(false)
-
-  // 신고 원본은 방금 녹화해둔 실제 세션 영상을 우선으로 쓴다(useSquatCoachingSession이
-  // 세션 진행 중 MediaRecorder로 녹화한 것 - 8/27 addendum의 "원본 데이터(영상/좌표 시계열)"
-  // 중 영상 쪽). 아주 오래된 브라우저 등 녹화 자체가 안 됐을 때만, 이전처럼 렙별 판정
-  // 시계열(repHistory) + 최종 리포트를 JSON으로 묶어 보내는 방식으로 폴백한다.
-  const handleReportSubmit = async ({ reasonCategory, reasonDetail }) => {
-    const videoBlob = getRecordedVideoBlob()
-    const file = videoBlob
-      ? videoBlob
-      : new Blob([JSON.stringify({ sessionReport, repHistory }, null, 2)], { type: 'application/json' })
-    await submitReport({
-      sourceType: 'SESSION',
-      sourceId: `session-report-${Date.now()}`,
-      file,
-      fileName: videoBlob ? 'session-video.webm' : 'session-report.json',
-      reasonCategory,
-      reasonDetail,
-      judgmentSnapshot: sessionReport,
-    })
-  }
 
   const openReportFromReplay = () => {
     setReplayOpen(false)
@@ -633,7 +612,7 @@ function ReportView({ session }) {
           onReportClick={openReportFromReplay}
         />
       )}
-      {reportOpen && <ReportModal onClose={() => setReportOpen(false)} onSubmit={handleReportSubmit} />}
+      {reportOpen && <ReportModal onClose={() => setReportOpen(false)} />}
     </div>
   )
 }
