@@ -14,8 +14,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kdt.wellmade.domain.chat.ChatMessageRepository;
 import com.kdt.wellmade.domain.inbody.InbodyRecordRepository;
 import com.kdt.wellmade.domain.nutrition.MealLoggingService;
-import com.kdt.wellmade.domain.report.PoseReportRepository;
-import com.kdt.wellmade.domain.report.ReportStatus;
 import com.kdt.wellmade.domain.user.UserRepository;
 import com.kdt.wellmade.domain.workout.WorkoutSessionLog;
 import com.kdt.wellmade.domain.workout.WorkoutSessionLogRepository;
@@ -39,7 +37,6 @@ import lombok.RequiredArgsConstructor;
 public class AdminDashboardController {
 
     private final UserRepository userRepository;
-    private final PoseReportRepository poseReportRepository;
     private final WorkoutSessionLogRepository workoutSessionLogRepository;
     private final MealLoggingService mealLoggingService;
     private final InbodyRecordRepository inbodyRecordRepository;
@@ -74,11 +71,8 @@ public class AdminDashboardController {
 
     record RecentActivity(List<RecentUser> recentUsers, List<RecentSession> recentSessions) {}
 
-    record ReportStats(long pending, long approved, long rejected) {}
-
     record DashboardResponse(
             SummaryCard summary,
-            ReportStats reports,
             WorkoutStats workout,
             NutritionStats nutrition,
             InbodyStats inbody,
@@ -98,11 +92,6 @@ public class AdminDashboardController {
                 userRepository.countByCreatedAtAfter(todayStart),
                 userRepository.countByLastActiveAtAfter(todayStart),
                 todaySessions);
-
-        ReportStats reports = new ReportStats(
-                poseReportRepository.countByStatus(ReportStatus.PENDING),
-                poseReportRepository.countByStatus(ReportStatus.APPROVED),
-                poseReportRepository.countByStatus(ReportStatus.REJECTED));
 
         List<WorkoutSessionLog> todaySessionLogs = workoutSessionLogRepository.findByCreatedAtAfterOrderByCreatedAtDesc(todayStart);
         WorkoutStats workout = new WorkoutStats(
@@ -142,7 +131,7 @@ public class AdminDashboardController {
                 .toList();
         RecentActivity recent = new RecentActivity(recentUsers, recentSessions);
 
-        return new DashboardResponse(summary, reports, workout, nutrition, inbody, chat, monitoring, recent);
+        return new DashboardResponse(summary, workout, nutrition, inbody, chat, monitoring, recent);
     }
 
     // WorkoutSessionLog.issueCounts(JSON 문자열)를 부위별로 합산한다. 부위 종류가 적어(무릎모임/

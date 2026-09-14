@@ -38,8 +38,6 @@ const InquiryDetailPage = lazy(() => import('./pages/InquiryDetailPage.jsx'))
 const AdminLoginPage = lazy(() => import('./pages/AdminLoginPage.jsx'))
 const AdminLayout = lazy(() => import('./components/AdminLayout.jsx'))
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage.jsx'))
-const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage.jsx'))
-const AdminReportDetailPage = lazy(() => import('./pages/AdminReportDetailPage.jsx'))
 const AdminInquiriesPage = lazy(() => import('./pages/AdminInquiriesPage.jsx'))
 const AdminInquiryDetailPage = lazy(() => import('./pages/AdminInquiryDetailPage.jsx'))
 const AdminFaqsPage = lazy(() => import('./pages/AdminFaqsPage.jsx'))
@@ -77,8 +75,6 @@ function AppRoutes() {
             <Route path="login" element={<AdminLoginPage />} />
             <Route element={<AdminLayout />}>
               <Route index element={<AdminDashboardPage />} />
-              <Route path="reports" element={<AdminReportsPage />} />
-              <Route path="reports/:id" element={<AdminReportDetailPage />} />
               <Route path="inquiries" element={<AdminInquiriesPage />} />
               <Route path="inquiries/:id" element={<AdminInquiryDetailPage />} />
               <Route path="faqs" element={<AdminFaqsPage />} />

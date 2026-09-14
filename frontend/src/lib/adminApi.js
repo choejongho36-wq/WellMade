@@ -50,30 +50,6 @@ export async function getAdminDashboard() {
   return res.json()
 }
 
-export async function getAdminReports(status, page = 0) {
-  const params = new URLSearchParams({ page: String(page) })
-  if (status) params.set('status', status)
-  const res = await adminFetch(`/api/admin/reports?${params.toString()}`)
-  if (!res.ok) throw new Error('신고 목록을 불러오지 못했습니다')
-  return res.json()
-}
-
-export async function getAdminReportDetail(id) {
-  const res = await adminFetch(`/api/admin/reports/${id}`)
-  if (!res.ok) throw new Error('신고 상세를 불러오지 못했습니다')
-  return res.json()
-}
-
-export async function approveAdminReport(id) {
-  const res = await adminFetch(`/api/admin/reports/${id}/approve`, { method: 'POST' })
-  if (!res.ok) throw new Error('승인 처리에 실패했습니다')
-}
-
-export async function rejectAdminReport(id) {
-  const res = await adminFetch(`/api/admin/reports/${id}/reject`, { method: 'POST' })
-  if (!res.ok) throw new Error('반려 처리에 실패했습니다')
-}
-
 // --- 고객센터 관리 (1:1 문의 / FAQ / 공지사항) ---
 
 export async function getAdminInquiries(status, page = 0) {
