@@ -98,6 +98,21 @@ export const PART_LABELS = {
   gaze: '시선·목',
 }
 
+// (2026-09-15 추가) 초심자 모드 서 있는 단계 안내가 한 바퀴 끝난 뒤 이슈를 요약해서
+// 알려줄 때(useSquatCoachingSession.js의 buildIssueSummary) 쓰는 부위별 교정 문구.
+export const PART_CORRECTIONS = {
+  knee: '무릎을 발끝 방향으로 밀어주세요',
+  hip: '엉덩이를 뒤로 빼며 무게중심을 잡아주세요',
+  shoulder: '어깨는 펴고 시선은 정면에 두세요',
+  heel: '체중은 발뒤꿈치 쪽에 실어주세요',
+  knee_valgus: '무릎이 안쪽으로 모이지 않게 발끝 방향을 유지해주세요',
+  knee_over_toe: '무릎이 발끝보다 앞으로 나가지 않게 해주세요',
+  form_pattern: '속도를 조금 늦추고 자세를 다시 확인해주세요',
+  movement: '움직임을 천천히, 안정적으로 유지해주세요',
+  data: '전신이 화면에 다 나오게 자리를 조정해주세요',
+  gaze: '시선은 정면에, 목은 자연스럽게 유지해주세요',
+}
+
 // ai/app/coaching/realtime.py의 STANDING_KNEE_ANGLE_MIN(150.0)과 동일한 기준 — 무릎 각도가
 // 이 이상이면 서버가 "깊게 앉은 상태"로 보지 않아 깊이·엉덩이각·발뒤꿈치·무릎-발끝·무게중심
 // 검사를 건너뛴다(목/시선 검사는 예외 — 앉은 정도와 무관하게 항상 확인한다). 프론트도 같은

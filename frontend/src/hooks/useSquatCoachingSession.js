@@ -16,7 +16,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePoseLandmarker } from './usePoseLandmarker.js'
-import { buildFrontMetrics, buildSideMetrics, drawSkeleton, isFullBodyVisible, STANDING_KNEE_ANGLE_MIN } from '../lib/squatPose.js'
+import {
+  buildFrontMetrics,
+  buildSideMetrics,
+  drawSkeleton,
+  getKneeAngle,
+  isFullBodyVisible,
+  STANDING_KNEE_ANGLE_MIN,
+  PART_LABELS,
+  PART_CORRECTIONS,
+} from '../lib/squatPose.js'
 import { AI_BASE } from '../lib/aiApi.js'
 import { appendSquatSessionHistory, loadSquatSessionHistory } from '../lib/squatSessionHistory.js'
 import { addSquatDailyStats, loadSquatDailyStats, todayDateKey } from '../lib/squatDailyStats.js'
@@ -62,6 +71,12 @@ const FULL_BODY_WARNING_REPEAT_SEC = 10 // 전신 미노출 경고는 다른 문
 // 안 그러면 '전신이 나오게...'와 다른 안내 문구가 매 프레임 번갈아 반복될 수 있다.
 const FULL_BODY_STREAK_THRESHOLD = 3
 
+// (2026-09-15 추가) knee_angle이 노이즈로 잠깐 STANDING_KNEE_ANGLE_MIN 아래로 흔들리기만
+// 해도 아래 STANDING_STEPS 안내가 1단계로 리셋돼버리는 걸 막기 위한 히스테리시스 —
+// 연속 이 프레임 수 이상 깊게 앉은 것으로 판정될 때만 "진짜로 앉았다"고 보고 안내를
+// 리셋한다(렙 카운트/지표 누적에 쓰는 원본 isDeepHold 값 자체는 그대로 둔다).
+const DEEP_HOLD_GUIDE_STREAK_THRESHOLD = 3
+
 // 전신이 보이고 자세도 정상인데 아직 앉지 않은(서 있는) 상태일 때, "인식 중"이라는 애매한
 // 문구 대신 스쿼트 방법을 한 단계씩 순서대로 안내한다(문구 출처: 프로젝트 문서
 // "스쿼트 세션 진행 코칭 문구"). 한 단계를 말하고(speak) → 조용히 쉬었다가(pause) →
@@ -77,6 +92,24 @@ const STANDING_STEPS = [
 const STANDING_STEP_SPEAK_SEC = 4 // 한 단계를 안내하는 시간
 const STANDING_STEP_PAUSE_SEC = 4 // 다음 단계로 넘어가기 전 조용히 쉬는 시간
 const STANDING_STEP_LOOP_PAUSE_SEC = 7 // 5단계까지 다 돌고 1단계로 돌아가기 전 조금 더 길게 쉬는 시간
+
+
+// (2026-09-15 추가) 세션 시작/전환 안내 멘트 하나를 화면 배지에 띄워두는 기본 시간(대략적인
+// 발화 길이 기준 — 실제 speechSynthesis 종료 이벤트까지는 쓰지 않고, STANDING_STEPS와
+// 같은 방식으로 고정 타이머를 쓴다).
+const ANNOUNCEMENT_HOLD_SEC = 4
+
+// 초심자 모드 서 있는 단계(STANDING_STEPS) 안내 도중 모아둔 이슈를, 안내가 한 바퀴
+// 끝났을 때 "이거이거이거 이상합니다. 이렇게 해주세요." 형태로 정리한다.
+function buildIssueSummary(issues) {
+  const parts = issues.map((issue) => PART_LABELS[issue.part] ?? issue.part)
+  const corrections = issues.map((issue) => PART_CORRECTIONS[issue.part]).filter(Boolean)
+  const partsText = parts.join(', ')
+  const correctionsText = corrections.join(', ')
+  return correctionsText
+    ? `${partsText}이 이상합니다. ${correctionsText}.`
+    : `${partsText}이 이상합니다. 다시 한번 확인해주세요.`
+}
 
 // 정면 단계에서는 knee_angle/hip_angle(측면 전용 값)을 판정에 쓰지 않지만, AI-06 요청
 // 스키마상 필수 필드라 자리만 채우는 더미 값이 필요하다 — "서 있는" 값(180도 근처)을
@@ -101,9 +134,10 @@ function formatElapsed(sec) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-export function useSquatCoachingSession() {
+export function useSquatCoachingSession(level = 'expert') {
   const { detectPose } = usePoseLandmarker()
   const { logWorkoutSession } = useAuth()
+  const isBeginner = level === 'beginner' // (2026-09-15 추가) 초심자 모드 전용 스크립트/종료 기준 분기
 
   const [phase, setPhase] = useState('idle') // idle | active | report
   const [cameraError, setCameraError] = useState('')
@@ -180,6 +214,22 @@ export function useSquatCoachingSession() {
   const standingStepIndexRef = useRef(0) // 지금 안내 중인 단계(0~4)
   const standingPhaseRef = useRef(null) // null(미시작) | 'speak' | 'pause'
   const standingPhaseStartRef = useRef(0) // 현재 phase가 시작된 시각(세션 경과 초)
+  const deepHoldStartRef = useRef(null) // 이번에 깊게 앉기 시작한 시각(세션 경과 초) — 오래 머무르면 일어나라고 안내
+  const deepHoldStreakRef = useRef(0) // STANDING_STEPS 리셋용 히스테리시스 — 연속 깊게 앉은 프레임 수(DEEP_HOLD_GUIDE_STREAK_THRESHOLD 참고)
+  // (2026-09-15 추가) 정면 판정(무릎모임 비율)만으로는 "실제로 앉았다가 일어났는지" 알
+  // 수 없어서, 정면 랜드마크로 프론트에서 직접 무릎각도를 계산해 게이트로만 쓴다(백엔드
+  // 전송·정식 렙 카운트에는 안 쓴다) — 정면 전환 후 진짜로 한 번 앉았다 일어나야만
+  // 즉시 종료를 허용한다.
+  const frontDeepHoldStreakRef = useRef(0)
+  const frontSquatCompletedRef = useRef(false)
+  const activeRef = useRef(false) // 세션이 살아있는지 — stop() 이후 뒤늦게 돌아온 응답이 화면/음성에 반영되지 않게 막는다
+  const guideIssuesRef = useRef([]) // STANDING_STEPS 한 바퀴 도는 동안 모은 이슈(부위 중복 제거)
+  const sessionEndingRef = useRef(false) // 초심자 모드 정면 단계 즉시 종료가 중복 트리거되지 않게
+  const repCountAnnouncedRef = useRef(false) // "3회 반복하겠습니다"를 지시사항 끝난 뒤 딱 한 번만
+  const announcementRef = useRef('') // 지금 화면에 떠 있는 안내 멘트(세션 시작/전환/이슈 요약 등)
+  const announcementTimerRef = useRef(null) // announcement를 지우는 타이머
+  const pendingAnnounceTimersRef = useRef([]) // announceSequence로 예약된 타이머들 — stop() 때 전부 취소한다
+  const [announcement, setAnnouncement] = useState('')
 
   // timestamp: 세션 경과 초(tick의 timestamp). force가 true면 속도 제한 없이 바로 말한다
   // (세션 종료 리포트 요약처럼 한 번만 나가는 멘트용).
@@ -222,9 +272,11 @@ export function useSquatCoachingSession() {
   // is_normal이어도 무릎이 STANDING_KNEE_ANGLE_MIN 이상(=서 있는 상태)이면 서버가 하단
   // 자세 검사 자체를 건너뛴 것뿐이라 "정상"이 나온다 — 실제로 앉은 상태(isDeepHold)일 때만
   // "지금 자세를 유지하세요"를 내보낸다.
+  // (2026-09-15 변경) "지금 자세를 유지하세요"는 언제 일어나야 할지 헷갈리게 만들어서
+  // 없앴다 — 깊게 잘 앉았을 때는 모드 구분 없이 바로 "일어나주세요"로 통일해서 안내한다.
   const coachingText = (result, isDeepHold) =>
     result.is_normal
-      ? (isDeepHold ? '좋아요, 지금 자세를 유지하세요' : '')
+      ? (isDeepHold ? '좋아요, 이제 일어나주세요.' : '')
       : (pickPrimaryIssue(result.issues)?.message ?? '')
 
   // 화면 배지/음성 안내와 같은 문구를 오른쪽 코칭 로그에도 시간과 함께 쌓는다 — 같은
@@ -237,6 +289,44 @@ export function useSquatCoachingSession() {
     )
   }, [])
 
+  // (2026-09-15 추가) 세션 시작 인사/단계 전환/이슈 요약처럼 "화면 배지에 잠깐 떠 있어야 하는"
+  // 안내 멘트 하나를 말하고, 화면에도 같은 문구를 띄운다 — holdSec이 지나면 자동으로 사라진다.
+  const announce = useCallback(
+    // (2026-09-15 추가) speakEnabled=false면 화면 배지/로그에는 그대로 남기되 음성으로는
+    // 읽지 않는다 — 세션 리포트로 넘어가기 직전의 마무리 멘트처럼 TTS 없이 텍스트만
+    // 보여주고 싶을 때 쓴다.
+    (text, timestamp, holdSec = ANNOUNCEMENT_HOLD_SEC, speakEnabled = true) => {
+      if (!activeRef.current) return
+      if (speakEnabled) speak(text, timestamp, { force: true })
+      logMessage(text, 'ok', timestamp)
+      announcementRef.current = text
+      setAnnouncement(text)
+      if (announcementTimerRef.current) clearTimeout(announcementTimerRef.current)
+      announcementTimerRef.current = setTimeout(() => {
+        if (announcementRef.current === text) {
+          announcementRef.current = ''
+          setAnnouncement('')
+        }
+      }, holdSec * 1000)
+    },
+    [speak, logMessage],
+  )
+
+  // 여러 안내 멘트를 순서대로(앞 멘트가 화면에 머무는 시간만큼 텀을 두고) 이어서 내보낸다.
+  // items: [{ text, holdSec?, speak? }] — speak:false면 화면 배지/로그에는 남기되 음성으로는
+  // 읽지 않는다(이슈 요약처럼 문구가 길어 다 읽으면 다음 안내가 밀리는 항목에 쓴다).
+  const announceSequence = useCallback(
+    (items, timestamp) => {
+      let delaySec = 0
+      items.forEach(({ text, holdSec = ANNOUNCEMENT_HOLD_SEC, speak: speakEnabled = true }) => {
+        const timerId = setTimeout(() => announce(text, timestamp, holdSec, speakEnabled), delaySec * 1000)
+        pendingAnnounceTimersRef.current.push(timerId)
+        delaySec += holdSec
+      })
+    },
+    [announce],
+  )
+
   const stopCameraTracks = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop())
@@ -246,6 +336,17 @@ export function useSquatCoachingSession() {
   }, [])
 
   const stop = useCallback(() => {
+    activeRef.current = false
+    // 예약돼 있던 안내 멘트(세션 시작 인사, 단계 전환 등)가 종료 후까지 이어서 말하지 않게
+    // 전부 취소한다 — '운동 종료' 눌러도 음성이 계속 나오던 문제의 핵심 원인이었다.
+    pendingAnnounceTimersRef.current.forEach((id) => clearTimeout(id))
+    pendingAnnounceTimersRef.current = []
+    if (announcementTimerRef.current) {
+      clearTimeout(announcementTimerRef.current)
+      announcementTimerRef.current = null
+    }
+    announcementRef.current = ''
+    setAnnouncement('')
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
@@ -269,7 +370,13 @@ export function useSquatCoachingSession() {
       stopCameraTracks()
     }
     // 대기열에 밀려 있던 코칭 멘트가 세션 종료 후까지 계속 재생되는 것을 막는다.
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+    // (2026-09-15 추가) 크롬 등 일부 브라우저는 cancel()을 한 번 호출해도 이미 재생
+    // 중이던 문장이 끝까지 나가버리는 경우가 있어(알려진 speechSynthesis 버그), 짧은
+    // 지연 후 한 번 더 끊어준다.
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      setTimeout(() => window.speechSynthesis.cancel(), 60)
+    }
   }, [stopCameraTracks])
 
   const requestReport = useCallback(
@@ -413,6 +520,11 @@ export function useSquatCoachingSession() {
     (timestamp) => {
       standingPhaseRef.current = null
       standingStepIndexRef.current = 0
+      deepHoldStreakRef.current = 0
+      guideIssuesRef.current = []
+      sessionEndingRef.current = false
+      frontDeepHoldStreakRef.current = 0
+      frontSquatCompletedRef.current = false
       framesRef.current = []
       setBufferCount(0)
       setFullBodyWarning(false)
@@ -425,14 +537,19 @@ export function useSquatCoachingSession() {
       lastLoggedRef.current = ''
       setSessionStage('front')
 
-      const turnMessage = '이번에는 정면으로 카메라를 마주보고 서주십시오.'
-      const focusMessage = '이번 정면 코칭은 무릎모임을 중점적으로 판단합니다.'
-      speak(turnMessage, timestamp, { force: true })
-      logMessage(turnMessage, 'ok', timestamp)
-      speak(focusMessage, timestamp, { force: true })
-      logMessage(focusMessage, 'ok', timestamp)
+      // (2026-09-15 변경) 초심자 모드는 짧게 한 문장으로만 전환을 안내한다.
+      if (isBeginner) {
+        announceSequence([{ text: '정면으로 전환하겠습니다.', holdSec: 3 }], timestamp)
+      } else {
+        const turnMessage = '이번에는 정면으로 카메라를 마주보고 서주십시오.'
+        const focusMessage = '이번 정면 코칭은 무릎모임을 중점적으로 판단합니다.'
+        speak(turnMessage, timestamp, { force: true })
+        logMessage(turnMessage, 'ok', timestamp)
+        speak(focusMessage, timestamp, { force: true })
+        logMessage(focusMessage, 'ok', timestamp)
+      }
     },
-    [speak, logMessage],
+    [speak, logMessage, isBeginner, announceSequence],
   )
 
   const tick = useCallback(async () => {
@@ -441,6 +558,10 @@ export function useSquatCoachingSession() {
     try {
       const video = videoRef.current
       if (!video || video.readyState < 2) return
+      // (2026-09-15 추가) 시작 인사/전환/이슈 요약 같은 안내 멘트가 재생 중일 때는 이번
+      // 프레임의 판정·실시간 피드백을 건너뛴다 — 안 그러면 그 멘트와 다른 speak() 호출이
+      // 같은 음성 큐에 겹쳐 들어가면서 서로 잘리거나 순서가 꼬인다.
+      if (announcementRef.current) return
 
       if (!offscreenRef.current) offscreenRef.current = document.createElement('canvas')
       const offscreen = offscreenRef.current
@@ -511,6 +632,9 @@ export function useSquatCoachingSession() {
           deep_squat_mode: Boolean(squatGoal?.deepSquatMode),
         })
         setJudgeError('')
+        // (2026-09-15 추가) 응답을 기다리는 동안 '운동 종료'가 눌렸으면 여기서 멈춘다 —
+        // 안 그러면 이미 끝난 세션인데 뒤늦게 도착한 응답이 음성/화면 상태를 다시 바꿔버린다.
+        if (!activeRef.current) return
 
         if (isFront) {
           frontJudgmentHistoryRef.current = [
@@ -521,6 +645,39 @@ export function useSquatCoachingSession() {
           // 매 프레임 누적한다 — 정면 단계를 아예 안 하면 이 누적 자체가 안 일어나 세션
           // 리포트의 좌우 균형 평균이 null로 남는다.
           accumulateMetric(frontMetricsSumRef, 'knee_valgus_ratio', frame.metrics.knee_valgus_ratio)
+
+          // (2026-09-15 추가) 초심자 모드는 "정상 비율을 일정 시간 유지"하는 기존 시간
+          // 기반 판정 대신, 정면에서 실제로 한 번 앉았다가 일어난 뒤 무릎모임 이슈가
+          // 없는 프레임이 나오면 바로 종료한다 — 무릎모임 판정(백엔드)과 별개로, 정면
+          // 랜드마크로 프론트에서 직접 계산한 무릎각도를 게이트로만 쓴다(백엔드 전송·
+          // 공식 렙 카운트에는 안 씀).
+          const frontKneeAngle = getKneeAngle(landmarks)
+          if (frontKneeAngle < STANDING_KNEE_ANGLE_MIN) {
+            frontDeepHoldStreakRef.current += 1
+          } else {
+            if (frontDeepHoldStreakRef.current >= DEEP_HOLD_GUIDE_STREAK_THRESHOLD) {
+              frontSquatCompletedRef.current = true
+            }
+            frontDeepHoldStreakRef.current = 0
+          }
+
+          if (
+            isBeginner &&
+            result.is_normal &&
+            !sessionEndingRef.current &&
+            frontSquatCompletedRef.current
+          ) {
+            sessionEndingRef.current = true
+            setJudgeResult({ ...result, view: 'front', isDeepHold: false, standingStepText: '' })
+            const closingText = '훌륭합니다. 이상으로 스쿼트 코칭을 마치겠습니다.'
+            announce(closingText, timestamp, 4)
+            const timerId = setTimeout(() => {
+              if (activeRef.current) endSession('target_sustained')
+            }, 4000)
+            pendingAnnounceTimersRef.current.push(timerId)
+            return
+          }
+
           const text = result.is_normal
             ? '좋아요, 무릎이 발끝 방향을 잘 유지하고 있어요'
             : (result.issues?.[0]?.message ?? '무릎 모임을 확인해주세요')
@@ -528,7 +685,7 @@ export function useSquatCoachingSession() {
           logMessage(text, result.is_normal ? 'ok' : 'warn', timestamp)
           setJudgeResult({ ...result, view: 'front', isDeepHold: false, standingStepText: '' })
 
-          if (frontJudgmentHistoryRef.current.length % END_CHECK_EVERY_N_FRAMES === 0) {
+          if (!isBeginner && frontJudgmentHistoryRef.current.length % END_CHECK_EVERY_N_FRAMES === 0) {
             const end = await checkSessionEnd(frontJudgmentHistoryRef.current, false)
             if (end?.should_end) endSession(end.reason)
           }
@@ -556,7 +713,10 @@ export function useSquatCoachingSession() {
             // (2026-09-08 추가) 새 렙이 시작되는 시점(서 있다가 방금 깊게 앉기 시작한 순간)에
             // movement 경고 노출 카운트를 리셋한다 — MOVEMENT_WARNING_MAX_PER_REP 캡이 렙마다
             // 새로 적용되게 하기 위함.
-            if (!repInProgressRef.current) movementWarningCountRef.current = 0
+            if (!repInProgressRef.current) {
+              movementWarningCountRef.current = 0
+              deepHoldStartRef.current = timestamp
+            }
             repInProgressRef.current = true
             if (!result.is_normal) {
               // (2026-09-10) 'movement'(흔들림 감지) 이슈는 렙 정상/이상 판정에서 제외한다 -
@@ -575,6 +735,7 @@ export function useSquatCoachingSession() {
           } else if (repInProgressRef.current) {
             // 방금 "내려갔다가 다시 올라온" 구간이 끝났다 — 렙 1개 완료.
             repInProgressRef.current = false
+            deepHoldStartRef.current = null
             repHistoryRef.current = [
               ...repHistoryRef.current,
               { timestamp, is_normal: !repHadIssueRef.current, issues: repIssuesRef.current },
@@ -586,13 +747,44 @@ export function useSquatCoachingSession() {
             // 실시간으로 "지금까지 몇 회"를 보여줄 방법이 없었다(SquatCoachingPage.jsx의
             // 숙련자 모드 목표 진행 표시가 이 값을 그대로 쓴다).
             setRepHistory(repHistoryRef.current)
+            // (2026-09-15 추가) 초심자 모드는 시간 기반 종료 판정(위 checkSessionEnd) 대신
+            // "3회 채우면 다음 단계로" 기준을 쓴다.
+            if (isBeginner && repHistoryRef.current.length >= 3) {
+              transitionToFront(timestamp)
+              // (2026-09-15 추가) sessionStage는 setState라 이 tick() 실행 중엔 아직 안
+              // 바뀐다 — return 없이 아래로 흘러가면 이미 낡아버린 side 로직(STANDING_STEPS
+              // 안내 등)이 같은 프레임에서 한 번 더 돌면서 "정면으로 전환하겠습니다"
+              // 안내보다 먼저(또는 겹쳐서) 말해버린다 — 그래서 전환 안내가 뒤로 밀렸다.
+              // 여기서 바로 끝내서 전환 안내가 최우선으로 나가게 한다.
+              return
+            }
           }
 
+          // (2026-09-15 추가) 노이즈성 한두 프레임의 isDeepHold=true로 아래 안내가 바로
+          // 리셋되지 않게, 연속 프레임 수 기준 히스테리시스를 통과한 값만 안내 리셋에 쓴다.
+          if (isDeepHold) {
+            deepHoldStreakRef.current += 1
+          } else {
+            deepHoldStreakRef.current = 0
+          }
+          const isSquattingForGuide = deepHoldStreakRef.current >= DEEP_HOLD_GUIDE_STREAK_THRESHOLD
+
           let standingStepText = ''
-          if (result.is_normal && !isDeepHold) {
-            // 전신이 보이고 자세도 정상인데 아직 앉지 않은 상태 — 스쿼트 방법을 한 단계씩
-            // 순서대로 안내한다. speak(안내) → pause(쉼) → 다음 단계 speak 순으로 반복.
+          if (!isSquattingForGuide) {
+            // (2026-09-15 변경) 예전엔 result.is_normal이 아니면 안내가 끊기고 그 자리에서
+            // 바로 경고를 말했는데, 이제는 서 있는 동안은 지시사항(5단계 안내)을 끝까지 먼저
+            // 들려주고, 이슈는 쌓아뒀다가 한 바퀴 다 돌면 "이거이거이거 이상합니다, 이렇게
+            // 해주세요" 형태로 한 번에 정리해서 안내한다.
+            if (!result.is_normal) {
+              for (const issue of result.issues ?? []) {
+                if (!guideIssuesRef.current.some((seen) => seen.part === issue.part)) {
+                  guideIssuesRef.current.push({ part: issue.part })
+                }
+              }
+            }
+
             let justAdvanced = false
+            let cycleCompleted = false
             if (standingPhaseRef.current === null) {
               standingStepIndexRef.current = 0
               standingPhaseRef.current = 'speak'
@@ -607,6 +799,7 @@ export function useSquatCoachingSession() {
                 const isLastStep = standingStepIndexRef.current === STANDING_STEPS.length - 1
                 const pauseSec = isLastStep ? STANDING_STEP_LOOP_PAUSE_SEC : STANDING_STEP_PAUSE_SEC
                 if (elapsed >= pauseSec) {
+                  cycleCompleted = isLastStep
                   standingStepIndexRef.current = (standingStepIndexRef.current + 1) % STANDING_STEPS.length
                   standingPhaseRef.current = 'speak'
                   standingPhaseStartRef.current = timestamp
@@ -619,13 +812,40 @@ export function useSquatCoachingSession() {
             // (justAdvanced일 때만) 그 타이밍을 그대로 쓰고, 위 일반 속도 제한(force 없는
             // 경로)은 적용하지 않는다 — 안 그러면 한 단계 안에서 두 번 말하게 될 수 있다.
             if (justAdvanced) {
-              speak(standingStepText, timestamp, { force: true })
-              logMessage(standingStepText, 'ok', timestamp)
+              if (cycleCompleted) {
+                const items = []
+                if (guideIssuesRef.current.length > 0) {
+                  // (2026-09-15 변경) 이슈 요약 문구는 화면 배지/코칭 로그에는 그대로
+                  // 남기되 음성으로는 읽지 않는다(요청: 세션 리포트의 코칭 문구 TTS 제거).
+                  items.push({ text: buildIssueSummary(guideIssuesRef.current), holdSec: 5, speak: false })
+                  guideIssuesRef.current = []
+                }
+                // (2026-09-15 추가) 5단계 지시사항이 처음으로 한 바퀴 다 끝난 시점에만
+                // "3회 반복하겠습니다"를 안내한다(그다음부터 루프가 반복돼도 다시 말하지 않음).
+                if (isBeginner && !repCountAnnouncedRef.current) {
+                  repCountAnnouncedRef.current = true
+                  items.push({ text: '3회 반복하겠습니다.', holdSec: 3 })
+                }
+                if (items.length > 0) {
+                  items.push({ text: standingStepText, holdSec: STANDING_STEP_SPEAK_SEC })
+                  announceSequence(items, timestamp)
+                } else {
+                  speak(standingStepText, timestamp, { force: true })
+                  logMessage(standingStepText, 'ok', timestamp)
+                }
+              } else {
+                speak(standingStepText, timestamp, { force: true })
+                logMessage(standingStepText, 'ok', timestamp)
+              }
             }
           } else {
-            // 실제로 앉거나 이상 자세가 감지되면 서 있는 단계 안내를 초기화한다 — 다음에 다시
-            // 서 있는 정상 상태가 되면 1단계부터 새로 시작한다.
+            // 실제로 앉으면 서 있는 단계 안내와 그동안 모아둔 이슈를 초기화한다 — 다음에 다시
+            // 서 있는 상태가 되면 1단계부터 새로 시작한다.
             standingPhaseRef.current = null
+            guideIssuesRef.current = []
+            // (2026-09-15 수정) 얼마나 오래 앉아있었든 상관없이 문구를 통일한다(숙련자
+            // 모드도 포함) — 예전엔 6초 넘으면 "천천히 일어나주세요"로 문구가 바뀌었는데,
+            // 그것도 없애고 항상 같은 문구로 안내한다.
             const text = coachingText(result, isDeepHold)
             speak(text, timestamp)
             logMessage(text, result.is_normal ? 'ok' : 'warn', timestamp)
@@ -633,7 +853,7 @@ export function useSquatCoachingSession() {
 
           setJudgeResult({ ...result, view: 'side', isDeepHold, standingStepText })
 
-          if (judgmentHistoryRef.current.length % END_CHECK_EVERY_N_FRAMES === 0) {
+          if (!isBeginner && judgmentHistoryRef.current.length % END_CHECK_EVERY_N_FRAMES === 0) {
             const end = await checkSessionEnd(judgmentHistoryRef.current, false)
             if (end?.should_end) transitionToFront(timestamp)
           }
@@ -644,7 +864,18 @@ export function useSquatCoachingSession() {
     } finally {
       tickRunningRef.current = false
     }
-  }, [detectPose, speak, logMessage, checkSessionEnd, endSession, transitionToFront, sessionStage])
+  }, [
+    detectPose,
+    speak,
+    logMessage,
+    checkSessionEnd,
+    endSession,
+    transitionToFront,
+    sessionStage,
+    isBeginner,
+    announceSequence,
+    announce,
+  ])
   // tick의 최신 참조를 들고 있어서, 아래 effect가 setInterval을 한 번만 걸어도
   // 매번 최신 tick(최신 detectPose/speak 등을 참조하는)을 부르게 한다.
   const tickRef = useRef(tick)
@@ -673,6 +904,9 @@ export function useSquatCoachingSession() {
     setCoachingLog([])
     standingStepIndexRef.current = 0
     standingPhaseRef.current = null
+    deepHoldStreakRef.current = 0
+    frontDeepHoldStreakRef.current = 0
+    frontSquatCompletedRef.current = false
     setSessionStage('side')
     frontJudgmentHistoryRef.current = []
     repHistoryRef.current = []
@@ -684,18 +918,35 @@ export function useSquatCoachingSession() {
     repHadIssueRef.current = false
     repIssuesRef.current = []
     movementWarningCountRef.current = 0
+    deepHoldStartRef.current = null
+    guideIssuesRef.current = []
+    sessionEndingRef.current = false
+    repCountAnnouncedRef.current = false
+    pendingAnnounceTimersRef.current.forEach((id) => clearTimeout(id))
+    pendingAnnounceTimersRef.current = []
+    if (announcementTimerRef.current) clearTimeout(announcementTimerRef.current)
+    announcementRef.current = ''
+    setAnnouncement('')
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
       streamRef.current = stream
+      activeRef.current = true
       // <video>는 phase가 'active'로 바뀐 뒤에야 화면에 그려지므로(ActiveView 참고), 여기서는
       // phase만 바꾸고 실제 srcObject 연결/재생/프레임 인터벌 시작은 아래 effect에서 한다 —
       // 안 그러면 아직 마운트 전인 videoRef.current가 null이라 srcObject 대입에서 에러가 난다.
       setPhase('active')
+      // (2026-09-15 수정) 초심자 모드 전용 시작 인사 — "지금부터 스쿼트를 시작합니다"만
+      // 먼저 말한다. "3회 반복하겠습니다"는 5단계 지시사항이 다 끝난 뒤에 안내한다(아래
+      // STANDING_STEPS 한 바퀴 완료 지점 참고) — 숙련자 모드는 기존과 동일하게 바로 시작.
+      if (isBeginner) {
+        announceSequence([{ text: '지금부터 스쿼트를 시작합니다.' }], 0)
+      }
     } catch (err) {
+      activeRef.current = false
       setCameraError(`카메라를 열지 못했어요: ${err.message} (브라우저의 카메라 권한을 확인해주세요)`)
     }
-  }, [])
+  }, [isBeginner, announceSequence])
 
   // phase가 'active'가 되어 <video>가 실제로 마운트된 뒤 스트림을 연결한다(start() 참고).
   useEffect(() => {
@@ -789,5 +1040,6 @@ export function useSquatCoachingSession() {
     start,
     endSession: () => endSession('user_requested'),
     restart,
+    announcement,
   }
 }

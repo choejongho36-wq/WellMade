@@ -120,6 +120,7 @@ function ActiveView({ session, level }) {
     repHistory,
     dailyStats,
     squatGoal,
+    announcement,
   } = session
 
   const isWarmingUp = bufferCount < 3
@@ -135,7 +136,9 @@ function ActiveView({ session, level }) {
   // (useSquatCoachingSession.js 참고). judgeResult.is_normal이어도 실제로 앉은
   // 상태(isDeepHold)가 아니면(측면) "지금 자세를 유지하세요"를 보여주지 않고, 서 있을
   // 때는 대신 스쿼트 방법을 한 단계씩 안내하는 문구(standingStepText)를 보여준다.
-  const feedbackText = judgeError
+  const feedbackText = announcement
+    ? announcement
+    : judgeError
     ? judgeError
     : fullBodyWarning
       ? '전신이 나오게 뒤로 한 발짝 물러나주세요'
@@ -148,12 +151,14 @@ function ActiveView({ session, level }) {
               : (judgeResult.issues?.[0]?.message ?? '무릎 모임을 확인해주세요')
             : judgeResult.is_normal
               ? judgeResult.isDeepHold
-                ? '좋아요, 지금 자세를 유지하세요'
+                ? '좋아요, 이제 일어나주세요.'
                 : (judgeResult.standingStepText || '자세를 인식하고 있어요...')
               : (judgeResult.issues?.[0]?.message ?? '자세를 확인해주세요')
           : '자세를 인식하고 있어요...'
 
-  const feedbackState = judgeError
+  const feedbackState = announcement
+    ? 'ok'
+    : judgeError
     ? 'error'
     : fullBodyWarning
       ? 'warn'
@@ -618,7 +623,11 @@ function ReportView({ session }) {
 }
 
 function SquatCoachingPage() {
-  const session = useSquatCoachingSession()
+  // (2026-09-15 수정) 초심자 모드 전용 스크립트(시작 인사/3회 반복/전환 안내)가
+  // useSquatCoachingSession 안에서 갈리므로, level을 먼저 읽어 훅에 넘긴다 — 아래
+  // 기존 level 상태 선언은 그대로 두되 위치만 옮겼다.
+  const [level, setLevel] = useState(() => loadSquatLevel())
+  const session = useSquatCoachingSession(level)
   const [calendarOpen, setCalendarOpen] = useState(false)
   // (2026-09-09 추가) "카메라 켜고 시작하기"를 눌렀을 때 목표(마이페이지에서 설정하는
   // 하루 목표 횟수·세트)가 아직 한 번도 설정 안 돼 있으면(loadExerciseGoalState().configured
@@ -648,7 +657,6 @@ function SquatCoachingPage() {
   // 시작한다(squatLevelPreference.js 참고). 처음엔 세션 시작 전 팝업 모달로 고르게
   // 했었으나, 팝업 없이 IdleView에 바로 보이는 토글로 바꿨다(IdleView 주석 참고) — 그래서
   // 여기 남은 건 값 하나(level)와 토글이 누르는 즉시 부르는 저장 핸들러뿐이다.
-  const [level, setLevel] = useState(() => loadSquatLevel())
   const handleSelectLevel = (next) => {
     setLevel(next)
     saveSquatLevel(next)

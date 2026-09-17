@@ -15,6 +15,14 @@
   flex: 1;
   min-width: 0;
 }
+/* (2026-09-15 추가) 화면이 넓을 때 카메라 미리보기가 과도하게 커지는 것을 막는다 —
+   .squat-video가 width:100%라 부모(.squat-active) 폭을 그대로 따라가므로, 그 부모가
+   아니라 실제 영상을 감싸는 .squat-camera-wrap 쪽에 상한을 둔다(코칭 로그 패널과의
+   2단 레이아웃 자체는 그대로 유지). */
+.squat-active .squat-camera-wrap {
+  max-width: 960px; /* (2026-09-15 조정) 640px가 너무 작다는 피드백으로 1.5배 키움 */
+  margin: 0 auto;
+}
 
 /* 세션 동안 화면 배지/음성으로 나간 멘트를 시간순(최신이 위)으로 보여주는 패널
    (useSquatCoachingSession.js의 coachingLog, SquatCoachingPage.jsx의 CoachingLogPanel). */
